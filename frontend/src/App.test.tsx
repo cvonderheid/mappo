@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "@/App";
@@ -105,8 +105,15 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByText("target-01")).toBeInTheDocument();
-      expect(screen.getByText("run-1")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Fleet/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Deployments/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Deployments/i }));
+
+    await waitFor(() => {
       expect(screen.getByRole("button", { name: /Start Run/i })).toBeInTheDocument();
+      expect(screen.getByText("run-1")).toBeInTheDocument();
     });
   });
 });

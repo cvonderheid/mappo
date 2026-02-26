@@ -1,7 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import FleetTable from "@/components/FleetTable";
-import ReleaseList from "@/components/ReleaseList";
 import { RunDetailPanel, RunList } from "@/components/RunPanels";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +15,14 @@ import {
   resumeRun,
   retryFailed,
 } from "@/lib/api";
-import type { Release, RunDetail, RunSummary, StrategyMode, Target } from "@/lib/types";
+import type {
+  CreateRunRequest,
+  Release,
+  RunDetail,
+  RunSummary,
+  StrategyMode,
+  Target,
+} from "@/lib/types";
 
 type StartRunFormState = {
   strategyMode: StrategyMode;
@@ -32,6 +38,9 @@ const DEFAULT_FORM: StartRunFormState = {
   maxFailureRatePercent: "35",
 };
 
+type DeploymentScope = "filtered" | "specific";
+type ScreenView = "fleet" | "deployments";
+
 export default function App() {
   const [targets, setTargets] = useState<Target[]>([]);
   const [releases, setReleases] = useState<Release[]>([]);
@@ -39,31 +48,40 @@ export default function App() {
   const [selectedReleaseId, setSelectedReleaseId] = useState<string>("");
   const [selectedRunId, setSelectedRunId] = useState<string>("");
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
-  const [ringFilter, setRingFilter] = useState<string>("all");
+  const [activeScreen, setActiveScreen] = useState<ScreenView>("fleet");
+  const [targetGroupFilter, setTargetGroupFilter] = useState<string>("all");
+  const [deploymentScope, setDeploymentScope] = useState<DeploymentScope>("filtered");
+  const [selectedTargetIds, setSelectedTargetIds] = useState<string[]>([]);
   const [formState, setFormState] = useState<StartRunFormState>(DEFAULT_FORM);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
 
   const refreshTargets = useCallback(async () => {
     try {
-      setTargets(await listTargets(ringFilter));
+      setTargets(await listTargets(targetGroupFilter));
       setErrorMessage("");
     } catch (error) {
       setErrorMessage((error as Error).message);
     }
-  }, [ringFilter]);
+  }, [targetGroupFilter]);
 
   const refreshReleases = useCallback(async () => {
     try {
       const payload = await listReleases();
       setReleases(payload);
-      if (!selectedReleaseId && payload.length > 0) {
-        setSelectedReleaseId(payload[0].id);
-      }
+      setSelectedReleaseId((current) => {
+        if (payload.length === 0) {
+          return "";
+        }
+        if (current && payload.some((release) => release.id === current)) {
+          return current;
+        }
+        return payload[0].id;
+      });
     } catch (error) {
       setErrorMessage((error as Error).message);
     }
-  }, [selectedReleaseId]);
+  }, []);
 
   const refreshRuns = useCallback(async () => {
     try {
@@ -104,6 +122,7 @@ export default function App() {
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
+      void refreshTargets();
       void refreshRuns();
       if (selectedRunId) {
         void refreshRunDetail(selectedRunId);
@@ -111,7 +130,13 @@ export default function App() {
     }, 1200);
 
     return () => window.clearInterval(intervalId);
-  }, [refreshRunDetail, refreshRuns, selectedRunId]);
+  }, [refreshRunDetail, refreshRuns, refreshTargets, selectedRunId]);
+
+  useEffect(() => {
+    setSelectedTargetIds((current) =>
+      current.filter((targetId) => targets.some((target) => target.id === targetId))
+    );
+  }, [targets]);
 
   const runStats = useMemo(() => {
     let running = 0;
@@ -127,36 +152,51 @@ export default function App() {
     return { running, failedOrPartial };
   }, [runs]);
 
+  const selectedRelease = useMemo(
+    () => releases.find((release) => release.id === selectedReleaseId) ?? null,
+    [releases, selectedReleaseId]
+  );
+
   async function handleStartRun(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (!selectedReleaseId) {
-      setErrorMessage("Select a release first.");
+    if (!selectedRelease) {
+      setErrorMessage("No releases are available yet.");
       return;
+    }
+
+    const request: CreateRunRequest = {
+      release_id: selectedRelease.id,
+      strategy_mode: formState.strategyMode,
+      wave_tag: "ring",
+      wave_order: ["canary", "prod"],
+      concurrency: formState.concurrency,
+      target_tags: targetGroupFilter === "all" ? {} : { ring: targetGroupFilter },
+      stop_policy: {
+        max_failure_count:
+          formState.maxFailureCount.trim() === "" ? undefined : Number(formState.maxFailureCount),
+        max_failure_rate:
+          formState.maxFailureRatePercent.trim() === ""
+            ? undefined
+            : Number(formState.maxFailureRatePercent) / 100,
+      },
+    };
+
+    if (deploymentScope === "specific") {
+      if (selectedTargetIds.length === 0) {
+        setErrorMessage("Select at least one target for a specific-target deployment.");
+        return;
+      }
+      request.target_ids = [...selectedTargetIds].sort();
+      request.target_tags = {};
     }
 
     setIsSubmitting(true);
     try {
-      const created = await createRun({
-        release_id: selectedReleaseId,
-        strategy_mode: formState.strategyMode,
-        wave_tag: "ring",
-        wave_order: ["canary", "prod"],
-        concurrency: formState.concurrency,
-        target_tags: ringFilter === "all" ? {} : { ring: ringFilter },
-        stop_policy: {
-          max_failure_count:
-            formState.maxFailureCount.trim() === ""
-              ? undefined
-              : Number(formState.maxFailureCount),
-          max_failure_rate:
-            formState.maxFailureRatePercent.trim() === ""
-              ? undefined
-              : Number(formState.maxFailureRatePercent) / 100,
-        },
-      });
+      const created = await createRun(request);
       setSelectedRunId(created.id);
       await refreshRuns();
       await refreshRunDetail(created.id);
+      await refreshTargets();
       setErrorMessage("");
     } catch (error) {
       setErrorMessage((error as Error).message);
@@ -170,6 +210,7 @@ export default function App() {
       await resumeRun(runId);
       await refreshRuns();
       await refreshRunDetail(runId);
+      await refreshTargets();
       setSelectedRunId(runId);
       setErrorMessage("");
     } catch (error) {
@@ -182,6 +223,7 @@ export default function App() {
       await retryFailed(runId);
       await refreshRuns();
       await refreshRunDetail(runId);
+      await refreshTargets();
       setSelectedRunId(runId);
       setErrorMessage("");
     } catch (error) {
@@ -202,144 +244,258 @@ export default function App() {
               CodeDeploy-style release orchestration across Azure Lighthouse delegated subscriptions.
             </p>
           </div>
-          <div className="grid w-full grid-cols-3 gap-2 md:max-w-md">
-            <Kpi label="Total Targets" value={String(targets.length)} />
-            <Kpi label="Active Runs" value={String(runStats.running)} />
-            <Kpi label="Attention Needed" value={String(runStats.failedOrPartial)} />
+          <div className="w-full space-y-2 md:max-w-md">
+            <div className="grid grid-cols-3 gap-2">
+              <Kpi label="Total Targets" value={String(targets.length)} />
+              <Kpi label="Active Runs" value={String(runStats.running)} />
+              <Kpi label="Attention Needed" value={String(runStats.failedOrPartial)} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant={activeScreen === "fleet" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setActiveScreen("fleet")}
+              >
+                Fleet
+              </Button>
+              <Button
+                variant={activeScreen === "deployments" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setActiveScreen("deployments")}
+              >
+                Deployments
+              </Button>
+            </div>
           </div>
         </CardHeader>
       </Card>
 
       <Card className="glass-card animate-fade-up [animation-delay:40ms] [animation-fill-mode:forwards]">
         <CardHeader className="flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <CardTitle>Start Deployment Run</CardTitle>
+          <CardTitle>Target Filters</CardTitle>
           <div className="flex items-center gap-2">
-            <Label>Fleet filter</Label>
+            <Label>Target group</Label>
             <select
               className="h-10 rounded-md border border-input bg-background/90 px-3 text-sm"
-              value={ringFilter}
-              onChange={(event) => setRingFilter(event.target.value)}
+              value={targetGroupFilter}
+              onChange={(event) => setTargetGroupFilter(event.target.value)}
             >
-              <option value="all">All rings</option>
-              <option value="canary">Canary ring only</option>
-              <option value="prod">Prod ring only</option>
+              <option value="all">All groups</option>
+              <option value="canary">Canary group</option>
+              <option value="prod">Production group</option>
             </select>
           </div>
         </CardHeader>
-        <CardContent>
-          <form className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6" onSubmit={handleStartRun}>
-            <div className="space-y-1">
-              <Label>Release</Label>
-              <select
-                className="h-10 w-full rounded-md border border-input bg-background/90 px-3 text-sm"
-                value={selectedReleaseId}
-                onChange={(event) => setSelectedReleaseId(event.target.value)}
-                required
-              >
-                <option value="" disabled>
-                  Select release
-                </option>
-                {releases.map((release) => (
-                  <option key={release.id} value={release.id}>
-                    {release.template_spec_version}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <Label>Strategy</Label>
-              <select
-                className="h-10 w-full rounded-md border border-input bg-background/90 px-3 text-sm"
-                value={formState.strategyMode}
-                onChange={(event) =>
-                  setFormState((current) => ({
-                    ...current,
-                    strategyMode: event.target.value as StrategyMode,
-                  }))
-                }
-              >
-                <option value="waves">Waves by ring</option>
-                <option value="all_at_once">All-at-once</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <Label>Concurrency</Label>
-              <Input
-                type="number"
-                min={1}
-                max={25}
-                value={formState.concurrency}
-                onChange={(event) =>
-                  setFormState((current) => ({
-                    ...current,
-                    concurrency: Number(event.target.value),
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Max failures</Label>
-              <Input
-                type="number"
-                min={1}
-                value={formState.maxFailureCount}
-                onChange={(event) =>
-                  setFormState((current) => ({ ...current, maxFailureCount: event.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Max failure rate (%)</Label>
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                value={formState.maxFailureRatePercent}
-                onChange={(event) =>
-                  setFormState((current) => ({
-                    ...current,
-                    maxFailureRatePercent: event.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="flex items-end">
-              <Button type="submit" className="w-full" disabled={isSubmitting || releases.length === 0}>
-                {isSubmitting ? "Starting..." : "Start Run"}
-              </Button>
-            </div>
-          </form>
-          {errorMessage ? (
-            <div className="mt-3 rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive-foreground">
-              {errorMessage}
-            </div>
-          ) : null}
+        <CardContent className="text-xs text-muted-foreground">
+          Group is the deployment cohort tag currently stored as `ring` (`canary`, `prod`) in target metadata.
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+      {activeScreen === "fleet" ? (
         <FleetTable targets={targets} />
-        <ReleaseList
-          releases={releases}
-          selectedReleaseId={selectedReleaseId}
-          onSelectRelease={setSelectedReleaseId}
-        />
-      </div>
+      ) : (
+        <>
+          <Card className="glass-card animate-fade-up [animation-delay:60ms] [animation-fill-mode:forwards]">
+            <CardHeader>
+              <CardTitle>Start Deployment Run</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-3 space-y-2">
+                <Label>Release version</Label>
+                <select
+                  className="h-10 w-full rounded-md border border-input bg-background/90 px-3 text-sm"
+                  value={selectedReleaseId}
+                  onChange={(event) => setSelectedReleaseId(event.target.value)}
+                  required
+                >
+                  {releases.length === 0 ? (
+                    <option value="">No releases available</option>
+                  ) : null}
+                  {releases.map((release) => (
+                    <option key={release.id} value={release.id}>
+                      {release.template_spec_version}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <form className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6" onSubmit={handleStartRun}>
+                <div className="space-y-1">
+                  <Label>Strategy</Label>
+                  <select
+                    className="h-10 w-full rounded-md border border-input bg-background/90 px-3 text-sm"
+                    value={formState.strategyMode}
+                    onChange={(event) =>
+                      setFormState((current) => ({
+                        ...current,
+                        strategyMode: event.target.value as StrategyMode,
+                      }))
+                    }
+                  >
+                    <option value="waves">Grouped rollout (target group order)</option>
+                    <option value="all_at_once">All-at-once</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Target scope</Label>
+                  <select
+                    className="h-10 w-full rounded-md border border-input bg-background/90 px-3 text-sm"
+                    value={deploymentScope}
+                    onChange={(event) => setDeploymentScope(event.target.value as DeploymentScope)}
+                  >
+                    <option value="filtered">Current target-group filter</option>
+                    <option value="specific">Specific targets</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Concurrency</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={25}
+                    value={formState.concurrency}
+                    onChange={(event) =>
+                      setFormState((current) => ({
+                        ...current,
+                        concurrency: Number(event.target.value),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Max failures</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={formState.maxFailureCount}
+                    onChange={(event) =>
+                      setFormState((current) => ({ ...current, maxFailureCount: event.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Max failure rate (%)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={formState.maxFailureRatePercent}
+                    onChange={(event) =>
+                      setFormState((current) => ({
+                        ...current,
+                        maxFailureRatePercent: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button type="submit" className="w-full" disabled={isSubmitting || selectedRelease === null}>
+                    {isSubmitting ? "Starting..." : "Start Run"}
+                  </Button>
+                </div>
+              </form>
+              {deploymentScope === "filtered" ? (
+                <div className="mt-3 rounded-md border border-border/70 bg-muted/20 p-3">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Targets in selected target group: {targets.length}
+                    </p>
+                  </div>
+                  <div className="grid max-h-44 grid-cols-1 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-4">
+                    {targets.map((target) => (
+                      <label
+                        key={target.id}
+                        className="flex items-center gap-2 rounded-md border border-border/70 bg-card/70 px-2 py-1.5 text-xs"
+                      >
+                        <input type="checkbox" checked readOnly disabled className="h-3.5 w-3.5 accent-primary" />
+                        <span className="font-mono">{target.id}</span>
+                        <span className="text-muted-foreground">
+                          {target.tags.ring}/{target.tags.region}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {deploymentScope === "specific" ? (
+                <div className="mt-3 rounded-md border border-border/70 bg-muted/20 p-3">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Selected targets: {selectedTargetIds.length}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedTargetIds(targets.map((target) => target.id))}
+                      >
+                        Select all visible
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedTargetIds([])}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid max-h-44 grid-cols-1 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-4">
+                    {targets.map((target) => {
+                      const checked = selectedTargetIds.includes(target.id);
+                      return (
+                        <label
+                          key={target.id}
+                          className="flex cursor-pointer items-center gap-2 rounded-md border border-border/70 bg-card/70 px-2 py-1.5 text-xs"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setSelectedTargetIds((current) =>
+                                current.includes(target.id)
+                                  ? current.filter((id) => id !== target.id)
+                                  : [...current, target.id]
+                              )
+                            }
+                            className="h-3.5 w-3.5 accent-primary"
+                          />
+                          <span className="font-mono">{target.id}</span>
+                          <span className="text-muted-foreground">
+                            {target.tags.ring}/{target.tags.region}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+              {errorMessage ? (
+                <div className="mt-3 rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive-foreground">
+                  {errorMessage}
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
-        <RunList
-          runs={runs}
-          selectedRunId={selectedRunId}
-          onSelectRun={setSelectedRunId}
-          onResumeRun={(runId) => {
-            void handleResumeRun(runId);
-          }}
-          onRetryFailed={(runId) => {
-            void handleRetryFailed(runId);
-          }}
-        />
-        <RunDetailPanel run={runDetail} />
-      </div>
+          <div className="grid gap-4 lg:grid-cols-1">
+            <RunList
+              runs={runs}
+              selectedRunId={selectedRunId}
+              onSelectRun={setSelectedRunId}
+              onResumeRun={(runId) => {
+                void handleResumeRun(runId);
+              }}
+              onRetryFailed={(runId) => {
+                void handleRetryFailed(runId);
+              }}
+            />
+          </div>
+
+          <RunDetailPanel run={runDetail} />
+        </>
+      )}
     </main>
   );
 }

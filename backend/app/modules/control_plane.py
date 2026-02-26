@@ -182,7 +182,12 @@ class ControlPlaneStore:
             run = self._runs.get(run_id)
             if run is None:
                 raise StoreError(f"run not found: {run_id}")
-            if run.status not in {RunStatus.HALTED, RunStatus.FAILED, RunStatus.PARTIAL}:
+            if run.status not in {
+                RunStatus.RUNNING,
+                RunStatus.HALTED,
+                RunStatus.FAILED,
+                RunStatus.PARTIAL,
+            }:
                 raise StoreError("run is not resumable")
             run.status = RunStatus.RUNNING
             run.halt_reason = None
@@ -514,6 +519,13 @@ class ControlPlaneStore:
             run.updated_at = now
             if terminal_state is not None:
                 record.status = terminal_state
+                if terminal_state == TargetStage.SUCCEEDED:
+                    release = self._releases.get(run.release_id)
+                    target = self._targets.get(target_id)
+                    if release is not None and target is not None:
+                        target.last_deployed_release = release.template_spec_version
+                        target.last_check_in_at = now
+                        self._save_target_locked(target)
             elif stage in IN_PROGRESS_TARGET_STATES:
                 record.status = stage
             self._save_run_locked(run)
@@ -791,6 +803,23 @@ class ControlPlaneStore:
             else:
                 row.payload_json = release.model_dump(mode="json")
                 row.created_at = release.created_at
+            session.commit()
+
+    def _save_target_locked(self, target: Target) -> None:
+        now = utc_now()
+        with self._session_factory() as session:
+            row = session.get(Targets, target.id)
+            if row is None:
+                session.add(
+                    Targets(
+                        id=target.id,
+                        payload_json=target.model_dump(mode="json"),
+                        updated_at=now,
+                    )
+                )
+            else:
+                row.payload_json = target.model_dump(mode="json")
+                row.updated_at = now
             session.commit()
 
     def _save_run_locked(self, run: DeploymentRun) -> None:

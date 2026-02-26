@@ -33,7 +33,7 @@ export default function FleetTable({ targets }: FleetTableProps) {
               <TableHead>Target</TableHead>
               <TableHead>Tenant</TableHead>
               <TableHead>Subscription</TableHead>
-              <TableHead>Ring</TableHead>
+              <TableHead>Target Group</TableHead>
               <TableHead>Region</TableHead>
               <TableHead>Tier</TableHead>
               <TableHead>Version</TableHead>

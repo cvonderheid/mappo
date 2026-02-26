@@ -75,3 +75,111 @@ Phase 4 extension: API contract automation + local stack orchestration.
 - 2026-02-26: Added docker-compose stack at `infra/docker-compose.yml` with non-conflicting host ports (`8010`, `5174`, `5433`).
 - 2026-02-26: Verified compose file renders successfully (`docker compose -f infra/docker-compose.yml config`).
 - 2026-02-26: Verified compose stack boot/shutdown (`make dev-up`, `make dev-down`) after setting explicit compose project name `mappo`.
+
+---
+
+## Scope (Current Slice)
+Run UX + control-plane correctness:
+- Ensure Fleet Targets reflects latest successful deployed release after runs complete.
+- Support explicit target-scoped deployment starts from UI (specific targets, not only tag filters).
+- Add CodeDeploy-style overall progress visualization for long-running runs.
+
+## Plan (Current Slice)
+- [x] Add backend state update on per-target success (`last_deployed_release` sync).
+- [x] Add backend tests covering fleet version update + target-id scoping.
+- [x] Extend frontend start-run form to pick specific targets and send `target_ids`.
+- [x] Add overall run progress bar + counts in deployment run detail/list area.
+- [x] Regenerate OpenAPI/client artifacts if contract shape changes.
+- [x] Run verification suite and capture outcomes.
+
+## Verification Commands (Current Slice)
+- [x] `make openapi`
+- [x] `make client-gen`
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+- [x] `make phase1-gate-full`
+
+## Results Log (Current Slice)
+- 2026-02-26: Began implementation for fleet-version sync, target-scoped runs, and run progress UX.
+- 2026-02-26: Updated backend execution finalization to persist target `last_deployed_release` + `last_check_in_at` on successful deploys.
+- 2026-02-26: Added backend tests for target-id run scoping and fleet version synchronization after successful single-target runs.
+- 2026-02-26: Extended Start Deployment form with target scope mode (`current fleet filter` vs `specific targets`) and multi-select target picker.
+- 2026-02-26: Added run-level progress bars and completion metrics in both run list cards and run detail panel.
+- 2026-02-26: Verified `openapi`, `client-gen`, `lint`, `typecheck`, `test`, and `phase1-gate-full` all pass (frontend lint retains prior 2 warnings in shadcn ui primitives).
+
+---
+
+## Scope (UX Slice)
+Information architecture + terminology:
+- Split UI into two top-level screens: Fleet and Deployments.
+- Keep fleet/target monitoring separate from deployment execution controls.
+- Replace end-user "ring" wording with "target group" labels.
+
+## Plan (UX Slice)
+- [x] Add top-level Fleet/Deployments screen switch and move panels accordingly.
+- [x] Update fleet/deployment forms and table labels from ring to target group.
+- [x] Update frontend tests for the new view behavior.
+- [x] Run frontend/backend verification and capture outcomes.
+
+## Verification Commands (UX Slice)
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+
+## Results Log (UX Slice)
+- 2026-02-26: Began UI split + terminology cleanup per product direction.
+- 2026-02-26: Split UI into top-level Fleet and Deployments screens with explicit screen toggle controls.
+- 2026-02-26: Moved deployment execution controls (start run, releases, run list, run detail) to Deployments screen; Fleet screen now focuses on target state only.
+- 2026-02-26: Replaced user-facing "ring" wording with "target group" labels in filters/table/form strategy text while preserving backend tag key compatibility.
+- 2026-02-26: Updated `App` UI test to validate Fleet default view and Deployments screen transition.
+- 2026-02-26: Verified `make lint`, `make typecheck`, and `make test` pass (same existing 2 frontend lint warnings in shadcn ui primitives).
+
+---
+
+## Scope (UI Refinement Slice)
+Deployment UI simplification and action gating:
+- Remove confusing release-selection surfaces (panel + dropdown).
+- Disable run actions when they do not apply (e.g., resume/retry on fully succeeded runs).
+- Remove user-facing "Waves" wording in strategy labels.
+
+## Plan (UI Refinement Slice)
+- [x] Remove release list panel and release dropdown; use latest release automatically.
+- [x] Add run-action enable/disable rules for Resume and Retry Failed.
+- [x] Update strategy option labels to avoid "Waves" wording.
+- [x] Run frontend/backend verification and capture outcomes.
+
+## Verification Commands (UI Refinement Slice)
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+
+## Results Log (UI Refinement Slice)
+- 2026-02-26: Began deployment UI simplification and run-action gating updates.
+- 2026-02-26: Removed release-selection surfaces from Deployments UI (no release panel, no release dropdown); run start now targets latest available release.
+- 2026-02-26: Added run action gating so `Resume` and `Retry Failed` buttons are disabled when not applicable (including fully succeeded runs).
+- 2026-02-26: Reworded strategy option label from "Waves..." to "Grouped rollout (target group order)" and mapped run detail strategy text to user-friendly labels.
+- 2026-02-26: Verified `make lint`, `make typecheck`, and `make test` pass (same existing 2 frontend lint warnings in shadcn ui primitives).
+
+---
+
+## Scope (UI Follow-up Slice)
+Deployment selection clarity:
+- Show the target members for the selected target group in Deployments (read-only list).
+- Restore explicit release-version selection in a simpler UI shape (without the old side panel).
+
+## Plan (UI Follow-up Slice)
+- [x] Add a release-version picker in the Start Deployment Run card.
+- [x] Add a read-only target-group member preview list when target-scope is filtered/group-based.
+- [x] Run frontend/backend verification and capture outcomes.
+
+## Verification Commands (UI Follow-up Slice)
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+
+## Results Log (UI Follow-up Slice)
+- 2026-02-26: Began release selection + target-group membership preview refinements.
+- 2026-02-26: Added a simple clickable release-version picker in Start Deployment Run (no side release panel).
+- 2026-02-26: Added a read-only target-group membership list (checked + disabled) when deployment scope is group/filter-based.
+- 2026-02-26: Verified `make lint`, `make typecheck`, and `make test` pass (same existing 2 frontend lint warnings in shadcn ui primitives).
