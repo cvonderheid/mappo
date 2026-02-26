@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import App from "./App";
+import App from "@/App";
 
 const mockTargets = [
   {
@@ -13,6 +13,7 @@ const mockTargets = [
     last_deployed_release: "2026.02.20.1",
     health_status: "healthy",
     last_check_in_at: "2026-02-25T00:00:00Z",
+    simulated_failure_mode: "none",
   },
 ];
 
@@ -74,34 +75,30 @@ const mockRunDetail = {
   ],
 };
 
-function installFetchMock(): void {
-  const fetchMock = vi.fn(async (input: URL | RequestInfo): Promise<Response> => {
-    const url = String(input);
-    if (url.includes("/targets")) {
-      return new Response(JSON.stringify(mockTargets), { status: 200 });
-    }
-    if (url.includes("/releases")) {
-      return new Response(JSON.stringify(mockReleases), { status: 200 });
-    }
-    if (url.endsWith("/runs")) {
-      return new Response(JSON.stringify(mockRuns), { status: 200 });
-    }
-    if (url.includes("/runs/run-1")) {
-      return new Response(JSON.stringify(mockRunDetail), { status: 200 });
-    }
-    return new Response(JSON.stringify([]), { status: 200 });
-  });
+const apiMock = vi.hoisted(() => ({
+  createRun: vi.fn(),
+  getRun: vi.fn(),
+  listReleases: vi.fn(),
+  listRuns: vi.fn(),
+  listTargets: vi.fn(),
+  resumeRun: vi.fn(),
+  retryFailed: vi.fn(),
+}));
 
-  vi.stubGlobal("fetch", fetchMock);
-}
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
+vi.mock("@/lib/api", () => apiMock);
 
 describe("App", () => {
+  beforeEach(() => {
+    apiMock.listTargets.mockResolvedValue(mockTargets);
+    apiMock.listReleases.mockResolvedValue(mockReleases);
+    apiMock.listRuns.mockResolvedValue(mockRuns);
+    apiMock.getRun.mockResolvedValue(mockRunDetail);
+    apiMock.createRun.mockReset();
+    apiMock.resumeRun.mockReset();
+    apiMock.retryFailed.mockReset();
+  });
+
   it("renders dashboard data from API", async () => {
-    installFetchMock();
     render(<App />);
 
     expect(screen.getByRole("heading", { name: /MAPPO Control Plane/i })).toBeInTheDocument();

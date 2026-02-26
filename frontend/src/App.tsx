@@ -1,12 +1,12 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
-import FleetTable from "./components/FleetTable";
-import ReleaseList from "./components/ReleaseList";
-import { RunDetailPanel, RunList } from "./components/RunPanels";
-import { Button } from "./components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
-import { Input } from "./components/ui/input";
-import { Label } from "./components/ui/label";
+import FleetTable from "@/components/FleetTable";
+import ReleaseList from "@/components/ReleaseList";
+import { RunDetailPanel, RunList } from "@/components/RunPanels";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   createRun,
   getRun,
@@ -15,8 +15,8 @@ import {
   listTargets,
   resumeRun,
   retryFailed,
-} from "./lib/api";
-import type { Release, RunDetail, RunSummary, StrategyMode, Target } from "./lib/types";
+} from "@/lib/api";
+import type { Release, RunDetail, RunSummary, StrategyMode, Target } from "@/lib/types";
 
 type StartRunFormState = {
   strategyMode: StrategyMode;

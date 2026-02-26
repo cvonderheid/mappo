@@ -1,75 +1,98 @@
-# MAPPO Phase 2 Plan (`plans-next.md`)
+# MAPPO Phase 4 Plan (`plans-next.md`)
 
-Date: 2026-02-25
+Date: 2026-02-26
 
 ## Theme
-Deliver first runnable product slice:
-- backend + UI together,
-- CodeDeploy-like deployment visibility,
-- deterministic demo of 10 tenant targets.
+Postgres-first persistence baseline:
+- move control-plane storage from SQLite to Postgres,
+- enforce schema lifecycle with Flyway,
+- generate ORM classes from live schema using sqlacodegen.
 
 ## Verification Checklist (must stay accurate)
-- [x] Backend API serves health + core domain endpoints.
-- [x] Frontend renders Fleet, Releases, and Run details from API.
-- [x] Seed data includes 10 targets with realistic ring/region/tier tags.
-- [x] Deployment run supports all-at-once and tag-wave strategies.
-- [x] Per-target stage state machine is visible in run detail.
+- [x] Flyway baseline migration applies cleanly to local Postgres.
+- [x] Generated ORM model file exists and is in sync with migration schema.
+- [x] Targets/releases/runs persist and reload from Postgres on startup.
+- [x] In-flight runs reconcile safely on restart (`running` -> `halted`).
+- [x] Deterministic 10-target seed/reset still works.
+- [x] Retention prune command still works with configurable day window.
 - [x] `make phase1-gate-full` remains green.
-- [x] `make lint`, `make typecheck`, and `make test` run successfully.
 
-## Status Snapshot (2026-02-25)
+## Status Snapshot (2026-02-26)
 - [x] Milestone 01 completed
 - [x] Milestone 02 completed
 - [x] Milestone 03 completed
 - [x] Milestone 04 completed
+- [x] Milestone 05 completed
+- [x] Milestone 06 completed
 
-## Phase 2 — Milestone 01: Kickoff + Plan Refresh
+## Phase 4 — Milestone 01: DB Workflow Alignment
 **Scope**
-- Align active task plan and phase plan to implementation scope.
-
-**Key files/modules**
-- `tasks/todo.md`
-- `plans-next.md`
+- Add TXero-style DB targets and scripts (`db-migrate`, `db-validate`, `db-info`, `db-clean`, `db-reset`, `models-gen`).
 
 **Acceptance criteria**
-- Phase plan reflects backend+UI scope and verification checklist.
+- Local commands can create/migrate/reset schema and generate models deterministically.
 
 **Verification commands**
-- `make workflow-discipline-check`
+- `make db-migrate`
+- `make db-info`
+- `make models-gen`
 
-## Phase 2 — Milestone 02: Backend Vertical Slice
+## Phase 4 — Milestone 02: Store Migration
 **Scope**
-- Build backend service with targets/releases/runs endpoints and seed data.
+- Refactor control-plane store persistence from SQLite to Postgres using SQLAlchemy + generated models.
 
 **Acceptance criteria**
-- API returns seeded targets, releases, run summaries, and run details.
+- Existing API contract remains stable while data persists in Postgres JSONB tables.
+
+**Verification commands**
+- `make test-backend`
+
+## Phase 4 — Milestone 03: Runtime/Script Wiring
+**Scope**
+- Replace SQLite settings and operational scripts with Postgres configuration defaults.
+
+**Acceptance criteria**
+- App startup, `demo-reset`, and `retention-prune` all work against Postgres.
+
+**Verification commands**
+- `make demo-reset`
+- `make retention-prune RETENTION_DAYS=90`
+
+## Phase 4 — Milestone 04: Verification + Gate Closure
+**Scope**
+- Update tests and docs for Phase 4 and close quality gates.
+
+**Acceptance criteria**
+- Lint/typecheck/test and phase gate commands all pass.
 
 **Verification commands**
 - `make lint`
 - `make typecheck`
 - `make test`
-
-## Phase 2 — Milestone 03: Frontend Vertical Slice
-**Scope**
-- Build UI dashboard with Fleet, Releases, and Run visibility.
-
-**Acceptance criteria**
-- User can start a run from UI and inspect per-target stage progression.
-
-**Verification commands**
-- `make lint`
-- `make typecheck`
-- `make test`
-
-## Phase 2 — Milestone 04: Demo Readiness
-**Scope**
-- Make deterministic 10-target demo path stable and easy to run.
-
-**Acceptance criteria**
-- 10-target demo path is repeatable and documented.
-
-**Verification commands**
 - `make phase1-gate-full`
-- `make lint`
+
+## Phase 4 — Milestone 05: OpenAPI + Client Generation
+**Scope**
+- Add deterministic OpenAPI generation from FastAPI and frontend generated client types.
+
+**Acceptance criteria**
+- `backend/openapi/openapi.json` is generated from backend app contract.
+- Frontend API layer uses generated schema/client types instead of handwritten shape definitions.
+
+**Verification commands**
+- `make openapi`
+- `make client-gen`
 - `make typecheck`
-- `make test`
+
+## Phase 4 — Milestone 06: Docker Compose Dev Stack
+**Scope**
+- Add local compose stack for DB + migration + backend + frontend with non-conflicting default ports.
+
+**Acceptance criteria**
+- Stack can be started with one command.
+- Host ports do not conflict with TXero defaults.
+
+**Verification commands**
+- `make dev-up`
+- `make dev-logs`
+- `make dev-down`

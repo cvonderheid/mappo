@@ -12,15 +12,17 @@ from app.core.settings import get_settings
 from app.modules.control_plane import ControlPlaneStore
 
 
-@asynccontextmanager
-async def app_lifespan(app: FastAPI) -> AsyncIterator[None]:
-    app.state.store = ControlPlaneStore()
-    yield
-    await app.state.store.shutdown()
-
-
 def create_app() -> FastAPI:
     settings = get_settings()
+
+    @asynccontextmanager
+    async def app_lifespan(app: FastAPI) -> AsyncIterator[None]:
+        app.state.store = ControlPlaneStore(
+            database_url=settings.database_url,
+            retention_days=settings.retention_days,
+        )
+        yield
+        await app.state.store.shutdown()
 
     app = FastAPI(
         title=settings.app_name,

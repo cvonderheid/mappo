@@ -3,9 +3,13 @@ from __future__ import annotations
 import asyncio
 import hashlib
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+from sqlalchemy import delete, select
+
+from app.db.generated.models import Releases, Runs, Targets
+from app.db.session import create_engine_and_session_factory
 from app.modules.schemas import (
     CreateReleaseRequest,
     CreateRunRequest,
@@ -23,7 +27,7 @@ from app.modules.schemas import (
     TargetStageRecord,
 )
 
-TERMINAL_TARGET_STATES = {TargetStage.SUCCEEDED, TargetStage.FAILED}
+TERMINAL_RUN_STATUSES = {RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.PARTIAL, RunStatus.HALTED}
 IN_PROGRESS_TARGET_STATES = {TargetStage.VALIDATING, TargetStage.DEPLOYING, TargetStage.VERIFYING}
 
 
@@ -38,13 +42,33 @@ def utc_now() -> datetime:
 
 
 class ControlPlaneStore:
-    def __init__(self, stage_delay_seconds: float = 0.2):
+    def __init__(
+        self,
+        *,
+        database_url: str,
+        retention_days: int = 90,
+        stage_delay_seconds: float = 0.2,
+    ):
         self._lock = asyncio.Lock()
         self._stage_delay_seconds = stage_delay_seconds
-        self._targets: dict[str, Target] = self._seed_targets()
-        self._releases: dict[str, Release] = self._seed_releases()
-        self._runs: dict[str, DeploymentRun] = {}
+        self._retention_days = max(1, retention_days)
         self._execution_tasks: dict[str, asyncio.Task[None]] = {}
+        self._database_url = database_url
+        self._engine, self._session_factory = create_engine_and_session_factory(database_url)
+
+        self._targets = self._load_targets()
+        if not self._targets:
+            self._targets = self._seed_targets()
+            self._replace_targets_locked()
+
+        self._releases = self._load_releases()
+        if not self._releases:
+            self._releases = self._seed_releases()
+            self._replace_releases_locked()
+
+        self._runs = self._load_runs()
+        self._reconcile_running_runs_after_startup()
+        self._prune_retention_locked()
 
     async def shutdown(self) -> None:
         async with self._lock:
@@ -54,6 +78,7 @@ class ControlPlaneStore:
             task.cancel()
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+        self._engine.dispose()
 
     async def list_targets(self, tag_filters: dict[str, str] | None = None) -> list[Target]:
         filters = tag_filters or {}
@@ -83,6 +108,7 @@ class ControlPlaneStore:
         )
         async with self._lock:
             self._releases[release.id] = release
+            self._save_release_locked(release)
         return release.model_copy(deep=True)
 
     async def list_runs(self) -> list[RunSummary]:
@@ -142,6 +168,7 @@ class ControlPlaneStore:
                 target_records=target_records,
             )
             self._runs[run.id] = run
+            self._save_run_locked(run)
 
         await self._launch_execution(
             run_id=run.id,
@@ -161,6 +188,7 @@ class ControlPlaneStore:
             run.halt_reason = None
             run.ended_at = None
             run.updated_at = utc_now()
+            self._save_run_locked(run)
 
         await self._launch_execution(
             run_id=run_id,
@@ -185,6 +213,7 @@ class ControlPlaneStore:
             run.halt_reason = None
             run.ended_at = None
             run.updated_at = utc_now()
+            self._save_run_locked(run)
 
         await self._launch_execution(
             run_id=run_id,
@@ -192,6 +221,46 @@ class ControlPlaneStore:
             include_failed=True,
         )
         return await self.get_run(run_id)
+
+    async def reset_demo_data(self) -> None:
+        async with self._lock:
+            tasks = list(self._execution_tasks.values())
+            self._execution_tasks.clear()
+
+            self._targets = self._seed_targets()
+            self._releases = self._seed_releases()
+            self._runs = {}
+
+            self._replace_targets_locked()
+            self._replace_releases_locked()
+            self._delete_all_runs_locked()
+
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def prune_retention(self, retention_days: int | None = None) -> int:
+        async with self._lock:
+            if retention_days is None:
+                threshold_days = self._retention_days
+            else:
+                threshold_days = max(1, retention_days)
+            threshold = utc_now() - timedelta(days=threshold_days)
+
+            removable_ids: list[str] = []
+            for run_id, run in self._runs.items():
+                reference_time = run.ended_at or run.updated_at
+                if reference_time < threshold:
+                    removable_ids.append(run_id)
+
+            for run_id in removable_ids:
+                self._runs.pop(run_id, None)
+            if removable_ids:
+                with self._session_factory() as session:
+                    session.execute(delete(Runs).where(Runs.id.in_(removable_ids)))
+                    session.commit()
+            return len(removable_ids)
 
     async def _launch_execution(
         self,
@@ -240,6 +309,7 @@ class ControlPlaneStore:
                 run = self._runs.get(run_id)
                 if run is not None:
                     self._refresh_run_terminal_status_locked(run)
+                    self._save_run_locked(run)
             return
 
         waves = await self._build_waves(run_id=run_id, target_ids=pending_target_ids)
@@ -257,6 +327,7 @@ class ControlPlaneStore:
             run = self._runs.get(run_id)
             if run is not None:
                 self._refresh_run_terminal_status_locked(run)
+                self._save_run_locked(run)
 
     async def _get_concurrency(self, run_id: str) -> int:
         async with self._lock:
@@ -284,14 +355,12 @@ class ControlPlaneStore:
     async def _build_waves(self, *, run_id: str, target_ids: list[str]) -> list[list[str]]:
         async with self._lock:
             run = self._runs[run_id]
-            targets = self._targets
-
             if run.strategy_mode == StrategyMode.ALL_AT_ONCE:
                 return [sorted(target_ids)]
 
             grouped: dict[str, list[str]] = defaultdict(list)
             for target_id in target_ids:
-                tag_value = targets[target_id].tags.get(run.wave_tag, "unassigned")
+                tag_value = self._targets[target_id].tags.get(run.wave_tag, "unassigned")
                 grouped[tag_value].append(target_id)
 
             waves: list[list[str]] = []
@@ -373,6 +442,7 @@ class ControlPlaneStore:
             record = run.target_records[target_id]
             record.attempt += 1
             record.updated_at = utc_now()
+            self._save_run_locked(run)
             return record.attempt
 
     async def _start_stage(
@@ -408,6 +478,7 @@ class ControlPlaneStore:
                     correlation_id=correlation_id,
                 )
             )
+            self._save_run_locked(run)
 
     async def _complete_stage(
         self,
@@ -445,6 +516,7 @@ class ControlPlaneStore:
                 record.status = terminal_state
             elif stage in IN_PROGRESS_TARGET_STATES:
                 record.status = stage
+            self._save_run_locked(run)
 
     @staticmethod
     def _find_open_stage_record(
@@ -471,8 +543,10 @@ class ControlPlaneStore:
                     f"Halted: failed targets {counts['failed']} reached threshold "
                     f"{max_failure_count}."
                 )
-                run.ended_at = utc_now()
-                run.updated_at = run.ended_at
+                now = utc_now()
+                run.ended_at = now
+                run.updated_at = now
+                self._save_run_locked(run)
                 return True
 
             max_failure_rate = run.stop_policy.max_failure_rate
@@ -484,8 +558,10 @@ class ControlPlaneStore:
                         f"Halted: failure rate {failure_rate:.2%} exceeded "
                         f"threshold {max_failure_rate:.2%}."
                     )
-                    run.ended_at = utc_now()
-                    run.updated_at = run.ended_at
+                    now = utc_now()
+                    run.ended_at = now
+                    run.updated_at = now
+                    self._save_run_locked(run)
                     return True
 
             return False
@@ -627,6 +703,153 @@ class ControlPlaneStore:
             return True
         return False
 
+    def _load_targets(self) -> dict[str, Target]:
+        with self._session_factory() as session:
+            rows = session.execute(select(Targets.payload_json)).scalars().all()
+        targets: dict[str, Target] = {}
+        for payload in rows:
+            try:
+                target = Target.model_validate(payload)
+                targets[target.id] = target
+            except Exception as error:
+                print(f"failed to parse target payload: {error}")
+        return targets
+
+    def _load_releases(self) -> dict[str, Release]:
+        with self._session_factory() as session:
+            rows = session.execute(select(Releases.payload_json)).scalars().all()
+        releases: dict[str, Release] = {}
+        for payload in rows:
+            try:
+                release = Release.model_validate(payload)
+                releases[release.id] = release
+            except Exception as error:
+                print(f"failed to parse release payload: {error}")
+        return releases
+
+    def _load_runs(self) -> dict[str, DeploymentRun]:
+        with self._session_factory() as session:
+            rows = (
+                session.execute(select(Runs.payload_json).order_by(Runs.created_at.asc()))
+                .scalars()
+                .all()
+            )
+        runs: dict[str, DeploymentRun] = {}
+        for payload in rows:
+            try:
+                run = DeploymentRun.model_validate(payload)
+                runs[run.id] = run
+            except Exception as error:
+                print(f"failed to parse run payload: {error}")
+        return runs
+
+    def _replace_targets_locked(self) -> None:
+        now = utc_now()
+        with self._session_factory() as session:
+            session.execute(delete(Targets))
+            session.add_all(
+                [
+                    Targets(
+                        id=target.id,
+                        payload_json=target.model_dump(mode="json"),
+                        updated_at=now,
+                    )
+                    for target in sorted(self._targets.values(), key=lambda item: item.id)
+                ]
+            )
+            session.commit()
+
+    def _replace_releases_locked(self) -> None:
+        with self._session_factory() as session:
+            session.execute(delete(Releases))
+            session.add_all(
+                [
+                    Releases(
+                        id=release.id,
+                        payload_json=release.model_dump(mode="json"),
+                        created_at=release.created_at,
+                    )
+                    for release in sorted(
+                        self._releases.values(),
+                        key=lambda item: item.created_at,
+                    )
+                ]
+            )
+            session.commit()
+
+    def _save_release_locked(self, release: Release) -> None:
+        with self._session_factory() as session:
+            row = session.get(Releases, release.id)
+            if row is None:
+                session.add(
+                    Releases(
+                        id=release.id,
+                        payload_json=release.model_dump(mode="json"),
+                        created_at=release.created_at,
+                    )
+                )
+            else:
+                row.payload_json = release.model_dump(mode="json")
+                row.created_at = release.created_at
+            session.commit()
+
+    def _save_run_locked(self, run: DeploymentRun) -> None:
+        with self._session_factory() as session:
+            row = session.get(Runs, run.id)
+            if row is None:
+                session.add(
+                    Runs(
+                        id=run.id,
+                        payload_json=run.model_dump(mode="json"),
+                        created_at=run.created_at,
+                        updated_at=run.updated_at,
+                    )
+                )
+            else:
+                row.payload_json = run.model_dump(mode="json")
+                row.created_at = run.created_at
+                row.updated_at = run.updated_at
+            session.commit()
+
+    def _delete_all_runs_locked(self) -> None:
+        with self._session_factory() as session:
+            session.execute(delete(Runs))
+            session.commit()
+
+    def _reconcile_running_runs_after_startup(self) -> None:
+        changed = False
+        for run in self._runs.values():
+            if run.status != RunStatus.RUNNING:
+                continue
+            run.status = RunStatus.HALTED
+            run.halt_reason = "Control plane restarted before run completion. Resume to continue."
+            now = utc_now()
+            run.ended_at = now
+            run.updated_at = now
+            changed = True
+
+        if changed:
+            for run in self._runs.values():
+                self._save_run_locked(run)
+
+    def _prune_retention_locked(self) -> None:
+        threshold = utc_now() - timedelta(days=self._retention_days)
+        removable_ids: list[str] = []
+        for run_id, run in self._runs.items():
+            reference_time = run.ended_at or run.updated_at
+            if reference_time < threshold:
+                removable_ids.append(run_id)
+
+        if not removable_ids:
+            return
+
+        for run_id in removable_ids:
+            self._runs.pop(run_id, None)
+
+        with self._session_factory() as session:
+            session.execute(delete(Runs).where(Runs.id.in_(removable_ids)))
+            session.commit()
+
     @staticmethod
     def _seed_targets() -> dict[str, Target]:
         now = utc_now()
@@ -650,7 +873,10 @@ class ControlPlaneStore:
                 id=target_id,
                 tenant_id=f"tenant-{index:03d}",
                 subscription_id=f"sub-{index:04d}",
-                managed_app_id=f"/subscriptions/sub-{index:04d}/resourceGroups/rg-{target_id}/providers/Microsoft.Solutions/applications/{target_id}",
+                managed_app_id=(
+                    f"/subscriptions/sub-{index:04d}/resourceGroups/rg-{target_id}"
+                    f"/providers/Microsoft.Solutions/applications/{target_id}"
+                ),
                 tags={
                     "ring": ring,
                     "region": region,
@@ -667,10 +893,14 @@ class ControlPlaneStore:
     @staticmethod
     def _seed_releases() -> dict[str, Release]:
         now = utc_now()
+        template_spec_id = (
+            "/subscriptions/provider-sub/resourceGroups/mappo-rg/providers/"
+            "Microsoft.Resources/templateSpecs/mappo-managed-app"
+        )
         return {
             "rel-2026-02-20": Release(
                 id="rel-2026-02-20",
-                template_spec_id="/subscriptions/provider-sub/resourceGroups/mappo-rg/providers/Microsoft.Resources/templateSpecs/mappo-managed-app",
+                template_spec_id=template_spec_id,
                 template_spec_version="2026.02.20.1",
                 parameter_defaults={"imageTag": "1.4.2", "featureFlag": "off"},
                 release_notes="Stable baseline release.",
@@ -679,7 +909,7 @@ class ControlPlaneStore:
             ),
             "rel-2026-02-25": Release(
                 id="rel-2026-02-25",
-                template_spec_id="/subscriptions/provider-sub/resourceGroups/mappo-rg/providers/Microsoft.Resources/templateSpecs/mappo-managed-app",
+                template_spec_id=template_spec_id,
                 template_spec_version="2026.02.25.3",
                 parameter_defaults={"imageTag": "1.5.0", "featureFlag": "on"},
                 release_notes="Canary-first rollout with new API image tag.",

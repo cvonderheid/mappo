@@ -1,6 +1,6 @@
-import type { Release } from "../lib/types";
-import { Badge } from "./ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import type { Release } from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type ReleaseListProps = {
   releases: Release[];

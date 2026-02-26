@@ -1,7 +1,7 @@
-import type { RunDetail, RunSummary, TargetExecutionRecord } from "../lib/types";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import type { RunDetail, RunSummary, TargetExecutionRecord } from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type RunListProps = {
   runs: RunSummary[];
@@ -125,6 +125,9 @@ export function RunDetailPanel({ run }: RunDetailProps) {
 }
 
 function TargetRecordCard({ record }: { record: TargetExecutionRecord }) {
+  const stages = record.stages ?? [];
+  const logs = record.logs ?? [];
+
   return (
     <article className="rounded-md border border-border/70 bg-card/70 p-3">
       <header className="mb-2 flex items-center justify-between gap-2">
@@ -137,7 +140,7 @@ function TargetRecordCard({ record }: { record: TargetExecutionRecord }) {
         </Badge>
       </header>
       <div className="mb-2 flex flex-wrap gap-2">
-        {record.stages.map((stage) => (
+        {stages.map((stage) => (
           <div key={`${stage.stage}-${stage.started_at}`} className="rounded-md border border-border/60 bg-muted/30 px-2 py-1">
             <p className="text-[11px] font-semibold">{stage.stage}</p>
             <p className="font-mono text-[10px] text-muted-foreground">
@@ -146,13 +149,13 @@ function TargetRecordCard({ record }: { record: TargetExecutionRecord }) {
           </div>
         ))}
       </div>
-      {record.logs.length > 0 ? (
+      {logs.length > 0 ? (
         <details>
           <summary className="cursor-pointer text-xs text-muted-foreground">
-            Logs ({record.logs.length})
+            Logs ({logs.length})
           </summary>
           <div className="mt-2 space-y-1">
-            {record.logs.slice(-6).map((log) => (
+            {logs.slice(-6).map((log) => (
               <div
                 key={`${log.correlation_id}-${log.timestamp}`}
                 className="grid gap-1 rounded-sm border-t border-border/40 pt-1 text-[11px] sm:grid-cols-[80px_90px_1fr]"

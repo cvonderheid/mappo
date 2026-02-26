@@ -25,3 +25,6 @@ test-results/
 # Local env
 .env
 .env.*
+
+# Local data
+.data/
