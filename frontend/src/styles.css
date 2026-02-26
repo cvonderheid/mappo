@@ -1,0 +1,51 @@
+@import "@fontsource/space-grotesk/500.css";
+@import "@fontsource/space-grotesk/700.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 208 58% 9%;
+    --foreground: 205 88% 95%;
+    --card: 206 48% 12%;
+    --card-foreground: 205 88% 95%;
+    --primary: 163 72% 45%;
+    --primary-foreground: 200 52% 9%;
+    --secondary: 34 95% 58%;
+    --secondary-foreground: 209 56% 12%;
+    --muted: 208 36% 18%;
+    --muted-foreground: 206 36% 75%;
+    --destructive: 6 88% 62%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 205 31% 34%;
+    --input: 206 32% 24%;
+    --ring: 163 72% 45%;
+    --radius: 0.75rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    background-image:
+      radial-gradient(circle at 18% 12%, rgba(36, 200, 165, 0.24), transparent 42%),
+      radial-gradient(circle at 85% 14%, rgba(255, 173, 73, 0.26), transparent 36%),
+      linear-gradient(135deg, #07121e, #10273a);
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply border border-border/70 bg-card/75 backdrop-blur-xl shadow-sm;
+  }
+
+  .hero-gradient {
+    background-image: linear-gradient(122deg, rgba(19, 61, 87, 0.75), rgba(19, 47, 69, 0.55));
+  }
+}
