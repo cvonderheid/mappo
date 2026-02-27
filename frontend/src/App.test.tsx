@@ -114,6 +114,10 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Start Run/i })).toBeInTheDocument();
       expect(screen.getByText("run-1")).toBeInTheDocument();
+      expect(screen.getByLabelText("Release version")).toBeInTheDocument();
+      expect(screen.getByText("Targets in selected target group: 1")).toBeInTheDocument();
+      expect(screen.getByTestId("resume-run-1")).toBeDisabled();
+      expect(screen.getByTestId("retry-failed-run-1")).toBeDisabled();
     });
   });
 });

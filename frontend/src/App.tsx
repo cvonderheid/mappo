@@ -274,8 +274,9 @@ export default function App() {
         <CardHeader className="flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <CardTitle>Target Filters</CardTitle>
           <div className="flex items-center gap-2">
-            <Label>Target group</Label>
+            <Label htmlFor="target-group-filter">Target group</Label>
             <select
+              id="target-group-filter"
               className="h-10 rounded-md border border-input bg-background/90 px-3 text-sm"
               value={targetGroupFilter}
               onChange={(event) => setTargetGroupFilter(event.target.value)}
@@ -300,28 +301,30 @@ export default function App() {
               <CardTitle>Start Deployment Run</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="mb-3 space-y-2">
-                <Label>Release version</Label>
-                <select
-                  className="h-10 w-full rounded-md border border-input bg-background/90 px-3 text-sm"
-                  value={selectedReleaseId}
-                  onChange={(event) => setSelectedReleaseId(event.target.value)}
-                  required
-                >
-                  {releases.length === 0 ? (
-                    <option value="">No releases available</option>
-                  ) : null}
-                  {releases.map((release) => (
-                    <option key={release.id} value={release.id}>
-                      {release.template_spec_version}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <form className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6" onSubmit={handleStartRun}>
+              <form className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7" onSubmit={handleStartRun}>
                 <div className="space-y-1">
-                  <Label>Strategy</Label>
+                  <Label htmlFor="release-version">Release version</Label>
                   <select
+                    id="release-version"
+                    className="h-10 w-full rounded-md border border-input bg-background/90 px-3 text-sm"
+                    value={selectedReleaseId}
+                    onChange={(event) => setSelectedReleaseId(event.target.value)}
+                    required
+                  >
+                    {releases.length === 0 ? (
+                      <option value="">No releases available</option>
+                    ) : null}
+                    {releases.map((release) => (
+                      <option key={release.id} value={release.id}>
+                        {release.template_spec_version}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="strategy-mode">Strategy</Label>
+                  <select
+                    id="strategy-mode"
                     className="h-10 w-full rounded-md border border-input bg-background/90 px-3 text-sm"
                     value={formState.strategyMode}
                     onChange={(event) =>
@@ -336,8 +339,9 @@ export default function App() {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label>Target scope</Label>
+                  <Label htmlFor="target-scope">Target scope</Label>
                   <select
+                    id="target-scope"
                     className="h-10 w-full rounded-md border border-input bg-background/90 px-3 text-sm"
                     value={deploymentScope}
                     onChange={(event) => setDeploymentScope(event.target.value as DeploymentScope)}
@@ -404,9 +408,17 @@ export default function App() {
                     {targets.map((target) => (
                       <label
                         key={target.id}
+                        data-testid="filtered-member-row"
                         className="flex items-center gap-2 rounded-md border border-border/70 bg-card/70 px-2 py-1.5 text-xs"
                       >
-                        <input type="checkbox" checked readOnly disabled className="h-3.5 w-3.5 accent-primary" />
+                        <input
+                          data-testid={`filtered-member-checkbox-${target.id}`}
+                          type="checkbox"
+                          checked
+                          readOnly
+                          disabled
+                          className="h-3.5 w-3.5 accent-primary"
+                        />
                         <span className="font-mono">{target.id}</span>
                         <span className="text-muted-foreground">
                           {target.tags.ring}/{target.tags.region}
@@ -447,9 +459,11 @@ export default function App() {
                       return (
                         <label
                           key={target.id}
+                          data-testid={`specific-target-row-${target.id}`}
                           className="flex cursor-pointer items-center gap-2 rounded-md border border-border/70 bg-card/70 px-2 py-1.5 text-xs"
                         >
                           <input
+                            data-testid={`specific-target-checkbox-${target.id}`}
                             type="checkbox"
                             checked={checked}
                             onChange={() =>

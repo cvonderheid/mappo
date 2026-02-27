@@ -65,6 +65,39 @@ function percentComplete(completed: number, total: number): number {
   return Math.round((completed / total) * 100);
 }
 
+type ProgressSegment = {
+  key: string;
+  count: number;
+  widthPercent: number;
+  className: string;
+  label: string;
+};
+
+function progressSegments(progress: ProgressCounts): ProgressSegment[] {
+  if (progress.total <= 0) {
+    return [];
+  }
+
+  const raw: Array<{
+    key: string;
+    count: number;
+    className: string;
+    label: string;
+  }> = [
+    { key: "succeeded", count: progress.succeeded, className: "bg-emerald-500", label: "succeeded" },
+    { key: "failed", count: progress.failed, className: "bg-red-500", label: "failed" },
+    { key: "in-progress", count: progress.inProgress, className: "bg-sky-500", label: "in-progress" },
+    { key: "queued", count: progress.queued, className: "bg-slate-500", label: "queued" },
+  ];
+
+  return raw
+    .filter((segment) => segment.count > 0)
+    .map((segment) => ({
+      ...segment,
+      widthPercent: (segment.count / progress.total) * 100,
+    }));
+}
+
 function progressFromSummary(run: RunSummary): ProgressCounts {
   const completed = run.succeeded_targets + run.failed_targets;
   return {
@@ -113,13 +146,26 @@ function progressFromRecords(records: TargetExecutionRecord[]): ProgressCounts {
   };
 }
 
-function ProgressBar({ percent }: { percent: number }) {
+function StackedProgressBar({
+  progress,
+  testIdPrefix,
+}: {
+  progress: ProgressCounts;
+  testIdPrefix?: string;
+}) {
+  const segments = progressSegments(progress);
+
   return (
-    <div className="h-2 overflow-hidden rounded-full bg-muted/70">
-      <div
-        className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
-        style={{ width: `${percent}%` }}
-      />
+    <div className="flex h-2 overflow-hidden rounded-full bg-muted/70">
+      {segments.map((segment) => (
+        <div
+          key={segment.key}
+          data-testid={testIdPrefix ? `${testIdPrefix}-segment-${segment.key}` : undefined}
+          className={`h-full ${segment.className}`}
+          style={{ width: `${segment.widthPercent}%` }}
+          title={`${segment.label}: ${segment.count}`}
+        />
+      ))}
     </div>
   );
 }
@@ -147,6 +193,7 @@ export function RunList({
           return (
             <div
               key={run.id}
+              data-testid={`run-card-${run.id}`}
               className={
                 run.id === selectedRunId
                   ? "rounded-md border border-secondary/60 bg-secondary/5 p-3"
@@ -169,14 +216,15 @@ export function RunList({
               <div className="mb-2 space-y-1">
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                   <span>
-                    {progress.completed}/{progress.total} complete
+                    succeeded: {progress.succeeded} failed: {progress.failed} total: {progress.total}
                   </span>
-                  <span>{progress.percentComplete}%</span>
+                  <span>{progress.percentComplete}% processed</span>
                 </div>
-                <ProgressBar percent={progress.percentComplete} />
+                <StackedProgressBar progress={progress} testIdPrefix={`run-progress-${run.id}`} />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <Button
+                  data-testid={`resume-${run.id}`}
                   variant="outline"
                   size="sm"
                   onClick={() => onResumeRun(run.id)}
@@ -185,6 +233,7 @@ export function RunList({
                   Resume
                 </Button>
                 <Button
+                  data-testid={`retry-failed-${run.id}`}
                   variant="outline"
                   size="sm"
                   onClick={() => onRetryFailed(run.id)}
@@ -239,10 +288,10 @@ export function RunDetailPanel({ run }: RunDetailProps) {
           <div className="mb-2 flex items-center justify-between text-xs">
             <span className="font-semibold">Overall Progress</span>
             <span className="font-mono">
-              {progress.completed}/{progress.total} ({progress.percentComplete}%)
+              {progress.completed}/{progress.total} processed ({progress.percentComplete}%)
             </span>
           </div>
-          <ProgressBar percent={progress.percentComplete} />
+          <StackedProgressBar progress={progress} testIdPrefix="run-detail-progress" />
           <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
             <span>succeeded: {progress.succeeded}</span>
             <span>failed: {progress.failed}</span>

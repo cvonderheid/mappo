@@ -180,6 +180,63 @@ Deployment selection clarity:
 
 ## Results Log (UI Follow-up Slice)
 - 2026-02-26: Began release selection + target-group membership preview refinements.
-- 2026-02-26: Added a simple clickable release-version picker in Start Deployment Run (no side release panel).
+- 2026-02-26: Added a release-version selector in Start Deployment Run (no side release panel), finalized as a standard dropdown.
 - 2026-02-26: Added a read-only target-group membership list (checked + disabled) when deployment scope is group/filter-based.
 - 2026-02-26: Verified `make lint`, `make typecheck`, and `make test` pass (same existing 2 frontend lint warnings in shadcn ui primitives).
+
+---
+
+## Scope (E2E Coverage Slice)
+Playwright page-object and click-through coverage for operator-critical UX:
+- Add page object models for Fleet and Deployments navigation/actions.
+- Add Playwright tests that verify release selector visibility/selection, target-group member preview, specific-target flow, and run action enable/disable states.
+- Wire E2E checks into phase gate so UI regressions fail before completion.
+
+## Plan (E2E Coverage Slice)
+- [x] Add Playwright test tooling + scripts in frontend.
+- [x] Implement page object model classes for app shell and deployments screen.
+- [x] Implement core click-through tests with deterministic API stubs.
+- [x] Add Makefile target and include E2E in `phase1-gate-full`.
+- [x] Run verification commands and capture outcomes.
+
+## Verification Commands (E2E Coverage Slice)
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+- [x] `make phase1-gate-full`
+
+## Results Log (E2E Coverage Slice)
+- 2026-02-26: Began Playwright POM + core click-through coverage implementation.
+- 2026-02-26: Added Playwright tooling (`@playwright/test`) and scripts (`test:e2e`, `test:e2e:ci`) in frontend package workflow.
+- 2026-02-26: Implemented page object models for app shell and deployments interactions under `frontend/e2e/pages`.
+- 2026-02-26: Added deterministic API mocking helper and core click-through specs for release selection, target-group preview, specific-target run start, and run action gating.
+- 2026-02-26: Added stable test hooks (`id`/`data-testid`) to critical deployment controls for resilient behavior assertions.
+- 2026-02-26: Added `test-frontend-e2e` Make target and enforced it in `phase1-gate-full`.
+- 2026-02-26: Updated Vitest include pattern to prevent Playwright specs from being executed as unit tests.
+- 2026-02-26: Strengthened `src/App.test.tsx` to assert release selector visibility and run-action disabled states in Deployments view.
+- 2026-02-26: Verified `make lint`, `make typecheck`, `make test`, and `make phase1-gate-full` pass (same existing 2 frontend lint warnings in shadcn ui primitives).
+
+---
+
+## Scope (Status UX Slice)
+Deployment form and progress accuracy refinements:
+- Keep release selector inline with the other deployment selectors.
+- Ensure progress bars represent outcome composition (succeeded vs failed), not only terminal completion.
+
+## Plan (Status UX Slice)
+- [x] Move release selector into the main deployment form row.
+- [x] Replace single-color progress bars with segmented status bars by outcome.
+- [x] Extend Playwright coverage to assert failed segment visibility for failed runs.
+- [x] Run verification commands and capture outcomes.
+
+## Verification Commands (Status UX Slice)
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+- [x] `make phase1-gate-full`
+
+## Results Log (Status UX Slice)
+- 2026-02-26: Moved release selector into the primary Start Deployment Run selector row.
+- 2026-02-26: Changed run list/detail status bars to segmented composition (`succeeded`, `failed`, `in-progress`, `queued`) and adjusted labels to avoid conflating completion with success.
+- 2026-02-26: Added stable progress segment test IDs and Playwright assertions for failed-segment visibility.
+- 2026-02-26: Verified `make lint`, `make typecheck`, `make test`, and `make phase1-gate-full` pass (same existing 2 frontend lint warnings in shadcn ui primitives).

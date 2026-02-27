@@ -6,7 +6,7 @@ COMPOSE_FILE := infra/docker-compose.yml
 .PHONY: help install install-backend install-frontend \
 	dev dev-up dev-down dev-logs dev-backend dev-frontend build build-backend build-frontend \
 	lint lint-backend lint-frontend typecheck typecheck-backend typecheck-frontend \
-	test test-backend test-frontend demo-reset retention-prune \
+	test test-backend test-frontend test-frontend-e2e demo-reset retention-prune \
 	db-migrate db-validate db-info db-clean db-reset models-gen openapi client-gen \
 	workflow-discipline-check docs-consistency-check golden-principles-check check-no-demo-leak \
 	phase1-gate-fast phase1-gate-full
@@ -64,13 +64,16 @@ typecheck-backend: ## Run backend mypy checks
 typecheck-frontend: ## Run frontend TypeScript checks
 	cd frontend && npm run typecheck
 
-test: test-backend test-frontend ## Run backend + frontend tests
+test: test-backend test-frontend ## Run backend + frontend unit tests
 
 test-backend: ## Run backend tests
 	uv --directory backend run --package mappo-backend -- pytest -q
 
 test-frontend: ## Run frontend tests
 	cd frontend && npm run test
+
+test-frontend-e2e: ## Run frontend Playwright click-through tests
+	cd frontend && npm run test:e2e:ci
 
 demo-reset: ## Reset and reseed deterministic 10-target demo data
 	uv --directory backend run --package mappo-backend -- python scripts/demo_reset.py
@@ -117,5 +120,5 @@ check-no-demo-leak: ## Scan production paths for demo-only runtime leakage marke
 phase1-gate-fast: workflow-discipline-check docs-consistency-check golden-principles-check openapi client-gen ## Fast quality gate for Phase 1
 	@echo "phase1-gate-fast: PASS"
 
-phase1-gate-full: phase1-gate-fast check-no-demo-leak ## Full quality gate for Phase 1
+phase1-gate-full: phase1-gate-fast check-no-demo-leak test-frontend-e2e ## Full quality gate for Phase 1
 	@echo "phase1-gate-full: PASS"
