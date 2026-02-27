@@ -53,6 +53,7 @@ def _bootstrap_postgres() -> Generator[None, None, None]:
 def client() -> Generator[TestClient, None, None]:
     os.environ["MAPPO_DATABASE_URL"] = _current_database_url()
     os.environ["MAPPO_RETENTION_DAYS"] = "90"
+    os.environ["MAPPO_EXECUTION_MODE"] = "demo"
     _reset_database(os.environ["MAPPO_DATABASE_URL"])
     get_settings.cache_clear()
     app = create_app()

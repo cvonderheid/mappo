@@ -240,3 +240,63 @@ Deployment form and progress accuracy refinements:
 - 2026-02-26: Changed run list/detail status bars to segmented composition (`succeeded`, `failed`, `in-progress`, `queued`) and adjusted labels to avoid conflating completion with success.
 - 2026-02-26: Added stable progress segment test IDs and Playwright assertions for failed-segment visibility.
 - 2026-02-26: Verified `make lint`, `make typecheck`, `make test`, and `make phase1-gate-full` pass (same existing 2 frontend lint warnings in shadcn ui primitives).
+
+---
+
+## Scope (Phase 5 Slice)
+Live execution boundary hardening:
+- Introduce execution-mode abstraction so run orchestration can target demo or Azure execution backends.
+- Keep demo behavior deterministic for local/dev and existing test suite.
+- Add stricter resume/retry applicability rules so invalid actions fail consistently.
+
+## Plan (Phase 5 Slice)
+- [x] Add execution mode settings and bootstrap wiring (`demo` default, `azure` optional).
+- [x] Extract per-target stage execution behavior into executor adapters (`demo` + `azure` boundary adapter).
+- [x] Wire control-plane run execution to use the configured executor without changing API contract.
+- [x] Add backend regression tests for action applicability and execution mode behavior.
+- [x] Run verification commands and capture outcomes.
+
+## Verification Commands (Phase 5 Slice)
+- [x] `make openapi`
+- [x] `make client-gen`
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+- [x] `make phase1-gate-full`
+
+## Results Log (Phase 5 Slice)
+- 2026-02-27: Started Phase 5 implementation for execution-mode abstraction and live-boundary hardening.
+- 2026-02-27: Added execution adapter module (`demo` + `azure`) and moved per-target stage simulation out of `ControlPlaneStore`.
+- 2026-02-27: Added `MAPPO_EXECUTION_MODE` and Azure credential settings wiring through app bootstrap/scripts.
+- 2026-02-27: Added backend regression tests for Azure execution boundary behavior and completed-run resume rejection.
+- 2026-02-27: Verified `make openapi`, `make client-gen`, `make lint`, `make typecheck`, `make test`, and `make phase1-gate-full` pass (same existing 2 frontend lint warnings in shadcn ui primitives).
+
+---
+
+## Scope (Phase 5.2 Slice)
+Pulumi baseline for live demo tenant provisioning:
+- Add Pulumi IaC project for deploying target ACA baseline resources across selected subscriptions.
+- Keep this slice demo-first: focus on repeatable 10-target scaffolding and outputs MAPPO can consume.
+- Align command workflow with existing Make-driven standards.
+
+## Plan (Phase 5.2 Slice)
+- [x] Scaffold `infra/pulumi` TypeScript project with Azure Native provider dependencies.
+- [x] Implement target loop deployment model (resource group + ACA environment + target app per configured target).
+- [x] Add stack config template for a 10-target demo dataset and clear variable contract.
+- [x] Add Make targets and docs for install/preview/up/down/export workflows.
+- [x] Run verification commands and capture outcomes.
+
+## Verification Commands (Phase 5.2 Slice)
+- [x] `make iac-install`
+- [x] `make iac-preview`
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+
+## Results Log (Phase 5.2 Slice)
+- 2026-02-27: Started Pulumi IaC baseline implementation for live multi-tenant demo provisioning.
+- 2026-02-27: Added `infra/pulumi` TypeScript Pulumi project with Azure Native target-loop deployment model.
+- 2026-02-27: Added stack files (`Pulumi.dev.yaml`, `Pulumi.demo-10tenants.yaml.example`) and exported `mappoTargetInventory` outputs for MAPPO ingestion.
+- 2026-02-27: Added root Make targets (`iac-install`, `iac-stack-init`, `iac-preview`, `iac-up`, `iac-destroy`, `iac-export-targets`) with local backend defaults.
+- 2026-02-27: Updated README and docs with Pulumi demo workflow and config references.
+- 2026-02-27: Verified `make iac-install`, `make iac-preview`, `make lint`, `make typecheck`, and `make test` pass (same existing 2 frontend lint warnings in shadcn ui primitives).

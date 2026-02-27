@@ -18,6 +18,12 @@
 3. Persist check outcomes in per-target stage details.
 4. Add operator-facing messages and troubleshooting links.
 
+## Add a New Execution Adapter
+1. Implement `TargetExecutor` in `backend/app/modules/execution.py`.
+2. Keep emitted stage events deterministic (`started`/`completed`) with explicit correlation IDs.
+3. Wire adapter selection through `MAPPO_EXECUTION_MODE` settings (do not fork orchestration logic).
+4. Add adapter behavior tests and run full phase gate.
+
 ## Quality Gate
 Run before merging non-trivial changes:
 ```bash

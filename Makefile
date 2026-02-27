@@ -2,12 +2,18 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 RETENTION_DAYS ?= 90
 COMPOSE_FILE := infra/docker-compose.yml
+IAC_DIR := infra/pulumi
+PULUMI_STACK ?= dev
+IAC_TARGET_EXPORT ?= .data/mappo-target-inventory.json
+PULUMI_CONFIG_PASSPHRASE ?= mappo-local-dev
+export PULUMI_CONFIG_PASSPHRASE
 
 .PHONY: help install install-backend install-frontend \
 	dev dev-up dev-down dev-logs dev-backend dev-frontend build build-backend build-frontend \
 	lint lint-backend lint-frontend typecheck typecheck-backend typecheck-frontend \
 	test test-backend test-frontend test-frontend-e2e demo-reset retention-prune \
 	db-migrate db-validate db-info db-clean db-reset models-gen openapi client-gen \
+	iac-install iac-stack-init iac-preview iac-up iac-destroy iac-export-targets \
 	workflow-discipline-check docs-consistency-check golden-principles-check check-no-demo-leak \
 	phase1-gate-fast phase1-gate-full
 
@@ -104,6 +110,27 @@ openapi: ## Generate backend OpenAPI schema
 
 client-gen: openapi ## Generate frontend API types from OpenAPI
 	cd frontend && npm run client-gen
+
+iac-install: ## Install Pulumi IaC dependencies
+	cd $(IAC_DIR) && npm install
+
+iac-stack-init: ## Select or initialize Pulumi stack (default: dev)
+	cd $(IAC_DIR) && pulumi login --local
+	cd $(IAC_DIR) && (pulumi stack select $(PULUMI_STACK) || pulumi stack init $(PULUMI_STACK))
+
+iac-preview: iac-install iac-stack-init ## Preview Pulumi IaC changes
+	cd $(IAC_DIR) && npm run build && pulumi preview --stack $(PULUMI_STACK) --non-interactive
+
+iac-up: iac-install iac-stack-init ## Deploy Pulumi IaC changes
+	cd $(IAC_DIR) && npm run build && pulumi up --stack $(PULUMI_STACK) --yes
+
+iac-destroy: iac-install iac-stack-init ## Destroy Pulumi IaC stack resources
+	cd $(IAC_DIR) && npm run build && pulumi destroy --stack $(PULUMI_STACK) --yes
+
+iac-export-targets: iac-stack-init ## Export MAPPO target inventory from Pulumi stack output
+	@mkdir -p $(dir $(IAC_TARGET_EXPORT))
+	cd $(IAC_DIR) && pulumi stack output mappoTargetInventory --stack $(PULUMI_STACK) --json > $(abspath $(IAC_TARGET_EXPORT))
+	@echo "wrote $(abspath $(IAC_TARGET_EXPORT))"
 
 workflow-discipline-check: ## Validate required planning artifacts and structure
 	python3 scripts/workflow_discipline_check.py

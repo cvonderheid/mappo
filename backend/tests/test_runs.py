@@ -145,3 +145,23 @@ def test_resume_after_retry_failed_completes_queued_targets(client: TestClient) 
 
     final_payload = _wait_for_terminal(client, run_id)
     assert final_payload["status"] == "succeeded"
+
+
+def test_resume_rejected_for_completed_run(client: TestClient) -> None:
+    create_response = client.post(
+        "/api/v1/runs",
+        json={
+            "release_id": "rel-2026-02-25",
+            "target_ids": ["target-01"],
+            "concurrency": 1,
+        },
+    )
+    assert create_response.status_code == 201
+    run_id = create_response.json()["id"]
+
+    final_payload = _wait_for_terminal(client, run_id)
+    assert final_payload["status"] == "succeeded"
+
+    resume_response = client.post(f"/api/v1/runs/{run_id}/resume")
+    assert resume_response.status_code == 400
+    assert resume_response.json()["detail"] == "run is not resumable"

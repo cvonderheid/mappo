@@ -1,0 +1,114 @@
+config:
+  mappo:defaultLocation: eastus
+  mappo:defaultImage: mcr.microsoft.com/azuredocs/containerapps-helloworld:latest
+  mappo:targets:
+    - id: target-01
+      tenantId: tenant-001
+      subscriptionId: 00000000-0000-0000-0000-000000000001
+      targetGroup: canary
+      region: eastus
+      resourceGroupName: rg-mappo-target-01
+      managedEnvironmentName: cae-mappo-target-01
+      containerAppName: ca-mappo-target-01
+      tags:
+        tier: gold
+        environment: demo
+    - id: target-02
+      tenantId: tenant-002
+      subscriptionId: 00000000-0000-0000-0000-000000000002
+      targetGroup: canary
+      region: westus
+      resourceGroupName: rg-mappo-target-02
+      managedEnvironmentName: cae-mappo-target-02
+      containerAppName: ca-mappo-target-02
+      tags:
+        tier: gold
+        environment: demo
+    - id: target-03
+      tenantId: tenant-003
+      subscriptionId: 00000000-0000-0000-0000-000000000003
+      targetGroup: prod
+      region: eastus
+      resourceGroupName: rg-mappo-target-03
+      managedEnvironmentName: cae-mappo-target-03
+      containerAppName: ca-mappo-target-03
+      tags:
+        tier: gold
+        environment: demo
+    - id: target-04
+      tenantId: tenant-004
+      subscriptionId: 00000000-0000-0000-0000-000000000004
+      targetGroup: prod
+      region: westus
+      resourceGroupName: rg-mappo-target-04
+      managedEnvironmentName: cae-mappo-target-04
+      containerAppName: ca-mappo-target-04
+      tags:
+        tier: gold
+        environment: demo
+    - id: target-05
+      tenantId: tenant-005
+      subscriptionId: 00000000-0000-0000-0000-000000000005
+      targetGroup: prod
+      region: centralus
+      resourceGroupName: rg-mappo-target-05
+      managedEnvironmentName: cae-mappo-target-05
+      containerAppName: ca-mappo-target-05
+      tags:
+        tier: silver
+        environment: demo
+    - id: target-06
+      tenantId: tenant-006
+      subscriptionId: 00000000-0000-0000-0000-000000000006
+      targetGroup: prod
+      region: eastus2
+      resourceGroupName: rg-mappo-target-06
+      managedEnvironmentName: cae-mappo-target-06
+      containerAppName: ca-mappo-target-06
+      tags:
+        tier: silver
+        environment: demo
+    - id: target-07
+      tenantId: tenant-007
+      subscriptionId: 00000000-0000-0000-0000-000000000007
+      targetGroup: prod
+      region: westus2
+      resourceGroupName: rg-mappo-target-07
+      managedEnvironmentName: cae-mappo-target-07
+      containerAppName: ca-mappo-target-07
+      tags:
+        tier: silver
+        environment: demo
+    - id: target-08
+      tenantId: tenant-008
+      subscriptionId: 00000000-0000-0000-0000-000000000008
+      targetGroup: prod
+      region: southcentralus
+      resourceGroupName: rg-mappo-target-08
+      managedEnvironmentName: cae-mappo-target-08
+      containerAppName: ca-mappo-target-08
+      tags:
+        tier: silver
+        environment: demo
+    - id: target-09
+      tenantId: tenant-009
+      subscriptionId: 00000000-0000-0000-0000-000000000009
+      targetGroup: prod
+      region: northcentralus
+      resourceGroupName: rg-mappo-target-09
+      managedEnvironmentName: cae-mappo-target-09
+      containerAppName: ca-mappo-target-09
+      tags:
+        tier: bronze
+        environment: demo
+    - id: target-10
+      tenantId: tenant-010
+      subscriptionId: 00000000-0000-0000-0000-000000000010
+      targetGroup: prod
+      region: eastus
+      resourceGroupName: rg-mappo-target-10
+      managedEnvironmentName: cae-mappo-target-10
+      containerAppName: ca-mappo-target-10
+      tags:
+        tier: bronze
+        environment: demo

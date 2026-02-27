@@ -10,6 +10,7 @@ from app.api.router import api_router
 from app.api.routers.health import root_router
 from app.core.settings import get_settings
 from app.modules.control_plane import ControlPlaneStore
+from app.modules.execution import AzureExecutorSettings
 
 
 def create_app() -> FastAPI:
@@ -19,6 +20,12 @@ def create_app() -> FastAPI:
     async def app_lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.store = ControlPlaneStore(
             database_url=settings.database_url,
+            execution_mode=settings.execution_mode,
+            azure_settings=AzureExecutorSettings(
+                tenant_id=settings.azure_tenant_id,
+                client_id=settings.azure_client_id,
+                client_secret=settings.azure_client_secret,
+            ),
             retention_days=settings.retention_days,
         )
         yield

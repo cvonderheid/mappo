@@ -1,4 +1,4 @@
-# MAPPO Phase 4 Plan (`plans-next.md`)
+# MAPPO Phase 4-5 Plan (`plans-next.md`)
 
 Date: 2026-02-26
 
@@ -96,3 +96,40 @@ Postgres-first persistence baseline:
 - `make dev-up`
 - `make dev-logs`
 - `make dev-down`
+
+## Phase 5 — Milestone 01: Execution Adapter Boundary
+**Scope**
+- Introduce execution-mode adapter boundary (`demo` + `azure`) while preserving existing orchestration/data contracts.
+- Keep deterministic demo behavior as default mode for local development and tests.
+
+**Acceptance criteria**
+- Control-plane execution path delegates per-target stage events via adapter interface.
+- Runtime mode is configurable through settings (`MAPPO_EXECUTION_MODE`).
+- Azure mode surfaces explicit configuration/implementation errors without breaking run state handling.
+- Existing API contract remains stable.
+
+**Verification commands**
+- `make openapi`
+- `make client-gen`
+- `make lint`
+- `make typecheck`
+- `make test`
+- `make phase1-gate-full`
+
+## Phase 5 — Milestone 02: Pulumi Demo Target Provisioning
+**Scope**
+- Add a Pulumi IaC baseline for demo target provisioning (resource group + ACA environment + ACA app per target).
+- Provide a 10-target stack config template compatible with MAPPO target inventory concepts.
+- Integrate IaC commands into Make workflow.
+
+**Acceptance criteria**
+- `infra/pulumi` contains a runnable Pulumi project with typed target config.
+- Stack outputs include target inventory payload (`mappoTargetInventory`) for MAPPO ingestion.
+- Make targets exist for install/preview/up/destroy/export.
+
+**Verification commands**
+- `make iac-install`
+- `make iac-preview`
+- `make lint`
+- `make typecheck`
+- `make test`

@@ -7,6 +7,7 @@ MAPPO is a multi-tenant deployment control plane for Azure Managed Apps (CodeDep
 - React/TypeScript dashboard for Fleet, Releases, and Deployment Runs.
 - Simulated per-target rollout state machine with retry/resume controls.
 - Postgres-backed persistence for targets/releases/runs (schema managed by Flyway).
+- Execution-mode boundary (`demo` default, `azure` adapter scaffold for live integration).
 
 ## Quick start
 1. Install dependencies:
@@ -36,6 +37,20 @@ Default host ports:
 - UI: `5174`
 - Postgres: `5433`
 
+## Demo IaC (Pulumi)
+- Pulumi project path: `/Users/cvonderheid/workspace/mappo/infra/pulumi`
+- Stack default: `dev` (override with `PULUMI_STACK=<stack>`)
+- Local Pulumi backend is used by default via Make targets (`pulumi login --local`).
+- Default local secrets passphrase: `mappo-local-dev` (override with `PULUMI_CONFIG_PASSPHRASE`).
+- Commands:
+  - `make iac-install`
+  - `make iac-preview`
+  - `make iac-up`
+  - `make iac-export-targets`
+  - `make iac-destroy`
+- 10-target config template:
+  - `/Users/cvonderheid/workspace/mappo/infra/pulumi/Pulumi.demo-10tenants.yaml.example`
+
 ## Core quality commands
 - `make workflow-discipline-check`
 - `make docs-consistency-check`
@@ -48,6 +63,14 @@ Default host ports:
 - `make test`
 - `make openapi`
 - `make client-gen`
+
+## Execution modes
+- `MAPPO_EXECUTION_MODE=demo` (default): deterministic seeded behavior for local dev/test.
+- `MAPPO_EXECUTION_MODE=azure`: enables Azure executor boundary mode.
+- Azure mode expects credential env vars:
+  - `MAPPO_AZURE_TENANT_ID`
+  - `MAPPO_AZURE_CLIENT_ID`
+  - `MAPPO_AZURE_CLIENT_SECRET`
 
 ## Demo operations
 - `make demo-reset` (reseed deterministic 10-tenant demo data)

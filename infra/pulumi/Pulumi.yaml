@@ -1,0 +1,15 @@
+name: mappo-demo-targets
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+description: MAPPO demo target provisioning on Azure Container Apps using Pulumi
+config:
+  mappo:defaultLocation:
+    value: eastus
+  mappo:defaultImage:
+    value: mcr.microsoft.com/azuredocs/containerapps-helloworld:latest
+  mappo:defaultCpu:
+    value: 0.25
+  mappo:defaultMemory:
+    value: 0.5Gi

@@ -22,6 +22,7 @@ MAPPO is a provider-tenant control plane that orchestrates release rollouts acro
 - Executes state machine per target:
   - `QUEUED` -> `VALIDATING` -> `DEPLOYING` -> `VERIFYING` -> (`SUCCEEDED` | `FAILED`)
 - Captures stage timestamps, errors, and correlation IDs.
+- Adapter boundary supports execution modes (`demo` and `azure`) so orchestration and persistence stay unchanged across runtimes.
 
 4. Persistence
 - Stores fleet state, run history, per-target stage records, and logs.
@@ -36,6 +37,7 @@ MAPPO is a provider-tenant control plane that orchestrates release rollouts acro
 - App services hosted on Azure Container Apps.
 - Azure APIs accessed using delegated Lighthouse permissions.
 - UI and API are separate deployable containers.
+- Demo target tenant infrastructure is provisioned through Pulumi (`infra/pulumi`).
 
 ## Determinism + Legibility Contract
 - Stage transitions are append-only and timestamped.

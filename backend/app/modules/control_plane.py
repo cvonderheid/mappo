@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -10,6 +9,12 @@ from sqlalchemy import delete, select
 
 from app.db.generated.models import Releases, Runs, Targets
 from app.db.session import create_engine_and_session_factory
+from app.modules.execution import (
+    AzureExecutorSettings,
+    ExecutionMode,
+    TargetExecutor,
+    create_target_executor,
+)
 from app.modules.schemas import (
     CreateReleaseRequest,
     CreateRunRequest,
@@ -46,15 +51,22 @@ class ControlPlaneStore:
         self,
         *,
         database_url: str,
+        execution_mode: ExecutionMode = ExecutionMode.DEMO,
+        azure_settings: AzureExecutorSettings | None = None,
         retention_days: int = 90,
         stage_delay_seconds: float = 0.2,
     ):
         self._lock = asyncio.Lock()
-        self._stage_delay_seconds = stage_delay_seconds
         self._retention_days = max(1, retention_days)
         self._execution_tasks: dict[str, asyncio.Task[None]] = {}
         self._database_url = database_url
         self._engine, self._session_factory = create_engine_and_session_factory(database_url)
+        self._execution_mode = execution_mode
+        self._target_executor: TargetExecutor = create_target_executor(
+            mode=execution_mode,
+            stage_delay_seconds=stage_delay_seconds,
+            azure_settings=azure_settings or AzureExecutorSettings(),
+        )
 
         self._targets = self._load_targets()
         if not self._targets:
@@ -189,6 +201,13 @@ class ControlPlaneStore:
                 RunStatus.PARTIAL,
             }:
                 raise StoreError("run is not resumable")
+            resumable_target_ids = [
+                target_id
+                for target_id, record in run.target_records.items()
+                if record.status in {TargetStage.QUEUED, TargetStage.FAILED}
+            ]
+            if not resumable_target_ids:
+                raise StoreError("run has no queued or failed targets")
             run.status = RunStatus.RUNNING
             run.halt_reason = None
             run.ended_at = None
@@ -386,60 +405,35 @@ class ControlPlaneStore:
 
     async def _execute_target(self, run_id: str, target_id: str) -> None:
         attempt = await self._increment_attempt(run_id, target_id)
+        async with self._lock:
+            run = self._runs[run_id].model_copy(deep=True)
+            target = self._targets[target_id].model_copy(deep=True)
+            release = self._releases[run.release_id].model_copy(deep=True)
 
-        for stage in [TargetStage.VALIDATING, TargetStage.DEPLOYING, TargetStage.VERIFYING]:
-            correlation_id = self._build_correlation_id(run_id, target_id, attempt, stage)
-            await self._start_stage(run_id, target_id, stage, correlation_id)
-            await asyncio.sleep(self._stage_delay_seconds)
-
-            if self._should_fail_target(
-                run_id=run_id,
-                target_id=target_id,
-                attempt=attempt,
-                stage=stage,
-            ):
-                error = StructuredError(
-                    code="verification_failed",
-                    message="Simulated verification failure. Retry or resume the run.",
-                    details={"target_id": target_id, "attempt": attempt},
-                )
-                await self._complete_stage(
+        async for event in self._target_executor.execute_target(
+            run=run,
+            target=target,
+            release=release,
+            attempt=attempt,
+        ):
+            if event.event_type == "started":
+                await self._start_stage(
                     run_id=run_id,
                     target_id=target_id,
-                    stage=stage,
-                    correlation_id=correlation_id,
-                    message="Target failed verification checks.",
-                    error=error,
-                    terminal_state=TargetStage.FAILED,
+                    stage=event.stage,
+                    correlation_id=event.correlation_id,
+                    message=event.message,
                 )
-                return
-
+                continue
             await self._complete_stage(
                 run_id=run_id,
                 target_id=target_id,
-                stage=stage,
-                correlation_id=correlation_id,
-                message=f"{stage.value.title()} completed.",
-                error=None,
-                terminal_state=None,
+                stage=event.stage,
+                correlation_id=event.correlation_id,
+                message=event.message,
+                error=event.error,
+                terminal_state=event.terminal_state,
             )
-
-        success_correlation = self._build_correlation_id(
-            run_id,
-            target_id,
-            attempt,
-            TargetStage.SUCCEEDED,
-        )
-        await self._start_stage(run_id, target_id, TargetStage.SUCCEEDED, success_correlation)
-        await self._complete_stage(
-            run_id=run_id,
-            target_id=target_id,
-            stage=TargetStage.SUCCEEDED,
-            correlation_id=success_correlation,
-            message="Target deployment succeeded.",
-            error=None,
-            terminal_state=TargetStage.SUCCEEDED,
-        )
 
     async def _increment_attempt(self, run_id: str, target_id: str) -> int:
         async with self._lock:
@@ -456,6 +450,7 @@ class ControlPlaneStore:
         target_id: str,
         stage: TargetStage,
         correlation_id: str,
+        message: str,
     ) -> None:
         async with self._lock:
             run = self._runs[run_id]
@@ -468,7 +463,7 @@ class ControlPlaneStore:
                 stage=stage,
                 started_at=now,
                 ended_at=None,
-                message=f"{stage.value.title()} started.",
+                message=message,
                 error=None,
                 correlation_id=correlation_id,
                 portal_link=self._build_portal_link(target_id),
@@ -479,7 +474,7 @@ class ControlPlaneStore:
                     timestamp=now,
                     level="INFO",
                     stage=stage,
-                    message=f"{stage.value.title()} started",
+                    message=message,
                     correlation_id=correlation_id,
                 )
             )
@@ -678,17 +673,6 @@ class ControlPlaneStore:
                 counts["failed"] += 1
         return counts
 
-    def _build_correlation_id(
-        self,
-        run_id: str,
-        target_id: str,
-        attempt: int,
-        stage: TargetStage,
-    ) -> str:
-        key = f"{run_id}:{target_id}:{attempt}:{stage.value}"
-        digest = hashlib.sha256(key.encode()).hexdigest()
-        return f"corr-{digest[:16]}"
-
     def _build_portal_link(self, target_id: str) -> str:
         target = self._targets[target_id]
         resource = target.managed_app_id.replace("/", "%2F")
@@ -696,24 +680,6 @@ class ControlPlaneStore:
             "https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceId/"
             f"{resource}"
         )
-
-    def _should_fail_target(
-        self,
-        *,
-        run_id: str,
-        target_id: str,
-        attempt: int,
-        stage: TargetStage,
-    ) -> bool:
-        del run_id
-        if stage != TargetStage.VERIFYING:
-            return False
-        failure_mode = self._targets[target_id].simulated_failure_mode
-        if failure_mode == "verify_once" and attempt == 1:
-            return True
-        if failure_mode == "always_fail":
-            return True
-        return False
 
     def _load_targets(self) -> dict[str, Target]:
         with self._session_factory() as session:

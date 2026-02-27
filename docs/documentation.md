@@ -16,6 +16,15 @@ make phase1-gate-fast
 make phase1-gate-full
 ```
 
+### Pulumi demo provisioning commands
+```bash
+make iac-install
+make iac-preview
+make iac-up
+make iac-export-targets
+make iac-destroy
+```
+
 ## Engineering workflow discipline (before implementation)
 - For non-trivial work, write/refresh `tasks/todo.md` first:
   - scope,
