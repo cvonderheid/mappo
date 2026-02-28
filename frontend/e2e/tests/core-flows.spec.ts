@@ -69,3 +69,21 @@ test("enforces resume and retry button applicability by run status", async ({ pa
   await expect(deployments.retryFailedButton("run-failed")).toBeEnabled();
   await expect(page.getByTestId("run-progress-run-failed-segment-failed")).toBeVisible();
 });
+
+test("shows structured Azure stage errors in run detail", async ({ page }) => {
+  const state = createMockApiState();
+  await installMockApi(page, state);
+
+  const app = new AppShellPage(page);
+  const deployments = new DeploymentsPage(page);
+
+  await app.goto();
+  await app.openDeployments();
+  await deployments.openRun("run-failed");
+
+  await expect(page.getByTestId("stage-error-code-target-03-DEPLOYING")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open in Azure Portal" }).first()).toBeVisible();
+
+  await page.getByText("Azure error details").first().click();
+  await expect(page.getByText(/MANIFEST_UNKNOWN/)).toBeVisible();
+});

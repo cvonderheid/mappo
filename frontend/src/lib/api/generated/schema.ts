@@ -4,7 +4,24 @@
  */
 
 export interface paths {
-    "/api/v1/admin/discover-import": {
+    "/api/v1/admin/onboarding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Onboarding Snapshot */
+        get: operations["get_onboarding_snapshot_api_v1_admin_onboarding_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/onboarding/events": {
         parameters: {
             query?: never;
             header?: never;
@@ -13,8 +30,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Discover And Import Targets */
-        post: operations["discover_and_import_targets_api_v1_admin_discover_import_post"];
+        /** Ingest Marketplace Event */
+        post: operations["ingest_marketplace_event_api_v1_admin_onboarding_events_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -163,66 +180,12 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AdminDiscoverImportRequest */
-        AdminDiscoverImportRequest: {
-            /**
-             * Auto Enumerate Subscriptions
-             * @default true
-             */
-            auto_enumerate_subscriptions: boolean;
-            /**
-             * Clear Runs
-             * @default true
-             */
-            clear_runs: boolean;
-            /**
-             * Default Target Group
-             * @default prod
-             */
-            default_target_group: string;
-            /**
-             * Group Tag Key
-             * @default ring
-             */
-            group_tag_key: string;
-            /** Managed App Name Prefix */
-            managed_app_name_prefix?: string | null;
-            /** Preferred Container App Name */
-            preferred_container_app_name?: string | null;
-            /** Subscription Ids */
-            subscription_ids?: string[];
-        };
-        /** AdminDiscoverImportResponse */
-        AdminDiscoverImportResponse: {
-            /** Auto Discovered Subscription Ids */
-            auto_discovered_subscription_ids?: string[];
-            /** Blocked Enumeration */
-            blocked_enumeration?: components["schemas"]["AdminDiscoveryBlockedScope"][];
-            /** Discovered Managed Apps */
-            discovered_managed_apps: number;
-            /** Discovered Targets */
-            discovered_targets: number;
-            /** Imported Targets */
-            imported_targets: number;
-            /** Scanned Subscription Ids */
-            scanned_subscription_ids?: string[];
-            /** Skipped Managed Apps */
-            skipped_managed_apps: number;
-            /** Subscriptions Scanned */
-            subscriptions_scanned: number;
-            /** Target Ids */
-            target_ids?: string[];
-            /** Warnings */
-            warnings?: string[];
-        };
-        /** AdminDiscoveryBlockedScope */
-        AdminDiscoveryBlockedScope: {
-            /** Reason */
-            reason: string;
-            /** Scope Id */
-            scope_id: string;
-            /** Scope Type */
-            scope_type: string;
+        /** AdminOnboardingSnapshotResponse */
+        AdminOnboardingSnapshotResponse: {
+            /** Events */
+            events?: components["schemas"]["MarketplaceEventRecord"][];
+            /** Registrations */
+            registrations?: components["schemas"]["TargetRegistrationRecord"][];
         };
         /** CreateReleaseRequest */
         CreateReleaseRequest: {
@@ -278,6 +241,113 @@ export interface components {
             /** Status */
             status: string;
         };
+        /** MarketplaceEventIngestRequest */
+        MarketplaceEventIngestRequest: {
+            /** Container App Name */
+            container_app_name?: string | null;
+            /** Container App Resource Id */
+            container_app_resource_id?: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /**
+             * Environment
+             * @default prod
+             */
+            environment: string;
+            /** Event Id */
+            event_id: string;
+            /** Event Time */
+            event_time?: string | null;
+            /**
+             * Event Type
+             * @default subscription_purchased
+             */
+            event_type: string;
+            /**
+             * Health Status
+             * @default registered
+             */
+            health_status: string;
+            /**
+             * Last Deployed Release
+             * @default unknown
+             */
+            last_deployed_release: string;
+            /** Managed Application Id */
+            managed_application_id?: string | null;
+            /** Managed Resource Group Id */
+            managed_resource_group_id?: string | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Region */
+            region?: string | null;
+            /** Subscription Id */
+            subscription_id: string;
+            /** Tags */
+            tags?: {
+                [key: string]: string;
+            };
+            /**
+             * Target Group
+             * @default prod
+             */
+            target_group: string;
+            /** Target Id */
+            target_id?: string | null;
+            /** Tenant Id */
+            tenant_id: string;
+            /**
+             * Tier
+             * @default standard
+             */
+            tier: string;
+        };
+        /** MarketplaceEventIngestResponse */
+        MarketplaceEventIngestResponse: {
+            /** Event Id */
+            event_id: string;
+            /** Message */
+            message: string;
+            status: components["schemas"]["MarketplaceEventStatus"];
+            /** Target Id */
+            target_id?: string | null;
+        };
+        /** MarketplaceEventRecord */
+        MarketplaceEventRecord: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Event Id */
+            event_id: string;
+            /** Event Type */
+            event_type: string;
+            /** Message */
+            message: string;
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            };
+            /** Processed At */
+            processed_at?: string | null;
+            status: components["schemas"]["MarketplaceEventStatus"];
+            /** Subscription Id */
+            subscription_id: string;
+            /** Target Id */
+            target_id?: string | null;
+            /** Tenant Id */
+            tenant_id: string;
+        };
+        /**
+         * MarketplaceEventStatus
+         * @enum {string}
+         */
+        MarketplaceEventStatus: "applied" | "duplicate" | "rejected";
         /** Release */
         Release: {
             /**
@@ -475,6 +545,45 @@ export interface components {
              */
             timestamp: string;
         };
+        /** TargetRegistrationRecord */
+        TargetRegistrationRecord: {
+            /** Container App Resource Id */
+            container_app_resource_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Display Name */
+            display_name: string;
+            /** Last Event Id */
+            last_event_id?: string | null;
+            /** Managed Application Id */
+            managed_application_id?: string | null;
+            /** Managed Resource Group Id */
+            managed_resource_group_id: string;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Subscription Id */
+            subscription_id: string;
+            /** Tags */
+            tags?: {
+                [key: string]: string;
+            };
+            /** Target Id */
+            target_id: string;
+            /** Tenant Id */
+            tenant_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /**
          * TargetStage
          * @enum {string}
@@ -523,16 +632,49 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    discover_and_import_targets_api_v1_admin_discover_import_post: {
+    get_onboarding_snapshot_api_v1_admin_onboarding_get: {
+        parameters: {
+            query?: {
+                event_limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOnboardingSnapshotResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_marketplace_event_api_v1_admin_onboarding_events_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-mappo-ingest-token"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AdminDiscoverImportRequest"];
+                "application/json": components["schemas"]["MarketplaceEventIngestRequest"];
             };
         };
         responses: {
@@ -542,7 +684,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminDiscoverImportResponse"];
+                    "application/json": components["schemas"]["MarketplaceEventIngestResponse"];
                 };
             };
             /** @description Validation Error */

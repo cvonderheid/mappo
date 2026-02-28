@@ -99,3 +99,27 @@ Purpose: capture recurring correction patterns and preventative guardrails.
 - Preventative rule: Keep exactly one primary demo workflow and enforce a hard boundary map: Pulumi IaC for deployable resources, scripts for API-only tasks, and documented portal playbook for manual-only steps.
 - Detection signal: `make help` and README list multiple conflicting setup tracks before a single successful end-to-end flow.
 - Enforcement (test/lint/checklist): each phase close must include a workflow surface review (`make help`) and docs boundary section update (`README` + playbook).
+
+- Date: 2026-02-28
+- Pattern: Seeded release metadata used image tags that do not exist in MCR, causing Azure deployment failures that looked like runtime/orchestration issues.
+- Preventative rule: Default/seed release images must use registry-validated tags (or full image refs) before being promoted into demo or production bootstrap paths.
+- Detection signal: Deployment fails in `DEPLOYING` with `MANIFEST_UNKNOWN` / image-not-found while validation passes.
+- Enforcement (test/lint/checklist): add a release-bootstrap smoke check that performs one real-target canary deployment and fails if image pull fails.
+
+- Date: 2026-02-28
+- Pattern: Azure Portal deep links used `BrowseResource` blade URLs that can fail with portal-side `browsePrereqs` errors in some tenant/resource contexts.
+- Preventative rule: Use direct resource overview links (`#resource/.../overview`) for operator deep links instead of browse blade links.
+- Detection signal: Clicking a stage portal link shows a portal error with `browsePrereqs` and suggests simplified view.
+- Enforcement (test/lint/checklist): run-detail smoke check must verify generated `portal_link` format uses direct resource links.
+
+- Date: 2026-02-28
+- Pattern: Admin discovery relied on generic ARM resource listing for managed applications, which returned false-empty results in live subscriptions.
+- Preventative rule: Use service-specific ARM endpoints (`Microsoft.Solutions/applications`) for managed app inventory; do not depend on generic `resources.list(filter=resourceType ...)` for discovery correctness.
+- Detection signal: `az managedapp list` or ARM Solutions endpoint returns apps while backend discovery reports zero targets.
+- Enforcement (test/lint/checklist): discovery smoke must compare managed-app count from backend path against known managed app instances in at least one subscription.
+
+- Date: 2026-02-28
+- Pattern: Assuming one global tenant authority for all subscriptions caused cross-tenant discovery/deploy failures (`InvalidAuthenticationTokenTenant`) despite valid managed app target IDs.
+- Preventative rule: Resolve tenant authority per subscription (mapping + target metadata), and instantiate Azure credentials per tenant instead of per process.
+- Detection signal: run/discovery fails only for subscriptions in non-default tenants while same-tenant targets succeed.
+- Enforcement (test/lint/checklist): add tenant-resolution unit tests, require `MAPPO_AZURE_TENANT_BY_SUBSCRIPTION` coverage in `azure-preflight` for non-GUID inventory tenants, and verify one cross-tenant deployment smoke before demo signoff.

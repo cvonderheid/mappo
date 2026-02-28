@@ -987,3 +987,149 @@ Marketplace-realistic demo consolidation:
 - 2026-02-28: Added Partner Center API helpers (`scripts/partner_center_get_token.sh`, `scripts/partner_center_api.sh`) and Make wrappers (`partner-center-token`, `partner-center-api`).
 - 2026-02-28: Added portal/manual playbook at `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md` and updated README/checklist/docs to show automation boundaries.
 - 2026-02-28: Verified lint/typecheck/tests after starting local compose Postgres migration services; `make test` is green.
+
+---
+
+## Scope (Phase 5.27 Slice)
+Operator error visibility in deployment run detail:
+- Surface per-stage structured Azure error payloads (code/message/details) directly in the Deployments UI.
+- Keep correlation IDs and Azure portal deep links visible per stage.
+- Add Playwright coverage for failed-run error visibility.
+
+## Plan (Phase 5.27 Slice)
+- [x] Extend `Run Detail` stage cards to render stage message, correlation ID, portal link, and structured error block.
+- [x] Add stable test IDs for run selection and stage error code rendering.
+- [x] Update Playwright page object + mock API failed-run payload for structured error assertions.
+- [x] Run frontend lint/typecheck/test/e2e checks.
+
+## Verification Commands (Phase 5.27 Slice)
+- [x] `cd frontend && npm run lint`
+- [x] `cd frontend && npm run typecheck`
+- [x] `cd frontend && npm run test -- --run`
+- [x] `cd frontend && npm run test:e2e:ci`
+
+## Results Log (Phase 5.27 Slice)
+- 2026-02-28: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/components/RunPanels.tsx` so each target stage now shows stage message, start/end timestamps, correlation ID, Azure portal link, and a structured error section with expandable JSON details.
+- 2026-02-28: Added deterministic run-card selection hook (`data-testid="select-run-<id>"`) and stage error hook (`data-testid="stage-error-code-<target>-<stage>"`) for robust automation.
+- 2026-02-28: Updated Playwright support fixtures to include realistic failed Azure deployment payload details (`MANIFEST_UNKNOWN`) and added coverage asserting structured error rendering in run detail.
+- 2026-02-28: Verified frontend lint/typecheck/unit/e2e are green (with existing two non-blocking shadcn fast-refresh warnings).
+
+---
+
+## Scope (Phase 5.28 Slice)
+Portal deep-link reliability in run-stage diagnostics:
+- Replace brittle Azure Portal browse blade links with direct resource overview links.
+- Ensure historical runs with legacy browse links are normalized at read time.
+
+## Plan (Phase 5.28 Slice)
+- [x] Update backend portal link builder to generate `#resource/.../overview` links (tenant-aware when tenant is a GUID).
+- [x] Add run-detail normalization so legacy `BrowseResource` links are rewritten automatically.
+- [x] Run backend lint/typecheck/tests and smoke-check emitted links.
+
+## Verification Commands (Phase 5.28 Slice)
+- [x] `uv run --package mappo-backend -- ruff check backend/app/modules/control_plane.py`
+- [x] `uv run --package mappo-backend -- mypy app/modules/control_plane.py`
+- [x] `uv run --package mappo-backend -- pytest -q`
+- [x] `curl http://localhost:8010/api/v1/runs/<id>` (verify `portal_link` format)
+
+## Results Log (Phase 5.28 Slice)
+- 2026-02-28: Replaced `HubsExtension/BrowseResource` links in `/Users/cvonderheid/workspace/mappo/backend/app/modules/control_plane.py` with direct resource overview links to avoid portal `browsePrereqs` errors.
+- 2026-02-28: Added portal-link normalization for historical run records so existing data is upgraded on read without DB migration.
+- 2026-02-28: Verified emitted stage links now follow `https://portal.azure.com/#resource/<resourceId>/overview` format.
+
+---
+
+## Scope (Phase 5.29 Slice)
+Admin discovery reliability + operator clarity:
+- Fix managed application discovery to use the Microsoft.Solutions API path (not generic resource listing).
+- Improve no-target error context so operators can see scanned subscriptions and active prefix filter.
+
+## Plan (Phase 5.29 Slice)
+- [x] Switch backend discovery from `ResourceManagementClient.resources.list(filter=...)` to paged ARM calls on `/providers/Microsoft.Solutions/applications`.
+- [x] Preserve blocked-scope warnings for cross-tenant token mismatch cases.
+- [x] Enrich no-target failure message with scan scope and prefix context.
+- [x] Run backend lint/typecheck/tests and smoke the admin endpoint.
+
+## Verification Commands (Phase 5.29 Slice)
+- [x] `uv run --package mappo-backend -- ruff check backend/app/modules/discovery.py`
+- [x] `uv run --package mappo-backend -- mypy app/modules/discovery.py`
+- [x] `uv run --package mappo-backend -- pytest -q`
+- [x] `curl -X POST http://localhost:8010/api/v1/admin/discover-import ...`
+
+## Results Log (Phase 5.29 Slice)
+- 2026-02-28: Updated `/Users/cvonderheid/workspace/mappo/backend/app/modules/discovery.py` to discover managed apps via ARM `Microsoft.Solutions/applications` endpoint with paging support.
+- 2026-02-28: Admin discovery now succeeds for accessible subscriptions and returns precise blocked-scope detail for inaccessible subscriptions (tenant token mismatch).
+- 2026-02-28: No-target failures now include actionable context (managed-app count, active prefix filter, scanned subscriptions).
+
+---
+
+## Scope (Phase 5.30 Slice)
+Cross-tenant execution/discovery correctness:
+- Replace single-tenant Azure credential assumptions with tenant-aware auth per subscription.
+- Support explicit subscription-to-tenant mapping for live multi-tenant runs/discovery.
+- Add preflight and docs clarity so operators can configure cross-tenant authority deterministically.
+
+## Plan (Phase 5.30 Slice)
+- [x] Extend backend Azure settings/runtime to resolve tenant authority per subscription and cache credentials per tenant.
+- [x] Update admin discovery flow to enumerate and scan subscriptions using tenant-aware credential selection.
+- [x] Add regression tests for tenant resolution and settings parsing.
+- [x] Update preflight/docs/checklists to include `MAPPO_AZURE_TENANT_BY_SUBSCRIPTION`.
+- [x] Run backend lint/typecheck/test and shell syntax verification.
+
+## Verification Commands (Phase 5.30 Slice)
+- [x] `uv run --package mappo-backend -- ruff check backend/app/modules/execution.py backend/app/modules/discovery.py backend/app/core/settings.py backend/app/main.py backend/app/api/routers/admin.py backend/tests/test_tenant_resolution.py backend/scripts/import_targets.py backend/scripts/bootstrap_releases.py backend/scripts/prune_retention.py backend/scripts/demo_reset.py`
+- [x] `uv run --package mappo-backend -- mypy app/modules/execution.py app/modules/discovery.py app/core/settings.py app/main.py app/api/routers/admin.py`
+- [x] `uv run --package mappo-backend -- pytest -q`
+- [x] `bash -n scripts/azure_preflight.sh`
+
+## Results Log (Phase 5.30 Slice)
+- 2026-02-28: Added tenant resolution helpers and per-subscription tenant authority support in `/Users/cvonderheid/workspace/mappo/backend/app/modules/execution.py`; runtime now caches Azure credentials per tenant and binds subscription clients to resolved tenant authority.
+- 2026-02-28: Updated `/Users/cvonderheid/workspace/mappo/backend/app/modules/discovery.py` to build credentials per tenant, enumerate subscriptions across candidate tenants, and resolve scan credentials per subscription instead of assuming one global tenant.
+- 2026-02-28: Added settings support for `MAPPO_AZURE_TENANT_BY_SUBSCRIPTION` in `/Users/cvonderheid/workspace/mappo/backend/app/core/settings.py` and threaded it through runtime/admin entry points.
+- 2026-02-28: Added regression coverage at `/Users/cvonderheid/workspace/mappo/backend/tests/test_tenant_resolution.py` for tenant resolution precedence and env-map parsing behavior.
+- 2026-02-28: Hardened `/Users/cvonderheid/workspace/mappo/scripts/azure_preflight.sh` to detect non-authoritative inventory tenant IDs and fail when required subscription-to-tenant mappings are missing.
+- 2026-02-28: Added `/Users/cvonderheid/workspace/mappo/scripts/azure_tenant_map.sh` + `make azure-tenant-map` to generate and persist `MAPPO_AZURE_TENANT_BY_SUBSCRIPTION` from Azure CLI subscription context.
+- 2026-02-28: Added `/Users/cvonderheid/workspace/mappo/scripts/azure_onboard_multitenant_runtime.sh` + `make azure-onboard-multitenant-runtime` to automate cross-tenant app onboarding (multi-tenant audience, tenant-local service principal creation, and RBAC at subscription/resource-group scopes).
+- 2026-02-28: Updated docs/checklists (`README.md`, `docs/documentation.md`, `docs/live-demo-checklist.md`, `docs/architecture.md`) with explicit cross-tenant tenant-mapping setup.
+
+---
+
+## Scope (Phase 5.31 Slice)
+Marketplace registration-driven onboarding (remove auto-discovery path):
+- Remove runtime/admin auto-discovery endpoint and UI flow.
+- Add event-driven onboarding APIs for target registration (`/admin/onboarding`, `/admin/onboarding/events`).
+- Persist onboarding registrations + event history in Postgres with Flyway migration.
+- Keep MAPPO deploy/fleet behavior unchanged after target registration.
+
+## Plan (Phase 5.31 Slice)
+- [x] Replace admin discovery schemas/router with marketplace onboarding ingest + snapshot APIs.
+- [x] Add Flyway migration + ORM models for `target_registrations` and `marketplace_events`.
+- [x] Add backend ingestion logic with idempotency (`event_id`) and token-gated endpoint support.
+- [x] Remove discovery module/script from active code surface.
+- [x] Replace Admin UI form/workflow to register targets from event payloads and display registration/event state.
+- [x] Regenerate OpenAPI + frontend client and update tests/docs/Makefile references.
+- [x] Run verification and capture outcomes.
+
+## Verification Commands (Phase 5.31 Slice)
+- [x] `make db-migrate`
+- [x] `make lint-backend`
+- [x] `make typecheck-backend`
+- [x] `make test-backend`
+- [x] `make openapi`
+- [x] `make client-gen`
+- [x] `make lint-frontend`
+- [x] `make typecheck-frontend`
+- [x] `make test-frontend`
+- [x] `make test`
+
+## Results Log (Phase 5.31 Slice)
+- 2026-02-28: Added onboarding schema/API model set in `/Users/cvonderheid/workspace/mappo/backend/app/modules/schemas.py` (`MarketplaceEventIngest*`, `TargetRegistrationRecord`, onboarding snapshot).
+- 2026-02-28: Replaced admin router with onboarding endpoints in `/Users/cvonderheid/workspace/mappo/backend/app/api/routers/admin.py`.
+- 2026-02-28: Added `MAPPO_MARKETPLACE_INGEST_TOKEN` runtime setting in `/Users/cvonderheid/workspace/mappo/backend/app/core/settings.py`.
+- 2026-02-28: Added Flyway migration `/Users/cvonderheid/workspace/mappo/backend/flyway/sql/V2__marketplace_onboarding.sql` and updated generated ORM classes in `/Users/cvonderheid/workspace/mappo/backend/app/db/generated/models.py`.
+- 2026-02-28: Implemented registration/event persistence and ingest normalization in `/Users/cvonderheid/workspace/mappo/backend/app/modules/control_plane.py`.
+- 2026-02-28: Replaced backend admin tests with onboarding coverage in `/Users/cvonderheid/workspace/mappo/backend/tests/test_admin.py`.
+- 2026-02-28: Removed discovery implementation files from active repo surface (`/Users/cvonderheid/workspace/mappo/backend/app/modules/discovery.py`, `/Users/cvonderheid/workspace/mappo/scripts/managed_app_discover_targets.sh`).
+- 2026-02-28: Replaced frontend admin workflow with onboarding registration UX in `/Users/cvonderheid/workspace/mappo/frontend/src/components/AdminPanel.tsx` and `/Users/cvonderheid/workspace/mappo/frontend/src/App.tsx`.
+- 2026-02-28: Updated API client/types and regenerated contract artifacts (`/Users/cvonderheid/workspace/mappo/backend/openapi/openapi.json`, `/Users/cvonderheid/workspace/mappo/frontend/src/lib/api/generated/schema.ts`).
+- 2026-02-28: Updated docs/ops references in `/Users/cvonderheid/workspace/mappo/README.md`, `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`, `/Users/cvonderheid/workspace/mappo/docs/live-demo-checklist.md`, `/Users/cvonderheid/workspace/mappo/docs/architecture.md`, `/Users/cvonderheid/workspace/mappo/scripts/azure_preflight.sh`, and `/Users/cvonderheid/workspace/mappo/Makefile`.

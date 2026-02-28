@@ -202,6 +202,7 @@ export function RunList({
             >
               <button
                 type="button"
+                data-testid={`select-run-${run.id}`}
                 className="mb-2 flex w-full items-center justify-between text-left"
                 onClick={() => onSelectRun(run.id)}
               >
@@ -346,11 +347,47 @@ function TargetRecordCard({ record }: { record: TargetExecutionRecord }) {
       </header>
       <div className="mb-2 flex flex-wrap gap-2">
         {stages.map((stage) => (
-          <div key={`${stage.stage}-${stage.started_at}`} className="rounded-md border border-border/60 bg-muted/30 px-2 py-1">
-            <p className="text-[11px] font-semibold">{stage.stage}</p>
-            <p className="font-mono text-[10px] text-muted-foreground">
-              {new Date(stage.started_at).toLocaleTimeString()}
-            </p>
+          <div
+            key={`${stage.stage}-${stage.started_at}`}
+            className="min-w-[220px] flex-1 rounded-md border border-border/60 bg-muted/30 px-2 py-1"
+          >
+            <div className="mb-1 flex items-start justify-between gap-2">
+              <p className="text-[11px] font-semibold">{stage.stage}</p>
+              <p className="font-mono text-[10px] text-muted-foreground">
+                {new Date(stage.started_at).toLocaleTimeString()}
+                {stage.ended_at ? ` -> ${new Date(stage.ended_at).toLocaleTimeString()}` : ""}
+              </p>
+            </div>
+            <p className="text-[11px]">{stage.message}</p>
+            <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+              <span className="font-mono">corr: {stage.correlation_id}</span>
+              <a
+                href={stage.portal_link}
+                target="_blank"
+                rel="noreferrer"
+                className="underline decoration-dotted underline-offset-2"
+              >
+                Open in Azure Portal
+              </a>
+            </div>
+            {stage.error ? (
+              <div className="mt-2 rounded-md border border-destructive/60 bg-destructive/10 p-2 text-[11px]">
+                <p data-testid={`stage-error-code-${record.target_id}-${stage.stage}`} className="font-semibold">
+                  Error code: {stage.error.code}
+                </p>
+                <p className="mt-1">{stage.error.message}</p>
+                {stage.error.details ? (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-[10px] text-muted-foreground">
+                      Azure error details
+                    </summary>
+                    <pre className="mt-1 overflow-x-auto rounded-md border border-border/60 bg-background/60 p-2 font-mono text-[10px]">
+                      {JSON.stringify(stage.error.details, null, 2)}
+                    </pre>
+                  </details>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ))}
       </div>

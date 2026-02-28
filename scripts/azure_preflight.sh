@@ -171,10 +171,110 @@ PY
   elif [[ "${managed_meta_count}" -gt 0 ]]; then
     warn "Inventory includes managed app metadata for ${managed_meta_count}/${target_count} targets."
   else
-    warn "Inventory has no managed app metadata. Run 'make managed-app-discover-targets' for marketplace-style inventory."
+    warn "Inventory has no managed app metadata. Re-export inventory from IaC and re-import targets."
+  fi
+
+  tenant_resolution_stats="$(python3 - <<'PY' "${INVENTORY_PATH}" "${MAPPO_AZURE_TENANT_BY_SUBSCRIPTION:-}"
+import json
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+raw_map = (sys.argv[2] or "").strip()
+payload = json.loads(path.read_text(encoding="utf-8"))
+
+guid_re = re.compile(
+    r"^[0-9a-fA-F]{8}-"
+    r"[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{12}$"
+)
+
+subscriptions: dict[str, set[str]] = {}
+for row in payload:
+    if not isinstance(row, dict):
+        continue
+    sub = str(row.get("subscription_id", "")).strip()
+    tenant = str(row.get("tenant_id", "")).strip()
+    if not sub:
+        continue
+    subscriptions.setdefault(sub, set())
+    if tenant:
+        subscriptions[sub].add(tenant)
+
+unresolved_subscriptions: list[str] = []
+for sub, tenant_values in subscriptions.items():
+    if any(guid_re.fullmatch(value) for value in tenant_values):
+        continue
+    unresolved_subscriptions.append(sub)
+
+tenant_map: dict[str, str] = {}
+map_parse_error = ""
+if raw_map:
+    try:
+        if raw_map.startswith("{"):
+            parsed = json.loads(raw_map)
+            if isinstance(parsed, dict):
+                for key, value in parsed.items():
+                    sub = str(key).strip()
+                    tenant = str(value).strip()
+                    if sub and tenant:
+                        tenant_map[sub] = tenant
+            else:
+                map_parse_error = "JSON map must be an object"
+        else:
+            for chunk in raw_map.replace(";", ",").split(","):
+                pair = chunk.strip()
+                if not pair:
+                    continue
+                if "=" in pair:
+                    sub, tenant = pair.split("=", 1)
+                elif ":" in pair:
+                    sub, tenant = pair.split(":", 1)
+                else:
+                    map_parse_error = "entries must use subscription=tenant format"
+                    break
+                sub = sub.strip()
+                tenant = tenant.strip()
+                if sub and tenant:
+                    tenant_map[sub] = tenant
+    except Exception as error:
+        map_parse_error = str(error)
+
+missing = [
+    sub for sub in unresolved_subscriptions
+    if sub not in tenant_map
+]
+print(
+    f"{len(unresolved_subscriptions)}|{len(missing)}|"
+    f"{','.join(unresolved_subscriptions[:5])}|{','.join(missing[:5])}|{map_parse_error}"
+)
+PY
+)"
+  unresolved_tenant_count="$(echo "${tenant_resolution_stats}" | cut -d'|' -f1)"
+  unresolved_tenant_missing_count="$(echo "${tenant_resolution_stats}" | cut -d'|' -f2)"
+  unresolved_tenant_sample="$(echo "${tenant_resolution_stats}" | cut -d'|' -f3)"
+  unresolved_tenant_missing_sample="$(echo "${tenant_resolution_stats}" | cut -d'|' -f4)"
+  tenant_map_parse_error="$(echo "${tenant_resolution_stats}" | cut -d'|' -f5)"
+
+  if [[ -n "${tenant_map_parse_error}" ]]; then
+    fail "MAPPO_AZURE_TENANT_BY_SUBSCRIPTION parse error: ${tenant_map_parse_error}"
+  fi
+
+  if [[ "${unresolved_tenant_count}" -eq 0 ]]; then
+    pass "Inventory tenant IDs appear authoritative (GUID format)."
+  else
+    warn "Inventory has ${unresolved_tenant_count} subscription(s) with non-GUID tenant IDs."
+    if [[ "${unresolved_tenant_missing_count}" -eq 0 ]]; then
+      pass "MAPPO_AZURE_TENANT_BY_SUBSCRIPTION covers all unresolved subscription tenant mappings."
+    else
+      fail "Missing tenant mapping for ${unresolved_tenant_missing_count} subscription(s): ${unresolved_tenant_missing_sample:-${unresolved_tenant_sample}}"
+    fi
   fi
 else
-  fail "Missing target inventory file at ${INVENTORY_PATH}. Run 'make managed-app-discover-targets'."
+  fail "Missing target inventory file at ${INVENTORY_PATH}. Run 'make iac-export-targets' and 'make import-targets'."
 fi
 
 echo "azure-preflight: ${fail_count} failure(s), ${warn_count} warning(s)"

@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete
 
 from app.core.settings import get_settings
-from app.db.generated.models import Releases, Runs, Targets
+from app.db.generated.models import MarketplaceEvents, Releases, Runs, TargetRegistrations, Targets
 from app.db.session import create_engine_and_session_factory
 from app.main import create_app
 from tests.support.sample_data import seed_store
@@ -41,6 +41,8 @@ def _reset_database(database_url: str) -> None:
     engine, session_factory = create_engine_and_session_factory(database_url)
     try:
         with session_factory() as session:
+            session.execute(delete(MarketplaceEvents))
+            session.execute(delete(TargetRegistrations))
             session.execute(delete(Runs))
             session.execute(delete(Releases))
             session.execute(delete(Targets))

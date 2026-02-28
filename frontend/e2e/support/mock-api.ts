@@ -329,16 +329,115 @@ function makeRunDetail(input: {
   waveTag?: string;
   waveOrder?: string[];
 }): RunDetail {
-  const targetRecords = input.targetIds.map((targetId) => ({
-    target_id: targetId,
-    subscription_id: `sub-${targetId}`,
-    tenant_id: `tenant-${targetId}`,
-    status: input.targetStatus,
-    attempt: input.targetStatus === "QUEUED" ? 0 : 1,
-    updated_at: NOW,
-    stages: [],
-    logs: [],
-  }));
+  const targetRecords = input.targetIds.map((targetId) => {
+    const portalLink = `https://portal.azure.com/#resource/sub-${targetId}/rg-${targetId}/ca-${targetId}`;
+
+    if (input.targetStatus === "FAILED") {
+      return {
+        target_id: targetId,
+        subscription_id: `sub-${targetId}`,
+        tenant_id: `tenant-${targetId}`,
+        status: input.targetStatus,
+        attempt: 1,
+        updated_at: NOW,
+        stages: [
+          {
+            stage: "VALIDATING",
+            started_at: NOW,
+            ended_at: NOW,
+            message: `Validated target ca-${targetId}.`,
+            error: null,
+            correlation_id: "corr-e2e-validating",
+            portal_link: portalLink,
+          },
+          {
+            stage: "DEPLOYING",
+            started_at: NOW,
+            ended_at: NOW,
+            message: "Azure Container App update failed.",
+            error: {
+              code: "azure_deploy_failed",
+              message: "Azure Container App update failed.",
+              details: {
+                status_code: 200,
+                error:
+                  "(ContainerAppOperationError) MANIFEST_UNKNOWN: manifest tagged by \"1.5.0\" is not found.",
+                desired_image: "mcr.microsoft.com/azuredocs/containerapps-helloworld:1.5.0",
+              },
+            },
+            correlation_id: "corr-e2e-deploying",
+            portal_link: portalLink,
+          },
+        ],
+        logs: [
+          {
+            timestamp: NOW,
+            level: "INFO",
+            stage: "VALIDATING",
+            message: "Validating started.",
+            correlation_id: "corr-e2e-validating",
+          },
+          {
+            timestamp: NOW,
+            level: "INFO",
+            stage: "VALIDATING",
+            message: `Validated target ca-${targetId}.`,
+            correlation_id: "corr-e2e-validating",
+          },
+          {
+            timestamp: NOW,
+            level: "INFO",
+            stage: "DEPLOYING",
+            message: "Deploying started.",
+            correlation_id: "corr-e2e-deploying",
+          },
+          {
+            timestamp: NOW,
+            level: "ERROR",
+            stage: "DEPLOYING",
+            message: "Azure Container App update failed.",
+            correlation_id: "corr-e2e-deploying",
+          },
+        ],
+      };
+    }
+
+    const terminalStage = input.targetStatus === "SUCCEEDED" ? "SUCCEEDED" : input.targetStatus;
+    const stageList =
+      input.targetStatus === "QUEUED"
+        ? []
+        : [
+            {
+              stage: "VALIDATING",
+              started_at: NOW,
+              ended_at: NOW,
+              message: `Validated target ca-${targetId}.`,
+              error: null,
+              correlation_id: "corr-e2e-validating",
+              portal_link: portalLink,
+            },
+            {
+              stage: terminalStage,
+              started_at: NOW,
+              ended_at: NOW,
+              message: input.targetStatus === "SUCCEEDED" ? "Target deployment succeeded." : `${terminalStage} completed.`,
+              error: null,
+              correlation_id: "corr-e2e-terminal",
+              portal_link: portalLink,
+            },
+          ];
+
+    return {
+      target_id: targetId,
+      subscription_id: `sub-${targetId}`,
+      tenant_id: `tenant-${targetId}`,
+      status: input.targetStatus,
+      attempt: input.targetStatus === "QUEUED" ? 0 : 1,
+      updated_at: NOW,
+      stages: stageList,
+      logs: [],
+    };
+  });
 
   return {
     id: input.id,

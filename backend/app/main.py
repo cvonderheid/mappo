@@ -25,6 +25,7 @@ def create_app() -> FastAPI:
                 tenant_id=settings.azure_tenant_id,
                 client_id=settings.azure_client_id,
                 client_secret=settings.azure_client_secret,
+                tenant_by_subscription=settings.azure_tenant_by_subscription,
                 max_run_concurrency=settings.azure_max_run_concurrency,
                 max_subscription_concurrency=settings.azure_max_subscription_concurrency,
                 max_retry_attempts=settings.azure_max_retry_attempts,

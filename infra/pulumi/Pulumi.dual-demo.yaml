@@ -1,17 +1,25 @@
 config:
   mappo:targetProfile: empty
-  mappo:publisherPrincipalObjectId: REPLACE_WITH_AZURE_AD_OBJECT_ID
-  mappo:sharedEnvironmentNamePrefix: cae-mappo-dual-demo-shared
-  mappo:sharedEnvironmentResourceGroupPrefix: rg-mappo-dual-demo-shared-env
+  mappo:publisherPrincipalObjectIds:
+    c0d51042-7d0a-41f7-b270-151e4c4ea263: f114f7af-c526-469b-8808-93df66d58d74
+    1adaaa48-139a-477b-a8c8-0e6289d6d199: 012098f6-5df7-4193-a0b6-c95f6cfa6ea1
+  mappo:definitionNamePrefix: mappo-ma-def-dual-demo
+  mappo:definitionResourceGroupPrefix: rg-mappo-ma-def-dual-demo
+  mappo:applicationResourceGroupPrefix: rg-mappo-ma-apps-dual-demo
+  mappo:managedEnvironmentNamePrefix: cae-mappo-ma-dual-demo
   mappo:targets:
     - id: target-01
       tenantId: tenant-001
       subscriptionId: c0d51042-7d0a-41f7-b270-151e4c4ea263
       targetGroup: canary
       region: eastus
-      resourceGroupName: rg-mappo-dual-demo-target-01
-      containerAppName: ca-mappo-dual-demo-target-01
+      tier: gold
+      environment: demo
+      managedApplicationName: mappo-ma-target-01
+      managedResourceGroupName: rg-mappo-ma-mrg-target-01
+      containerAppName: ca-mappo-ma-target-01
       tags:
+        ring: canary
         tier: gold
         environment: demo
     - id: target-02
@@ -19,89 +27,13 @@ config:
       subscriptionId: 1adaaa48-139a-477b-a8c8-0e6289d6d199
       targetGroup: canary
       region: eastus
-      resourceGroupName: rg-mappo-dual-demo-target-02
-      containerAppName: ca-mappo-dual-demo-target-02
+      tier: gold
+      environment: demo
+      managedApplicationName: mappo-ma-target-02
+      managedResourceGroupName: rg-mappo-ma-mrg-target-02
+      containerAppName: ca-mappo-ma-target-02
       tags:
+        ring: canary
         tier: gold
         environment: demo
-    - id: target-03
-      tenantId: tenant-003
-      subscriptionId: c0d51042-7d0a-41f7-b270-151e4c4ea263
-      targetGroup: prod
-      region: eastus
-      resourceGroupName: rg-mappo-dual-demo-target-03
-      containerAppName: ca-mappo-dual-demo-target-03
-      tags:
-        tier: gold
-        environment: demo
-    - id: target-04
-      tenantId: tenant-004
-      subscriptionId: 1adaaa48-139a-477b-a8c8-0e6289d6d199
-      targetGroup: prod
-      region: eastus
-      resourceGroupName: rg-mappo-dual-demo-target-04
-      containerAppName: ca-mappo-dual-demo-target-04
-      tags:
-        tier: gold
-        environment: demo
-    - id: target-05
-      tenantId: tenant-005
-      subscriptionId: c0d51042-7d0a-41f7-b270-151e4c4ea263
-      targetGroup: prod
-      region: eastus
-      resourceGroupName: rg-mappo-dual-demo-target-05
-      containerAppName: ca-mappo-dual-demo-target-05
-      tags:
-        tier: silver
-        environment: demo
-    - id: target-06
-      tenantId: tenant-006
-      subscriptionId: 1adaaa48-139a-477b-a8c8-0e6289d6d199
-      targetGroup: prod
-      region: eastus
-      resourceGroupName: rg-mappo-dual-demo-target-06
-      containerAppName: ca-mappo-dual-demo-target-06
-      tags:
-        tier: silver
-        environment: demo
-    - id: target-07
-      tenantId: tenant-007
-      subscriptionId: c0d51042-7d0a-41f7-b270-151e4c4ea263
-      targetGroup: prod
-      region: eastus
-      resourceGroupName: rg-mappo-dual-demo-target-07
-      containerAppName: ca-mappo-dual-demo-target-07
-      tags:
-        tier: silver
-        environment: demo
-    - id: target-08
-      tenantId: tenant-008
-      subscriptionId: 1adaaa48-139a-477b-a8c8-0e6289d6d199
-      targetGroup: prod
-      region: eastus
-      resourceGroupName: rg-mappo-dual-demo-target-08
-      containerAppName: ca-mappo-dual-demo-target-08
-      tags:
-        tier: silver
-        environment: demo
-    - id: target-09
-      tenantId: tenant-009
-      subscriptionId: c0d51042-7d0a-41f7-b270-151e4c4ea263
-      targetGroup: prod
-      region: eastus
-      resourceGroupName: rg-mappo-dual-demo-target-09
-      containerAppName: ca-mappo-dual-demo-target-09
-      tags:
-        tier: bronze
-        environment: demo
-    - id: target-10
-      tenantId: tenant-010
-      subscriptionId: 1adaaa48-139a-477b-a8c8-0e6289d6d199
-      targetGroup: prod
-      region: eastus
-      resourceGroupName: rg-mappo-dual-demo-target-10
-      containerAppName: ca-mappo-dual-demo-target-10
-      tags:
-        tier: bronze
-        environment: demo
-encryptionsalt: v1:ethtzQTs5Fg=:v1:ta9mvjwNt1MhwSu3:k8X8fBLm4x02L92eIcPDcLw18Z0dtw==
+encryptionsalt: v1:pKTEJPjPy1M=:v1:c9qT0Z0ZshO/Fn1I:43LEPcInHrDGzH1ikj42gYVqoF7IKg==

@@ -1,150 +1,24 @@
 {
   "components": {
     "schemas": {
-      "AdminDiscoverImportRequest": {
+      "AdminOnboardingSnapshotResponse": {
         "properties": {
-          "auto_enumerate_subscriptions": {
-            "default": true,
-            "title": "Auto Enumerate Subscriptions",
-            "type": "boolean"
-          },
-          "clear_runs": {
-            "default": true,
-            "title": "Clear Runs",
-            "type": "boolean"
-          },
-          "default_target_group": {
-            "default": "prod",
-            "title": "Default Target Group",
-            "type": "string"
-          },
-          "group_tag_key": {
-            "default": "ring",
-            "title": "Group Tag Key",
-            "type": "string"
-          },
-          "managed_app_name_prefix": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Managed App Name Prefix"
-          },
-          "preferred_container_app_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Preferred Container App Name"
-          },
-          "subscription_ids": {
+          "events": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/MarketplaceEventRecord"
             },
-            "title": "Subscription Ids",
+            "title": "Events",
+            "type": "array"
+          },
+          "registrations": {
+            "items": {
+              "$ref": "#/components/schemas/TargetRegistrationRecord"
+            },
+            "title": "Registrations",
             "type": "array"
           }
         },
-        "title": "AdminDiscoverImportRequest",
-        "type": "object"
-      },
-      "AdminDiscoverImportResponse": {
-        "properties": {
-          "auto_discovered_subscription_ids": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Auto Discovered Subscription Ids",
-            "type": "array"
-          },
-          "blocked_enumeration": {
-            "items": {
-              "$ref": "#/components/schemas/AdminDiscoveryBlockedScope"
-            },
-            "title": "Blocked Enumeration",
-            "type": "array"
-          },
-          "discovered_managed_apps": {
-            "title": "Discovered Managed Apps",
-            "type": "integer"
-          },
-          "discovered_targets": {
-            "title": "Discovered Targets",
-            "type": "integer"
-          },
-          "imported_targets": {
-            "title": "Imported Targets",
-            "type": "integer"
-          },
-          "scanned_subscription_ids": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Scanned Subscription Ids",
-            "type": "array"
-          },
-          "skipped_managed_apps": {
-            "title": "Skipped Managed Apps",
-            "type": "integer"
-          },
-          "subscriptions_scanned": {
-            "title": "Subscriptions Scanned",
-            "type": "integer"
-          },
-          "target_ids": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Target Ids",
-            "type": "array"
-          },
-          "warnings": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Warnings",
-            "type": "array"
-          }
-        },
-        "required": [
-          "imported_targets",
-          "discovered_targets",
-          "discovered_managed_apps",
-          "skipped_managed_apps",
-          "subscriptions_scanned"
-        ],
-        "title": "AdminDiscoverImportResponse",
-        "type": "object"
-      },
-      "AdminDiscoveryBlockedScope": {
-        "properties": {
-          "reason": {
-            "title": "Reason",
-            "type": "string"
-          },
-          "scope_id": {
-            "title": "Scope Id",
-            "type": "string"
-          },
-          "scope_type": {
-            "title": "Scope Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "scope_type",
-          "scope_id",
-          "reason"
-        ],
-        "title": "AdminDiscoveryBlockedScope",
+        "title": "AdminOnboardingSnapshotResponse",
         "type": "object"
       },
       "CreateReleaseRequest": {
@@ -269,6 +143,284 @@
         ],
         "title": "HealthResponse",
         "type": "object"
+      },
+      "MarketplaceEventIngestRequest": {
+        "properties": {
+          "container_app_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Container App Name"
+          },
+          "container_app_resource_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Container App Resource Id"
+          },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "environment": {
+            "default": "prod",
+            "title": "Environment",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "string"
+          },
+          "event_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Time"
+          },
+          "event_type": {
+            "default": "subscription_purchased",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "health_status": {
+            "default": "registered",
+            "title": "Health Status",
+            "type": "string"
+          },
+          "last_deployed_release": {
+            "default": "unknown",
+            "title": "Last Deployed Release",
+            "type": "string"
+          },
+          "managed_application_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Managed Application Id"
+          },
+          "managed_resource_group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Managed Resource Group Id"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "subscription_id": {
+            "title": "Subscription Id",
+            "type": "string"
+          },
+          "tags": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "object"
+          },
+          "target_group": {
+            "default": "prod",
+            "title": "Target Group",
+            "type": "string"
+          },
+          "target_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Id"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "tier": {
+            "default": "standard",
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "tenant_id",
+          "subscription_id"
+        ],
+        "title": "MarketplaceEventIngestRequest",
+        "type": "object"
+      },
+      "MarketplaceEventIngestResponse": {
+        "properties": {
+          "event_id": {
+            "title": "Event Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MarketplaceEventStatus"
+          },
+          "target_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Id"
+          }
+        },
+        "required": [
+          "event_id",
+          "status",
+          "message"
+        ],
+        "title": "MarketplaceEventIngestResponse",
+        "type": "object"
+      },
+      "MarketplaceEventRecord": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "string"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "processed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processed At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MarketplaceEventStatus"
+          },
+          "subscription_id": {
+            "title": "Subscription Id",
+            "type": "string"
+          },
+          "target_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Id"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "event_type",
+          "status",
+          "message",
+          "tenant_id",
+          "subscription_id",
+          "created_at"
+        ],
+        "title": "MarketplaceEventRecord",
+        "type": "object"
+      },
+      "MarketplaceEventStatus": {
+        "enum": [
+          "applied",
+          "duplicate",
+          "rejected"
+        ],
+        "title": "MarketplaceEventStatus",
+        "type": "string"
       },
       "Release": {
         "properties": {
@@ -764,6 +916,101 @@
         "title": "TargetLogEvent",
         "type": "object"
       },
+      "TargetRegistrationRecord": {
+        "properties": {
+          "container_app_resource_id": {
+            "title": "Container App Resource Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "last_event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Event Id"
+          },
+          "managed_application_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Managed Application Id"
+          },
+          "managed_resource_group_id": {
+            "title": "Managed Resource Group Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "subscription_id": {
+            "title": "Subscription Id",
+            "type": "string"
+          },
+          "tags": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "object"
+          },
+          "target_id": {
+            "title": "Target Id",
+            "type": "string"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_id",
+          "tenant_id",
+          "subscription_id",
+          "managed_resource_group_id",
+          "container_app_resource_id",
+          "display_name",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "TargetRegistrationRecord",
+        "type": "object"
+      },
       "TargetStage": {
         "enum": [
           "QUEUED",
@@ -880,25 +1127,29 @@
   },
   "openapi": "3.1.0",
   "paths": {
-    "/api/v1/admin/discover-import": {
-      "post": {
-        "operationId": "discover_and_import_targets_api_v1_admin_discover_import_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AdminDiscoverImportRequest"
-              }
+    "/api/v1/admin/onboarding": {
+      "get": {
+        "operationId": "get_onboarding_snapshot_api_v1_admin_onboarding_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "event_limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 250,
+              "minimum": 1,
+              "title": "Event Limit",
+              "type": "integer"
             }
-          },
-          "required": true
-        },
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminDiscoverImportResponse"
+                  "$ref": "#/components/schemas/AdminOnboardingSnapshotResponse"
                 }
               }
             },
@@ -915,7 +1166,66 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Discover And Import Targets",
+        "summary": "Get Onboarding Snapshot",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/onboarding/events": {
+      "post": {
+        "operationId": "ingest_marketplace_event_api_v1_admin_onboarding_events_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-mappo-ingest-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Mappo-Ingest-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketplaceEventIngestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketplaceEventIngestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ingest Marketplace Event",
         "tags": [
           "admin"
         ]

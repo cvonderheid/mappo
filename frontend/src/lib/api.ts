@@ -1,8 +1,9 @@
 import { apiClient } from "@/lib/api/client";
 import type {
-  AdminDiscoverImportRequest,
-  AdminDiscoverImportResponse,
+  AdminOnboardingSnapshotResponse,
   CreateRunRequest,
+  MarketplaceEventIngestRequest,
+  MarketplaceEventIngestResponse,
   Release,
   RunDetail,
   RunSummary,
@@ -84,11 +85,25 @@ export async function retryFailed(runId: string): Promise<RunDetail> {
   return requireData("retryFailed", { data, error, response });
 }
 
-export async function adminDiscoverImport(
-  request: AdminDiscoverImportRequest
-): Promise<AdminDiscoverImportResponse> {
-  const { data, error, response } = await apiClient.POST("/api/v1/admin/discover-import", {
-    body: request,
+export async function getAdminOnboardingSnapshot(
+  eventLimit = 50
+): Promise<AdminOnboardingSnapshotResponse> {
+  const { data, error, response } = await apiClient.GET("/api/v1/admin/onboarding", {
+    params: { query: { event_limit: eventLimit } },
   });
-  return requireData("adminDiscoverImport", { data, error, response });
+  return requireData("getAdminOnboardingSnapshot", { data, error, response });
+}
+
+export async function adminIngestMarketplaceEvent(
+  request: MarketplaceEventIngestRequest,
+  ingestToken?: string
+): Promise<MarketplaceEventIngestResponse> {
+  const { data, error, response } = await apiClient.POST("/api/v1/admin/onboarding/events", {
+    body: request,
+    headers:
+      ingestToken === undefined || ingestToken.trim() === ""
+        ? undefined
+        : { "x-mappo-ingest-token": ingestToken.trim() },
+  });
+  return requireData("adminIngestMarketplaceEvent", { data, error, response });
 }

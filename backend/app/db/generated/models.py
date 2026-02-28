@@ -63,3 +63,27 @@ class Targets(Base):
     id: Mapped[str] = mapped_column(Text, primary_key=True)
     payload_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(True), nullable=False, server_default=text('now()'))
+
+
+class TargetRegistrations(Base):
+    __tablename__ = 'target_registrations'
+    __table_args__ = (
+        PrimaryKeyConstraint('id', name='target_registrations_pkey'),
+        Index('idx_target_registrations_updated_at', 'updated_at')
+    )
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    payload_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(True), nullable=False, server_default=text('now()'))
+
+
+class MarketplaceEvents(Base):
+    __tablename__ = 'marketplace_events'
+    __table_args__ = (
+        PrimaryKeyConstraint('id', name='marketplace_events_pkey'),
+        Index('idx_marketplace_events_created_at', 'created_at')
+    )
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    payload_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(True), nullable=False, server_default=text('now()'))

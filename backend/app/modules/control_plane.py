@@ -3,22 +3,36 @@ from __future__ import annotations
 import asyncio
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy import delete, select
 
-from app.db.generated.models import Releases, Runs, Targets
+from app.db.generated.models import (
+    MarketplaceEvents,
+    Releases,
+    Runs,
+    TargetRegistrations,
+    Targets,
+)
 from app.db.session import create_engine_and_session_factory
 from app.modules.execution import (
+    AzureExecutionError,
     AzureExecutorSettings,
+    ContainerAppResourceRef,
     ExecutionMode,
     TargetExecutor,
     create_target_executor,
+    parse_container_app_resource_id,
 )
 from app.modules.schemas import (
+    AdminOnboardingSnapshotResponse,
     CreateReleaseRequest,
     CreateRunRequest,
     DeploymentRun,
+    MarketplaceEventIngestRequest,
+    MarketplaceEventIngestResponse,
+    MarketplaceEventRecord,
+    MarketplaceEventStatus,
     Release,
     RunDetail,
     RunStatus,
@@ -28,6 +42,7 @@ from app.modules.schemas import (
     Target,
     TargetExecutionRecord,
     TargetLogEvent,
+    TargetRegistrationRecord,
     TargetStage,
     TargetStageRecord,
 )
@@ -69,6 +84,8 @@ class ControlPlaneStore:
         )
 
         self._targets = self._load_targets()
+        self._registrations = self._load_target_registrations()
+        self._marketplace_events = self._load_marketplace_events()
         self._releases = self._load_releases()
 
         self._runs = self._load_runs()
@@ -121,6 +138,99 @@ class ControlPlaneStore:
             task.cancel()
         if tasks_to_cancel:
             await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
+
+    async def get_onboarding_snapshot(
+        self,
+        *,
+        event_limit: int = 50,
+    ) -> AdminOnboardingSnapshotResponse:
+        safe_limit = max(1, event_limit)
+        async with self._lock:
+            registrations = [
+                item.model_copy(deep=True)
+                for item in sorted(self._registrations.values(), key=lambda row: row.target_id)
+            ]
+            events = sorted(
+                (item.model_copy(deep=True) for item in self._marketplace_events.values()),
+                key=lambda row: row.created_at,
+                reverse=True,
+            )[:safe_limit]
+        return AdminOnboardingSnapshotResponse(registrations=registrations, events=events)
+
+    async def ingest_marketplace_event(
+        self,
+        request: MarketplaceEventIngestRequest,
+    ) -> MarketplaceEventIngestResponse:
+        async with self._lock:
+            existing = self._marketplace_events.get(request.event_id)
+            if existing is not None:
+                return MarketplaceEventIngestResponse(
+                    event_id=existing.event_id,
+                    status=MarketplaceEventStatus.DUPLICATE,
+                    message=(
+                        f"Event already processed with status {existing.status}: "
+                        f"{existing.message}"
+                    ),
+                    target_id=existing.target_id,
+                )
+
+            now = utc_now()
+            try:
+                target, registration = self._build_registration_locked(
+                    request=request,
+                    now=now,
+                )
+            except StoreError as error:
+                event = MarketplaceEventRecord(
+                    event_id=request.event_id,
+                    event_type=request.event_type,
+                    status=MarketplaceEventStatus.REJECTED,
+                    message=error.message,
+                    target_id=None,
+                    tenant_id=request.tenant_id.strip(),
+                    subscription_id=request.subscription_id.strip(),
+                    payload=request.model_dump(mode="json"),
+                    created_at=now,
+                    processed_at=now,
+                )
+                self._marketplace_events[event.event_id] = event
+                self._save_marketplace_event_locked(event)
+                return MarketplaceEventIngestResponse(
+                    event_id=event.event_id,
+                    status=event.status,
+                    message=event.message,
+                    target_id=event.target_id,
+                )
+
+            self._targets[target.id] = target
+            self._save_target_locked(target)
+            self._registrations[registration.target_id] = registration
+            self._save_target_registration_locked(registration)
+
+            event = MarketplaceEventRecord(
+                event_id=request.event_id,
+                event_type=request.event_type,
+                status=MarketplaceEventStatus.APPLIED,
+                message=(
+                    f"Registered target {target.id} for subscription "
+                    f"{target.subscription_id}."
+                ),
+                target_id=target.id,
+                tenant_id=target.tenant_id,
+                subscription_id=target.subscription_id,
+                payload=request.model_dump(mode="json"),
+                created_at=now,
+                processed_at=now,
+            )
+            self._marketplace_events[event.event_id] = event
+            self._save_marketplace_event_locked(event)
+
+            return MarketplaceEventIngestResponse(
+                event_id=event.event_id,
+                status=event.status,
+                message=event.message,
+                target_id=event.target_id,
+            )
 
     async def list_releases(self) -> list[Release]:
         async with self._lock:
@@ -724,10 +834,15 @@ class ControlPlaneStore:
         )
 
     def _to_run_detail(self, run: DeploymentRun) -> RunDetail:
-        ordered_records = [
-            run.target_records[target_id].model_copy(deep=True)
-            for target_id in run.target_ids
-        ]
+        ordered_records: list[TargetExecutionRecord] = []
+        for target_id in run.target_ids:
+            record = run.target_records[target_id].model_copy(deep=True)
+            for stage in record.stages:
+                stage.portal_link = self._normalize_portal_link(
+                    target_id=target_id,
+                    portal_link=stage.portal_link,
+                )
+            ordered_records.append(record)
         return RunDetail(
             id=run.id,
             release_id=run.release_id,
@@ -763,11 +878,289 @@ class ControlPlaneStore:
 
     def _build_portal_link(self, target_id: str) -> str:
         target = self._targets[target_id]
-        resource = target.managed_app_id.replace("/", "%2F")
-        return (
-            "https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceId/"
-            f"{resource}"
+        resource_id = target.managed_app_id.strip()
+        if not resource_id.startswith("/"):
+            resource_id = f"/{resource_id}"
+
+        # Direct resource blade links are more reliable than BrowseResource links.
+        tenant_id = target.tenant_id.strip()
+        if self._is_guid(tenant_id):
+            return f"https://portal.azure.com/#@{tenant_id}/resource{resource_id}/overview"
+        return f"https://portal.azure.com/#resource{resource_id}/overview"
+
+    def _normalize_portal_link(self, *, target_id: str, portal_link: str) -> str:
+        link = portal_link.strip()
+        if "HubsExtension/BrowseResource" in link:
+            return self._build_portal_link(target_id)
+        if link == "":
+            return self._build_portal_link(target_id)
+        return link
+
+    @staticmethod
+    def _is_guid(value: str) -> bool:
+        try:
+            UUID(value)
+        except ValueError:
+            return False
+        return True
+
+    def _build_registration_locked(
+        self,
+        *,
+        request: MarketplaceEventIngestRequest,
+        now: datetime,
+    ) -> tuple[Target, TargetRegistrationRecord]:
+        tenant_id = request.tenant_id.strip()
+        subscription_id = request.subscription_id.strip()
+        if tenant_id == "":
+            raise StoreError("tenant_id is required")
+        if subscription_id == "":
+            raise StoreError("subscription_id is required")
+
+        container_app_resource_id = self._resolve_container_app_resource_id(
+            request=request,
+            subscription_id=subscription_id,
         )
+        managed_resource_group_id = self._resolve_managed_resource_group_id(
+            request=request,
+            container_app_resource_id=container_app_resource_id,
+            subscription_id=subscription_id,
+        )
+        managed_application_id = self._normalize_managed_application_id(
+            request=request,
+            subscription_id=subscription_id,
+        )
+
+        container_ref = self._parse_container_app_resource_id_safe(container_app_resource_id)
+        target_id = self._resolve_target_id(
+            request=request,
+            managed_application_id=managed_application_id,
+            container_app_name=container_ref.container_app_name,
+        )
+        tags = self._build_target_tags(request=request)
+
+        existing_registration = self._registrations.get(target_id)
+        created_at = existing_registration.created_at if existing_registration else now
+
+        target = Target(
+            id=target_id,
+            tenant_id=tenant_id,
+            subscription_id=subscription_id,
+            managed_app_id=container_app_resource_id,
+            tags=tags,
+            last_deployed_release=request.last_deployed_release.strip() or "unknown",
+            health_status=request.health_status.strip() or "registered",
+            last_check_in_at=request.event_time or now,
+            simulated_failure_mode="none",
+        )
+        registration = TargetRegistrationRecord(
+            target_id=target.id,
+            tenant_id=tenant_id,
+            subscription_id=subscription_id,
+            managed_application_id=managed_application_id,
+            managed_resource_group_id=managed_resource_group_id,
+            container_app_resource_id=container_app_resource_id,
+            display_name=self._resolve_display_name(
+                request=request,
+                default_name=target.id,
+            ),
+            customer_name=request.customer_name.strip() or None
+            if request.customer_name is not None
+            else None,
+            tags=tags,
+            metadata=request.metadata,
+            last_event_id=request.event_id,
+            created_at=created_at,
+            updated_at=now,
+        )
+        return target, registration
+
+    def _resolve_target_id(
+        self,
+        *,
+        request: MarketplaceEventIngestRequest,
+        managed_application_id: str | None,
+        container_app_name: str,
+    ) -> str:
+        explicit_target_id = request.target_id.strip() if request.target_id else ""
+        if explicit_target_id != "":
+            return explicit_target_id
+        managed_app_name = self._extract_managed_app_name(managed_application_id)
+        if managed_app_name is not None:
+            return managed_app_name
+        return container_app_name
+
+    def _resolve_display_name(
+        self,
+        *,
+        request: MarketplaceEventIngestRequest,
+        default_name: str,
+    ) -> str:
+        if request.display_name is not None and request.display_name.strip() != "":
+            return request.display_name.strip()
+        if request.customer_name is not None and request.customer_name.strip() != "":
+            return request.customer_name.strip()
+        return default_name
+
+    def _build_target_tags(self, *, request: MarketplaceEventIngestRequest) -> dict[str, str]:
+        normalized_tags: dict[str, str] = {}
+        for key, value in request.tags.items():
+            tag_key = key.strip()
+            tag_value = value.strip()
+            if tag_key == "" or tag_value == "":
+                continue
+            normalized_tags[tag_key] = tag_value
+        normalized_tags["ring"] = request.target_group.strip() or "prod"
+        region = request.region.strip() if request.region is not None else ""
+        normalized_tags["region"] = (
+            region if region != "" else "unknown"
+        )
+        normalized_tags["environment"] = (
+            request.environment.strip() if request.environment.strip() != "" else "prod"
+        )
+        normalized_tags["tier"] = request.tier.strip() if request.tier.strip() != "" else "standard"
+        return normalized_tags
+
+    def _resolve_container_app_resource_id(
+        self,
+        *,
+        request: MarketplaceEventIngestRequest,
+        subscription_id: str,
+    ) -> str:
+        if request.container_app_resource_id is not None:
+            resource_id = self._normalize_resource_id(request.container_app_resource_id)
+            ref = self._parse_container_app_resource_id_safe(resource_id)
+            if ref.subscription_id != subscription_id:
+                raise StoreError(
+                    "container_app_resource_id subscription does not match subscription_id"
+                )
+            return resource_id
+
+        managed_rg = request.managed_resource_group_id
+        app_name = request.container_app_name
+        error_message = (
+            "provide container_app_resource_id or "
+            "managed_resource_group_id + container_app_name"
+        )
+        if managed_rg is None or managed_rg.strip() == "":
+            raise StoreError(error_message)
+        if app_name is None or app_name.strip() == "":
+            raise StoreError(error_message)
+
+        managed_rg_resource_id = self._normalize_resource_id(managed_rg)
+        rg_parts = [part for part in managed_rg_resource_id.strip("/").split("/") if part]
+        if len(rg_parts) != 4:
+            raise StoreError("managed_resource_group_id is not a valid resource-group ID")
+        if (
+            rg_parts[0].lower() != "subscriptions"
+            or rg_parts[2].lower() != "resourcegroups"
+        ):
+            raise StoreError(
+                "managed_resource_group_id is missing subscription/resource-group segments"
+            )
+        if rg_parts[1] != subscription_id:
+            raise StoreError(
+                "managed_resource_group_id subscription does not match subscription_id"
+            )
+        return (
+            f"/subscriptions/{subscription_id}/resourceGroups/{rg_parts[3]}"
+            f"/providers/Microsoft.App/containerApps/{app_name.strip()}"
+        )
+
+    def _resolve_managed_resource_group_id(
+        self,
+        *,
+        request: MarketplaceEventIngestRequest,
+        container_app_resource_id: str,
+        subscription_id: str,
+    ) -> str:
+        container_parts = [part for part in container_app_resource_id.strip("/").split("/") if part]
+        if len(container_parts) != 8:
+            raise StoreError("container_app_resource_id is not a valid resource ID")
+        inferred = f"/subscriptions/{container_parts[1]}/resourceGroups/{container_parts[3]}"
+
+        if (
+            request.managed_resource_group_id is None
+            or request.managed_resource_group_id.strip() == ""
+        ):
+            return inferred
+
+        provided = self._normalize_resource_id(request.managed_resource_group_id)
+        provided_parts = [part for part in provided.strip("/").split("/") if part]
+        if len(provided_parts) != 4:
+            raise StoreError("managed_resource_group_id is not a valid resource-group ID")
+        if (
+            provided_parts[0].lower() != "subscriptions"
+            or provided_parts[2].lower() != "resourcegroups"
+        ):
+            raise StoreError(
+                "managed_resource_group_id is missing subscription/resource-group segments"
+            )
+        if provided_parts[1] != subscription_id:
+            raise StoreError(
+                "managed_resource_group_id subscription does not match subscription_id"
+            )
+        if provided_parts[3] != container_parts[3]:
+            raise StoreError(
+                "managed_resource_group_id does not match container_app_resource_id resource group"
+            )
+        return provided
+
+    def _normalize_managed_application_id(
+        self,
+        *,
+        request: MarketplaceEventIngestRequest,
+        subscription_id: str,
+    ) -> str | None:
+        if request.managed_application_id is None or request.managed_application_id.strip() == "":
+            return None
+
+        resource_id = self._normalize_resource_id(request.managed_application_id)
+        parts = [part for part in resource_id.strip("/").split("/") if part]
+        if len(parts) != 8:
+            raise StoreError(
+                "managed_application_id is not a valid managed application resource ID"
+            )
+        if (
+            parts[0].lower() != "subscriptions"
+            or parts[2].lower() != "resourcegroups"
+        ):
+            raise StoreError(
+                "managed_application_id is missing subscription/resource-group segments"
+            )
+        if parts[4].lower() != "providers" or parts[5].lower() != "microsoft.solutions":
+            raise StoreError("managed_application_id provider must be Microsoft.Solutions")
+        if parts[6].lower() != "applications":
+            raise StoreError("managed_application_id type must be applications")
+        if parts[1] != subscription_id:
+            raise StoreError("managed_application_id subscription does not match subscription_id")
+        return resource_id
+
+    def _extract_managed_app_name(self, managed_application_id: str | None) -> str | None:
+        if managed_application_id is None:
+            return None
+        parts = [part for part in managed_application_id.strip("/").split("/") if part]
+        if len(parts) != 8:
+            return None
+        return parts[7]
+
+    def _parse_container_app_resource_id_safe(
+        self,
+        resource_id: str,
+    ) -> ContainerAppResourceRef:
+        try:
+            return parse_container_app_resource_id(resource_id)
+        except AzureExecutionError as error:
+            raise StoreError(error.message) from error
+
+    @staticmethod
+    def _normalize_resource_id(resource_id: str) -> str:
+        trimmed = resource_id.strip()
+        if trimmed == "":
+            raise StoreError("resource ID must not be empty")
+        if not trimmed.startswith("/"):
+            trimmed = f"/{trimmed}"
+        return trimmed
 
     def _load_targets(self) -> dict[str, Target]:
         with self._session_factory() as session:
@@ -780,6 +1173,38 @@ class ControlPlaneStore:
             except Exception as error:
                 print(f"failed to parse target payload: {error}")
         return targets
+
+    def _load_target_registrations(self) -> dict[str, TargetRegistrationRecord]:
+        with self._session_factory() as session:
+            rows = session.execute(select(TargetRegistrations.payload_json)).scalars().all()
+        registrations: dict[str, TargetRegistrationRecord] = {}
+        for payload in rows:
+            try:
+                item = TargetRegistrationRecord.model_validate(payload)
+                registrations[item.target_id] = item
+            except Exception as error:
+                print(f"failed to parse target registration payload: {error}")
+        return registrations
+
+    def _load_marketplace_events(self) -> dict[str, MarketplaceEventRecord]:
+        with self._session_factory() as session:
+            rows = (
+                session.execute(
+                    select(MarketplaceEvents.payload_json).order_by(
+                        MarketplaceEvents.created_at.asc()
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        events: dict[str, MarketplaceEventRecord] = {}
+        for payload in rows:
+            try:
+                event = MarketplaceEventRecord.model_validate(payload)
+                events[event.event_id] = event
+            except Exception as error:
+                print(f"failed to parse marketplace event payload: {error}")
+        return events
 
     def _load_releases(self) -> dict[str, Release]:
         with self._session_factory() as session:
@@ -874,6 +1299,39 @@ class ControlPlaneStore:
             else:
                 row.payload_json = target.model_dump(mode="json")
                 row.updated_at = now
+            session.commit()
+
+    def _save_target_registration_locked(self, registration: TargetRegistrationRecord) -> None:
+        now = utc_now()
+        with self._session_factory() as session:
+            row = session.get(TargetRegistrations, registration.target_id)
+            if row is None:
+                session.add(
+                    TargetRegistrations(
+                        id=registration.target_id,
+                        payload_json=registration.model_dump(mode="json"),
+                        updated_at=now,
+                    )
+                )
+            else:
+                row.payload_json = registration.model_dump(mode="json")
+                row.updated_at = now
+            session.commit()
+
+    def _save_marketplace_event_locked(self, event: MarketplaceEventRecord) -> None:
+        with self._session_factory() as session:
+            row = session.get(MarketplaceEvents, event.event_id)
+            if row is None:
+                session.add(
+                    MarketplaceEvents(
+                        id=event.event_id,
+                        payload_json=event.model_dump(mode="json"),
+                        created_at=event.created_at,
+                    )
+                )
+            else:
+                row.payload_json = event.model_dump(mode="json")
+                row.created_at = event.created_at
             session.commit()
 
     def _save_run_locked(self, run: DeploymentRun) -> None:

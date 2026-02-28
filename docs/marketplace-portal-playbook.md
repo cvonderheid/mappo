@@ -13,9 +13,10 @@ This playbook defines what is automated versus manual for a marketplace-accurate
 
 ### Automated with CLI/API scripts
 - Azure auth bootstrap (`make azure-auth-bootstrap`)
-- Managed app discovery/import (`make managed-app-discover-targets`, `make import-targets`)
+- Pulumi inventory export + import (`make iac-export-targets`, `make import-targets`)
 - Partner Center token acquisition (`make partner-center-token`)
 - Partner Center API invocation wrapper (`make partner-center-api URL=...`)
+- MAPPO onboarding ingest (`POST /api/v1/admin/onboarding/events`)
 
 ### Portal-only (manual) today
 - Partner Center UI setup tasks that are not reliably scriptable for this demo:

@@ -13,10 +13,8 @@ config:
     value: rg-mappo-ma-def
   mappo:applicationResourceGroupPrefix:
     value: rg-mappo-ma-apps
-  mappo:sharedEnvironmentNamePrefix:
-    value: cae-mappo-ma-shared
-  mappo:sharedEnvironmentResourceGroupPrefix:
-    value: rg-mappo-ma-shared-env
+  mappo:managedEnvironmentNamePrefix:
+    value: cae-mappo-ma
   mappo:managedAppNamePrefix:
     value: mappo-ma
   mappo:managedResourceGroupPrefix:

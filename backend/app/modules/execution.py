@@ -4,11 +4,12 @@ import asyncio
 import copy
 import hashlib
 import random
+import re
 import time
 import urllib.error
 import urllib.request
 from collections.abc import AsyncIterator, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Literal, Protocol
 
@@ -34,6 +35,7 @@ class AzureExecutorSettings:
     tenant_id: str | None = None
     client_id: str | None = None
     client_secret: str | None = None
+    tenant_by_subscription: dict[str, str] = field(default_factory=dict)
     verify_timeout_seconds: float = 180.0
     verify_poll_interval_seconds: float = 5.0
     health_timeout_seconds: float = 10.0
@@ -115,6 +117,56 @@ class AzureExecutionError(Exception):
         self.code = code
         self.message = message
         self.details = details
+
+
+TENANT_GUID_PATTERN = re.compile(
+    r"^[0-9a-fA-F]{8}-"
+    r"[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{12}$"
+)
+
+
+def is_guid_tenant_id(value: str | None) -> bool:
+    if value is None:
+        return False
+    return TENANT_GUID_PATTERN.fullmatch(value.strip()) is not None
+
+
+def normalize_tenant_hint(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    if normalized == "":
+        return None
+    lowered = normalized.lower()
+    if lowered in {"unknown-tenant", "unknown"}:
+        return None
+    if re.fullmatch(r"tenant-\d+", lowered):
+        return None
+    return normalized
+
+
+def resolve_tenant_for_subscription(
+    *,
+    subscription_id: str,
+    target_tenant_hint: str | None,
+    default_tenant_id: str | None,
+    tenant_by_subscription: dict[str, str],
+) -> str | None:
+    mapped = normalize_tenant_hint(tenant_by_subscription.get(subscription_id))
+    if mapped:
+        return mapped
+
+    normalized_target = normalize_tenant_hint(target_tenant_hint)
+    if normalized_target and (
+        is_guid_tenant_id(normalized_target)
+        or "." in normalized_target
+    ):
+        return normalized_target
+
+    return normalize_tenant_hint(default_tenant_id)
 
 
 class TargetExecutor(Protocol):
@@ -526,12 +578,17 @@ class AzureTargetExecutor:
 
 class AzureSdkRuntime:
     def __init__(self, settings: AzureExecutorSettings):
-        if not (settings.tenant_id and settings.client_id and settings.client_secret):
+        has_tenant_source = bool(
+            normalize_tenant_hint(settings.tenant_id)
+            or settings.tenant_by_subscription
+        )
+        if not (has_tenant_source and settings.client_id and settings.client_secret):
             raise AzureExecutionError(
                 code="azure_executor_not_configured",
                 message=(
-                    "Azure execution mode requires MAPPO_AZURE_TENANT_ID, "
-                    "MAPPO_AZURE_CLIENT_ID, and MAPPO_AZURE_CLIENT_SECRET."
+                    "Azure execution mode requires MAPPO_AZURE_CLIENT_ID and "
+                    "MAPPO_AZURE_CLIENT_SECRET plus tenant authority "
+                    "(MAPPO_AZURE_TENANT_ID or MAPPO_AZURE_TENANT_BY_SUBSCRIPTION)."
                 ),
             )
 
@@ -549,14 +606,21 @@ class AzureSdkRuntime:
                 details={"error": str(error)},
             ) from error
 
-        self._credential = ClientSecretCredential(
-            tenant_id=settings.tenant_id,
-            client_id=settings.client_id,
-            client_secret=settings.client_secret,
-        )
+        self._client_secret_credential_type = ClientSecretCredential
+        # Guarded above by credential validation.
+        self._client_id = settings.client_id or ""
+        self._client_secret = settings.client_secret or ""
+        self._default_tenant_id = normalize_tenant_hint(settings.tenant_id)
+        self._tenant_by_subscription = {
+            key.strip(): normalize_tenant_hint(value) or ""
+            for key, value in settings.tenant_by_subscription.items()
+            if key.strip() != "" and normalize_tenant_hint(value) is not None
+        }
         self._container_apps_client_type = ContainerAppsAPIClient
         self._container_app_model_type = ContainerApp
+        self._credentials_by_tenant: dict[str, Any] = {}
         self._clients_by_subscription: dict[str, Any] = {}
+        self._tenant_by_client_subscription: dict[str, str] = {}
         self._verify_timeout_seconds = max(settings.verify_timeout_seconds, 5.0)
         self._verify_poll_interval_seconds = max(settings.verify_poll_interval_seconds, 1.0)
         self._health_timeout_seconds = max(settings.health_timeout_seconds, 1.0)
@@ -585,6 +649,8 @@ class AzureSdkRuntime:
         recommended_run_cap: int | None = None
         recommended_subscription_cap: int | None = None
 
+        tenant_hint_by_subscription: dict[str, str] = {}
+
         for target in targets:
             region = normalize_location(target.tags.get("region"))
             if region is None:
@@ -593,12 +659,36 @@ class AzureSdkRuntime:
                     f"{target.id} has no region tag; skipped ACA quota preflight for that target."
                 )
                 continue
+            resolved_tenant = resolve_tenant_for_subscription(
+                subscription_id=target.subscription_id,
+                target_tenant_hint=target.tenant_id,
+                default_tenant_id=self._default_tenant_id,
+                tenant_by_subscription=self._tenant_by_subscription,
+            )
+            if resolved_tenant is None:
+                warnings.append(
+                    "Target "
+                    f"{target.id} has no resolvable tenant authority for subscription "
+                    f"{target.subscription_id}."
+                )
+                continue
+            tenant_hint_by_subscription[target.subscription_id] = resolved_tenant
             if target.subscription_id not in regions_by_subscription:
                 regions_by_subscription[target.subscription_id] = set()
             regions_by_subscription[target.subscription_id].add(region)
 
         for subscription_id, regions in regions_by_subscription.items():
-            client = self._client(subscription_id=subscription_id)
+            tenant_hint = tenant_hint_by_subscription.get(subscription_id)
+            if tenant_hint is None:
+                warnings.append(
+                    "Skipping ACA quota preflight for "
+                    f"{subscription_id} because tenant authority is unresolved."
+                )
+                continue
+            client = self._client(
+                subscription_id=subscription_id,
+                tenant_hint=tenant_hint,
+            )
             for region in sorted(regions):
                 region_value = str(region)
 
@@ -696,15 +786,31 @@ class AzureSdkRuntime:
             current_image=snapshot.current_image,
             parameter_defaults=release.parameter_defaults,
         )
-        if desired_image == snapshot.current_image:
+        desired_feature_flag = resolve_desired_feature_flag(release.parameter_defaults)
+        current_feature_flag = read_container_env_value(
+            app=snapshot.raw_app,
+            env_name="MAPPO_FEATURE_FLAG",
+        )
+        feature_flag_changed = (
+            desired_feature_flag is not None and desired_feature_flag != current_feature_flag
+        )
+
+        if desired_image == snapshot.current_image and not feature_flag_changed:
             return AzureDeployResult(
                 snapshot=snapshot,
                 desired_image=desired_image,
                 changed=False,
             )
 
-        app_to_update = self._build_update_payload(snapshot.raw_app, desired_image=desired_image)
-        client = self._client(subscription_id=snapshot.resource_ref.subscription_id)
+        app_to_update = self._build_update_payload(
+            snapshot.raw_app,
+            desired_image=desired_image,
+            desired_feature_flag=desired_feature_flag,
+        )
+        client = self._client(
+            subscription_id=snapshot.resource_ref.subscription_id,
+            tenant_hint=target.tenant_id,
+        )
         try:
             poller = self._with_retries(
                 operation_name="container-app-begin-update",
@@ -730,6 +836,7 @@ class AzureSdkRuntime:
                     "resource_group_name": snapshot.resource_ref.resource_group_name,
                     "container_app_name": snapshot.resource_ref.container_app_name,
                     "desired_image": desired_image,
+                    "desired_feature_flag": desired_feature_flag,
                 },
             ) from error
 
@@ -785,16 +892,71 @@ class AzureSdkRuntime:
             },
         )
 
-    def _client(self, *, subscription_id: str) -> Any:
+    def _client(
+        self,
+        *,
+        subscription_id: str,
+        tenant_hint: str | None = None,
+    ) -> Any:
         existing = self._clients_by_subscription.get(subscription_id)
         if existing is not None:
+            cached_tenant = self._tenant_by_client_subscription.get(subscription_id)
+            requested_tenant = resolve_tenant_for_subscription(
+                subscription_id=subscription_id,
+                target_tenant_hint=tenant_hint,
+                default_tenant_id=self._default_tenant_id,
+                tenant_by_subscription=self._tenant_by_subscription,
+            )
+            if requested_tenant and cached_tenant and requested_tenant != cached_tenant:
+                raise AzureExecutionError(
+                    code="azure_subscription_tenant_conflict",
+                    message=(
+                        "Subscription tenant authority changed during runtime."
+                    ),
+                    details={
+                        "subscription_id": subscription_id,
+                        "cached_tenant_id": cached_tenant,
+                        "requested_tenant_id": requested_tenant,
+                    },
+                )
             return existing
+
+        tenant_id = resolve_tenant_for_subscription(
+            subscription_id=subscription_id,
+            target_tenant_hint=tenant_hint,
+            default_tenant_id=self._default_tenant_id,
+            tenant_by_subscription=self._tenant_by_subscription,
+        )
+        if tenant_id is None:
+            raise AzureExecutionError(
+                code="azure_tenant_unresolved",
+                message=(
+                    "No tenant authority found for subscription. "
+                    "Set MAPPO_AZURE_TENANT_BY_SUBSCRIPTION or provide valid target tenant IDs."
+                ),
+                details={"subscription_id": subscription_id},
+            )
+
+        credential = self._credential_for_tenant(tenant_id=tenant_id)
         client = self._container_apps_client_type(
-            credential=self._credential,
+            credential=credential,
             subscription_id=subscription_id,
         )
         self._clients_by_subscription[subscription_id] = client
+        self._tenant_by_client_subscription[subscription_id] = tenant_id
         return client
+
+    def _credential_for_tenant(self, *, tenant_id: str) -> Any:
+        existing = self._credentials_by_tenant.get(tenant_id)
+        if existing is not None:
+            return existing
+        credential = self._client_secret_credential_type(
+            tenant_id=tenant_id,
+            client_id=self._client_id,
+            client_secret=self._client_secret,
+        )
+        self._credentials_by_tenant[tenant_id] = credential
+        return credential
 
     def _get_container_app(
         self,
@@ -802,7 +964,10 @@ class AzureSdkRuntime:
         ref: ContainerAppResourceRef,
         target: Target,
     ) -> Any:
-        client = self._client(subscription_id=ref.subscription_id)
+        client = self._client(
+            subscription_id=ref.subscription_id,
+            tenant_hint=target.tenant_id,
+        )
         try:
             return self._with_retries(
                 operation_name="container-app-get",
@@ -852,7 +1017,13 @@ class AzureSdkRuntime:
             raw_app=app,
         )
 
-    def _build_update_payload(self, app: Any, *, desired_image: str) -> Any:
+    def _build_update_payload(
+        self,
+        app: Any,
+        *,
+        desired_image: str,
+        desired_feature_flag: str | None = None,
+    ) -> Any:
         location = getattr(app, "location", None)
         if not isinstance(location, str) or location.strip() == "":
             raise AzureExecutionError(
@@ -868,6 +1039,12 @@ class AzureSdkRuntime:
                 message="Container App update payload has no containers.",
             )
         containers[0].image = desired_image
+        if desired_feature_flag is not None:
+            set_container_env_value(
+                container=containers[0],
+                env_name="MAPPO_FEATURE_FLAG",
+                env_value=desired_feature_flag,
+            )
 
         return self._container_app_model_type(
             location=location,
@@ -1163,6 +1340,14 @@ def resolve_desired_image(
     return current_image
 
 
+def resolve_desired_feature_flag(parameter_defaults: dict[str, str]) -> str | None:
+    for key in ("featureFlag", "feature_flag"):
+        value = parameter_defaults.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
 def replace_image_tag(*, current_image: str, image_tag: str) -> str:
     if current_image.strip() == "":
         return image_tag
@@ -1175,6 +1360,53 @@ def replace_image_tag(*, current_image: str, image_tag: str) -> str:
     else:
         repository = without_digest
     return f"{repository}:{image_tag}"
+
+
+def read_container_env_value(*, app: Any, env_name: str) -> str | None:
+    template = getattr(app, "template", None)
+    containers = list(getattr(template, "containers", []) or [])
+    if not containers:
+        return None
+    env_items = list(getattr(containers[0], "env", []) or [])
+    for env_item in env_items:
+        if isinstance(env_item, dict):
+            if str(env_item.get("name", "")) == env_name:
+                raw_value = env_item.get("value")
+                if raw_value is None:
+                    return None
+                return str(raw_value)
+            continue
+        name = str(getattr(env_item, "name", ""))
+        if name != env_name:
+            continue
+        raw_value = getattr(env_item, "value", None)
+        if raw_value is None:
+            return None
+        return str(raw_value)
+    return None
+
+
+def set_container_env_value(
+    *,
+    container: Any,
+    env_name: str,
+    env_value: str,
+) -> None:
+    env_items = list(getattr(container, "env", []) or [])
+    for env_item in env_items:
+        if isinstance(env_item, dict):
+            if str(env_item.get("name", "")) == env_name:
+                env_item["value"] = env_value
+                container.env = env_items
+                return
+            continue
+        name = str(getattr(env_item, "name", ""))
+        if name == env_name:
+            env_item.value = env_value
+            container.env = env_items
+            return
+    env_items.append({"name": env_name, "value": env_value})
+    container.env = env_items
 
 
 def build_health_url(

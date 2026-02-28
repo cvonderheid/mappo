@@ -55,6 +55,7 @@ async def main() -> None:
             tenant_id=settings.azure_tenant_id,
             client_id=settings.azure_client_id,
             client_secret=settings.azure_client_secret,
+            tenant_by_subscription=settings.azure_tenant_by_subscription,
         ),
         retention_days=settings.retention_days,
         stage_delay_seconds=0.0,

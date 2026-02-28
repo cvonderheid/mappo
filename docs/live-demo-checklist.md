@@ -21,6 +21,11 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
   - `source .data/mappo-azure.env`
 - [ ] Resolve publisher principal object ID used for managed app definition authorization:
   - `export MAPPO_PUBLISHER_PRINCIPAL_OBJECT_ID="<azure-ad-object-id>"`
+- [ ] Configure cross-tenant subscription-to-tenant mapping for MAPPO runtime:
+  - `make azure-tenant-map SUBSCRIPTION_IDS="<sub-a>,<sub-b>"`
+  - `export MAPPO_AZURE_TENANT_BY_SUBSCRIPTION='{"<sub-a>":"<tenant-a-guid>","<sub-b>":"<tenant-b-guid>"}'`
+- [ ] Onboard runtime app across target tenants/subscriptions (multi-tenant app + SP + RBAC):
+  - `make azure-onboard-multitenant-runtime CLIENT_ID="$MAPPO_AZURE_CLIENT_ID" SUBSCRIPTION_IDS="<sub-a>,<sub-b>"`
 
 ## 3) IaC Provisioning (Pulumi, primary path)
 
@@ -36,6 +41,9 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
   - `make iac-export-targets PULUMI_STACK=<stack>`
   - `make import-targets`
   - `make bootstrap-releases`
+- [ ] Validate event-driven onboarding path (same endpoint used by lifecycle forwarder):
+  - `POST /api/v1/admin/onboarding/events` with one managed-app target payload.
+  - `GET /api/v1/admin/onboarding` confirms registration + event status.
 - [ ] Verify managed application resource exists (`Microsoft.Solutions/applications`) and points to a managed resource group.
 - [ ] Verify intended target Container App exists in each managed resource group.
 

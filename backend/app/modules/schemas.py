@@ -130,33 +130,74 @@ class CreateRunRequest(BaseModel):
     target_tags: dict[str, str] = Field(default_factory=dict)
 
 
-class AdminDiscoverImportRequest(BaseModel):
-    subscription_ids: list[str] = Field(default_factory=list)
-    auto_enumerate_subscriptions: bool = True
-    managed_app_name_prefix: str | None = None
-    preferred_container_app_name: str | None = None
-    default_target_group: str = "prod"
-    group_tag_key: str = "ring"
-    clear_runs: bool = True
+class MarketplaceEventStatus(StrEnum):
+    APPLIED = "applied"
+    DUPLICATE = "duplicate"
+    REJECTED = "rejected"
 
 
-class AdminDiscoveryBlockedScope(BaseModel):
-    scope_type: str
-    scope_id: str
-    reason: str
+class MarketplaceEventIngestRequest(BaseModel):
+    event_id: str
+    event_type: str = "subscription_purchased"
+    event_time: datetime | None = None
+    tenant_id: str
+    subscription_id: str
+    managed_application_id: str | None = None
+    managed_resource_group_id: str | None = None
+    container_app_resource_id: str | None = None
+    container_app_name: str | None = None
+    target_id: str | None = None
+    display_name: str | None = None
+    customer_name: str | None = None
+    target_group: str = "prod"
+    region: str | None = None
+    environment: str = "prod"
+    tier: str = "standard"
+    tags: dict[str, str] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    health_status: str = "registered"
+    last_deployed_release: str = "unknown"
 
 
-class AdminDiscoverImportResponse(BaseModel):
-    imported_targets: int
-    discovered_targets: int
-    discovered_managed_apps: int
-    skipped_managed_apps: int
-    subscriptions_scanned: int
-    scanned_subscription_ids: list[str] = Field(default_factory=list)
-    auto_discovered_subscription_ids: list[str] = Field(default_factory=list)
-    blocked_enumeration: list[AdminDiscoveryBlockedScope] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-    target_ids: list[str] = Field(default_factory=list)
+class MarketplaceEventIngestResponse(BaseModel):
+    event_id: str
+    status: MarketplaceEventStatus
+    message: str
+    target_id: str | None = None
+
+
+class TargetRegistrationRecord(BaseModel):
+    target_id: str
+    tenant_id: str
+    subscription_id: str
+    managed_application_id: str | None = None
+    managed_resource_group_id: str
+    container_app_resource_id: str
+    display_name: str
+    customer_name: str | None = None
+    tags: dict[str, str] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    last_event_id: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class MarketplaceEventRecord(BaseModel):
+    event_id: str
+    event_type: str
+    status: MarketplaceEventStatus
+    message: str
+    target_id: str | None = None
+    tenant_id: str
+    subscription_id: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+    processed_at: datetime | None = None
+
+
+class AdminOnboardingSnapshotResponse(BaseModel):
+    registrations: list[TargetRegistrationRecord] = Field(default_factory=list)
+    events: list[MarketplaceEventRecord] = Field(default_factory=list)
 
 
 class RunSummary(BaseModel):

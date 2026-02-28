@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 import os
 import socket
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 
 from app.modules.execution import ExecutionMode
@@ -19,6 +20,7 @@ class Settings:
     azure_tenant_id: str | None = None
     azure_client_id: str | None = None
     azure_client_secret: str | None = None
+    azure_tenant_by_subscription: dict[str, str] = field(default_factory=dict)
     azure_max_run_concurrency: int = 6
     azure_max_subscription_concurrency: int = 2
     azure_max_retry_attempts: int = 5
@@ -28,6 +30,7 @@ class Settings:
     azure_enable_quota_preflight: bool = True
     azure_quota_warning_headroom_ratio: float = 0.1
     azure_quota_min_remaining_warning: int = 2
+    marketplace_ingest_token: str | None = None
     cors_origins: tuple[str, ...] = (
         "http://localhost:5173",
         "http://127.0.0.1:5173",
@@ -85,6 +88,48 @@ def _parse_execution_mode(value: str | None) -> ExecutionMode:
         raise ValueError("MAPPO_EXECUTION_MODE must be one of: demo, azure") from error
 
 
+def _parse_tenant_by_subscription_map(value: str | None) -> dict[str, str]:
+    if value is None or value.strip() == "":
+        return {}
+    raw = value.strip()
+
+    def _normalize(rows: dict[str, str]) -> dict[str, str]:
+        normalized: dict[str, str] = {}
+        for subscription_id, tenant_id in rows.items():
+            sub = str(subscription_id).strip()
+            tenant = str(tenant_id).strip()
+            if sub == "" or tenant == "":
+                continue
+            normalized[sub] = tenant
+        return normalized
+
+    if raw.startswith("{"):
+        payload = json.loads(raw)
+        if not isinstance(payload, dict):
+            raise ValueError(
+                "MAPPO_AZURE_TENANT_BY_SUBSCRIPTION JSON must be an object map."
+            )
+        return _normalize({str(k): str(v) for k, v in payload.items()})
+
+    rows: dict[str, str] = {}
+    for chunk in _split_tenant_map(raw):
+        if "=" in chunk:
+            subscription_id, tenant_id = chunk.split("=", 1)
+        elif ":" in chunk:
+            subscription_id, tenant_id = chunk.split(":", 1)
+        else:
+            raise ValueError(
+                "MAPPO_AZURE_TENANT_BY_SUBSCRIPTION entries must use subscription=tenant format."
+            )
+        rows[subscription_id] = tenant_id
+    return _normalize(rows)
+
+
+def _split_tenant_map(raw: str) -> list[str]:
+    chunks = [value.strip() for value in raw.replace(";", ",").split(",")]
+    return [chunk for chunk in chunks if chunk != ""]
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     cors_raw = os.getenv(
@@ -110,6 +155,9 @@ def get_settings() -> Settings:
         azure_tenant_id=os.getenv("MAPPO_AZURE_TENANT_ID"),
         azure_client_id=os.getenv("MAPPO_AZURE_CLIENT_ID"),
         azure_client_secret=os.getenv("MAPPO_AZURE_CLIENT_SECRET"),
+        azure_tenant_by_subscription=_parse_tenant_by_subscription_map(
+            os.getenv("MAPPO_AZURE_TENANT_BY_SUBSCRIPTION")
+        ),
         azure_max_run_concurrency=_parse_int_env(
             os.getenv("MAPPO_AZURE_MAX_RUN_CONCURRENCY"),
             default=6,
@@ -157,5 +205,6 @@ def get_settings() -> Settings:
             default=2,
             minimum=0,
         ),
+        marketplace_ingest_token=os.getenv("MAPPO_MARKETPLACE_INGEST_TOKEN"),
         cors_origins=cors_origins,
     )

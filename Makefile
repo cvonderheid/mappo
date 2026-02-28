@@ -12,8 +12,9 @@ export PULUMI_CONFIG_PASSPHRASE
 	dev dev-up dev-down dev-logs dev-backend dev-frontend build build-backend build-frontend \
 	lint lint-backend lint-frontend typecheck typecheck-backend typecheck-frontend \
 	test test-backend test-frontend test-frontend-e2e import-targets retention-prune \
-	azure-auth-bootstrap dev-backend-azure azure-preflight managed-app-discover-targets managed-demo-refresh bootstrap-releases \
+	azure-auth-bootstrap azure-tenant-map azure-onboard-multitenant-runtime dev-backend-azure azure-preflight bootstrap-releases \
 	partner-center-token partner-center-api \
+	cleanup-legacy-managed-app-demo \
 	db-migrate db-validate db-info db-clean db-reset models-gen openapi client-gen \
 	iac-install iac-stack-init iac-preview iac-up iac-destroy iac-export-targets iac-prepare-dual-stack \
 	workflow-discipline-check docs-consistency-check golden-principles-check check-no-demo-leak \
@@ -91,11 +92,31 @@ test-frontend-e2e: ## Run frontend Playwright click-through tests
 import-targets: ## Import fleet targets from .data/mappo-target-inventory.json
 	uv --directory backend run --package mappo-backend -- python scripts/import_targets.py --file $(abspath .data/mappo-target-inventory.json) --clear-runs
 
-bootstrap-releases: ## Bootstrap default release records when release catalog is empty
-	uv --directory backend run --package mappo-backend -- python scripts/bootstrap_releases.py
+bootstrap-releases: ## Bootstrap default release records (set FORCE=1 to replace existing)
+	uv --directory backend run --package mappo-backend -- python scripts/bootstrap_releases.py $(if $(FORCE),--force,)
 
 azure-auth-bootstrap: ## Create Azure SP credentials and write .data/mappo-azure.env
 	./scripts/azure_auth_bootstrap.sh
+
+azure-tenant-map: ## Build MAPPO_AZURE_TENANT_BY_SUBSCRIPTION from Azure account context
+	@if [ -z "$(SUBSCRIPTION_IDS)" ]; then \
+		echo "usage: make azure-tenant-map SUBSCRIPTION_IDS=<sub1,sub2,...> [ENV_FILE=.data/mappo-azure.env]"; \
+		exit 2; \
+	fi
+	./scripts/azure_tenant_map.sh \
+		--subscriptions "$(SUBSCRIPTION_IDS)" \
+		$(if $(ENV_FILE),--env-file "$(ENV_FILE)",)
+
+azure-onboard-multitenant-runtime: ## Onboard runtime app across target subscriptions/tenants (multi-tenant + SP + RBAC)
+	@if [ -z "$(CLIENT_ID)" ] || [ -z "$(SUBSCRIPTION_IDS)" ]; then \
+		echo "usage: make azure-onboard-multitenant-runtime CLIENT_ID=<app-id> SUBSCRIPTION_IDS=<sub1,sub2,...> [HOME_SUBSCRIPTION_ID=<sub-id>] [INVENTORY_FILE=.data/mappo-target-inventory.json]"; \
+		exit 2; \
+	fi
+	./scripts/azure_onboard_multitenant_runtime.sh \
+		--client-id "$(CLIENT_ID)" \
+		--target-subscriptions "$(SUBSCRIPTION_IDS)" \
+		$(if $(HOME_SUBSCRIPTION_ID),--home-subscription-id "$(HOME_SUBSCRIPTION_ID)",) \
+		$(if $(INVENTORY_FILE),--inventory-file "$(INVENTORY_FILE)",)
 
 partner-center-token: ## Acquire Partner Center access token into .data/mappo-partnercenter.env
 	./scripts/partner_center_get_token.sh --env-file .data/mappo-partnercenter.env
@@ -110,26 +131,17 @@ partner-center-api: ## Call Partner Center API (requires URL=<https://...>)
 		--url "$(URL)" \
 		$(if $(BODY_FILE),--body-file "$(BODY_FILE)",)
 
-azure-preflight: ## Validate Azure environment readiness for production-like multi-tenant demo
-	./scripts/azure_preflight.sh
-
-managed-app-discover-targets: ## Discover targets from Managed Apps (use OUTPUT_FILE=... for non-destructive smoke)
-	./scripts/managed_app_discover_targets.sh \
-		$(if $(OUTPUT_FILE),--output-file "$(OUTPUT_FILE)",) \
-		$(if $(SUBSCRIPTION_IDS),--subscriptions "$(SUBSCRIPTION_IDS)",) \
-		$(if $(CONTAINER_APP_NAME),--container-app-name "$(CONTAINER_APP_NAME)",) \
-		$(if $(MANAGED_APP_NAME_PREFIX),--managed-app-name-prefix "$(MANAGED_APP_NAME_PREFIX)",) \
-		$(if $(ALLOW_EMPTY),--allow-empty,)
-
-managed-demo-refresh: ## Refresh managed-app fleet inventory then import + preflight
-	@if [ -z "$(SUBSCRIPTION_IDS)" ]; then \
-		echo "usage: make managed-demo-refresh SUBSCRIPTION_IDS=<sub1,sub2> [MANAGED_APP_NAME_PREFIX=<prefix>]"; \
+cleanup-legacy-managed-app-demo: ## Delete legacy pre-Pulumi managed-app demo resource groups
+	@if [ -z "$(PROVIDER_SUBSCRIPTION_ID)" ] || [ -z "$(CUSTOMER_SUBSCRIPTION_ID)" ]; then \
+		echo "usage: make cleanup-legacy-managed-app-demo PROVIDER_SUBSCRIPTION_ID=<id> CUSTOMER_SUBSCRIPTION_ID=<id>"; \
 		exit 2; \
 	fi
-	$(MAKE) managed-app-discover-targets SUBSCRIPTION_IDS="$(SUBSCRIPTION_IDS)" MANAGED_APP_NAME_PREFIX="$(MANAGED_APP_NAME_PREFIX)"
-	$(MAKE) import-targets
-	$(MAKE) bootstrap-releases
-	$(MAKE) azure-preflight
+	./scripts/cleanup_legacy_managed_app_demo.sh \
+		--provider-subscription-id "$(PROVIDER_SUBSCRIPTION_ID)" \
+		--customer-subscription-id "$(CUSTOMER_SUBSCRIPTION_ID)"
+
+azure-preflight: ## Validate Azure environment readiness for production-like multi-tenant demo
+	./scripts/azure_preflight.sh
 
 retention-prune: ## Prune run history older than RETENTION_DAYS
 	uv --directory backend run --package mappo-backend -- python scripts/prune_retention.py --days $(RETENTION_DAYS)
@@ -179,17 +191,20 @@ iac-export-targets: iac-stack-init ## Export MAPPO target inventory from Pulumi 
 	cd $(IAC_DIR) && pulumi stack output mappoTargetInventory --stack $(PULUMI_STACK) --json > $(abspath $(IAC_TARGET_EXPORT))
 	@echo "wrote $(abspath $(IAC_TARGET_EXPORT))"
 
-iac-prepare-dual-stack: ## Generate dual-subscription Pulumi stack config for 10-target managed-app demo
+iac-prepare-dual-stack: ## Generate dual-subscription Pulumi stack config for managed-app demo targets
 	@if [ -z "$(CUSTOMER_SUBSCRIPTION_ID)" ]; then \
-		echo "usage: make iac-prepare-dual-stack CUSTOMER_SUBSCRIPTION_ID=<id> [PULUMI_STACK=<name>] [PROVIDER_SUBSCRIPTION_ID=<id>] [PUBLISHER_PRINCIPAL_OBJECT_ID=<object-id>] [LOCATION=<region>]"; \
+		echo "usage: make iac-prepare-dual-stack CUSTOMER_SUBSCRIPTION_ID=<id> [PULUMI_STACK=<name>] [PROVIDER_SUBSCRIPTION_ID=<id>] [PROVIDER_PRINCIPAL_OBJECT_ID=<object-id>] [CUSTOMER_PRINCIPAL_OBJECT_ID=<object-id>] [LOCATION=<region>] [TARGET_COUNT=<n>]"; \
 		exit 2; \
 	fi
 	./scripts/iac_prepare_dual_stack.sh \
 		--stack "$(PULUMI_STACK)" \
 		$(if $(PROVIDER_SUBSCRIPTION_ID),--provider-subscription-id "$(PROVIDER_SUBSCRIPTION_ID)",) \
 		--customer-subscription-id "$(CUSTOMER_SUBSCRIPTION_ID)" \
+		$(if $(PROVIDER_PRINCIPAL_OBJECT_ID),--provider-principal-object-id "$(PROVIDER_PRINCIPAL_OBJECT_ID)",) \
 		$(if $(PUBLISHER_PRINCIPAL_OBJECT_ID),--publisher-principal-object-id "$(PUBLISHER_PRINCIPAL_OBJECT_ID)",) \
-		$(if $(LOCATION),--location "$(LOCATION)",)
+		$(if $(CUSTOMER_PRINCIPAL_OBJECT_ID),--customer-principal-object-id "$(CUSTOMER_PRINCIPAL_OBJECT_ID)",) \
+		$(if $(LOCATION),--location "$(LOCATION)",) \
+		$(if $(TARGET_COUNT),--target-count "$(TARGET_COUNT)",)
 
 workflow-discipline-check: ## Validate required planning artifacts and structure
 	python3 scripts/workflow_discipline_check.py

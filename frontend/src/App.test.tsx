@@ -69,15 +69,31 @@ const mockRunDetail = {
       status: "DEPLOYING",
       attempt: 1,
       updated_at: "2026-02-25T00:00:00Z",
-      stages: [],
+      stages: [
+        {
+          stage: "VALIDATING",
+          started_at: "2026-02-25T00:00:00Z",
+          ended_at: "2026-02-25T00:00:01Z",
+          message: "Validated target ca-target-01.",
+          error: null,
+          correlation_id: "corr-unit-validating",
+          portal_link: "https://portal.azure.com/#resource/sub-0001/rg-target-01/ca-target-01",
+        },
+      ],
       logs: [],
     },
   ],
 };
 
+const mockAdminSnapshot = {
+  registrations: [],
+  events: [],
+};
+
 const apiMock = vi.hoisted(() => ({
-  adminDiscoverImport: vi.fn(),
+  adminIngestMarketplaceEvent: vi.fn(),
   createRun: vi.fn(),
+  getAdminOnboardingSnapshot: vi.fn(),
   getRun: vi.fn(),
   listReleases: vi.fn(),
   listRuns: vi.fn(),
@@ -94,7 +110,8 @@ describe("App", () => {
     apiMock.listReleases.mockResolvedValue(mockReleases);
     apiMock.listRuns.mockResolvedValue(mockRuns);
     apiMock.getRun.mockResolvedValue(mockRunDetail);
-    apiMock.adminDiscoverImport.mockReset();
+    apiMock.getAdminOnboardingSnapshot.mockResolvedValue(mockAdminSnapshot);
+    apiMock.adminIngestMarketplaceEvent.mockReset();
     apiMock.createRun.mockReset();
     apiMock.resumeRun.mockReset();
     apiMock.retryFailed.mockReset();
@@ -127,7 +144,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Admin" })).toBeInTheDocument();
-      expect(screen.getByText(/Managed Identity on ACA/i)).toBeInTheDocument();
+      expect(screen.getByText(/marketplace onboarding events/i)).toBeInTheDocument();
     });
   });
 });

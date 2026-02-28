@@ -11,6 +11,7 @@ MAPPO is a provider-tenant control plane that orchestrates release rollouts acro
 ## Control Plane Components
 1. API service
 - Owns Targets/Releases/Runs APIs.
+- Owns marketplace onboarding APIs (`/admin/onboarding`, `/admin/onboarding/events`) used by event-forwarders.
 - Exposes UI-facing status/query surfaces.
 
 2. Orchestrator service
@@ -30,6 +31,7 @@ MAPPO is a provider-tenant control plane that orchestrates release rollouts acro
 
 4. Persistence
 - Stores fleet state, run history, per-target stage records, and logs.
+- Stores onboarding registry records and event-ingest history for idempotent target registration.
 - Retains run/deployment history for 3 months.
 
 ## Control / Data / Verification Boundaries
@@ -46,6 +48,8 @@ MAPPO is a provider-tenant control plane that orchestrates release rollouts acro
 ## Deployment Direction
 - App services hosted on Azure Container Apps.
 - Azure APIs accessed through provider identity authorization on managed resource groups created by managed application instances.
+- Runtime Azure credentials are resolved per subscription tenant authority (via target tenant ID and/or `MAPPO_AZURE_TENANT_BY_SUBSCRIPTION`) to support cross-tenant deployments.
+- Target discovery is registration-driven (marketplace lifecycle events), not runtime subscription scanning.
 - UI and API are separate deployable containers.
 - Demo automation boundary:
   - Pulumi IaC provisions managed app definitions, managed app instances, shared ACA environments, and exports MAPPO inventory.

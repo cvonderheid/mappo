@@ -14,6 +14,12 @@ make install
 ```bash
 make azure-auth-bootstrap
 source .data/mappo-azure.env
+make azure-tenant-map SUBSCRIPTION_IDS="<sub1>,<sub2>"
+make azure-onboard-multitenant-runtime CLIENT_ID="$MAPPO_AZURE_CLIENT_ID" SUBSCRIPTION_IDS="<sub1>,<sub2>"
+```
+   - For cross-tenant targets, set per-subscription tenant mapping:
+```bash
+export MAPPO_AZURE_TENANT_BY_SUBSCRIPTION='{"c0d51042-7d0a-41f7-b270-151e4c4ea263":"abe468b2-18bb-4dd2-90b9-5b8982337eb7","1adaaa48-139a-477b-a8c8-0e6289d6d199":"5476530d-fba1-4cd5-b2c0-fa118c5ff36e"}'
 ```
 3. Set publisher principal object ID for managed app definition authorization:
 ```bash
@@ -27,6 +33,8 @@ make iac-up
 make iac-export-targets
 make import-targets
 make bootstrap-releases
+# Use FORCE=1 to replace existing releases with current defaults.
+make bootstrap-releases FORCE=1
 ```
 5. Run readiness check:
 ```bash
@@ -50,12 +58,16 @@ make dev-frontend
 - `make iac-up [PULUMI_STACK=<name>]`
 - `make iac-export-targets [PULUMI_STACK=<name>]`
 - `make iac-destroy [PULUMI_STACK=<name>]`
-- `make managed-app-discover-targets SUBSCRIPTION_IDS="<sub1>,<sub2>"`
+- `make azure-tenant-map SUBSCRIPTION_IDS="<sub1>,<sub2>"`
 - `make import-targets`
 - `make bootstrap-releases`
-- `make managed-demo-refresh SUBSCRIPTION_IDS="<sub1>,<sub2>" [MANAGED_APP_NAME_PREFIX="<prefix>"]`
 - `make dev-backend-azure`
 - `make dev-frontend`
+
+## Marketplace Onboarding API
+- `GET /api/v1/admin/onboarding`: returns registration snapshot + recent onboarding events.
+- `POST /api/v1/admin/onboarding/events`: registers/updates targets from marketplace lifecycle events (idempotent on `event_id`).
+- Optional token gate: set `MAPPO_MARKETPLACE_INGEST_TOKEN`, then send `x-mappo-ingest-token` header.
 
 ## Quality Commands
 - `make workflow-discipline-check`

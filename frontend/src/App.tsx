@@ -9,8 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  adminDiscoverImport,
+  adminIngestMarketplaceEvent,
   createRun,
+  getAdminOnboardingSnapshot,
   getRun,
   listReleases,
   listRuns,
@@ -19,8 +20,10 @@ import {
   retryFailed,
 } from "@/lib/api";
 import type {
-  AdminDiscoverImportResponse,
+  AdminOnboardingSnapshotResponse,
   CreateRunRequest,
+  MarketplaceEventIngestRequest,
+  MarketplaceEventIngestResponse,
   Release,
   RunDetail,
   RunSummary,
@@ -67,15 +70,10 @@ function AppShell() {
   const [formState, setFormState] = useState<StartRunFormState>(DEFAULT_FORM);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
-  const [adminSubscriptionIds, setAdminSubscriptionIds] = useState<string>("");
-  const [adminAutoEnumerateSubscriptions, setAdminAutoEnumerateSubscriptions] =
-    useState<boolean>(true);
-  const [adminManagedAppPrefix, setAdminManagedAppPrefix] = useState<string>("mappo-ma");
-  const [adminPreferredContainerAppName, setAdminPreferredContainerAppName] = useState<string>("");
-  const [adminClearRuns, setAdminClearRuns] = useState<boolean>(true);
+  const [adminSnapshot, setAdminSnapshot] = useState<AdminOnboardingSnapshotResponse | null>(null);
   const [adminIsSubmitting, setAdminIsSubmitting] = useState<boolean>(false);
   const [adminErrorMessage, setAdminErrorMessage] = useState<string>("");
-  const [adminResult, setAdminResult] = useState<AdminDiscoverImportResponse | null>(null);
+  const [adminResult, setAdminResult] = useState<MarketplaceEventIngestResponse | null>(null);
 
   const refreshTargets = useCallback(async () => {
     try {
@@ -124,6 +122,15 @@ function AppShell() {
     }
   }, []);
 
+  const refreshAdminSnapshot = useCallback(async () => {
+    try {
+      setAdminSnapshot(await getAdminOnboardingSnapshot());
+      setAdminErrorMessage("");
+    } catch (error) {
+      setAdminErrorMessage((error as Error).message);
+    }
+  }, []);
+
   useEffect(() => {
     void refreshTargets();
   }, [refreshTargets]);
@@ -131,7 +138,8 @@ function AppShell() {
   useEffect(() => {
     void refreshReleases();
     void refreshRuns();
-  }, [refreshReleases, refreshRuns]);
+    void refreshAdminSnapshot();
+  }, [refreshAdminSnapshot, refreshReleases, refreshRuns]);
 
   useEffect(() => {
     if (selectedRunId) {
@@ -252,34 +260,17 @@ function AppShell() {
     }
   }
 
-  async function handleAdminDiscoverImport(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    const subscriptionIds = adminSubscriptionIds
-      .split(",")
-      .map((item) => item.trim())
-      .filter((item) => item !== "");
-    if (subscriptionIds.length === 0 && !adminAutoEnumerateSubscriptions) {
-      setAdminErrorMessage("Enter at least one subscription ID or enable auto-enumeration.");
-      return;
-    }
-
+  async function handleAdminIngestMarketplaceEvent(
+    request: MarketplaceEventIngestRequest,
+    ingestToken?: string
+  ): Promise<void> {
     setAdminIsSubmitting(true);
     try {
-      const result = await adminDiscoverImport({
-        subscription_ids: subscriptionIds,
-        auto_enumerate_subscriptions: adminAutoEnumerateSubscriptions,
-        managed_app_name_prefix: adminManagedAppPrefix.trim() || undefined,
-        preferred_container_app_name: adminPreferredContainerAppName.trim() || undefined,
-        default_target_group: "prod",
-        group_tag_key: "ring",
-        clear_runs: adminClearRuns,
-      });
+      const result = await adminIngestMarketplaceEvent(request, ingestToken);
       setAdminResult(result);
       setAdminErrorMessage("");
       await refreshTargets();
-      await refreshRuns();
-      setSelectedRunId("");
-      setRunDetail(null);
+      await refreshAdminSnapshot();
     } catch (error) {
       setAdminErrorMessage((error as Error).message);
     } finally {
@@ -379,20 +370,12 @@ function AppShell() {
           path="/admin"
           element={
             <AdminPanel
-              adminAutoEnumerateSubscriptions={adminAutoEnumerateSubscriptions}
-              adminClearRuns={adminClearRuns}
               adminErrorMessage={adminErrorMessage}
               adminIsSubmitting={adminIsSubmitting}
-              adminManagedAppPrefix={adminManagedAppPrefix}
-              adminPreferredContainerAppName={adminPreferredContainerAppName}
               adminResult={adminResult}
-              adminSubscriptionIds={adminSubscriptionIds}
-              onAdminAutoEnumerateSubscriptionsChange={setAdminAutoEnumerateSubscriptions}
-              onAdminClearRunsChange={setAdminClearRuns}
-              onAdminManagedAppPrefixChange={setAdminManagedAppPrefix}
-              onAdminPreferredContainerAppNameChange={setAdminPreferredContainerAppName}
-              onAdminSubscriptionIdsChange={setAdminSubscriptionIds}
-              onDiscoverImport={handleAdminDiscoverImport}
+              adminSnapshot={adminSnapshot}
+              onIngestMarketplaceEvent={handleAdminIngestMarketplaceEvent}
+              onRefreshSnapshot={refreshAdminSnapshot}
             />
           }
         />

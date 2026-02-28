@@ -31,6 +31,10 @@ export class DeploymentsPage {
     return this.page.locator(`[data-testid="retry-failed-${runId}"]`);
   }
 
+  selectRunButton(runId: string): Locator {
+    return this.page.locator(`[data-testid="select-run-${runId}"]`);
+  }
+
   async selectReleaseVersion(versionLabel: string): Promise<void> {
     await this.releaseVersionDropdown.selectOption({ label: versionLabel });
   }
@@ -48,5 +52,9 @@ export class DeploymentsPage {
 
   async startRun(): Promise<void> {
     await this.page.getByRole("button", { name: "Start Run" }).click();
+  }
+
+  async openRun(runId: string): Promise<void> {
+    await this.selectRunButton(runId).click();
   }
 }

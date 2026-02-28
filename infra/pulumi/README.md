@@ -6,10 +6,9 @@ This Pulumi project provisions a marketplace-accurate managed application demo s
 - Per subscription:
 - Managed application definition resource group (`Microsoft.Solutions/applicationDefinitions`)
 - Managed application instances resource group (`Microsoft.Solutions/applications`)
-- Shared ACA environment resource group (`Microsoft.App/managedEnvironments`)
 - Per target:
 - Managed application instance with its own managed resource group
-- Container App deployed by the managed app template into that managed resource group
+- Managed environment + Container App deployed by the managed app template into that managed resource group
 
 ## Stack config contract
 Pulumi config namespace is `mappo`.
@@ -18,9 +17,10 @@ Default target source:
 - TypeScript profile `demo10` in `/Users/cvonderheid/workspace/mappo/infra/pulumi/targets.demo10.ts`
 
 Required:
-- `mappo:publisherPrincipalObjectId`
-  - Object ID of the publisher identity that should have management access in managed app definitions.
-  - You can set this in stack config or via `MAPPO_PUBLISHER_PRINCIPAL_OBJECT_ID`.
+- Either `mappo:publisherPrincipalObjectId` or `mappo:publisherPrincipalObjectIds`.
+  - `publisherPrincipalObjectId`: single principal object ID used for all target subscriptions.
+  - `publisherPrincipalObjectIds`: per-subscription map when object IDs differ by tenant/subscription (common in cross-tenant demos).
+  - Env fallback is supported for single value via `MAPPO_PUBLISHER_PRINCIPAL_OBJECT_ID`.
 
 Optional:
 - `mappo:defaultLocation` (default: `eastus`)
@@ -34,8 +34,7 @@ Optional:
 - `mappo:definitionNamePrefix` (default: `mappo-ma-def`)
 - `mappo:definitionResourceGroupPrefix` (default: `rg-mappo-ma-def`)
 - `mappo:applicationResourceGroupPrefix` (default: `rg-mappo-ma-apps`)
-- `mappo:sharedEnvironmentNamePrefix` (default: `cae-mappo-ma-shared`)
-- `mappo:sharedEnvironmentResourceGroupPrefix` (default: `rg-mappo-ma-shared-env`)
+- `mappo:managedEnvironmentNamePrefix` (default: `cae-mappo-ma`)
 - `mappo:managedAppNamePrefix` (default: `mappo-ma`)
 - `mappo:managedResourceGroupPrefix` (default: `rg-mappo-ma-mrg`)
 - `mappo:containerAppNamePrefix` (default: `ca-mappo-ma`)

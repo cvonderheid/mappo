@@ -33,6 +33,8 @@ export MAPPO_PUBLISHER_PRINCIPAL_OBJECT_ID="<azure-ad-object-id>"
 make iac-stack-init
 make iac-up
 make iac-export-targets
+make azure-tenant-map SUBSCRIPTION_IDS="<sub1>,<sub2>"
+make azure-onboard-multitenant-runtime CLIENT_ID="$MAPPO_AZURE_CLIENT_ID" SUBSCRIPTION_IDS="<sub1>,<sub2>"
 make import-targets
 make bootstrap-releases
 make azure-preflight
@@ -48,6 +50,11 @@ make partner-center-api URL="<https://api.partnercenter.microsoft.com/...>" [MET
 
 ### Azure execution guardrail env vars
 ```bash
+# Multi-tenant authority mapping (subscription -> tenant)
+# Supports JSON object or comma list:
+#  subA=tenantGuidA,subB=tenantGuidB
+MAPPO_AZURE_TENANT_BY_SUBSCRIPTION='{"sub-a":"tenant-guid-a","sub-b":"tenant-guid-b"}'
+
 # Concurrency shaping
 MAPPO_AZURE_MAX_RUN_CONCURRENCY=6
 MAPPO_AZURE_MAX_SUBSCRIPTION_CONCURRENCY=2
