@@ -382,3 +382,282 @@ Live Azure execution adapter implementation:
 - 2026-02-28: Added deterministic backend tests for Azure mode missing credentials, successful runtime flow, and deploy failure surfacing via stubbed runtime factory.
 - 2026-02-28: Updated README execution-mode docs to reflect SDK-based Azure behavior and health-path configuration.
 - 2026-02-28: Verified `make lint`, `make typecheck`, `make test`, and `make phase1-gate-full` pass (same existing 2 frontend lint warnings in shadcn ui primitives).
+
+---
+
+## Scope (Phase 5.5 Slice)
+Production-like Azure demo readiness:
+- Add deterministic preflight checks so MAPPO can validate whether environment topology matches real-world multi-tenant expectations.
+- Document the exact setup sequence for provider tenant + customer tenants + Lighthouse delegation + MAPPO runtime wiring.
+- Keep this slice focused on readiness workflow; no orchestration contract changes.
+
+## Plan (Phase 5.5 Slice)
+- [x] Add `make azure-preflight` command with actionable pass/fail checks for login, tenant/subscription count, Azure creds, and target inventory.
+- [x] Add `docs/live-demo-checklist.md` with real-world topology and onboarding sequence.
+- [x] Update README to reference the checklist and preflight command.
+- [x] Run verification commands and capture outcomes.
+
+## Verification Commands (Phase 5.5 Slice)
+- [x] `make azure-preflight`
+- [x] `make lint`
+
+## Results Log (Phase 5.5 Slice)
+- 2026-02-28: Added `scripts/azure_preflight.sh` and `make azure-preflight` to report production-like Azure readiness with explicit pass/fail checks.
+- 2026-02-28: Added `/Users/cvonderheid/workspace/mappo/docs/live-demo-checklist.md` covering provider tenant, customer tenants, Lighthouse onboarding, and MAPPO runtime wiring.
+- 2026-02-28: Updated README to surface preflight and live-demo checklist entry points.
+- 2026-02-28: Ran `make azure-preflight` and confirmed current blockers: single tenant and missing MAPPO Azure service principal env vars.
+- 2026-02-28: Verified `make lint` passes (same existing 2 frontend lint warnings in shadcn ui primitives).
+
+---
+
+## Scope (Phase 5.6 Slice)
+Reproducible Azure auth scripting:
+- Replace ad-hoc copy/paste credential setup with repeatable scripts and Make targets.
+- Provide a file-based local env workflow so commands can be rerun deterministically.
+
+## Plan (Phase 5.6 Slice)
+- [x] Add script to create Azure SP credentials and write `.data/mappo-azure.env`.
+- [x] Add script wrapper to run commands with the local Azure env file loaded.
+- [x] Add Make targets for bootstrap + backend startup in Azure mode.
+- [x] Update preflight/docs to prefer script-based workflow.
+- [x] Run verification commands and capture outcomes.
+
+## Verification Commands (Phase 5.6 Slice)
+- [x] `make azure-auth-bootstrap`
+- [x] `make azure-preflight`
+- [x] `make lint`
+
+## Results Log (Phase 5.6 Slice)
+- 2026-02-28: Added `scripts/azure_auth_bootstrap.sh` to create scoped Azure SP credentials and write `.data/mappo-azure.env`.
+- 2026-02-28: Added `scripts/with_mappo_azure_env.sh` wrapper to load the env file before running backend commands.
+- 2026-02-28: Added Make targets `azure-auth-bootstrap` and `dev-backend-azure` for reproducible auth/bootstrap runtime flow.
+- 2026-02-28: Updated `azure_preflight` to auto-load `.data/mappo-azure.env` when present.
+- 2026-02-28: Updated README and live-demo checklist to prefer script-driven workflow over manual copy/paste exports.
+- 2026-02-28: Verified `make azure-auth-bootstrap`, `make azure-preflight`, and `make lint` (preflight now passes credentials check; remaining blocker is single-tenant topology).
+
+---
+
+## Scope (Phase 5.7 Slice)
+Scripted Lighthouse delegation:
+- Add reproducible customer-side delegation script to onboard MAPPO provider principal to customer subscriptions via Azure Lighthouse.
+- Integrate into Make workflow and docs so onboarding can be rerun without manual portal steps.
+
+## Plan (Phase 5.7 Slice)
+- [x] Add `scripts/lighthouse_delegate_customer.sh` with deterministic definition/assignment IDs and idempotent create behavior.
+- [x] Add Make target for customer delegation command.
+- [x] Update docs/checklist with scripted delegation usage.
+- [x] Run verification commands and capture outcomes.
+
+## Verification Commands (Phase 5.7 Slice)
+- [x] `make lighthouse-delegate-customer CUSTOMER_SUBSCRIPTION_ID=<id>`
+- [x] `make azure-preflight`
+- [x] `make lint`
+
+## Results Log (Phase 5.7 Slice)
+- 2026-02-28: Added `scripts/lighthouse_delegate_customer.sh` to create Azure Lighthouse registration definition/assignment for customer subscriptions using deterministic IDs.
+- 2026-02-28: Added `make lighthouse-delegate-customer CUSTOMER_SUBSCRIPTION_ID=<id>` wrapper target.
+- 2026-02-28: Updated README and live-demo checklist with scripted customer delegation step.
+- 2026-02-28: Executed delegation for customer subscription `1adaaa48-139a-477b-a8c8-0e6289d6d199`; created definition `afd6cb7b-ca30-51a7-88a8-43ed371728f4` and assignment `bb7eee0f-ad00-5b5e-9691-092ef53af5fc`.
+- 2026-02-28: Verified `make azure-preflight` (0 failures) and `make lint` (same existing 2 frontend lint warnings in shadcn ui primitives).
+
+---
+
+## Scope (Phase 5.8 Slice)
+Dual-subscription demo stack automation:
+- Add script to generate Pulumi stack config with demo targets split across provider/customer subscriptions.
+- Remove manual stack-YAML editing and make multi-subscription provisioning reproducible.
+
+## Plan (Phase 5.8 Slice)
+- [x] Add script to generate `infra/pulumi/Pulumi.<stack>.yaml` with dual-subscription target mapping.
+- [x] Add Make target wrapper for the stack-prep script.
+- [x] Run stack prep, preflight, and lint verification.
+
+## Verification Commands (Phase 5.8 Slice)
+- [x] `make iac-prepare-dual-stack CUSTOMER_SUBSCRIPTION_ID=<id>`
+- [x] `make azure-preflight`
+- [x] `make lint`
+
+## Results Log (Phase 5.8 Slice)
+- 2026-02-28: Added `scripts/iac_prepare_dual_stack.sh` to generate stack-specific dual-subscription Pulumi target config.
+- 2026-02-28: Added `make iac-prepare-dual-stack CUSTOMER_SUBSCRIPTION_ID=<id> [PULUMI_STACK=...]`.
+- 2026-02-28: Generated `infra/pulumi/Pulumi.dual-demo.yaml` with 10 targets split across provider/customer subscriptions.
+- 2026-02-28: Updated README and live-demo checklist to include scripted dual-stack preparation.
+- 2026-02-28: Verified `make azure-preflight` (0 failures, remaining warning expected until dual-stack resources are exported/imported) and `make lint` (same existing 2 frontend lint warnings in shadcn ui primitives).
+
+---
+
+## Scope (Phase 5.9 Slice)
+Marketplace-accurate managed app workflow pivot:
+- Make managed application onboarding the default live-demo path.
+- Add script-driven discovery of MAPPO targets from `Microsoft.Solutions/applications`.
+- Reframe readiness checks around managed app inventory signals instead of Lighthouse-specific assumptions.
+- Keep Lighthouse tooling optional for delegated-ops scenarios.
+
+## Plan (Phase 5.9 Slice)
+- [x] Add managed-app discovery script + Make target for reproducible inventory generation.
+- [x] Update `azure-preflight` to validate managed app metadata and container app resource ID shape.
+- [x] Update docs/UI copy to represent managed-app-first architecture and optional Lighthouse usage.
+- [x] Run verification commands and capture outcomes.
+
+## Verification Commands (Phase 5.9 Slice)
+- [x] `./scripts/managed_app_discover_targets.sh --help`
+- [x] `./scripts/managed_app_discover_targets.sh --subscriptions "<provider-sub>,<customer-sub>" --output-file .data/mappo-target-inventory.managed-app-smoke.json --allow-empty`
+- [x] `make azure-preflight`
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+
+## Results Log (Phase 5.9 Slice)
+- 2026-02-28: Added `scripts/managed_app_discover_targets.sh` and `make managed-app-discover-targets` for script-first target inventory discovery from managed applications.
+- 2026-02-28: Updated `scripts/azure_preflight.sh` to prioritize managed-app-ready checks (managed metadata coverage + resource ID validation) and removed Lighthouse-specific hard failure messaging.
+- 2026-02-28: Updated architecture/docs/UI wording to managed-app-first flow and moved Lighthouse to optional usage.
+- 2026-02-28: Verified `./scripts/managed_app_discover_targets.sh --help`, managed-app discovery smoke (`--allow-empty`), `make azure-preflight`, `make lint`, `make typecheck`, and `make test` all pass (same existing 2 frontend lint warnings in shadcn ui primitives).
+
+---
+
+## Scope (Phase 5.10 Slice)
+Optional Lighthouse cleanup automation:
+- Add script-first teardown path to remove Lighthouse registration assignment/definition for a customer subscription.
+- Keep managed-app-first path unchanged while providing explicit cleanup command for demos.
+
+## Plan (Phase 5.10 Slice)
+- [x] Add `scripts/lighthouse_undelegate_customer.sh` with deterministic ID derivation matching delegation script.
+- [x] Add Make target for cleanup command.
+- [x] Update docs/checklist/README optional delegation section with cleanup usage.
+- [x] Run verification commands and capture outcomes.
+
+## Verification Commands (Phase 5.10 Slice)
+- [x] `./scripts/lighthouse_undelegate_customer.sh --help`
+- [x] `bash -n scripts/lighthouse_undelegate_customer.sh`
+- [x] `make help | rg "lighthouse-(un)?delegate-customer"`
+
+## Results Log (Phase 5.10 Slice)
+- 2026-02-28: Added `scripts/lighthouse_undelegate_customer.sh` to delete Lighthouse assignment and definition for a customer subscription.
+- 2026-02-28: Added `make lighthouse-undelegate-customer CUSTOMER_SUBSCRIPTION_ID=<id>` wrapper target.
+- 2026-02-28: Updated README and live-demo checklist to include explicit Lighthouse cleanup path while keeping Lighthouse optional.
+- 2026-02-28: Verified script help, shell syntax, and Make target visibility checks pass.
+
+---
+
+## Scope (Phase 5.11 Slice)
+Managed-app discovery safety fix:
+- Prevent `managed-app-discover-targets` from clobbering inventory with empty output when no managed app targets are discoverable.
+- Keep the command failing in that case, but preserve the previous known-good inventory file.
+
+## Plan (Phase 5.11 Slice)
+- [x] Reproduce the failure using the real command path.
+- [x] Patch discovery script to validate zero-target condition before writing output (unless `--allow-empty`).
+- [x] Restore inventory and rerun user command sequence.
+- [x] Capture outcomes and update lessons.
+
+## Verification Commands (Phase 5.11 Slice)
+- [x] `make managed-app-discover-targets SUBSCRIPTION_IDS="<provider-sub>,<customer-sub>"`
+- [x] `make iac-export-targets`
+- [x] `make import-targets`
+- [x] `make azure-preflight`
+- [x] `bash -n scripts/managed_app_discover_targets.sh`
+
+## Results Log (Phase 5.11 Slice)
+- 2026-02-28: Reproduced failure where `managed-app-discover-targets` exited non-zero and still wrote empty inventory.
+- 2026-02-28: Updated `scripts/managed_app_discover_targets.sh` to preserve existing output file when zero targets are discovered and `--allow-empty` is not set.
+- 2026-02-28: Restored `.data/mappo-target-inventory.json` from Pulumi stack output and re-imported 10 targets.
+- 2026-02-28: Reran sequence (`managed-app-discover-targets`, `import-targets`, `azure-preflight`) and confirmed non-destructive behavior plus successful import/preflight.
+
+---
+
+## Scope (Phase 5.12 Slice)
+Managed app simulation orchestration:
+- Add scriptable managed-app simulation bootstrap/teardown for marketplace-style flows without requiring a published marketplace offer.
+- Create `make managed-app-sim-up` / `make managed-app-sim-down` commands and persist teardown state.
+
+## Plan (Phase 5.12 Slice)
+- [x] Add simulation bootstrap script to create managed app definitions + managed app instances + container apps in managed RGs.
+- [x] Add simulation teardown script to remove managed apps/managed RGs/definitions based on state file.
+- [x] Wire new scripts into Makefile and docs.
+- [x] Verify with a real 2-target cross-subscription smoke run.
+
+## Verification Commands (Phase 5.12 Slice)
+- [x] `bash -n scripts/managed_app_sim_up.sh scripts/managed_app_sim_down.sh`
+- [x] `./scripts/managed_app_sim_up.sh --help`
+- [x] `./scripts/managed_app_sim_down.sh --help`
+- [x] `make help | rg "managed-app-sim-(up|down)"`
+- [x] `make managed-app-sim-up TARGET_FILE=.data/mappo-target-inventory.sim-seed.json SUBSCRIPTION_IDS="<provider-sub>,<customer-sub>" MAX_TARGETS=2`
+
+## Results Log (Phase 5.12 Slice)
+- 2026-02-28: Added `scripts/managed_app_sim_up.sh` to provision service-catalog managed app simulation targets and write `.data/mappo-managedapp-sim-state.json`.
+- 2026-02-28: Added `scripts/managed_app_sim_down.sh` to cleanly tear down simulation resources from state.
+- 2026-02-28: Added Make targets `managed-app-sim-up` and `managed-app-sim-down`.
+- 2026-02-28: Updated README/live checklist with managed-app simulation bootstrap/teardown commands.
+- 2026-02-28: Executed real smoke run and created 2 managed app targets across both subscriptions.
+
+---
+
+## Scope (Phase 5.13 Slice)
+Live discovery reliability fixes:
+- Resolve live failures observed during managed-app simulation smoke run.
+- Ensure discovery uses the correct managed app API surface and captures managed RG metadata.
+
+## Plan (Phase 5.13 Slice)
+- [x] Fix `managed-app-sim-up` container app create args for current Azure CLI contract.
+- [x] Relax provider registration gate to tolerate long `Registering` windows.
+- [x] Update managed-app discovery to use `az managedapp list` and top-level `managedResourceGroupId`.
+- [x] Re-run discovery/import/preflight and capture outcomes.
+
+## Verification Commands (Phase 5.13 Slice)
+- [x] `make managed-app-sim-up TARGET_FILE=.data/mappo-target-inventory.sim-seed.json SUBSCRIPTION_IDS="<provider-sub>,<customer-sub>" MAX_TARGETS=2`
+- [x] `make managed-app-discover-targets SUBSCRIPTION_IDS="<provider-sub>,<customer-sub>" MANAGED_APP_NAME_PREFIX="mappo-ma"`
+- [x] `make import-targets`
+- [x] `make azure-preflight`
+- [x] `make lint`
+
+## Results Log (Phase 5.13 Slice)
+- 2026-02-28: Fixed `managed-app-sim-up` failure by removing unsupported `--location` argument from `az containerapp create`.
+- 2026-02-28: Updated provider registration checks to continue when provider state remains `Registering`.
+- 2026-02-28: Updated managed app discovery to use `az managedapp list` and to read top-level `managedResourceGroupId`.
+- 2026-02-28: Verified end-to-end sequence succeeds (`managed-app-sim-up`, discover, import, preflight) with 2 cross-subscription managed app targets and managed metadata present.
+
+---
+
+## Scope (Phase 5.14 Slice)
+Script-first seed generation:
+- Remove manual target-seed JSON editing from simulation workflow.
+- Add deterministic generator for cross-subscription simulation target inventories.
+
+## Plan (Phase 5.14 Slice)
+- [x] Add simulation seed generator script.
+- [x] Add Make target wrapper and docs updates.
+- [x] Verify seed command surface.
+
+## Verification Commands (Phase 5.14 Slice)
+- [x] `bash -n scripts/managed_app_sim_seed_targets.sh`
+- [x] `./scripts/managed_app_sim_seed_targets.sh --help`
+- [x] `make help | rg "managed-app-sim-seed"`
+
+## Results Log (Phase 5.14 Slice)
+- 2026-02-28: Added `scripts/managed_app_sim_seed_targets.sh` for deterministic 10-target (or N-target) cross-subscription seed generation.
+- 2026-02-28: Added `make managed-app-sim-seed` wrapper target and updated README/live checklist examples.
+- 2026-02-28: Verified script syntax/help and Make target visibility.
+
+---
+
+## Scope (Phase 5.15 Slice)
+Managed-app-only demo surface:
+- Strip non-essential Lighthouse/Pulumi/simulation paths from the primary operator workflow.
+- Keep a single command path for live demos: discover -> import -> preflight.
+
+## Plan (Phase 5.15 Slice)
+- [x] Simplify Makefile target surface to managed-app demo essentials.
+- [x] Add `managed-demo-refresh` orchestration target.
+- [x] Rewrite README/live docs around the managed-app-only path.
+- [x] Run managed demo refresh and lint verification.
+
+## Verification Commands (Phase 5.15 Slice)
+- [x] `make help`
+- [x] `make managed-demo-refresh SUBSCRIPTION_IDS="<provider-sub>,<customer-sub>" MANAGED_APP_NAME_PREFIX="mappo-ma"`
+- [x] `make lint`
+
+## Results Log (Phase 5.15 Slice)
+- 2026-02-28: Removed Lighthouse, Pulumi, and simulation targets from primary Makefile surface; retained managed-app workflow commands.
+- 2026-02-28: Added `make managed-demo-refresh` to chain discovery/import/preflight.
+- 2026-02-28: Updated README, architecture notes, live checklist, and docs command examples to managed-app demo focus.
+- 2026-02-28: Verified managed demo refresh succeeds with current live managed apps (2 targets across 2 subscriptions).

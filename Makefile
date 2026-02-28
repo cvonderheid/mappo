@@ -2,18 +2,13 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 RETENTION_DAYS ?= 90
 COMPOSE_FILE := infra/docker-compose.yml
-IAC_DIR := infra/pulumi
-PULUMI_STACK ?= dev
-IAC_TARGET_EXPORT ?= .data/mappo-target-inventory.json
-PULUMI_CONFIG_PASSPHRASE ?= mappo-local-dev
-export PULUMI_CONFIG_PASSPHRASE
 
 .PHONY: help install install-backend install-frontend \
 	dev dev-up dev-down dev-logs dev-backend dev-frontend build build-backend build-frontend \
 	lint lint-backend lint-frontend typecheck typecheck-backend typecheck-frontend \
-	test test-backend test-frontend test-frontend-e2e demo-reset import-targets retention-prune \
+	test test-backend test-frontend test-frontend-e2e import-targets retention-prune \
+	azure-auth-bootstrap dev-backend-azure azure-preflight managed-app-discover-targets managed-demo-refresh \
 	db-migrate db-validate db-info db-clean db-reset models-gen openapi client-gen \
-	iac-install iac-stack-init iac-preview iac-up iac-destroy iac-export-targets \
 	workflow-discipline-check docs-consistency-check golden-principles-check check-no-demo-leak \
 	phase1-gate-fast phase1-gate-full
 
@@ -42,6 +37,9 @@ dev-logs: ## Tail local stack logs
 
 dev-backend: ## Run FastAPI backend server
 	uv --directory backend run --package mappo-backend -- uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload
+
+dev-backend-azure: ## Run backend with local Azure env file loaded
+	./scripts/with_mappo_azure_env.sh uv --directory backend run --package mappo-backend -- uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload
 
 dev-frontend: ## Run React frontend
 	cd frontend && npm run dev -- --host 0.0.0.0 --port 5174
@@ -81,11 +79,31 @@ test-frontend: ## Run frontend tests
 test-frontend-e2e: ## Run frontend Playwright click-through tests
 	cd frontend && npm run test:e2e:ci
 
-demo-reset: ## Reset and reseed deterministic 10-target demo data
-	uv --directory backend run --package mappo-backend -- python scripts/demo_reset.py
-
-import-targets: ## Import fleet targets from Pulumi inventory JSON
+import-targets: ## Import fleet targets from .data/mappo-target-inventory.json
 	uv --directory backend run --package mappo-backend -- python scripts/import_pulumi_targets.py --file $(abspath .data/mappo-target-inventory.json) --clear-runs
+
+azure-auth-bootstrap: ## Create Azure SP credentials and write .data/mappo-azure.env
+	./scripts/azure_auth_bootstrap.sh
+
+azure-preflight: ## Validate Azure environment readiness for production-like multi-tenant demo
+	./scripts/azure_preflight.sh
+
+managed-app-discover-targets: ## Discover targets from Managed Apps (use OUTPUT_FILE=... for non-destructive smoke)
+	./scripts/managed_app_discover_targets.sh \
+		$(if $(OUTPUT_FILE),--output-file "$(OUTPUT_FILE)",) \
+		$(if $(SUBSCRIPTION_IDS),--subscriptions "$(SUBSCRIPTION_IDS)",) \
+		$(if $(CONTAINER_APP_NAME),--container-app-name "$(CONTAINER_APP_NAME)",) \
+		$(if $(MANAGED_APP_NAME_PREFIX),--managed-app-name-prefix "$(MANAGED_APP_NAME_PREFIX)",) \
+		$(if $(ALLOW_EMPTY),--allow-empty,)
+
+managed-demo-refresh: ## Refresh managed-app fleet inventory then import + preflight
+	@if [ -z "$(SUBSCRIPTION_IDS)" ]; then \
+		echo "usage: make managed-demo-refresh SUBSCRIPTION_IDS=<sub1,sub2> [MANAGED_APP_NAME_PREFIX=<prefix>]"; \
+		exit 2; \
+	fi
+	$(MAKE) managed-app-discover-targets SUBSCRIPTION_IDS="$(SUBSCRIPTION_IDS)" MANAGED_APP_NAME_PREFIX="$(MANAGED_APP_NAME_PREFIX)"
+	$(MAKE) import-targets
+	$(MAKE) azure-preflight
 
 retention-prune: ## Prune run history older than RETENTION_DAYS
 	uv --directory backend run --package mappo-backend -- python scripts/prune_retention.py --days $(RETENTION_DAYS)
@@ -113,27 +131,6 @@ openapi: ## Generate backend OpenAPI schema
 
 client-gen: openapi ## Generate frontend API types from OpenAPI
 	cd frontend && npm run client-gen
-
-iac-install: ## Install Pulumi IaC dependencies
-	cd $(IAC_DIR) && npm install
-
-iac-stack-init: ## Select or initialize Pulumi stack (default: dev)
-	cd $(IAC_DIR) && pulumi login --local
-	cd $(IAC_DIR) && (pulumi stack select $(PULUMI_STACK) || pulumi stack init $(PULUMI_STACK))
-
-iac-preview: iac-install iac-stack-init ## Preview Pulumi IaC changes
-	cd $(IAC_DIR) && npm run build && pulumi preview --stack $(PULUMI_STACK) --non-interactive
-
-iac-up: iac-install iac-stack-init ## Deploy Pulumi IaC changes
-	cd $(IAC_DIR) && npm run build && pulumi up --stack $(PULUMI_STACK) --yes
-
-iac-destroy: iac-install iac-stack-init ## Destroy Pulumi IaC stack resources
-	cd $(IAC_DIR) && npm run build && pulumi destroy --stack $(PULUMI_STACK) --yes
-
-iac-export-targets: iac-stack-init ## Export MAPPO target inventory from Pulumi stack output
-	@mkdir -p $(dir $(IAC_TARGET_EXPORT))
-	cd $(IAC_DIR) && pulumi stack output mappoTargetInventory --stack $(PULUMI_STACK) --json > $(abspath $(IAC_TARGET_EXPORT))
-	@echo "wrote $(abspath $(IAC_TARGET_EXPORT))"
 
 workflow-discipline-check: ## Validate required planning artifacts and structure
 	python3 scripts/workflow_discipline_check.py

@@ -2,56 +2,38 @@
 
 MAPPO is a multi-tenant deployment control plane for Azure Managed Apps (CodeDeploy-style rollout management across customer subscriptions/tenants).
 
-## Current Slice
-- Python/FastAPI backend with seeded demo inventory (10 targets).
-- React/TypeScript dashboard for Fleet, Releases, and Deployment Runs.
-- Simulated per-target rollout state machine with retry/resume controls.
-- Postgres-backed persistence for targets/releases/runs (schema managed by Flyway).
-- Execution modes (`demo` default + SDK-based `azure` executor for ACA validate/deploy/verify).
-
-## Quick start
+## Managed App Demo Quick Start
 1. Install dependencies:
 ```bash
 make install
 ```
-2. Run backend:
+2. Create/load Azure runtime credentials:
 ```bash
-make dev-backend
+make azure-auth-bootstrap
+source .data/mappo-azure.env
 ```
-3. Run frontend:
+3. Refresh fleet from real managed apps and run readiness check:
 ```bash
+make managed-demo-refresh SUBSCRIPTION_IDS="<provider-sub>,<customer-sub>" MANAGED_APP_NAME_PREFIX="<optional-prefix>"
+```
+4. Start backend (Azure mode) and frontend:
+```bash
+make dev-backend-azure
 make dev-frontend
 ```
-4. Open:
+5. Open:
 - API docs: `http://localhost:8010/api/v1/docs`
 - UI: `http://localhost:5174`
 
-## Full stack (Docker Compose)
-```bash
-make dev-up
-make dev-logs
-make dev-down
-```
-Default host ports:
-- API: `8010`
-- UI: `5174`
-- Postgres: `5433`
+## Primary Demo Commands
+- `make managed-demo-refresh SUBSCRIPTION_IDS="<sub1>,<sub2>" [MANAGED_APP_NAME_PREFIX="<prefix>"]`
+- `make managed-app-discover-targets SUBSCRIPTION_IDS="<sub1>,<sub2>"`
+- `make import-targets`
+- `make azure-preflight`
+- `make dev-backend-azure`
+- `make dev-frontend`
 
-## Demo IaC (Pulumi)
-- Pulumi project path: `/Users/cvonderheid/workspace/mappo/infra/pulumi`
-- Stack default: `dev` (override with `PULUMI_STACK=<stack>`)
-- Local Pulumi backend is used by default via Make targets (`pulumi login --local`).
-- Default local secrets passphrase: `mappo-local-dev` (override with `PULUMI_CONFIG_PASSPHRASE`).
-- Demo targets are defined in TypeScript profile files (`infra/pulumi/targets*.ts`).
-- IaC defaults to shared ACA environments per subscription to avoid environment quota failures.
-- Commands:
-  - `make iac-install`
-  - `make iac-preview`
-  - `make iac-up`
-  - `make iac-export-targets`
-  - `make iac-destroy`
-
-## Core quality commands
+## Quality Commands
 - `make workflow-discipline-check`
 - `make docs-consistency-check`
 - `make golden-principles-check`
@@ -63,22 +45,10 @@ Default host ports:
 - `make test`
 - `make openapi`
 - `make client-gen`
+- `make retention-prune RETENTION_DAYS=90`
 
-## Execution modes
-- `MAPPO_EXECUTION_MODE=demo` (default): deterministic seeded behavior for local dev/test.
-- `MAPPO_EXECUTION_MODE=azure`: uses Azure Python SDK to run Container App validate/deploy/verify stages.
-- Azure mode expects service principal credential env vars:
-  - `MAPPO_AZURE_TENANT_ID`
-  - `MAPPO_AZURE_CLIENT_ID`
-  - `MAPPO_AZURE_CLIENT_SECRET`
-- Verification behavior:
-  - waits for latest revision readiness,
-  - probes target health URL (default path `/`, configurable via release params `healthPath`/`healthUrl`).
-
-## Demo operations
-- `make demo-reset` (reseed deterministic 10-tenant demo data)
-- `make import-targets` (replace fleet targets from `.data/mappo-target-inventory.json`)
-- `make retention-prune RETENTION_DAYS=90` (prune run history by retention window)
+## Live demo guide
+- Checklist: `/Users/cvonderheid/workspace/mappo/docs/live-demo-checklist.md`
 
 ## Database workflow
 - `make db-migrate`

@@ -39,3 +39,39 @@ Purpose: capture recurring correction patterns and preventative guardrails.
 - Preventative rule: For rollout status UI, always visualize outcome composition with distinct segments/colors and assert failed-segment rendering in tests.
 - Detection signal: Halted/partial runs display a fully-success color bar or labels that imply all-success despite non-zero failed count.
 - Enforcement (test/lint/checklist): require progress-component tests (or Playwright checks) that validate presence of failed segments when `failed_targets > 0`.
+
+- Date: 2026-02-28
+- Pattern: Live-demo guidance drifted toward Lighthouse-specific setup even though product intent is Marketplace-style Managed Application onboarding.
+- Preventative rule: For Azure architecture changes, update preflight checks, setup scripts, docs, and UI terminology in the same slice so the default path matches the real-world deployment model.
+- Detection signal: `rg -n "Lighthouse" README.md docs/ scripts/ frontend/src` shows Lighthouse as the primary path without explicitly labeling it optional.
+- Enforcement (test/lint/checklist): phase-close grep + `make azure-preflight` + checklist update in `docs/live-demo-checklist.md`.
+
+- Date: 2026-02-28
+- Pattern: Ad-hoc shell copy/paste steps made Azure onboarding hard to reproduce.
+- Preventative rule: Convert repetitive setup flows into checked-in scripts and Make targets before asking for reruns.
+- Detection signal: onboarding instructions include multiline command snippets not wrapped by repo scripts.
+- Enforcement (test/lint/checklist): ensure each onboarding step is invokable by `make <target>` and documented in README.
+
+- Date: 2026-02-28
+- Pattern: Discovery script wrote output before enforcing validity checks, which allowed a failed run to overwrite a known-good inventory with an empty file.
+- Preventative rule: For file-producing scripts, enforce validation gates before any write, or write to temp + atomic replace only on success.
+- Detection signal: command exits non-zero but output artifact still changes.
+- Enforcement (test/lint/checklist): add regression check for “no-data failure does not modify existing file” and verify by rerunning the failing command path.
+
+- Date: 2026-02-28
+- Pattern: Managed app discovery used the generic `az resource list` path and missed fields/objects returned by the managed app control-plane API.
+- Preventative rule: For Azure service-specific resources, prefer service-specific CLI (`az managedapp ...`) over generic resource listing.
+- Detection signal: known resources exist in portal/`az managedapp list` but discovery returns zero rows.
+- Enforcement (test/lint/checklist): smoke-check discovery against one known managed app and assert `managed_resource_group_id` is captured.
+
+- Date: 2026-02-28
+- Pattern: Provider registration checks were too strict and blocked progress while namespace state remained `Registering`.
+- Preventative rule: Treat long-running provider registration as eventually consistent; continue with explicit warning when downstream commands are already viable.
+- Detection signal: repeated registration polling times out even though create calls succeed manually.
+- Enforcement (test/lint/checklist): registration helper should accept `Registering` after timeout and emit warning, not hard fail.
+
+- Date: 2026-02-28
+- Pattern: Primary operator workflow became cluttered with alternative setup paths (Lighthouse/Pulumi/simulation), which slowed demo execution.
+- Preventative rule: Keep a single default command path in README/Make help for active demo mode; move alternatives out of primary surface.
+- Detection signal: top-level docs list multiple mutually exclusive setup tracks before the first successful demo path.
+- Enforcement (test/lint/checklist): include a “primary demo path” section with <=5 commands and verify it works end-to-end.

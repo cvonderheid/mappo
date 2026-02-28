@@ -241,7 +241,7 @@ export default function App() {
             </p>
             <CardTitle className="text-2xl md:text-3xl">MAPPO Control Plane</CardTitle>
             <p className="max-w-3xl text-sm text-muted-foreground">
-              CodeDeploy-style release orchestration across Azure Lighthouse delegated subscriptions.
+              CodeDeploy-style release orchestration for Azure Managed Application fleets.
             </p>
           </div>
           <div className="w-full space-y-2 md:max-w-md">

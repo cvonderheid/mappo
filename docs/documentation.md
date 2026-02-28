@@ -16,13 +16,11 @@ make phase1-gate-fast
 make phase1-gate-full
 ```
 
-### Pulumi demo provisioning commands
+### Managed app demo commands
 ```bash
-make iac-install
-make iac-preview
-make iac-up
-make iac-export-targets
-make iac-destroy
+make managed-demo-refresh SUBSCRIPTION_IDS="<provider-sub>,<customer-sub>"
+make dev-backend-azure
+make dev-frontend
 ```
 
 ## Engineering workflow discipline (before implementation)

@@ -1,7 +1,7 @@
 # MAPPO Architecture
 
 ## Overview
-MAPPO is a provider-tenant control plane that orchestrates release rollouts across customer subscriptions in multiple tenants (via Azure Lighthouse delegated access).
+MAPPO is a provider-tenant control plane that orchestrates release rollouts across customer subscriptions in multiple tenants using Azure Managed Application onboarding.
 
 ## Core Model
 - Target: a customer-tenant subscription + managed app instance.
@@ -35,9 +35,8 @@ MAPPO is a provider-tenant control plane that orchestrates release rollouts acro
 
 ## Deployment Direction
 - App services hosted on Azure Container Apps.
-- Azure APIs accessed using delegated Lighthouse permissions.
+- Azure APIs accessed through provider identity authorization on managed resource groups created by managed application instances.
 - UI and API are separate deployable containers.
-- Demo target tenant infrastructure is provisioned through Pulumi (`infra/pulumi`).
 
 ## Determinism + Legibility Contract
 - Stage transitions are append-only and timestamped.
