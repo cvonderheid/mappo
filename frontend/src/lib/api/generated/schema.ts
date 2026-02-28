@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/api/v1/admin/discover-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discover And Import Targets */
+        post: operations["discover_and_import_targets_api_v1_admin_discover_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -146,6 +163,67 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdminDiscoverImportRequest */
+        AdminDiscoverImportRequest: {
+            /**
+             * Auto Enumerate Subscriptions
+             * @default true
+             */
+            auto_enumerate_subscriptions: boolean;
+            /**
+             * Clear Runs
+             * @default true
+             */
+            clear_runs: boolean;
+            /**
+             * Default Target Group
+             * @default prod
+             */
+            default_target_group: string;
+            /**
+             * Group Tag Key
+             * @default ring
+             */
+            group_tag_key: string;
+            /** Managed App Name Prefix */
+            managed_app_name_prefix?: string | null;
+            /** Preferred Container App Name */
+            preferred_container_app_name?: string | null;
+            /** Subscription Ids */
+            subscription_ids?: string[];
+        };
+        /** AdminDiscoverImportResponse */
+        AdminDiscoverImportResponse: {
+            /** Auto Discovered Subscription Ids */
+            auto_discovered_subscription_ids?: string[];
+            /** Blocked Enumeration */
+            blocked_enumeration?: components["schemas"]["AdminDiscoveryBlockedScope"][];
+            /** Discovered Managed Apps */
+            discovered_managed_apps: number;
+            /** Discovered Targets */
+            discovered_targets: number;
+            /** Imported Targets */
+            imported_targets: number;
+            /** Scanned Subscription Ids */
+            scanned_subscription_ids?: string[];
+            /** Skipped Managed Apps */
+            skipped_managed_apps: number;
+            /** Subscriptions Scanned */
+            subscriptions_scanned: number;
+            /** Target Ids */
+            target_ids?: string[];
+            /** Warnings */
+            warnings?: string[];
+        };
+        /** AdminDiscoveryBlockedScope */
+        AdminDiscoveryBlockedScope: {
+            /** Reason */
+            reason: string;
+            /** Scope Id */
+            scope_id: string;
+            /** Scope Type */
+            scope_type: string;
+        };
         /** CreateReleaseRequest */
         CreateReleaseRequest: {
             /** Parameter Defaults */
@@ -233,6 +311,8 @@ export interface components {
             created_at: string;
             /** Ended At */
             ended_at: string | null;
+            /** Guardrail Warnings */
+            guardrail_warnings?: string[];
             /** Halt Reason */
             halt_reason?: string | null;
             /** Id */
@@ -244,6 +324,11 @@ export interface components {
             status: components["schemas"]["RunStatus"];
             stop_policy: components["schemas"]["StopPolicy"];
             strategy_mode: components["schemas"]["StrategyMode"];
+            /**
+             * Subscription Concurrency
+             * @default 1
+             */
+            subscription_concurrency: number;
             /** Target Records */
             target_records: components["schemas"]["TargetExecutionRecord"][];
             /**
@@ -272,6 +357,8 @@ export interface components {
             ended_at: string | null;
             /** Failed Targets */
             failed_targets: number;
+            /** Guardrail Warnings */
+            guardrail_warnings?: string[];
             /** Halt Reason */
             halt_reason?: string | null;
             /** Id */
@@ -286,6 +373,11 @@ export interface components {
             started_at: string | null;
             status: components["schemas"]["RunStatus"];
             strategy_mode: components["schemas"]["StrategyMode"];
+            /**
+             * Subscription Concurrency
+             * @default 1
+             */
+            subscription_concurrency: number;
             /** Succeeded Targets */
             succeeded_targets: number;
             /** Total Targets */
@@ -431,6 +523,39 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    discover_and_import_targets_api_v1_admin_discover_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminDiscoverImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDiscoverImportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_api_v1_health_get: {
         parameters: {
             query?: never;

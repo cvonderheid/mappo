@@ -19,6 +19,15 @@ class Settings:
     azure_tenant_id: str | None = None
     azure_client_id: str | None = None
     azure_client_secret: str | None = None
+    azure_max_run_concurrency: int = 6
+    azure_max_subscription_concurrency: int = 2
+    azure_max_retry_attempts: int = 5
+    azure_retry_base_delay_seconds: float = 1.0
+    azure_retry_max_delay_seconds: float = 20.0
+    azure_retry_jitter_seconds: float = 0.35
+    azure_enable_quota_preflight: bool = True
+    azure_quota_warning_headroom_ratio: float = 0.1
+    azure_quota_min_remaining_warning: int = 2
     cors_origins: tuple[str, ...] = (
         "http://localhost:5173",
         "http://127.0.0.1:5173",
@@ -44,6 +53,26 @@ def _parse_int_env(value: str | None, *, default: int, minimum: int) -> int:
         return default
     parsed = int(value)
     return max(parsed, minimum)
+
+
+def _parse_float_env(value: str | None, *, default: float, minimum: float) -> float:
+    if value is None or value.strip() == "":
+        return default
+    parsed = float(value)
+    return max(parsed, minimum)
+
+
+def _parse_bool_env(value: str | None, *, default: bool) -> bool:
+    if value is None or value.strip() == "":
+        return default
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(
+        "boolean env value must be one of: 1,true,yes,on,0,false,no,off"
+    )
 
 
 def _parse_execution_mode(value: str | None) -> ExecutionMode:
@@ -81,5 +110,52 @@ def get_settings() -> Settings:
         azure_tenant_id=os.getenv("MAPPO_AZURE_TENANT_ID"),
         azure_client_id=os.getenv("MAPPO_AZURE_CLIENT_ID"),
         azure_client_secret=os.getenv("MAPPO_AZURE_CLIENT_SECRET"),
+        azure_max_run_concurrency=_parse_int_env(
+            os.getenv("MAPPO_AZURE_MAX_RUN_CONCURRENCY"),
+            default=6,
+            minimum=1,
+        ),
+        azure_max_subscription_concurrency=_parse_int_env(
+            os.getenv("MAPPO_AZURE_MAX_SUBSCRIPTION_CONCURRENCY"),
+            default=2,
+            minimum=1,
+        ),
+        azure_max_retry_attempts=_parse_int_env(
+            os.getenv("MAPPO_AZURE_MAX_RETRY_ATTEMPTS"),
+            default=5,
+            minimum=1,
+        ),
+        azure_retry_base_delay_seconds=_parse_float_env(
+            os.getenv("MAPPO_AZURE_RETRY_BASE_DELAY_SECONDS"),
+            default=1.0,
+            minimum=0.1,
+        ),
+        azure_retry_max_delay_seconds=_parse_float_env(
+            os.getenv("MAPPO_AZURE_RETRY_MAX_DELAY_SECONDS"),
+            default=20.0,
+            minimum=0.1,
+        ),
+        azure_retry_jitter_seconds=_parse_float_env(
+            os.getenv("MAPPO_AZURE_RETRY_JITTER_SECONDS"),
+            default=0.35,
+            minimum=0.0,
+        ),
+        azure_enable_quota_preflight=_parse_bool_env(
+            os.getenv("MAPPO_AZURE_ENABLE_QUOTA_PREFLIGHT"),
+            default=True,
+        ),
+        azure_quota_warning_headroom_ratio=min(
+            1.0,
+            _parse_float_env(
+                os.getenv("MAPPO_AZURE_QUOTA_WARNING_HEADROOM_RATIO"),
+                default=0.1,
+                minimum=0.0,
+            ),
+        ),
+        azure_quota_min_remaining_warning=_parse_int_env(
+            os.getenv("MAPPO_AZURE_QUOTA_MIN_REMAINING_WARNING"),
+            default=2,
+            minimum=0,
+        ),
         cors_origins=cors_origins,
     )

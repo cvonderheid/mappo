@@ -2,20 +2,29 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 RETENTION_DAYS ?= 90
 COMPOSE_FILE := infra/docker-compose.yml
+IAC_DIR := infra/pulumi
+PULUMI_STACK ?= dev
+IAC_TARGET_EXPORT ?= .data/mappo-target-inventory.json
+PULUMI_CONFIG_PASSPHRASE ?= mappo-local-dev
+export PULUMI_CONFIG_PASSPHRASE
 
-.PHONY: help install install-backend install-frontend \
+.PHONY: help install install-deps install-backend install-frontend \
 	dev dev-up dev-down dev-logs dev-backend dev-frontend build build-backend build-frontend \
 	lint lint-backend lint-frontend typecheck typecheck-backend typecheck-frontend \
 	test test-backend test-frontend test-frontend-e2e import-targets retention-prune \
 	azure-auth-bootstrap dev-backend-azure azure-preflight managed-app-discover-targets managed-demo-refresh bootstrap-releases \
+	partner-center-token partner-center-api \
 	db-migrate db-validate db-info db-clean db-reset models-gen openapi client-gen \
+	iac-install iac-stack-init iac-preview iac-up iac-destroy iac-export-targets iac-prepare-dual-stack \
 	workflow-discipline-check docs-consistency-check golden-principles-check check-no-demo-leak \
 	phase1-gate-fast phase1-gate-full
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*##"; printf "\nTargets:\n"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  %-28s %s\n", $$1, $$2} END {printf "\n"}' $(MAKEFILE_LIST)
 
-install: install-backend install-frontend ## Install all dependencies
+install: install-deps db-migrate lint typecheck test phase1-gate-full build ## Full bootstrap: deps + DB + verification + build
+
+install-deps: install-backend install-frontend ## Install all dependencies only
 
 install-backend: ## Install backend dependencies via uv
 	uv sync --all-packages --all-groups
@@ -88,6 +97,19 @@ bootstrap-releases: ## Bootstrap default release records when release catalog is
 azure-auth-bootstrap: ## Create Azure SP credentials and write .data/mappo-azure.env
 	./scripts/azure_auth_bootstrap.sh
 
+partner-center-token: ## Acquire Partner Center access token into .data/mappo-partnercenter.env
+	./scripts/partner_center_get_token.sh --env-file .data/mappo-partnercenter.env
+
+partner-center-api: ## Call Partner Center API (requires URL=<https://...>)
+	@if [ -z "$(URL)" ]; then \
+		echo "usage: make partner-center-api URL=<https://...> [METHOD=GET] [BODY_FILE=payload.json]"; \
+		exit 2; \
+	fi
+	./scripts/partner_center_api.sh \
+		--method "$(or $(METHOD),GET)" \
+		--url "$(URL)" \
+		$(if $(BODY_FILE),--body-file "$(BODY_FILE)",)
+
 azure-preflight: ## Validate Azure environment readiness for production-like multi-tenant demo
 	./scripts/azure_preflight.sh
 
@@ -135,6 +157,39 @@ openapi: ## Generate backend OpenAPI schema
 
 client-gen: openapi ## Generate frontend API types from OpenAPI
 	cd frontend && npm run client-gen
+
+iac-install: ## Install Pulumi IaC dependencies
+	cd $(IAC_DIR) && npm install
+
+iac-stack-init: ## Select or initialize Pulumi stack (default: dev)
+	cd $(IAC_DIR) && pulumi login --local
+	cd $(IAC_DIR) && (pulumi stack select $(PULUMI_STACK) || pulumi stack init $(PULUMI_STACK))
+
+iac-preview: iac-install iac-stack-init ## Preview Pulumi managed-app IaC changes
+	cd $(IAC_DIR) && npm run build && pulumi preview --stack $(PULUMI_STACK) --non-interactive
+
+iac-up: iac-install iac-stack-init ## Deploy Pulumi managed-app IaC changes
+	cd $(IAC_DIR) && npm run build && pulumi up --stack $(PULUMI_STACK) --yes
+
+iac-destroy: iac-install iac-stack-init ## Destroy Pulumi managed-app IaC stack resources
+	cd $(IAC_DIR) && npm run build && pulumi destroy --stack $(PULUMI_STACK) --yes
+
+iac-export-targets: iac-stack-init ## Export MAPPO target inventory from Pulumi stack output
+	@mkdir -p $(dir $(IAC_TARGET_EXPORT))
+	cd $(IAC_DIR) && pulumi stack output mappoTargetInventory --stack $(PULUMI_STACK) --json > $(abspath $(IAC_TARGET_EXPORT))
+	@echo "wrote $(abspath $(IAC_TARGET_EXPORT))"
+
+iac-prepare-dual-stack: ## Generate dual-subscription Pulumi stack config for 10-target managed-app demo
+	@if [ -z "$(CUSTOMER_SUBSCRIPTION_ID)" ]; then \
+		echo "usage: make iac-prepare-dual-stack CUSTOMER_SUBSCRIPTION_ID=<id> [PULUMI_STACK=<name>] [PROVIDER_SUBSCRIPTION_ID=<id>] [PUBLISHER_PRINCIPAL_OBJECT_ID=<object-id>] [LOCATION=<region>]"; \
+		exit 2; \
+	fi
+	./scripts/iac_prepare_dual_stack.sh \
+		--stack "$(PULUMI_STACK)" \
+		$(if $(PROVIDER_SUBSCRIPTION_ID),--provider-subscription-id "$(PROVIDER_SUBSCRIPTION_ID)",) \
+		--customer-subscription-id "$(CUSTOMER_SUBSCRIPTION_ID)" \
+		$(if $(PUBLISHER_PRINCIPAL_OBJECT_ID),--publisher-principal-object-id "$(PUBLISHER_PRINCIPAL_OBJECT_ID)",) \
+		$(if $(LOCATION),--location "$(LOCATION)",)
 
 workflow-discipline-check: ## Validate required planning artifacts and structure
 	python3 scripts/workflow_discipline_check.py

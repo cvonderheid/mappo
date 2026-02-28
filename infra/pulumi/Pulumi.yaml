@@ -1,20 +1,32 @@
-name: mappo-demo-targets
+name: mappo-marketplace-demo
 runtime:
   name: nodejs
   options:
     typescript: true
-description: MAPPO demo target provisioning on Azure Container Apps using Pulumi
+description: MAPPO marketplace-accurate managed application demo provisioning
 config:
   mappo:defaultLocation:
     value: eastus
+  mappo:definitionNamePrefix:
+    value: mappo-ma-def
+  mappo:definitionResourceGroupPrefix:
+    value: rg-mappo-ma-def
+  mappo:applicationResourceGroupPrefix:
+    value: rg-mappo-ma-apps
+  mappo:sharedEnvironmentNamePrefix:
+    value: cae-mappo-ma-shared
+  mappo:sharedEnvironmentResourceGroupPrefix:
+    value: rg-mappo-ma-shared-env
+  mappo:managedAppNamePrefix:
+    value: mappo-ma
+  mappo:managedResourceGroupPrefix:
+    value: rg-mappo-ma-mrg
+  mappo:containerAppNamePrefix:
+    value: ca-mappo-ma
+  mappo:publisherRoleDefinitionId:
+    value: b24988ac-6180-42a0-ab88-20f7382dd24c
   mappo:targetProfile:
     value: demo10
-  mappo:environmentMode:
-    value: shared_per_subscription
-  mappo:sharedEnvironmentNamePrefix:
-    value: cae-mappo-shared
-  mappo:sharedEnvironmentResourceGroupPrefix:
-    value: rg-mappo-shared-env
   mappo:defaultImage:
     value: mcr.microsoft.com/azuredocs/containerapps-helloworld:latest
   mappo:defaultCpu:

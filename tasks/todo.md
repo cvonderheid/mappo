@@ -774,3 +774,216 @@ Cross-project naming cleanup:
 - 2026-02-28: Removed `txero` references from `backend/app/core/settings.py`, `backend/app/db/session.py`, and `backend/tests/conftest.py`.
 - 2026-02-28: Verified no `txero` matches remain in those files.
 - 2026-02-28: Verified backend lint/typecheck pass and backend tests pass with explicit local DB override.
+
+---
+
+## Scope (Phase 5.20 Slice)
+Admin discovery/import wiring (SDK-backed):
+- Add backend admin endpoint to discover managed app targets via Azure SDK and import directly into MAPPO target inventory.
+- Wire `/admin` UI to call the backend endpoint and display import summary/warnings/errors.
+- Keep OpenAPI + frontend generated client flow current.
+
+## Plan (Phase 5.20 Slice)
+- [x] Add backend SDK discovery module and admin API route (`/api/v1/admin/discover-import`).
+- [x] Add backend tests for admin route behavior (happy path + validation failure).
+- [x] Regenerate OpenAPI and frontend generated schema/client types.
+- [x] Wire `/admin` page form/actions to invoke backend discovery/import and refresh fleet state.
+- [x] Update frontend tests/page objects for route-nav compatibility.
+- [x] Run backend + frontend verification (lint/typecheck/test + e2e).
+
+## Verification Commands (Phase 5.20 Slice)
+- [x] `make openapi`
+- [x] `make client-gen`
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+- [x] `cd frontend && npm run test:e2e -- --reporter=line`
+
+## Results Log (Phase 5.20 Slice)
+- 2026-02-28: Added SDK discovery module at `backend/app/modules/discovery.py` and new admin router `POST /api/v1/admin/discover-import`.
+- 2026-02-28: Added request/response schemas for admin discovery/import in `backend/app/modules/schemas.py`.
+- 2026-02-28: Added backend coverage in `backend/tests/test_admin.py` for import replacement flow and missing-subscription validation.
+- 2026-02-28: Added frontend Admin panel form at `/admin` to trigger discovery/import and display summary + warnings.
+- 2026-02-28: Regenerated OpenAPI/client artifacts and verified backend/frontend lint/typecheck/tests pass; Playwright e2e suite passes.
+
+---
+
+## Scope (Phase 5.21 Slice)
+Admin discovery flexibility + operator diagnostics:
+- Support both explicit subscription input and auto-enumeration in one admin workflow.
+- Surface blocked enumeration scopes (where/why) so operators know what to add manually.
+- Keep API contract generation and frontend client wiring aligned.
+
+## Plan (Phase 5.21 Slice)
+- [x] Extend backend admin discovery request/response schema for auto-enumeration and blocked-scope diagnostics.
+- [x] Update SDK discovery pipeline to merge explicit + enumerated subscriptions and capture blocked scope metadata.
+- [x] Update `/api/v1/admin/discover-import` routing/validation and add backend tests for new behavior.
+- [x] Update `/admin` UI form to expose both options and display blocked scope diagnostics.
+- [x] Regenerate OpenAPI/frontend client artifacts and run full verification gate.
+
+## Verification Commands (Phase 5.21 Slice)
+- [x] `make openapi`
+- [x] `make client-gen`
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+- [x] `make phase1-gate-full`
+
+## Results Log (Phase 5.21 Slice)
+- 2026-02-28: Added `auto_enumerate_subscriptions` on admin discovery request and new response diagnostics (`scanned_subscription_ids`, `auto_discovered_subscription_ids`, `blocked_enumeration`).
+- 2026-02-28: Updated SDK discovery logic to optionally enumerate accessible subscriptions, merge with explicit IDs, and collect blocked scopes at tenant/subscription/resource-group boundaries.
+- 2026-02-28: Updated admin API validation to allow either explicit IDs or auto-enumeration and return blocked-scope diagnostics in structured form.
+- 2026-02-28: Extended backend tests for blocked-enumeration payload flow and dual-mode validation.
+- 2026-02-28: Updated Admin page to support both discovery modes and show blocked scope `type/id/reason` in results.
+- 2026-02-28: Regenerated OpenAPI + frontend schema and verified `lint`, `typecheck`, `test`, and `phase1-gate-full` pass (same existing 2 frontend lint warnings in shadcn ui primitives).
+
+---
+
+## Scope (Phase 5.22 Slice)
+Azure rate-limit and quota guardrails:
+- Add pre-run concurrency guardrails so Azure runs are bounded and safer by default.
+- Add per-subscription batching so execution does not burst ARM writes in one subscription.
+- Add transient-fault retry/backoff handling with `Retry-After` support.
+- Add optional ACA quota preflight to detect low headroom and reduce concurrency.
+- Surface guardrail decisions in run payloads/UI and document operations knobs.
+
+## Plan (Phase 5.22 Slice)
+- [x] Extend Azure executor settings with rate-limit/quota guardrail controls.
+- [x] Add executor `prepare_run` guardrail planning and apply effective concurrency in run creation.
+- [x] Add per-subscription execution batching in control-plane scheduler.
+- [x] Add Azure SDK retry/backoff wrapper for retryable failures (`408`, `409`, `429`, `5xx`) with `Retry-After`.
+- [x] Add ACA quota preflight checks (`usages.list`) and concurrency-lowering recommendations.
+- [x] Persist guardrail warnings and subscription-concurrency in run summary/detail payloads.
+- [x] Update Deployments UI to display guardrail warnings and effective per-subscription concurrency.
+- [x] Add/extend backend tests for concurrency capping and per-subscription batching behavior.
+- [x] Update docs (`architecture`, `live-demo-checklist`, `documentation`) with guardrail behavior and env vars.
+- [x] Regenerate OpenAPI/client and run full verification gate.
+
+## Verification Commands (Phase 5.22 Slice)
+- [x] `make openapi`
+- [x] `make client-gen`
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+- [x] `make phase1-gate-full`
+
+## Results Log (Phase 5.22 Slice)
+- 2026-02-28: Added Azure guardrail settings for concurrency limits, retry policy, and quota preflight controls in backend settings and runtime wiring.
+- 2026-02-28: Added executor-level run preflight (`prepare_run`) that caps run/per-subscription concurrency and records guardrail warnings.
+- 2026-02-28: Updated control-plane scheduler to batch by subscription respecting run `subscription_concurrency`.
+- 2026-02-28: Added retry/backoff wrapper in Azure runtime with `Retry-After` handling and retryable status support (`408`, `409`, `429`, `500`, `502`, `503`, `504`).
+- 2026-02-28: Added ACA quota preflight checks using `client.usages.list(location)` and automatic concurrency downgrades when quota headroom is low.
+- 2026-02-28: Extended run payloads with `subscription_concurrency` and `guardrail_warnings`; surfaced warnings in Deployments run cards/details.
+- 2026-02-28: Added backend regression tests for guardrail concurrency caps and per-subscription batching enforcement.
+- 2026-02-28: Updated operational docs and checklist with guardrail env vars and validation expectations.
+- 2026-02-28: Verified `openapi`, `client-gen`, `lint`, `typecheck`, `test`, and `phase1-gate-full` pass (same existing 2 frontend lint warnings in shadcn ui primitives).
+
+---
+
+## Scope (Phase 5.23 Slice)
+Make workflow ergonomics:
+- Make `make install` perform full bootstrap + verification + build.
+- Preserve a lightweight dependency-only install path.
+- Update docs to reflect new command behavior.
+
+## Plan (Phase 5.23 Slice)
+- [x] Update Makefile target graph so `install` executes full bootstrap sequence.
+- [x] Add `install-deps` for dependency-only setup.
+- [x] Update README/docs command guidance.
+- [x] Verify Make target graph/output (`make help`, dry-run `make -n install`).
+
+## Verification Commands (Phase 5.23 Slice)
+- [x] `make help`
+- [x] `make -n install`
+
+## Results Log (Phase 5.23 Slice)
+- 2026-02-28: Updated `make install` to run dependency install, DB migrate, lint/typecheck/test, full phase gate, and build.
+- 2026-02-28: Added `make install-deps` as a dependency-only setup path.
+- 2026-02-28: Updated README and docs with new install semantics.
+- 2026-02-28: Verified target surface and install sequence via `make help` and dry-run `make -n install`.
+- 2026-02-28: Hardened `backend/scripts/ensure_db.sh` so `db-migrate` auto-starts/waits for compose Postgres (`localhost:5433`) and falls back to container-side `psql/createdb` when host CLI tools are unavailable.
+- 2026-02-28: Verified DB bootstrap behavior with `make db-migrate` on a clean local compose Postgres startup.
+- 2026-02-28: Updated `infra/docker-compose.yml` backend command to source `.data/mappo-azure.env` inside container startup (supports `export ...` format used by bootstrap script), fixing missing Azure creds during admin discovery in compose mode.
+
+---
+
+## Scope (Phase 5.24 Slice)
+Admin discovery runtime compatibility fix:
+- Resolve false "Azure SDK dependencies unavailable" error in compose/runtime discovery path.
+- Keep auto-enumeration behavior without relying on unavailable `SubscriptionClient` symbols in current `azure-mgmt-resource`.
+
+## Plan (Phase 5.24 Slice)
+- [x] Replace brittle `SubscriptionClient` import path with ARM REST subscription enumeration using `ClientSecretCredential`.
+- [x] Keep managed app discovery via `ResourceManagementClient` unchanged.
+- [x] Re-run backend lint/typecheck/tests.
+- [x] Validate discovery endpoint behavior in compose backend after restart.
+
+## Verification Commands (Phase 5.24 Slice)
+- [x] `make lint-backend`
+- [x] `make typecheck-backend`
+- [x] `make test-backend`
+- [x] `docker compose -f infra/docker-compose.yml restart backend`
+- [x] `curl -X POST http://localhost:8010/api/v1/admin/discover-import ...`
+
+## Results Log (Phase 5.24 Slice)
+- 2026-02-28: Switched subscription auto-enumeration to ARM REST (`/subscriptions?api-version=2022-12-01`) using the existing Azure credential token.
+- 2026-02-28: Removed dependency on `azure.mgmt.resource.SubscriptionClient` import paths that are not present in current runtime package layout.
+- 2026-02-28: Verified backend checks pass and compose admin discovery no longer fails with SDK dependency error (endpoint now returns discovery results/errors instead of dependency fault).
+
+---
+
+## Scope (Phase 5.25 Slice)
+Admin discovery hardening for Azure paging/auth failures:
+- Prevent unhandled exceptions from Azure pager iteration from surfacing as HTTP 500.
+- Return controlled discovery errors/warnings (400) with blocked-scope context.
+
+## Plan (Phase 5.25 Slice)
+- [x] Wrap managed app resource paging in guarded list conversion with exception handling.
+- [x] Wrap container app resource-group paging in guarded list conversion with exception handling.
+- [x] Re-run backend checks and validate compose endpoint behavior.
+
+## Verification Commands (Phase 5.25 Slice)
+- [x] `make lint-backend`
+- [x] `make typecheck-backend`
+- [x] `make test-backend`
+- [x] `docker compose -f infra/docker-compose.yml restart backend`
+- [x] `curl -X POST http://localhost:8010/api/v1/admin/discover-import ...`
+
+## Results Log (Phase 5.25 Slice)
+- 2026-02-28: Fixed admin discovery crash path where Azure paging/auth exceptions during iterator traversal bypassed existing `try/except` and caused HTTP 500.
+- 2026-02-28: Discovery now returns controlled non-500 responses for subscription/resource-group auth scope failures (including tenant mismatch cases).
+
+---
+
+## Scope (Phase 5.26 Slice)
+Marketplace-realistic demo consolidation:
+- Remove non-marketplace demo tracks from active workflow surface.
+- Make Pulumi the primary IaC path for managed app definitions + managed app instances.
+- Add explicit API/script boundary for Partner Center operations and a portal playbook for manual-only steps.
+
+## Plan (Phase 5.26 Slice)
+- [x] Replace Pulumi direct-ACA target model with managed-app definition + managed-app instance model and inventory exports.
+- [x] Restore Pulumi Make targets and dual-stack generator aligned to the managed-app IaC model.
+- [x] Remove obsolete Lighthouse/simulation scripts from active repo surface.
+- [x] Add Partner Center API helper scripts and Make wrappers.
+- [x] Update README/docs/checklists with clear IaC vs API vs portal boundaries.
+- [x] Run verification commands and capture outcomes.
+
+## Verification Commands (Phase 5.26 Slice)
+- [x] `cd infra/pulumi && npm run build`
+- [x] `bash -n scripts/iac_prepare_dual_stack.sh scripts/partner_center_get_token.sh scripts/partner_center_api.sh`
+- [x] `make help`
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `docker compose -f infra/docker-compose.yml up -d postgres migrate`
+- [x] `make test`
+
+## Results Log (Phase 5.26 Slice)
+- 2026-02-28: Replaced `infra/pulumi/index.ts` provisioning model to deploy service-catalog managed app definitions and managed app instances (with ACA deployment defined inside managed app template), then export MAPPO-ready target inventory.
+- 2026-02-28: Updated Pulumi config contract/files/docs (`Pulumi.yaml`, `Pulumi.dev.yaml`, `Pulumi.dual-demo.yaml`, `infra/pulumi/README.md`) for managed-app-first IaC and explicit publisher principal authorization.
+- 2026-02-28: Reintroduced IaC command surface in Makefile (`iac-install`, `iac-stack-init`, `iac-preview`, `iac-up`, `iac-destroy`, `iac-export-targets`, `iac-prepare-dual-stack`).
+- 2026-02-28: Replaced dual-stack generator script to emit managed-app-oriented target config and require publisher principal object ID input.
+- 2026-02-28: Removed obsolete scripts not part of current marketplace demo track: Lighthouse delegation/undelegation and managed-app simulation bootstrap/teardown/seed scripts.
+- 2026-02-28: Added Partner Center API helpers (`scripts/partner_center_get_token.sh`, `scripts/partner_center_api.sh`) and Make wrappers (`partner-center-token`, `partner-center-api`).
+- 2026-02-28: Added portal/manual playbook at `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md` and updated README/checklist/docs to show automation boundaries.
+- 2026-02-28: Verified lint/typecheck/tests after starting local compose Postgres migration services; `make test` is green.

@@ -44,12 +44,20 @@ services:
       MAPPO_DATABASE_URL: postgresql+psycopg://mappo:mappo@postgres:5432/mappo
       DATABASE_URL: postgresql+psycopg://mappo:mappo@postgres:5432/mappo
       MAPPO_RETENTION_DAYS: "90"
+      MAPPO_EXECUTION_MODE: ${MAPPO_EXECUTION_MODE:-azure}
+      MAPPO_AZURE_TENANT_ID: ${MAPPO_AZURE_TENANT_ID:-}
+      MAPPO_AZURE_CLIENT_ID: ${MAPPO_AZURE_CLIENT_ID:-}
+      MAPPO_AZURE_CLIENT_SECRET: ${MAPPO_AZURE_CLIENT_SECRET:-}
     volumes:
       - ..:/workspace
     command:
       - bash
       - -lc
-      - uv sync --all-packages --all-groups && uv --directory backend run --package mappo-backend -- uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      - |
+        if [ -f /workspace/.data/mappo-azure.env ]; then
+          source /workspace/.data/mappo-azure.env
+        fi
+        uv sync --all-packages --all-groups && uv --directory backend run --package mappo-backend -- uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8010:8000"
 

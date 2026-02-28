@@ -1,6 +1,6 @@
 config:
   mappo:targetProfile: empty
-  mappo:environmentMode: shared_per_subscription
+  mappo:publisherPrincipalObjectId: REPLACE_WITH_AZURE_AD_OBJECT_ID
   mappo:sharedEnvironmentNamePrefix: cae-mappo-dual-demo-shared
   mappo:sharedEnvironmentResourceGroupPrefix: rg-mappo-dual-demo-shared-env
   mappo:targets:

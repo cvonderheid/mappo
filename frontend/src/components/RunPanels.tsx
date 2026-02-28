@@ -222,6 +222,13 @@ export function RunList({
                 </div>
                 <StackedProgressBar progress={progress} testIdPrefix={`run-progress-${run.id}`} />
               </div>
+              {(run.guardrail_warnings ?? []).length > 0 ? (
+                <div className="mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] text-amber-200">
+                  {(run.guardrail_warnings ?? []).map((warning) => (
+                    <p key={`${run.id}-${warning}`}>{warning}</p>
+                  ))}
+                </div>
+              ) : null}
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   data-testid={`resume-${run.id}`}
@@ -283,6 +290,7 @@ export function RunDetailPanel({ run }: RunDetailProps) {
           <span>release: {run.release_id}</span>
           <span>strategy: {formatStrategyLabel(run.strategy_mode)}</span>
           <span>concurrency: {run.concurrency}</span>
+          <span>per-subscription: {run.subscription_concurrency}</span>
         </div>
         <div className="rounded-md border border-border/70 bg-card/70 p-3">
           <div className="mb-2 flex items-center justify-between text-xs">
@@ -302,6 +310,13 @@ export function RunDetailPanel({ run }: RunDetailProps) {
         {run.halt_reason ? (
           <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive-foreground">
             {run.halt_reason}
+          </div>
+        ) : null}
+        {(run.guardrail_warnings ?? []).length > 0 ? (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-200">
+            {(run.guardrail_warnings ?? []).map((warning) => (
+              <p key={`detail-${run.id}-${warning}`}>{warning}</p>
+            ))}
           </div>
         ) : null}
         <div className="space-y-2">

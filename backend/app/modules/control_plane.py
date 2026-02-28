@@ -178,6 +178,17 @@ class ControlPlaneStore:
             if not selected_ids:
                 raise StoreError("no targets matched target selection")
 
+            selected_targets = [self._targets[target_id] for target_id in selected_ids]
+
+        try:
+            guardrail_plan = await self._target_executor.prepare_run(
+                targets=selected_targets,
+                requested_concurrency=request.concurrency,
+            )
+        except Exception as error:
+            raise StoreError(f"run preflight failed: {error}") from error
+
+        async with self._lock:
             now = utc_now()
             run_id = f"run-{uuid4().hex[:10]}"
             target_records = {
@@ -199,11 +210,13 @@ class ControlPlaneStore:
                 strategy_mode=request.strategy_mode,
                 wave_tag=request.wave_tag,
                 wave_order=request.wave_order,
-                concurrency=request.concurrency,
+                concurrency=guardrail_plan.effective_concurrency,
+                subscription_concurrency=guardrail_plan.subscription_concurrency,
                 stop_policy=request.stop_policy,
                 target_ids=selected_ids,
                 status=RunStatus.RUNNING,
                 halt_reason=None,
+                guardrail_warnings=guardrail_plan.warnings,
                 created_at=now,
                 started_at=now,
                 ended_at=None,
@@ -351,9 +364,8 @@ class ControlPlaneStore:
 
         waves = await self._build_waves(run_id=run_id, target_ids=pending_target_ids)
         for wave_targets in waves:
-            concurrency = await self._get_concurrency(run_id)
-            for start in range(0, len(wave_targets), concurrency):
-                chunk = wave_targets[start : start + concurrency]
+            batches = await self._build_execution_batches(run_id, wave_targets)
+            for chunk in batches:
                 await asyncio.gather(
                     *(self._execute_target(run_id, target_id) for target_id in chunk)
                 )
@@ -370,6 +382,65 @@ class ControlPlaneStore:
         async with self._lock:
             run = self._runs[run_id]
             return max(1, run.concurrency)
+
+    async def _get_subscription_concurrency(self, run_id: str) -> int:
+        async with self._lock:
+            run = self._runs[run_id]
+            return max(1, min(run.concurrency, run.subscription_concurrency))
+
+    async def _build_execution_batches(
+        self,
+        run_id: str,
+        wave_targets: list[str],
+    ) -> list[list[str]]:
+        if not wave_targets:
+            return []
+
+        concurrency = await self._get_concurrency(run_id)
+        per_subscription = await self._get_subscription_concurrency(run_id)
+        if per_subscription >= concurrency:
+            return [
+                wave_targets[start : start + concurrency]
+                for start in range(0, len(wave_targets), concurrency)
+            ]
+
+        async with self._lock:
+            subscription_by_target = {
+                target_id: self._targets[target_id].subscription_id
+                for target_id in wave_targets
+            }
+
+        queues_by_subscription: dict[str, list[str]] = {}
+        for target_id in wave_targets:
+            subscription_id = subscription_by_target[target_id]
+            if subscription_id not in queues_by_subscription:
+                queues_by_subscription[subscription_id] = []
+            queues_by_subscription[subscription_id].append(target_id)
+
+        batches: list[list[str]] = []
+        ordered_subscriptions = sorted(queues_by_subscription.keys())
+        while True:
+            batch: list[str] = []
+            any_remaining = False
+            for subscription_id in ordered_subscriptions:
+                queue = queues_by_subscription[subscription_id]
+                if not queue:
+                    continue
+                any_remaining = True
+                take_count = min(
+                    per_subscription,
+                    len(queue),
+                    concurrency - len(batch),
+                )
+                for _ in range(take_count):
+                    batch.append(queue.pop(0))
+                if len(batch) >= concurrency:
+                    break
+            if not any_remaining:
+                break
+            if batch:
+                batches.append(batch)
+        return batches
 
     async def _select_pending_target_ids(
         self,
@@ -642,12 +713,14 @@ class ControlPlaneStore:
             created_at=run.created_at,
             started_at=run.started_at,
             ended_at=run.ended_at,
+            subscription_concurrency=run.subscription_concurrency,
             total_targets=len(run.target_records),
             succeeded_targets=counts["succeeded"],
             failed_targets=counts["failed"],
             in_progress_targets=counts["in_progress"],
             queued_targets=counts["queued"],
             halt_reason=run.halt_reason,
+            guardrail_warnings=run.guardrail_warnings,
         )
 
     def _to_run_detail(self, run: DeploymentRun) -> RunDetail:
@@ -663,12 +736,14 @@ class ControlPlaneStore:
             wave_tag=run.wave_tag,
             wave_order=run.wave_order,
             concurrency=run.concurrency,
+            subscription_concurrency=run.subscription_concurrency,
             stop_policy=run.stop_policy,
             created_at=run.created_at,
             started_at=run.started_at,
             ended_at=run.ended_at,
             updated_at=run.updated_at,
             halt_reason=run.halt_reason,
+            guardrail_warnings=run.guardrail_warnings,
             target_records=ordered_records,
         )
 

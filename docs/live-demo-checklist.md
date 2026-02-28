@@ -19,38 +19,56 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
   - `make azure-auth-bootstrap`
 - [ ] Load env file in your shell:
   - `source .data/mappo-azure.env`
-- [ ] Ensure managed application authorizations grant provider runtime identity enough rights on managed resource groups for:
-  - reading Container App state,
-  - performing deployment operations,
-  - reading deployment status and health signals.
+- [ ] Resolve publisher principal object ID used for managed app definition authorization:
+  - `export MAPPO_PUBLISHER_PRINCIPAL_OBJECT_ID="<azure-ad-object-id>"`
 
-## 3) Customer Onboarding (Marketplace Simulation)
+## 3) IaC Provisioning (Pulumi, primary path)
 
-- [ ] Publish/assign managed app plan (private plan is fine for demo).
-- [ ] Deploy managed app instance in each target customer subscription.
-- [ ] Verify managed application resource exists (`Microsoft.Solutions/applications`) and points to a managed resource group.
-- [ ] Verify exactly one intended target Container App exists in each managed resource group (or document selection rule if multiple exist).
-
-## 4) MAPPO Inventory + Runtime
-
-- [ ] Discover targets from managed app instances:
-  - `make managed-app-discover-targets SUBSCRIPTION_IDS="<provider-sub>,<customer-sub>"`
-- [ ] Import fleet into MAPPO:
+- [ ] Optional: generate a deterministic dual-subscription stack file:
+  - `make iac-prepare-dual-stack CUSTOMER_SUBSCRIPTION_ID="<sub-id>" PULUMI_STACK=dual-demo`
+- [ ] Install/select stack:
+  - `make iac-install`
+  - `make iac-stack-init PULUMI_STACK=<stack>`
+- [ ] Preview/apply:
+  - `make iac-preview PULUMI_STACK=<stack>`
+  - `make iac-up PULUMI_STACK=<stack>`
+- [ ] Export target inventory from Pulumi output and import into MAPPO:
+  - `make iac-export-targets PULUMI_STACK=<stack>`
   - `make import-targets`
-- [ ] Ensure release catalog exists (managed-demo-refresh does this automatically):
   - `make bootstrap-releases`
+- [ ] Verify managed application resource exists (`Microsoft.Solutions/applications`) and points to a managed resource group.
+- [ ] Verify intended target Container App exists in each managed resource group.
+
+## 4) Marketplace Offering Setup (API/CLI + Portal)
+
+- [ ] Run Partner Center API/CLI steps for offer + plan lifecycle (see `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`).
+- [ ] Use Portal playbook for actions that are still portal-only for this demo.
+
+## 5) MAPPO Runtime
+
 - [ ] Run readiness check:
   - `make azure-preflight`
+- [ ] Configure Azure guardrail env vars for demo safety (recommended defaults shown):
+  - `MAPPO_AZURE_MAX_RUN_CONCURRENCY=6`
+  - `MAPPO_AZURE_MAX_SUBSCRIPTION_CONCURRENCY=2`
+  - `MAPPO_AZURE_MAX_RETRY_ATTEMPTS=5`
+  - `MAPPO_AZURE_RETRY_BASE_DELAY_SECONDS=1.0`
+  - `MAPPO_AZURE_RETRY_MAX_DELAY_SECONDS=20.0`
+  - `MAPPO_AZURE_RETRY_JITTER_SECONDS=0.35`
+  - `MAPPO_AZURE_ENABLE_QUOTA_PREFLIGHT=true`
+  - `MAPPO_AZURE_QUOTA_WARNING_HEADROOM_RATIO=0.1`
+  - `MAPPO_AZURE_QUOTA_MIN_REMAINING_WARNING=2`
 - [ ] Start backend in Azure mode:
   - `make dev-backend-azure`
 - [ ] Start frontend:
   - `make dev-frontend`
 
-## 5) Validation Run
+## 6) Validation Run
 
 - [ ] Create a single-target canary run and verify stage progression:
   - `VALIDATING -> DEPLOYING -> VERIFYING -> SUCCEEDED`
 - [ ] Verify per-target logs include structured error details and Azure correlation IDs.
 - [ ] Execute 10-target rollout with stop policy enabled.
+- [ ] Confirm deployment run shows guardrail warnings (if any) and effective per-subscription batching settings.
 - [ ] Confirm retry/resume behavior on failed or halted runs.
 - [ ] Confirm fleet view reflects latest deployed release per successful target.

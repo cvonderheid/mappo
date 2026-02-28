@@ -4,29 +4,37 @@ import * as pulumi from "@pulumi/pulumi";
 import * as app from "@pulumi/azure-native/app";
 import * as azureNative from "@pulumi/azure-native/index";
 import * as resources from "@pulumi/azure-native/resources";
+import * as solutions from "@pulumi/azure-native/solutions";
 
 import { TargetConfig, parseProfileName, targetsFromProfile } from "./targets";
+
+interface SubscriptionContext {
+  provider: azureNative.Provider;
+  location: string;
+  definitionResourceGroup: resources.ResourceGroup;
+  applicationResourceGroup: resources.ResourceGroup;
+  sharedEnvironmentResourceGroup: resources.ResourceGroup;
+  sharedEnvironment: app.ManagedEnvironment;
+  definition: solutions.ApplicationDefinition;
+}
 
 interface DeploymentOutput {
   id: string;
   tenantId: string;
   subscriptionId: string;
   targetGroup: string;
+  tier: string;
+  environment: string;
   region: string;
-  resourceGroupName: pulumi.Output<string>;
-  managedEnvironmentName: pulumi.Output<string>;
-  containerAppName: pulumi.Output<string>;
-  containerAppId: pulumi.Output<string>;
-  latestRevisionFqdn: pulumi.Output<string | undefined>;
+  managedApplicationName: string;
+  managedResourceGroupName: string;
+  managedResourceGroupId: pulumi.Output<string>;
+  containerAppName: string;
+  containerAppResourceId: pulumi.Output<string>;
+  managedApplication: solutions.Application;
 }
 
-interface ManagedEnvironmentRef {
-  id: pulumi.Output<string>;
-  name: pulumi.Output<string>;
-  location: string;
-}
-
-type EnvironmentMode = "shared_per_subscription" | "per_target";
+const CONTRIBUTOR_ROLE_DEFINITION_ID = "b24988ac-6180-42a0-ab88-20f7382dd24c";
 
 const config = new pulumi.Config("mappo");
 const defaultLocation = config.get("defaultLocation") ?? "eastus";
@@ -34,10 +42,28 @@ const defaultImage =
   config.get("defaultImage") ?? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest";
 const defaultCpu = config.getNumber("defaultCpu") ?? 0.25;
 const defaultMemory = config.get("defaultMemory") ?? "0.5Gi";
-const environmentMode = parseEnvironmentMode(config.get("environmentMode") ?? "shared_per_subscription");
-const sharedEnvironmentNamePrefix = config.get("sharedEnvironmentNamePrefix") ?? "cae-mappo-shared";
+
+const definitionNamePrefix = config.get("definitionNamePrefix") ?? "mappo-ma-def";
+const definitionResourceGroupPrefix =
+  config.get("definitionResourceGroupPrefix") ?? "rg-mappo-ma-def";
+const applicationResourceGroupPrefix =
+  config.get("applicationResourceGroupPrefix") ?? "rg-mappo-ma-apps";
+const sharedEnvironmentNamePrefix =
+  config.get("sharedEnvironmentNamePrefix") ?? "cae-mappo-ma-shared";
 const sharedEnvironmentResourceGroupPrefix =
-  config.get("sharedEnvironmentResourceGroupPrefix") ?? "rg-mappo-shared-env";
+  config.get("sharedEnvironmentResourceGroupPrefix") ?? "rg-mappo-ma-shared-env";
+const managedAppNamePrefix = config.get("managedAppNamePrefix") ?? "mappo-ma";
+const managedResourceGroupPrefix = config.get("managedResourceGroupPrefix") ?? "rg-mappo-ma-mrg";
+const containerAppNamePrefix = config.get("containerAppNamePrefix") ?? "ca-mappo-ma";
+
+const publisherPrincipalObjectId = requireConfigWithEnvFallback(
+  config,
+  "publisherPrincipalObjectId",
+  "MAPPO_PUBLISHER_PRINCIPAL_OBJECT_ID",
+);
+const publisherRoleDefinitionId =
+  config.get("publisherRoleDefinitionId") ?? CONTRIBUTOR_ROLE_DEFINITION_ID;
+
 const inlineTargets = config.getObject<TargetConfig[]>("targets");
 const targetProfile = parseProfileName(config.get("targetProfile") ?? "demo10");
 const demoSubscriptionId = resolveDemoSubscriptionId(config.get("demoSubscriptionId"));
@@ -58,81 +84,87 @@ if (targets.length === 0) {
 }
 
 const providersBySubscription = new Map<string, azureNative.Provider>();
-const sharedEnvironmentsBySubscription = new Map<string, ManagedEnvironmentRef>();
+const contextBySubscription = new Map<string, SubscriptionContext>();
+
+const managedAppMainTemplate = buildManagedAppMainTemplate(defaultCpu, defaultMemory);
+const createUiDefinition = buildCreateUiDefinition();
 
 const targetDeployments = targets.map((target, index) => {
-  const normalizedTargetId = normalizeName(target.id, `target-${index + 1}`);
+  const normalizedTargetId = normalizeName(target.id, `target-${index + 1}`, 40);
   const tenantId = target.tenantId ?? `tenant-${String(index + 1).padStart(3, "0")}`;
-  const targetGroup = target.targetGroup ?? "prod";
+  const targetGroup = target.targetGroup ?? target.tags?.ring ?? "prod";
   const region = target.region ?? defaultLocation;
-  const targetResourceGroupName = target.resourceGroupName ?? `rg-mappo-${normalizedTargetId}`;
-  const containerAppName = target.containerAppName ?? `ca-mappo-${normalizedTargetId}`;
-  const image = target.image ?? defaultImage;
-  const targetPort = target.targetPort ?? 80;
-  const minReplicas = Math.max(0, target.minReplicas ?? 1);
-  const maxReplicas = Math.max(minReplicas, target.maxReplicas ?? 1);
+  const tier = target.tier ?? target.tags?.tier ?? "standard";
+  const environment = target.environment ?? target.tags?.environment ?? "demo";
 
   const provider = getProvider(target.subscriptionId);
+  const context = getOrCreateSubscriptionContext({
+    provider,
+    subscriptionId: target.subscriptionId,
+    location: region,
+    managedAppMainTemplate,
+    createUiDefinition,
+  });
 
-  const tags: Record<string, string> = {
+  const managedApplicationName =
+    target.managedApplicationName ??
+    normalizeName(
+      `${managedAppNamePrefix}-${normalizedTargetId}`,
+      `mappo-ma-${normalizedTargetId}`,
+      60,
+    );
+  const managedResourceGroupName =
+    target.managedResourceGroupName ??
+    normalizeName(
+      `${managedResourceGroupPrefix}-${normalizedTargetId}`,
+      `rg-mappo-ma-mrg-${normalizedTargetId}`,
+      90,
+    );
+  const containerAppName =
+    target.containerAppName ??
+    normalizeName(
+      `${containerAppNamePrefix}-${normalizedTargetId}`,
+      `ca-mappo-ma-${normalizedTargetId}`,
+      32,
+    );
+  const managedResourceGroupId = pulumi.output(
+    `/subscriptions/${target.subscriptionId}/resourceGroups/${managedResourceGroupName}`,
+  );
+  const containerAppResourceId = pulumi.output(
+    `/subscriptions/${target.subscriptionId}/resourceGroups/${managedResourceGroupName}/providers/Microsoft.App/containerApps/${containerAppName}`,
+  );
+
+  const tags: Record<string, pulumi.Input<string>> = {
+    ...(target.tags ?? {}),
     managedBy: "pulumi",
     system: "mappo",
     ring: targetGroup,
+    region,
+    tier,
+    environment,
     tenantId,
     targetId: target.id,
-    ...(target.tags ?? {}),
   };
 
-  const managedEnvironment = getManagedEnvironmentForTarget({
-    target,
-    normalizedTargetId,
-    tags,
-    provider,
-  });
-
-  const targetResourceGroup = new resources.ResourceGroup(
-    `resource-group-${normalizedTargetId}`,
+  const managedApplication = new solutions.Application(
+    `managed-app-${normalizedTargetId}`,
     {
-      resourceGroupName: targetResourceGroupName,
-      location: managedEnvironment.location,
-      tags,
-    },
-    { provider },
-  );
-
-  const container = {
-    name: "app",
-    image,
-    resources: {
-      cpu: target.cpu ?? defaultCpu,
-      memory: target.memory ?? defaultMemory,
-    },
-    env: Object.entries(target.environmentVariables ?? {}).map(([name, value]) => ({
-      name,
-      value,
-    })),
-  };
-
-  const containerApp = new app.ContainerApp(
-    `container-app-${normalizedTargetId}`,
-    {
-      resourceGroupName: targetResourceGroup.name,
-      containerAppName,
-      location: managedEnvironment.location,
-      managedEnvironmentId: managedEnvironment.id,
-      configuration: {
-        ingress: {
-          external: target.externalIngress ?? true,
-          targetPort,
-          transport: "Auto",
-        },
-      },
-      template: {
-        containers: [container],
-        scale: {
-          minReplicas,
-          maxReplicas,
-        },
+      resourceGroupName: context.applicationResourceGroup.name,
+      applicationName: managedApplicationName,
+      applicationDefinitionId: context.definition.id,
+      kind: "ServiceCatalog",
+      location: region,
+      managedResourceGroupId,
+      parameters: {
+        location: { value: region },
+        sharedEnvironmentResourceId: { value: context.sharedEnvironment.id },
+        containerAppName: { value: containerAppName },
+        containerImage: { value: defaultImage },
+        targetGroup: { value: targetGroup },
+        tenantId: { value: tenantId },
+        targetId: { value: target.id },
+        tier: { value: tier },
+        environment: { value: environment },
       },
       tags,
     },
@@ -140,60 +172,345 @@ const targetDeployments = targets.map((target, index) => {
   );
 
   const output: DeploymentOutput = {
-    id: target.id,
+    id: managedApplicationName,
     tenantId,
     subscriptionId: target.subscriptionId,
     targetGroup,
+    tier,
+    environment,
     region,
-    resourceGroupName: targetResourceGroup.name,
-    managedEnvironmentName: managedEnvironment.name,
-    containerAppName: containerApp.name,
-    containerAppId: containerApp.id,
-    latestRevisionFqdn: containerApp.latestRevisionFqdn,
+    managedApplicationName,
+    managedResourceGroupName,
+    managedResourceGroupId,
+    containerAppName,
+    containerAppResourceId,
+    managedApplication,
   };
 
-  return { target, output };
+  return output;
 });
 
 export const targetCount = targets.length;
-export const deployedTargets = targetDeployments.map((deployment) => deployment.output);
+export const managedAppCount = targetDeployments.length;
+
+export const managedApplicationIds = targetDeployments.map((deployment) => deployment.managedApplication.id);
+
 export const mappoTargetInventory = pulumi.all(
   targetDeployments.map((deployment) =>
     pulumi
       .all([
-        deployment.output.resourceGroupName,
-        deployment.output.containerAppId,
-        deployment.output.latestRevisionFqdn,
+        deployment.managedApplication.id,
+        deployment.managedResourceGroupId,
+        deployment.containerAppResourceId,
+        deployment.managedApplication.outputs,
       ])
-      .apply(([resourceGroupName, containerAppId, latestRevisionFqdn]) => ({
-        id: deployment.output.id,
-        tenant_id: deployment.output.tenantId,
-        subscription_id: deployment.output.subscriptionId,
-        managed_app_id: containerAppId,
-        tags: {
-          ring: deployment.output.targetGroup,
-          region: deployment.output.region,
-          environment: deployment.target.tags?.environment ?? "demo",
-          tier: deployment.target.tags?.tier ?? "standard",
-        },
-        metadata: {
-          resource_group_name: resourceGroupName,
-          container_app_fqdn: latestRevisionFqdn ?? "",
-        },
-      })),
+      .apply(
+        ([managedApplicationId, managedResourceGroupId, containerAppResourceId, appOutputs]) => ({
+          id: deployment.id,
+          tenant_id: deployment.tenantId,
+          subscription_id: deployment.subscriptionId,
+          managed_app_id: containerAppResourceId,
+          tags: {
+            ring: deployment.targetGroup,
+            region: deployment.region,
+            environment: deployment.environment,
+            tier: deployment.tier,
+          },
+          metadata: {
+            managed_application_id: managedApplicationId,
+            managed_application_name: deployment.managedApplicationName,
+            managed_resource_group_id: managedResourceGroupId,
+            managed_resource_group_name: deployment.managedResourceGroupName,
+            container_app_name: deployment.containerAppName,
+            container_app_fqdn: extractManagedAppOutputValue(appOutputs, "containerAppFqdn"),
+          },
+        }),
+      ),
   ),
 );
+
 export const mappoTargetInventoryJson = mappoTargetInventory.apply((rows) =>
   JSON.stringify(rows, null, 2),
 );
 
-function normalizeName(value: string | undefined, fallback: string): string {
+function getOrCreateSubscriptionContext(input: {
+  provider: azureNative.Provider;
+  subscriptionId: string;
+  location: string;
+  managedAppMainTemplate: Record<string, unknown>;
+  createUiDefinition: Record<string, unknown>;
+}): SubscriptionContext {
+  const existing = contextBySubscription.get(input.subscriptionId);
+  if (existing) {
+    if (existing.location !== input.location) {
+      pulumi.log.warn(
+        "Targets in one subscription use multiple regions. Shared resources are pinned to "
+          + `${existing.location} for subscription ${input.subscriptionId}.`,
+      );
+    }
+    return existing;
+  }
+
+  const key = subscriptionKey(input.subscriptionId);
+  const definitionResourceGroupName = normalizeName(
+    `${definitionResourceGroupPrefix}-${key}`,
+    `rg-mappo-ma-def-${key}`,
+    90,
+  );
+  const applicationResourceGroupName = normalizeName(
+    `${applicationResourceGroupPrefix}-${key}`,
+    `rg-mappo-ma-apps-${key}`,
+    90,
+  );
+  const sharedEnvironmentResourceGroupName = normalizeName(
+    `${sharedEnvironmentResourceGroupPrefix}-${key}`,
+    `rg-mappo-ma-shared-env-${key}`,
+    90,
+  );
+  const definitionName = normalizeName(
+    `${definitionNamePrefix}-${key}`,
+    `mappo-ma-def-${key}`,
+    64,
+  );
+  const sharedEnvironmentName = normalizeName(
+    `${sharedEnvironmentNamePrefix}-${key}`,
+    `cae-mappo-ma-shared-${key}`,
+    32,
+  );
+
+  const definitionResourceGroup = new resources.ResourceGroup(
+    `managed-app-definition-rg-${key}`,
+    {
+      resourceGroupName: definitionResourceGroupName,
+      location: input.location,
+      tags: {
+        managedBy: "pulumi",
+        system: "mappo",
+        scope: "managed-app-definition",
+      },
+    },
+    { provider: input.provider },
+  );
+
+  const applicationResourceGroup = new resources.ResourceGroup(
+    `managed-app-rg-${key}`,
+    {
+      resourceGroupName: applicationResourceGroupName,
+      location: input.location,
+      tags: {
+        managedBy: "pulumi",
+        system: "mappo",
+        scope: "managed-app-instances",
+      },
+    },
+    { provider: input.provider },
+  );
+
+  const sharedEnvironmentResourceGroup = new resources.ResourceGroup(
+    `shared-environment-rg-${key}`,
+    {
+      resourceGroupName: sharedEnvironmentResourceGroupName,
+      location: input.location,
+      tags: {
+        managedBy: "pulumi",
+        system: "mappo",
+        scope: "shared-environment",
+      },
+    },
+    { provider: input.provider },
+  );
+
+  const sharedEnvironment = new app.ManagedEnvironment(
+    `shared-managed-environment-${key}`,
+    {
+      resourceGroupName: sharedEnvironmentResourceGroup.name,
+      environmentName: sharedEnvironmentName,
+      location: input.location,
+      tags: {
+        managedBy: "pulumi",
+        system: "mappo",
+        scope: "shared-environment",
+      },
+    },
+    { provider: input.provider },
+  );
+
+  const definition = new solutions.ApplicationDefinition(
+    `managed-app-definition-${key}`,
+    {
+      resourceGroupName: definitionResourceGroup.name,
+      applicationDefinitionName: definitionName,
+      displayName: `MAPPO Managed App Definition (${key})`,
+      description:
+        "MAPPO service catalog managed application definition for marketplace-accurate demo rollout.",
+      location: input.location,
+      lockLevel: "None",
+      deploymentPolicy: {
+        deploymentMode: "Incremental",
+      },
+      managementPolicy: {
+        mode: "Managed",
+      },
+      authorizations: [
+        {
+          principalId: publisherPrincipalObjectId,
+          roleDefinitionId: publisherRoleDefinitionId,
+        },
+      ],
+      createUiDefinition: input.createUiDefinition,
+      mainTemplate: input.managedAppMainTemplate,
+      tags: {
+        managedBy: "pulumi",
+        system: "mappo",
+      },
+    },
+    { provider: input.provider },
+  );
+
+  const context: SubscriptionContext = {
+    provider: input.provider,
+    location: input.location,
+    definitionResourceGroup,
+    applicationResourceGroup,
+    sharedEnvironmentResourceGroup,
+    sharedEnvironment,
+    definition,
+  };
+  contextBySubscription.set(input.subscriptionId, context);
+  return context;
+}
+
+function getProvider(subscriptionId: string): azureNative.Provider {
+  const existing = providersBySubscription.get(subscriptionId);
+  if (existing) {
+    return existing;
+  }
+
+  const key = subscriptionKey(subscriptionId);
+  const provider = new azureNative.Provider(`provider-sub-${key}`, {
+    subscriptionId,
+  });
+  providersBySubscription.set(subscriptionId, provider);
+  return provider;
+}
+
+function buildCreateUiDefinition(): Record<string, unknown> {
+  return {
+    $schema:
+      "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+    handler: "Microsoft.Azure.CreateUIDef",
+    version: "0.1.2-preview",
+    parameters: {
+      basics: [],
+      steps: [],
+      outputs: {},
+    },
+  };
+}
+
+function buildManagedAppMainTemplate(
+  defaultContainerCpu: number,
+  defaultContainerMemory: string,
+): Record<string, unknown> {
+  return {
+    $schema: "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    contentVersion: "1.0.0.0",
+    parameters: {
+      location: { type: "string" },
+      sharedEnvironmentResourceId: { type: "string" },
+      containerAppName: { type: "string" },
+      containerImage: { type: "string" },
+      targetGroup: { type: "string" },
+      tenantId: { type: "string" },
+      targetId: { type: "string" },
+      tier: { type: "string" },
+      environment: { type: "string" },
+    },
+    resources: [
+      {
+        type: "Microsoft.App/containerApps",
+        apiVersion: "2024-03-01",
+        name: "[parameters('containerAppName')]",
+        location: "[parameters('location')]",
+        tags: {
+          managedBy: "managedApp",
+          system: "mappo",
+          ring: "[parameters('targetGroup')]",
+          tenantId: "[parameters('tenantId')]",
+          targetId: "[parameters('targetId')]",
+          tier: "[parameters('tier')]",
+          environment: "[parameters('environment')]",
+        },
+        properties: {
+          managedEnvironmentId: "[parameters('sharedEnvironmentResourceId')]",
+          configuration: {
+            ingress: {
+              external: true,
+              targetPort: 80,
+              transport: "Auto",
+            },
+          },
+          template: {
+            containers: [
+              {
+                name: "app",
+                image: "[parameters('containerImage')]",
+                resources: {
+                  cpu: defaultContainerCpu,
+                  memory: defaultContainerMemory,
+                },
+              },
+            ],
+            scale: {
+              minReplicas: 1,
+              maxReplicas: 1,
+            },
+          },
+        },
+      },
+    ],
+    outputs: {
+      containerAppResourceId: {
+        type: "string",
+        value: "[resourceId('Microsoft.App/containerApps', parameters('containerAppName'))]",
+      },
+      containerAppFqdn: {
+        type: "string",
+        value:
+          "[reference(resourceId('Microsoft.App/containerApps', parameters('containerAppName')), '2024-03-01').properties.latestRevisionFqdn]",
+      },
+    },
+  };
+}
+
+function extractManagedAppOutputValue(outputs: unknown, key: string): string {
+  if (!outputs || typeof outputs !== "object") {
+    return "";
+  }
+  const row = (outputs as Record<string, unknown>)[key];
+  if (typeof row === "string") {
+    return row;
+  }
+  if (row && typeof row === "object") {
+    const value = (row as Record<string, unknown>).value;
+    if (typeof value === "string") {
+      return value;
+    }
+  }
+  return "";
+}
+
+function normalizeName(value: string | undefined, fallback: string, maxLen: number): string {
   const source = (value ?? fallback).toLowerCase();
-  return source
+  const normalized = source
     .replace(/[^a-z0-9-]/g, "-")
     .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 40);
+    .replace(/^-|-$/g, "");
+
+  if (normalized.length === 0) {
+    return fallback.slice(0, maxLen);
+  }
+  return normalized.slice(0, maxLen).replace(/-+$/g, "");
 }
 
 function assertUniqueTargetIds(targetConfigs: TargetConfig[]): void {
@@ -212,121 +529,21 @@ function assertUniqueTargetIds(targetConfigs: TargetConfig[]): void {
   }
 }
 
-function getProvider(subscriptionId: string): azureNative.Provider {
-  const existing = providersBySubscription.get(subscriptionId);
-  if (existing) {
-    return existing;
-  }
-  const key = subscriptionKey(subscriptionId);
-  const provider = new azureNative.Provider(`provider-sub-${key}`, {
-    subscriptionId,
-  });
-  providersBySubscription.set(subscriptionId, provider);
-  return provider;
-}
-
-function getManagedEnvironmentForTarget(input: {
-  target: TargetConfig;
-  normalizedTargetId: string;
-  tags: Record<string, string>;
-  provider: azureNative.Provider;
-}): ManagedEnvironmentRef {
-  if (environmentMode === "per_target") {
-    return createPerTargetEnvironment(input);
-  }
-  return getOrCreateSharedEnvironment(input);
-}
-
-function createPerTargetEnvironment(input: {
-  target: TargetConfig;
-  normalizedTargetId: string;
-  tags: Record<string, string>;
-  provider: azureNative.Provider;
-}): ManagedEnvironmentRef {
-  const region = input.target.region ?? defaultLocation;
-  const resourceGroupName = input.target.resourceGroupName ?? `rg-mappo-${input.normalizedTargetId}`;
-  const environmentName =
-    input.target.managedEnvironmentName ?? `cae-mappo-${input.normalizedTargetId}`;
-
-  const resourceGroup = new resources.ResourceGroup(
-    `environment-resource-group-${input.normalizedTargetId}`,
-    {
-      resourceGroupName,
-      location: region,
-      tags: input.tags,
-    },
-    { provider: input.provider },
-  );
-
-  const environment = new app.ManagedEnvironment(
-    `managed-environment-${input.normalizedTargetId}`,
-    {
-      resourceGroupName: resourceGroup.name,
-      environmentName,
-      location: region,
-      tags: input.tags,
-    },
-    { provider: input.provider },
-  );
-
-  return {
-    id: environment.id,
-    name: environment.name,
-    location: region,
-  };
-}
-
-function getOrCreateSharedEnvironment(input: {
-  target: TargetConfig;
-  normalizedTargetId: string;
-  tags: Record<string, string>;
-  provider: azureNative.Provider;
-}): ManagedEnvironmentRef {
-  const existing = sharedEnvironmentsBySubscription.get(input.target.subscriptionId);
-  if (existing) {
-    return existing;
+function requireConfigWithEnvFallback(
+  pulumiConfig: pulumi.Config,
+  configKey: string,
+  envKey: string,
+): string {
+  const fromConfig = pulumiConfig.get(configKey);
+  const fromEnv = process.env[envKey];
+  const value = (fromConfig ?? fromEnv ?? "").trim();
+  if (value.length > 0) {
+    return value;
   }
 
-  const key = subscriptionKey(input.target.subscriptionId);
-  const sharedResourceGroupName = `${sharedEnvironmentResourceGroupPrefix}-${key}`;
-  const sharedEnvironmentName = `${sharedEnvironmentNamePrefix}-${key}`;
-
-  const sharedResourceGroup = new resources.ResourceGroup(
-    `shared-environment-resource-group-${key}`,
-    {
-      resourceGroupName: sharedResourceGroupName,
-      location: defaultLocation,
-      tags: {
-        managedBy: "pulumi",
-        system: "mappo",
-        scope: "shared-environment",
-      },
-    },
-    { provider: input.provider },
+  throw new Error(
+    `Missing mappo:${configKey}. Set it in the Pulumi stack config or via ${envKey}.`,
   );
-
-  const sharedEnvironment = new app.ManagedEnvironment(
-    `shared-managed-environment-${key}`,
-    {
-      resourceGroupName: sharedResourceGroup.name,
-      environmentName: sharedEnvironmentName,
-      location: defaultLocation,
-      tags: {
-        managedBy: "pulumi",
-        system: "mappo",
-        scope: "shared-environment",
-      },
-    },
-    { provider: input.provider },
-  );
-
-  const shared: ManagedEnvironmentRef = {
-    id: sharedEnvironment.id,
-    name: sharedEnvironment.name,
-    location: defaultLocation,
-  };
-  sharedEnvironmentsBySubscription.set(input.target.subscriptionId, shared);
-  return shared;
 }
 
 function resolveDemoSubscriptionId(configuredValue: string | undefined): string {
@@ -366,15 +583,6 @@ function detectActiveAzSubscriptionId(): string | undefined {
   } catch {
     return undefined;
   }
-}
-
-function parseEnvironmentMode(value: string): EnvironmentMode {
-  if (value === "shared_per_subscription" || value === "per_target") {
-    return value;
-  }
-  throw new Error(
-    "Unknown mappo:environmentMode. Expected one of: shared_per_subscription, per_target.",
-  );
 }
 
 function subscriptionKey(subscriptionId: string): string {

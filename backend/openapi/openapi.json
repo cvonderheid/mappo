@@ -1,6 +1,152 @@
 {
   "components": {
     "schemas": {
+      "AdminDiscoverImportRequest": {
+        "properties": {
+          "auto_enumerate_subscriptions": {
+            "default": true,
+            "title": "Auto Enumerate Subscriptions",
+            "type": "boolean"
+          },
+          "clear_runs": {
+            "default": true,
+            "title": "Clear Runs",
+            "type": "boolean"
+          },
+          "default_target_group": {
+            "default": "prod",
+            "title": "Default Target Group",
+            "type": "string"
+          },
+          "group_tag_key": {
+            "default": "ring",
+            "title": "Group Tag Key",
+            "type": "string"
+          },
+          "managed_app_name_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Managed App Name Prefix"
+          },
+          "preferred_container_app_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Container App Name"
+          },
+          "subscription_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Subscription Ids",
+            "type": "array"
+          }
+        },
+        "title": "AdminDiscoverImportRequest",
+        "type": "object"
+      },
+      "AdminDiscoverImportResponse": {
+        "properties": {
+          "auto_discovered_subscription_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Auto Discovered Subscription Ids",
+            "type": "array"
+          },
+          "blocked_enumeration": {
+            "items": {
+              "$ref": "#/components/schemas/AdminDiscoveryBlockedScope"
+            },
+            "title": "Blocked Enumeration",
+            "type": "array"
+          },
+          "discovered_managed_apps": {
+            "title": "Discovered Managed Apps",
+            "type": "integer"
+          },
+          "discovered_targets": {
+            "title": "Discovered Targets",
+            "type": "integer"
+          },
+          "imported_targets": {
+            "title": "Imported Targets",
+            "type": "integer"
+          },
+          "scanned_subscription_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Scanned Subscription Ids",
+            "type": "array"
+          },
+          "skipped_managed_apps": {
+            "title": "Skipped Managed Apps",
+            "type": "integer"
+          },
+          "subscriptions_scanned": {
+            "title": "Subscriptions Scanned",
+            "type": "integer"
+          },
+          "target_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Target Ids",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "imported_targets",
+          "discovered_targets",
+          "discovered_managed_apps",
+          "skipped_managed_apps",
+          "subscriptions_scanned"
+        ],
+        "title": "AdminDiscoverImportResponse",
+        "type": "object"
+      },
+      "AdminDiscoveryBlockedScope": {
+        "properties": {
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "scope_id": {
+            "title": "Scope Id",
+            "type": "string"
+          },
+          "scope_type": {
+            "title": "Scope Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope_type",
+          "scope_id",
+          "reason"
+        ],
+        "title": "AdminDiscoveryBlockedScope",
+        "type": "object"
+      },
       "CreateReleaseRequest": {
         "properties": {
           "parameter_defaults": {
@@ -196,6 +342,13 @@
             ],
             "title": "Ended At"
           },
+          "guardrail_warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Guardrail Warnings",
+            "type": "array"
+          },
           "halt_reason": {
             "anyOf": [
               {
@@ -235,6 +388,11 @@
           },
           "strategy_mode": {
             "$ref": "#/components/schemas/StrategyMode"
+          },
+          "subscription_concurrency": {
+            "default": 1,
+            "title": "Subscription Concurrency",
+            "type": "integer"
           },
           "target_records": {
             "items": {
@@ -312,6 +470,13 @@
             "title": "Failed Targets",
             "type": "integer"
           },
+          "guardrail_warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Guardrail Warnings",
+            "type": "array"
+          },
           "halt_reason": {
             "anyOf": [
               {
@@ -356,6 +521,11 @@
           },
           "strategy_mode": {
             "$ref": "#/components/schemas/StrategyMode"
+          },
+          "subscription_concurrency": {
+            "default": 1,
+            "title": "Subscription Concurrency",
+            "type": "integer"
           },
           "succeeded_targets": {
             "title": "Succeeded Targets",
@@ -710,6 +880,47 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/admin/discover-import": {
+      "post": {
+        "operationId": "discover_and_import_targets_api_v1_admin_discover_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminDiscoverImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDiscoverImportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discover And Import Targets",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "health_api_v1_health_get",

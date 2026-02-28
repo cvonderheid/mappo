@@ -93,3 +93,9 @@ Purpose: capture recurring correction patterns and preventative guardrails.
 - Preventative rule: MAPPO code/config must never embed another project name or credentials; all defaults and examples must be `mappo`-scoped.
 - Detection signal: `rg -n "txero" backend/ frontend/ scripts/ infra/` returns hits outside historical task notes.
 - Enforcement (test/lint/checklist): add cross-project grep sweep to phase-close checklist and fail review if runtime/test config contains non-MAPPO identifiers.
+
+- Date: 2026-02-28
+- Pattern: Demo orchestration drifted into mixed tracks (simulation/Lighthouse/legacy IaC) that obscured the marketplace-realistic path.
+- Preventative rule: Keep exactly one primary demo workflow and enforce a hard boundary map: Pulumi IaC for deployable resources, scripts for API-only tasks, and documented portal playbook for manual-only steps.
+- Detection signal: `make help` and README list multiple conflicting setup tracks before a single successful end-to-end flow.
+- Enforcement (test/lint/checklist): each phase close must include a workflow surface review (`make help`) and docs boundary section update (`README` + playbook).

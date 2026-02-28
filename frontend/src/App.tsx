@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 
+import AdminPanel from "@/components/AdminPanel";
 import FleetTable from "@/components/FleetTable";
 import { RunDetailPanel, RunList } from "@/components/RunPanels";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  adminDiscoverImport,
   createRun,
   getRun,
   listReleases,
@@ -17,6 +19,7 @@ import {
   retryFailed,
 } from "@/lib/api";
 import type {
+  AdminDiscoverImportResponse,
   CreateRunRequest,
   Release,
   RunDetail,
@@ -64,6 +67,15 @@ function AppShell() {
   const [formState, setFormState] = useState<StartRunFormState>(DEFAULT_FORM);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [adminSubscriptionIds, setAdminSubscriptionIds] = useState<string>("");
+  const [adminAutoEnumerateSubscriptions, setAdminAutoEnumerateSubscriptions] =
+    useState<boolean>(true);
+  const [adminManagedAppPrefix, setAdminManagedAppPrefix] = useState<string>("mappo-ma");
+  const [adminPreferredContainerAppName, setAdminPreferredContainerAppName] = useState<string>("");
+  const [adminClearRuns, setAdminClearRuns] = useState<boolean>(true);
+  const [adminIsSubmitting, setAdminIsSubmitting] = useState<boolean>(false);
+  const [adminErrorMessage, setAdminErrorMessage] = useState<string>("");
+  const [adminResult, setAdminResult] = useState<AdminDiscoverImportResponse | null>(null);
 
   const refreshTargets = useCallback(async () => {
     try {
@@ -240,6 +252,41 @@ function AppShell() {
     }
   }
 
+  async function handleAdminDiscoverImport(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    const subscriptionIds = adminSubscriptionIds
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item !== "");
+    if (subscriptionIds.length === 0 && !adminAutoEnumerateSubscriptions) {
+      setAdminErrorMessage("Enter at least one subscription ID or enable auto-enumeration.");
+      return;
+    }
+
+    setAdminIsSubmitting(true);
+    try {
+      const result = await adminDiscoverImport({
+        subscription_ids: subscriptionIds,
+        auto_enumerate_subscriptions: adminAutoEnumerateSubscriptions,
+        managed_app_name_prefix: adminManagedAppPrefix.trim() || undefined,
+        preferred_container_app_name: adminPreferredContainerAppName.trim() || undefined,
+        default_target_group: "prod",
+        group_tag_key: "ring",
+        clear_runs: adminClearRuns,
+      });
+      setAdminResult(result);
+      setAdminErrorMessage("");
+      await refreshTargets();
+      await refreshRuns();
+      setSelectedRunId("");
+      setRunDetail(null);
+    } catch (error) {
+      setAdminErrorMessage((error as Error).message);
+    } finally {
+      setAdminIsSubmitting(false);
+    }
+  }
+
   const showTargetFilters = !location.pathname.startsWith("/admin");
 
   return (
@@ -328,7 +375,27 @@ function AppShell() {
             />
           }
         />
-        <Route path="/admin" element={<AdminPage />} />
+        <Route
+          path="/admin"
+          element={
+            <AdminPanel
+              adminAutoEnumerateSubscriptions={adminAutoEnumerateSubscriptions}
+              adminClearRuns={adminClearRuns}
+              adminErrorMessage={adminErrorMessage}
+              adminIsSubmitting={adminIsSubmitting}
+              adminManagedAppPrefix={adminManagedAppPrefix}
+              adminPreferredContainerAppName={adminPreferredContainerAppName}
+              adminResult={adminResult}
+              adminSubscriptionIds={adminSubscriptionIds}
+              onAdminAutoEnumerateSubscriptionsChange={setAdminAutoEnumerateSubscriptions}
+              onAdminClearRunsChange={setAdminClearRuns}
+              onAdminManagedAppPrefixChange={setAdminManagedAppPrefix}
+              onAdminPreferredContainerAppNameChange={setAdminPreferredContainerAppName}
+              onAdminSubscriptionIdsChange={setAdminSubscriptionIds}
+              onDiscoverImport={handleAdminDiscoverImport}
+            />
+          }
+        />
         <Route path="*" element={<Navigate to="/fleet" replace />} />
       </Routes>
     </main>
@@ -585,24 +652,6 @@ function DeploymentsPage({
 
       <RunDetailPanel run={runDetail} />
     </>
-  );
-}
-
-function AdminPage() {
-  return (
-    <Card className="glass-card animate-fade-up [animation-delay:60ms] [animation-fill-mode:forwards]">
-      <CardHeader>
-        <CardTitle>Admin</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm text-muted-foreground">
-        <p>Use this area for control-plane administration and fleet discovery workflows.</p>
-        <p>
-          Production path: MAPPO runs with Managed Identity on ACA and discovers/imports targets where that identity
-          has delegated access.
-        </p>
-        <p>Current implementation supports script-first discovery/import; UI-triggered discovery can be wired here next.</p>
-      </CardContent>
-    </Card>
   );
 }
 

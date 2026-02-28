@@ -6,16 +6,11 @@ export interface TargetConfig {
   subscriptionId: string;
   targetGroup?: string;
   region?: string;
-  resourceGroupName?: string;
-  managedEnvironmentName?: string;
+  tier?: string;
+  environment?: string;
+  managedApplicationName?: string;
+  managedResourceGroupName?: string;
   containerAppName?: string;
-  image?: string;
-  externalIngress?: boolean;
-  targetPort?: number;
-  cpu?: number;
-  memory?: string;
-  minReplicas?: number;
-  maxReplicas?: number;
   environmentVariables?: Record<string, string>;
   tags?: Record<string, string>;
 }
@@ -41,9 +36,8 @@ export function targetsFromProfile(
       subscriptionId: options.defaultSubscriptionId,
       targetGroup: definition.targetGroup,
       region: definition.region || options.defaultLocation,
-      resourceGroupName: `rg-mappo-${definition.id}`,
-      managedEnvironmentName: `cae-mappo-${definition.id}`,
-      containerAppName: `ca-mappo-${definition.id}`,
+      tier: definition.tier,
+      environment: "demo",
       tags: {
         tier: definition.tier,
         environment: "demo",

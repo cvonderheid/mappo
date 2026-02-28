@@ -76,6 +76,7 @@ const mockRunDetail = {
 };
 
 const apiMock = vi.hoisted(() => ({
+  adminDiscoverImport: vi.fn(),
   createRun: vi.fn(),
   getRun: vi.fn(),
   listReleases: vi.fn(),
@@ -93,6 +94,7 @@ describe("App", () => {
     apiMock.listReleases.mockResolvedValue(mockReleases);
     apiMock.listRuns.mockResolvedValue(mockRuns);
     apiMock.getRun.mockResolvedValue(mockRunDetail);
+    apiMock.adminDiscoverImport.mockReset();
     apiMock.createRun.mockReset();
     apiMock.resumeRun.mockReset();
     apiMock.retryFailed.mockReset();

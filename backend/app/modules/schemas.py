@@ -98,10 +98,12 @@ class DeploymentRun(BaseModel):
     wave_tag: str
     wave_order: list[str]
     concurrency: int
+    subscription_concurrency: int = 1
     stop_policy: StopPolicy
     target_ids: list[str]
     status: RunStatus
     halt_reason: str | None = None
+    guardrail_warnings: list[str] = Field(default_factory=list)
     created_at: datetime
     started_at: datetime | None = None
     ended_at: datetime | None = None
@@ -128,6 +130,35 @@ class CreateRunRequest(BaseModel):
     target_tags: dict[str, str] = Field(default_factory=dict)
 
 
+class AdminDiscoverImportRequest(BaseModel):
+    subscription_ids: list[str] = Field(default_factory=list)
+    auto_enumerate_subscriptions: bool = True
+    managed_app_name_prefix: str | None = None
+    preferred_container_app_name: str | None = None
+    default_target_group: str = "prod"
+    group_tag_key: str = "ring"
+    clear_runs: bool = True
+
+
+class AdminDiscoveryBlockedScope(BaseModel):
+    scope_type: str
+    scope_id: str
+    reason: str
+
+
+class AdminDiscoverImportResponse(BaseModel):
+    imported_targets: int
+    discovered_targets: int
+    discovered_managed_apps: int
+    skipped_managed_apps: int
+    subscriptions_scanned: int
+    scanned_subscription_ids: list[str] = Field(default_factory=list)
+    auto_discovered_subscription_ids: list[str] = Field(default_factory=list)
+    blocked_enumeration: list[AdminDiscoveryBlockedScope] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    target_ids: list[str] = Field(default_factory=list)
+
+
 class RunSummary(BaseModel):
     id: str
     release_id: str
@@ -136,12 +167,14 @@ class RunSummary(BaseModel):
     created_at: datetime
     started_at: datetime | None
     ended_at: datetime | None
+    subscription_concurrency: int = 1
     total_targets: int
     succeeded_targets: int
     failed_targets: int
     in_progress_targets: int
     queued_targets: int
     halt_reason: str | None = None
+    guardrail_warnings: list[str] = Field(default_factory=list)
 
 
 class RunDetail(BaseModel):
@@ -152,12 +185,14 @@ class RunDetail(BaseModel):
     wave_tag: str
     wave_order: list[str]
     concurrency: int
+    subscription_concurrency: int = 1
     stop_policy: StopPolicy
     created_at: datetime
     started_at: datetime | None
     ended_at: datetime | None
     updated_at: datetime
     halt_reason: str | None = None
+    guardrail_warnings: list[str] = Field(default_factory=list)
     target_records: list[TargetExecutionRecord]
 
 

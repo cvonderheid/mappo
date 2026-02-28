@@ -1,5 +1,13 @@
 import { apiClient } from "@/lib/api/client";
-import type { CreateRunRequest, Release, RunDetail, RunSummary, Target } from "@/lib/types";
+import type {
+  AdminDiscoverImportRequest,
+  AdminDiscoverImportResponse,
+  CreateRunRequest,
+  Release,
+  RunDetail,
+  RunSummary,
+  Target,
+} from "@/lib/types";
 
 type ApiResult<T> = {
   data?: T;
@@ -74,4 +82,13 @@ export async function retryFailed(runId: string): Promise<RunDetail> {
     params: { path: { run_id: runId } },
   });
   return requireData("retryFailed", { data, error, response });
+}
+
+export async function adminDiscoverImport(
+  request: AdminDiscoverImportRequest
+): Promise<AdminDiscoverImportResponse> {
+  const { data, error, response } = await apiClient.POST("/api/v1/admin/discover-import", {
+    body: request,
+  });
+  return requireData("adminDiscoverImport", { data, error, response });
 }

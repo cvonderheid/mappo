@@ -6,20 +6,24 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 stack="dual-demo"
 provider_subscription_id=""
 customer_subscription_id=""
+publisher_principal_object_id="${MAPPO_PUBLISHER_PRINCIPAL_OBJECT_ID:-}"
+location="eastus"
 output_file=""
 
 usage() {
   cat <<EOF
 Usage: $(basename "$0") [options]
 
-Generate Pulumi stack YAML for a 10-target demo split across provider/customer subscriptions.
+Generate Pulumi stack YAML for a 10-target managed-app demo split across provider/customer subscriptions.
 
 Options:
-  --stack <name>                     Stack name (default: dual-demo)
-  --provider-subscription-id <id>    Provider subscription (default: active az account)
-  --customer-subscription-id <id>    Customer subscription (required)
-  --output-file <path>               Output file path (default: infra/pulumi/Pulumi.<stack>.yaml)
-  -h, --help                         Show help
+  --stack <name>                           Stack name (default: dual-demo)
+  --provider-subscription-id <id>          Provider subscription (default: active az account)
+  --customer-subscription-id <id>          Customer subscription (required)
+  --publisher-principal-object-id <id>     Publisher principal object ID (required if env not set)
+  --location <region>                      Azure region for target deployments (default: eastus)
+  --output-file <path>                     Output file path (default: infra/pulumi/Pulumi.<stack>.yaml)
+  -h, --help                               Show help
 EOF
 }
 
@@ -37,6 +41,14 @@ while [[ $# -gt 0 ]]; do
       customer_subscription_id="${2:-}"
       shift 2
       ;;
+    --publisher-principal-object-id)
+      publisher_principal_object_id="${2:-}"
+      shift 2
+      ;;
+    --location)
+      location="${2:-}"
+      shift 2
+      ;;
     --output-file)
       output_file="${2:-}"
       shift 2
@@ -46,7 +58,7 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     *)
-      echo "Unknown argument: $1" >&2
+      echo "iac-prepare-dual-stack: unknown argument: $1" >&2
       usage >&2
       exit 2
       ;;
@@ -72,13 +84,24 @@ if [[ -z "${customer_subscription_id}" ]]; then
   exit 1
 fi
 
+if [[ -z "${publisher_principal_object_id}" ]]; then
+  echo "iac-prepare-dual-stack: --publisher-principal-object-id is required (or set MAPPO_PUBLISHER_PRINCIPAL_OBJECT_ID)." >&2
+  exit 1
+fi
+
 if [[ -z "${output_file}" ]]; then
   output_file="${ROOT_DIR}/infra/pulumi/Pulumi.${stack}.yaml"
 fi
 
 mkdir -p "$(dirname "${output_file}")"
 
-python3 - <<'PY' "${output_file}" "${provider_subscription_id}" "${customer_subscription_id}" "${stack}"
+python3 - <<'PY' \
+  "${output_file}" \
+  "${provider_subscription_id}" \
+  "${customer_subscription_id}" \
+  "${publisher_principal_object_id}" \
+  "${stack}" \
+  "${location}"
 from __future__ import annotations
 
 from pathlib import Path
@@ -86,48 +109,60 @@ import re
 import sys
 
 output_path = Path(sys.argv[1])
-provider_sub = sys.argv[2]
-customer_sub = sys.argv[3]
-stack_name = sys.argv[4]
+provider_sub = sys.argv[2].strip()
+customer_sub = sys.argv[3].strip()
+publisher_principal_id = sys.argv[4].strip()
+stack_name = sys.argv[5].strip()
+location = sys.argv[6].strip() or "eastus"
+
+if not publisher_principal_id:
+    raise SystemExit("publisher principal object ID is required")
+
 stack_slug = re.sub(r"[^a-z0-9-]+", "-", stack_name.lower()).strip("-")
 if not stack_slug:
     stack_slug = "dual-demo"
 
 definitions = [
-    ("target-01", "tenant-001", "canary", "eastus", "gold"),
-    ("target-02", "tenant-002", "canary", "eastus", "gold"),
-    ("target-03", "tenant-003", "prod", "eastus", "gold"),
-    ("target-04", "tenant-004", "prod", "eastus", "gold"),
-    ("target-05", "tenant-005", "prod", "eastus", "silver"),
-    ("target-06", "tenant-006", "prod", "eastus", "silver"),
-    ("target-07", "tenant-007", "prod", "eastus", "silver"),
-    ("target-08", "tenant-008", "prod", "eastus", "silver"),
-    ("target-09", "tenant-009", "prod", "eastus", "bronze"),
-    ("target-10", "tenant-010", "prod", "eastus", "bronze"),
+    ("target-01", "tenant-001", "canary", "gold"),
+    ("target-02", "tenant-002", "canary", "gold"),
+    ("target-03", "tenant-003", "prod", "gold"),
+    ("target-04", "tenant-004", "prod", "gold"),
+    ("target-05", "tenant-005", "prod", "silver"),
+    ("target-06", "tenant-006", "prod", "silver"),
+    ("target-07", "tenant-007", "prod", "silver"),
+    ("target-08", "tenant-008", "prod", "silver"),
+    ("target-09", "tenant-009", "prod", "bronze"),
+    ("target-10", "tenant-010", "prod", "bronze"),
 ]
 
 targets: list[dict[str, str]] = []
-for idx, (target_id, tenant_id, group, region, tier) in enumerate(definitions):
+for idx, (target_id, tenant_id, group, tier) in enumerate(definitions):
     subscription_id = provider_sub if idx % 2 == 0 else customer_sub
+    target_slug = re.sub(r"[^a-z0-9-]+", "-", target_id.lower()).strip("-")
     targets.append(
         {
             "id": target_id,
             "tenantId": tenant_id,
             "subscriptionId": subscription_id,
             "targetGroup": group,
-            "region": region,
-            "resourceGroupName": f"rg-mappo-{stack_slug}-{target_id}",
-            "containerAppName": f"ca-mappo-{stack_slug}-{target_id}",
+            "region": location,
             "tier": tier,
+            "environment": "demo",
+            "managedApplicationName": f"mappo-ma-{target_slug}",
+            "managedResourceGroupName": f"rg-mappo-ma-mrg-{target_slug}",
+            "containerAppName": f"ca-mappo-ma-{target_slug}",
         }
     )
 
 lines = [
     "config:",
     "  mappo:targetProfile: empty",
-    "  mappo:environmentMode: shared_per_subscription",
-    f"  mappo:sharedEnvironmentNamePrefix: cae-mappo-{stack_slug}-shared",
-    f"  mappo:sharedEnvironmentResourceGroupPrefix: rg-mappo-{stack_slug}-shared-env",
+    f"  mappo:publisherPrincipalObjectId: {publisher_principal_id}",
+    f"  mappo:definitionNamePrefix: mappo-ma-def-{stack_slug}",
+    f"  mappo:definitionResourceGroupPrefix: rg-mappo-ma-def-{stack_slug}",
+    f"  mappo:applicationResourceGroupPrefix: rg-mappo-ma-apps-{stack_slug}",
+    f"  mappo:sharedEnvironmentNamePrefix: cae-mappo-ma-shared-{stack_slug}",
+    f"  mappo:sharedEnvironmentResourceGroupPrefix: rg-mappo-ma-shared-env-{stack_slug}",
     "  mappo:targets:",
 ]
 
@@ -139,9 +174,13 @@ for target in targets:
             f"      subscriptionId: {target['subscriptionId']}",
             f"      targetGroup: {target['targetGroup']}",
             f"      region: {target['region']}",
-            f"      resourceGroupName: {target['resourceGroupName']}",
+            f"      tier: {target['tier']}",
+            f"      environment: {target['environment']}",
+            f"      managedApplicationName: {target['managedApplicationName']}",
+            f"      managedResourceGroupName: {target['managedResourceGroupName']}",
             f"      containerAppName: {target['containerAppName']}",
             "      tags:",
+            f"        ring: {target['targetGroup']}",
             f"        tier: {target['tier']}",
             "        environment: demo",
         ]
@@ -153,4 +192,6 @@ PY
 
 echo "iac-prepare-dual-stack: provider_subscription_id=${provider_subscription_id}"
 echo "iac-prepare-dual-stack: customer_subscription_id=${customer_subscription_id}"
+echo "iac-prepare-dual-stack: publisher_principal_object_id=${publisher_principal_object_id}"
 echo "iac-prepare-dual-stack: stack=${stack}"
+echo "iac-prepare-dual-stack: location=${location}"

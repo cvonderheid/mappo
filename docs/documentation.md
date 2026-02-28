@@ -6,6 +6,17 @@
 - Python 3.11+
 - GNU Make
 
+### Bootstrap commands
+```bash
+# full bootstrap (deps + db migrate + lint/typecheck/test + phase gate + build)
+make install
+
+# deps only
+make install-deps
+```
+
+`make install` now auto-starts/waits for local compose Postgres (`5433`) during `db-migrate` when needed.
+
 ### Process commands
 ```bash
 make workflow-discipline-check
@@ -16,13 +27,41 @@ make phase1-gate-fast
 make phase1-gate-full
 ```
 
-### Managed app demo commands
+### Marketplace demo commands
 ```bash
-make managed-demo-refresh SUBSCRIPTION_IDS="<provider-sub>,<customer-sub>"
-# optional if you run discover/import manually:
+export MAPPO_PUBLISHER_PRINCIPAL_OBJECT_ID="<azure-ad-object-id>"
+make iac-stack-init
+make iac-up
+make iac-export-targets
+make import-targets
 make bootstrap-releases
+make azure-preflight
 make dev-backend-azure
 make dev-frontend
+```
+
+### Partner Center API helpers
+```bash
+make partner-center-token
+make partner-center-api URL="<https://api.partnercenter.microsoft.com/...>" [METHOD=GET]
+```
+
+### Azure execution guardrail env vars
+```bash
+# Concurrency shaping
+MAPPO_AZURE_MAX_RUN_CONCURRENCY=6
+MAPPO_AZURE_MAX_SUBSCRIPTION_CONCURRENCY=2
+
+# Retry/backoff for transient ARM/ACA errors
+MAPPO_AZURE_MAX_RETRY_ATTEMPTS=5
+MAPPO_AZURE_RETRY_BASE_DELAY_SECONDS=1.0
+MAPPO_AZURE_RETRY_MAX_DELAY_SECONDS=20.0
+MAPPO_AZURE_RETRY_JITTER_SECONDS=0.35
+
+# Quota preflight behavior
+MAPPO_AZURE_ENABLE_QUOTA_PREFLIGHT=true
+MAPPO_AZURE_QUOTA_WARNING_HEADROOM_RATIO=0.1
+MAPPO_AZURE_QUOTA_MIN_REMAINING_WARNING=2
 ```
 
 ## Engineering workflow discipline (before implementation)

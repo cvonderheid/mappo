@@ -1,6 +1,8 @@
 import type { components } from "@/lib/api/generated/schema";
 
 export type CreateRunRequest = components["schemas"]["CreateRunRequest"];
+export type AdminDiscoverImportRequest = components["schemas"]["AdminDiscoverImportRequest"];
+export type AdminDiscoverImportResponse = components["schemas"]["AdminDiscoverImportResponse"];
 export type Release = components["schemas"]["Release"];
 export type RunDetail = components["schemas"]["RunDetail"];
 export type RunStatus = components["schemas"]["RunStatus"];

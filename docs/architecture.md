@@ -17,6 +17,10 @@ MAPPO is a provider-tenant control plane that orchestrates release rollouts acro
 - Expands target sets by tags/groups.
 - Applies rollout strategy (all-at-once or waves).
 - Enforces stop thresholds and concurrency caps.
+- Applies Azure guardrails before run start:
+  - run-level concurrency cap,
+  - per-subscription concurrency cap,
+  - quota preflight checks (ACA usage per subscription/region).
 
 3. Per-target executor
 - Executes state machine per target:
@@ -33,10 +37,20 @@ MAPPO is a provider-tenant control plane that orchestrates release rollouts acro
 - Data flow: release parameters and target-scoped overrides.
 - Verification flow: post-deploy health checks and rollout halt decisions.
 
+## Azure Rate-Limit + Quota Guardrails
+- API retries use exponential backoff + jitter for transient Azure failures (`408`, `409`, `429`, `5xx`) and honor `Retry-After` when present.
+- Scheduler batches target execution by subscription to avoid write bursts against ARM.
+- Optional quota preflight queries ACA usage for each target subscription/region and can reduce concurrency when quota headroom is low.
+- Guardrail decisions are persisted with the deployment run (`concurrency`, `subscription_concurrency`, `guardrail_warnings`) for operator visibility.
+
 ## Deployment Direction
 - App services hosted on Azure Container Apps.
 - Azure APIs accessed through provider identity authorization on managed resource groups created by managed application instances.
 - UI and API are separate deployable containers.
+- Demo automation boundary:
+  - Pulumi IaC provisions managed app definitions, managed app instances, shared ACA environments, and exports MAPPO inventory.
+  - Partner Center offer lifecycle is handled via API/CLI helper scripts.
+  - Portal-only steps are documented in `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`.
 
 ## Determinism + Legibility Contract
 - Stage transitions are append-only and timestamped.

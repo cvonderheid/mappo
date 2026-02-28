@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import hashlib
+import random
 import time
 import urllib.error
 import urllib.request
@@ -36,6 +37,15 @@ class AzureExecutorSettings:
     verify_timeout_seconds: float = 180.0
     verify_poll_interval_seconds: float = 5.0
     health_timeout_seconds: float = 10.0
+    max_run_concurrency: int = 6
+    max_subscription_concurrency: int = 2
+    max_retry_attempts: int = 5
+    retry_base_delay_seconds: float = 1.0
+    retry_max_delay_seconds: float = 20.0
+    retry_jitter_seconds: float = 0.35
+    enable_quota_preflight: bool = True
+    quota_warning_headroom_ratio: float = 0.1
+    quota_min_remaining_warning: int = 2
 
 
 @dataclass(frozen=True)
@@ -79,6 +89,20 @@ class AzureVerifyResult:
     ready_revision: str
 
 
+@dataclass(frozen=True)
+class RunGuardrailPlan:
+    effective_concurrency: int
+    subscription_concurrency: int
+    warnings: list[str]
+
+
+@dataclass(frozen=True)
+class AzureQuotaPreflightResult:
+    warnings: list[str]
+    recommended_run_concurrency: int | None = None
+    recommended_subscription_concurrency: int | None = None
+
+
 class AzureExecutionError(Exception):
     def __init__(
         self,
@@ -94,6 +118,14 @@ class AzureExecutionError(Exception):
 
 
 class TargetExecutor(Protocol):
+    async def prepare_run(
+        self,
+        *,
+        targets: list[Target],
+        requested_concurrency: int,
+    ) -> RunGuardrailPlan:
+        ...
+
     def execute_target(
         self,
         *,
@@ -106,6 +138,14 @@ class TargetExecutor(Protocol):
 
 
 class AzureRuntime(Protocol):
+    def preflight_targets(
+        self,
+        *,
+        targets: list[Target],
+        requested_concurrency: int,
+    ) -> AzureQuotaPreflightResult:
+        ...
+
     def validate_target(self, target: Target) -> AzureContainerAppSnapshot:
         ...
 
@@ -145,6 +185,20 @@ def create_target_executor(
 class DemoTargetExecutor:
     def __init__(self, *, stage_delay_seconds: float):
         self._stage_delay_seconds = max(0.0, stage_delay_seconds)
+
+    async def prepare_run(
+        self,
+        *,
+        targets: list[Target],
+        requested_concurrency: int,
+    ) -> RunGuardrailPlan:
+        del targets
+        concurrency = max(1, requested_concurrency)
+        return RunGuardrailPlan(
+            effective_concurrency=concurrency,
+            subscription_concurrency=concurrency,
+            warnings=[],
+        )
 
     async def execute_target(
         self,
@@ -234,6 +288,85 @@ class AzureTargetExecutor:
     ):
         self._settings = azure_settings
         self._runtime_factory = runtime_factory or create_azure_runtime
+
+    async def prepare_run(
+        self,
+        *,
+        targets: list[Target],
+        requested_concurrency: int,
+    ) -> RunGuardrailPlan:
+        requested = max(1, requested_concurrency)
+        warnings: list[str] = []
+
+        effective = min(requested, max(1, self._settings.max_run_concurrency))
+        if effective < requested:
+            warnings.append(
+                "Run concurrency capped for Azure safety "
+                f"({requested} -> {effective})."
+            )
+
+        per_subscription = min(
+            effective,
+            max(1, self._settings.max_subscription_concurrency),
+        )
+        if per_subscription < effective:
+            warnings.append(
+                "Per-subscription concurrency cap applied "
+                f"(max {per_subscription} per subscription)."
+            )
+
+        target_count_by_subscription: dict[str, int] = {}
+        for target in targets:
+            target_count_by_subscription[target.subscription_id] = (
+                target_count_by_subscription.get(target.subscription_id, 0) + 1
+            )
+        busiest_subscription = max(target_count_by_subscription.values(), default=0)
+        if busiest_subscription > per_subscription:
+            warnings.append(
+                "Targets are concentrated in one or more subscriptions; scheduling will batch "
+                "requests by subscription to reduce ARM throttling."
+            )
+
+        if self._settings.enable_quota_preflight:
+            try:
+                runtime = self._runtime_factory(self._settings)
+            except Exception as error:
+                warnings.append(
+                    "Quota preflight skipped because runtime initialization failed: "
+                    f"{stringify_exception(error)}"
+                )
+            else:
+                preflight_fn = getattr(runtime, "preflight_targets", None)
+                if callable(preflight_fn):
+                    preflight = await asyncio.to_thread(
+                        preflight_fn,
+                        targets=targets,
+                        requested_concurrency=requested,
+                    )
+                    warnings.extend(preflight.warnings)
+                    if preflight.recommended_run_concurrency is not None:
+                        bounded = max(1, preflight.recommended_run_concurrency)
+                        if bounded < effective:
+                            warnings.append(
+                                "Quota preflight lowered run concurrency "
+                                f"({effective} -> {bounded})."
+                            )
+                            effective = bounded
+                    if preflight.recommended_subscription_concurrency is not None:
+                        bounded = max(1, preflight.recommended_subscription_concurrency)
+                        if bounded < per_subscription:
+                            warnings.append(
+                                "Quota preflight lowered per-subscription concurrency "
+                                f"({per_subscription} -> {bounded})."
+                            )
+                            per_subscription = bounded
+
+        per_subscription = min(per_subscription, effective)
+        return RunGuardrailPlan(
+            effective_concurrency=effective,
+            subscription_concurrency=per_subscription,
+            warnings=dedupe_strings_in_order(warnings),
+        )
 
     async def execute_target(
         self,
@@ -427,6 +560,103 @@ class AzureSdkRuntime:
         self._verify_timeout_seconds = max(settings.verify_timeout_seconds, 5.0)
         self._verify_poll_interval_seconds = max(settings.verify_poll_interval_seconds, 1.0)
         self._health_timeout_seconds = max(settings.health_timeout_seconds, 1.0)
+        self._max_retry_attempts = max(1, settings.max_retry_attempts)
+        self._retry_base_delay_seconds = max(0.25, settings.retry_base_delay_seconds)
+        self._retry_max_delay_seconds = max(
+            self._retry_base_delay_seconds,
+            settings.retry_max_delay_seconds,
+        )
+        self._retry_jitter_seconds = max(0.0, settings.retry_jitter_seconds)
+        self._quota_warning_headroom_ratio = min(
+            1.0,
+            max(0.0, settings.quota_warning_headroom_ratio),
+        )
+        self._quota_min_remaining_warning = max(0, settings.quota_min_remaining_warning)
+
+    def preflight_targets(
+        self,
+        *,
+        targets: list[Target],
+        requested_concurrency: int,
+    ) -> AzureQuotaPreflightResult:
+        del requested_concurrency
+        regions_by_subscription: dict[str, set[str]] = {}
+        warnings: list[str] = []
+        recommended_run_cap: int | None = None
+        recommended_subscription_cap: int | None = None
+
+        for target in targets:
+            region = normalize_location(target.tags.get("region"))
+            if region is None:
+                warnings.append(
+                    "Target "
+                    f"{target.id} has no region tag; skipped ACA quota preflight for that target."
+                )
+                continue
+            if target.subscription_id not in regions_by_subscription:
+                regions_by_subscription[target.subscription_id] = set()
+            regions_by_subscription[target.subscription_id].add(region)
+
+        for subscription_id, regions in regions_by_subscription.items():
+            client = self._client(subscription_id=subscription_id)
+            for region in sorted(regions):
+                region_value = str(region)
+
+                def _list_usages(
+                    *,
+                    client: Any = client,
+                    region: str = region_value,
+                ) -> Any:
+                    return client.usages.list(location=region)
+
+                try:
+                    usage_page = self._with_retries(
+                        operation_name="aca-usages-list",
+                        operation=_list_usages,
+                    )
+                    usage_items = list(usage_page)
+                except Exception as error:
+                    warnings.append(
+                        "Unable to read ACA quota usage for "
+                        f"{subscription_id}/{region}: {stringify_exception(error)}"
+                    )
+                    continue
+
+                for usage_item in usage_items:
+                    parsed = parse_usage_item(usage_item)
+                    if parsed is None:
+                        continue
+                    usage_name, current, limit = parsed
+                    if limit <= 0:
+                        continue
+                    remaining = limit - current
+                    ratio = remaining / limit
+                    if remaining <= 0:
+                        warnings.append(
+                            "ACA quota is fully consumed for "
+                            f"{subscription_id}/{region} ({usage_name}: {current:.0f}/{limit:.0f})."
+                        )
+                        recommended_run_cap = 1
+                        recommended_subscription_cap = 1
+                    elif (
+                        remaining <= self._quota_min_remaining_warning
+                        or ratio <= self._quota_warning_headroom_ratio
+                    ):
+                        warnings.append(
+                            "Low ACA quota headroom for "
+                            f"{subscription_id}/{region} ({usage_name}: {current:.0f}/{limit:.0f})."
+                        )
+                        if (
+                            recommended_subscription_cap is None
+                            or recommended_subscription_cap > 1
+                        ):
+                            recommended_subscription_cap = 1
+
+        return AzureQuotaPreflightResult(
+            warnings=dedupe_strings_in_order(warnings),
+            recommended_run_concurrency=recommended_run_cap,
+            recommended_subscription_concurrency=recommended_subscription_cap,
+        )
 
     def validate_target(self, target: Target) -> AzureContainerAppSnapshot:
         ref = parse_container_app_resource_id(target.managed_app_id)
@@ -476,12 +706,18 @@ class AzureSdkRuntime:
         app_to_update = self._build_update_payload(snapshot.raw_app, desired_image=desired_image)
         client = self._client(subscription_id=snapshot.resource_ref.subscription_id)
         try:
-            poller = client.container_apps.begin_update(
-                resource_group_name=snapshot.resource_ref.resource_group_name,
-                container_app_name=snapshot.resource_ref.container_app_name,
-                container_app_envelope=app_to_update,
+            poller = self._with_retries(
+                operation_name="container-app-begin-update",
+                operation=lambda: client.container_apps.begin_update(
+                    resource_group_name=snapshot.resource_ref.resource_group_name,
+                    container_app_name=snapshot.resource_ref.container_app_name,
+                    container_app_envelope=app_to_update,
+                ),
             )
-            updated = poller.result(timeout=self._verify_timeout_seconds)
+            updated = self._with_retries(
+                operation_name="container-app-update-result",
+                operation=lambda: poller.result(timeout=self._verify_timeout_seconds),
+            )
         except TypeError:
             updated = poller.result()
         except Exception as error:
@@ -568,9 +804,12 @@ class AzureSdkRuntime:
     ) -> Any:
         client = self._client(subscription_id=ref.subscription_id)
         try:
-            return client.container_apps.get(
-                resource_group_name=ref.resource_group_name,
-                container_app_name=ref.container_app_name,
+            return self._with_retries(
+                operation_name="container-app-get",
+                operation=lambda: client.container_apps.get(
+                    resource_group_name=ref.resource_group_name,
+                    container_app_name=ref.container_app_name,
+                ),
             )
         except Exception as error:
             raise self._translate_exception(
@@ -674,6 +913,36 @@ class AzureSdkRuntime:
             )
         return status_code
 
+    def _with_retries(
+        self,
+        *,
+        operation_name: str,
+        operation: Callable[[], Any],
+    ) -> Any:
+        attempt = 0
+        while True:
+            try:
+                return operation()
+            except Exception as error:
+                if not is_retryable_exception(error):
+                    raise
+                attempt += 1
+                if attempt >= self._max_retry_attempts:
+                    raise
+                delay = compute_retry_delay_seconds(
+                    error=error,
+                    attempt=attempt,
+                    base_delay_seconds=self._retry_base_delay_seconds,
+                    max_delay_seconds=self._retry_max_delay_seconds,
+                    jitter_seconds=self._retry_jitter_seconds,
+                )
+                print(
+                    "azure-retry: "
+                    f"operation={operation_name} attempt={attempt} "
+                    f"delay={delay:.2f}s error={stringify_exception(error)}"
+                )
+                time.sleep(delay)
+
     @staticmethod
     def _translate_exception(
         *,
@@ -728,6 +997,115 @@ class AzureSdkRuntime:
 
 def create_azure_runtime(settings: AzureExecutorSettings) -> AzureRuntime:
     return AzureSdkRuntime(settings=settings)
+
+
+def dedupe_strings_in_order(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for item in values:
+        if item in seen:
+            continue
+        seen.add(item)
+        ordered.append(item)
+    return ordered
+
+
+def normalize_location(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip().lower().replace(" ", "")
+    if normalized == "":
+        return None
+    return normalized
+
+
+def parse_usage_item(usage: Any) -> tuple[str, float, float] | None:
+    name = getattr(usage, "name", None)
+    usage_name = ""
+    if name is not None:
+        usage_name = (
+            str(getattr(name, "value", "") or getattr(name, "localized_value", "")).strip()
+        )
+    if usage_name == "":
+        usage_name = "unknown"
+
+    current = getattr(usage, "current_value", None)
+    if current is None:
+        current = getattr(usage, "currentValue", None)
+    limit = getattr(usage, "limit", None)
+    if current is None or limit is None:
+        return None
+
+    try:
+        current_value = float(current)
+        limit_value = float(limit)
+    except (TypeError, ValueError):
+        return None
+
+    return usage_name, current_value, limit_value
+
+
+def is_retryable_exception(error: Exception) -> bool:
+    from azure.core.exceptions import HttpResponseError, ServiceRequestError
+
+    if isinstance(error, ServiceRequestError):
+        return True
+    if isinstance(error, HttpResponseError):
+        status_code = getattr(error, "status_code", None)
+        if isinstance(status_code, int):
+            return status_code in {408, 409, 429, 500, 502, 503, 504}
+    return False
+
+
+def compute_retry_delay_seconds(
+    *,
+    error: Exception,
+    attempt: int,
+    base_delay_seconds: float,
+    max_delay_seconds: float,
+    jitter_seconds: float,
+) -> float:
+    retry_after = parse_retry_after_seconds(error)
+    if retry_after is not None:
+        base_delay = retry_after
+    else:
+        base_delay = min(
+            max_delay_seconds,
+            base_delay_seconds * (2 ** max(0, attempt - 1)),
+        )
+    jitter = random.uniform(0.0, jitter_seconds) if jitter_seconds > 0 else 0.0
+    return min(max_delay_seconds, base_delay + jitter)
+
+
+def parse_retry_after_seconds(error: Exception) -> float | None:
+    response = getattr(error, "response", None)
+    if response is None:
+        return None
+
+    headers = getattr(response, "headers", None)
+    if headers is None:
+        return None
+
+    try:
+        retry_after = headers.get("Retry-After")
+    except Exception:
+        return None
+    if retry_after is None:
+        return None
+    try:
+        parsed = float(str(retry_after).strip())
+    except ValueError:
+        return None
+    if parsed < 0:
+        return None
+    return parsed
+
+
+def stringify_exception(error: Exception) -> str:
+    message = str(error).strip()
+    if message:
+        return message
+    return error.__class__.__name__
 
 
 def parse_container_app_resource_id(managed_app_id: str) -> ContainerAppResourceRef:

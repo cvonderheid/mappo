@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import threading
 import time
 
 import pytest
@@ -20,7 +21,7 @@ from app.modules.execution import (
     ExecutionMode,
 )
 from app.modules.schemas import CreateRunRequest, Release, RunStatus, Target, TargetStage
-from tests.support.sample_data import seed_store
+from tests.support.sample_data import sample_releases, seed_store
 
 DEFAULT_DATABASE_URL = "postgresql+psycopg://mappo:mappo@localhost:5433/mappo"
 TERMINAL_STATUSES = {RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.PARTIAL, RunStatus.HALTED}
@@ -129,6 +130,46 @@ class _DeployFailureRuntime(_SuccessRuntime):
             message="Azure Container App update failed.",
             details={"target_id": target.id},
         )
+
+
+class _ConcurrencyTrackingRuntime(_SuccessRuntime):
+    _lock = threading.Lock()
+    _active = 0
+    _max_active = 0
+
+    @classmethod
+    def reset(cls) -> None:
+        with cls._lock:
+            cls._active = 0
+            cls._max_active = 0
+
+    @classmethod
+    def max_active(cls) -> int:
+        with cls._lock:
+            return cls._max_active
+
+    def deploy_release(
+        self,
+        *,
+        target: Target,
+        release: Release,
+        snapshot: execution_module.AzureContainerAppSnapshot,
+    ) -> AzureDeployResult:
+        cls = type(self)
+        with cls._lock:
+            cls._active += 1
+            if cls._active > cls._max_active:
+                cls._max_active = cls._active
+        try:
+            time.sleep(0.06)
+            return super().deploy_release(
+                target=target,
+                release=release,
+                snapshot=snapshot,
+            )
+        finally:
+            with cls._lock:
+                cls._active -= 1
 
 
 def test_azure_mode_fails_without_credentials() -> None:
@@ -260,6 +301,118 @@ def test_azure_mode_surfaces_deploy_failure(monkeypatch: pytest.MonkeyPatch) -> 
                 stage.error.code for stage in target_record.stages if stage.error is not None
             ]
             assert "azure_deploy_failed" in error_codes
+        finally:
+            await store.shutdown()
+
+    try:
+        asyncio.run(_scenario())
+    finally:
+        _reset_database(database_url)
+
+
+def test_azure_mode_applies_guardrail_concurrency_caps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database_url = _database_url()
+    _reset_database(database_url)
+    monkeypatch.setattr(
+        execution_module,
+        "create_azure_runtime",
+        lambda _settings: _SuccessRuntime(),
+    )
+
+    async def _scenario() -> None:
+        store = ControlPlaneStore(
+            database_url=database_url,
+            execution_mode=ExecutionMode.AZURE,
+            azure_settings=AzureExecutorSettings(
+                tenant_id="tenant-live",
+                client_id="client-live",
+                client_secret="secret-live",
+                max_run_concurrency=2,
+                max_subscription_concurrency=1,
+                enable_quota_preflight=False,
+            ),
+            stage_delay_seconds=0.0,
+        )
+        try:
+            await seed_store(store)
+            run = await store.create_run(
+                CreateRunRequest(
+                    release_id="rel-2026-02-25",
+                    target_ids=["target-01", "target-02", "target-03", "target-04"],
+                    concurrency=6,
+                )
+            )
+            assert run.concurrency == 2
+            assert run.subscription_concurrency == 1
+            assert len(run.guardrail_warnings) >= 2
+        finally:
+            await store.shutdown()
+
+    try:
+        asyncio.run(_scenario())
+    finally:
+        _reset_database(database_url)
+
+
+def test_azure_mode_enforces_per_subscription_batching(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database_url = _database_url()
+    _reset_database(database_url)
+    _ConcurrencyTrackingRuntime.reset()
+    monkeypatch.setattr(
+        execution_module,
+        "create_azure_runtime",
+        lambda _settings: _ConcurrencyTrackingRuntime(),
+    )
+
+    async def _scenario() -> None:
+        store = ControlPlaneStore(
+            database_url=database_url,
+            execution_mode=ExecutionMode.AZURE,
+            azure_settings=AzureExecutorSettings(
+                tenant_id="tenant-live",
+                client_id="client-live",
+                client_secret="secret-live",
+                max_run_concurrency=3,
+                max_subscription_concurrency=1,
+                enable_quota_preflight=False,
+            ),
+            stage_delay_seconds=0.0,
+        )
+        try:
+            await seed_store(store)
+            targets = await store.list_targets()
+            patched_targets = []
+            for index, target in enumerate(targets):
+                if index < 3:
+                    patched_targets.append(
+                        target.model_copy(
+                            update={"subscription_id": "sub-shared-001"},
+                            deep=True,
+                        )
+                    )
+                else:
+                    patched_targets.append(target)
+            await store.replace_targets(patched_targets, clear_runs=True)
+            await store.replace_releases(sample_releases())
+
+            run = await store.create_run(
+                CreateRunRequest(
+                    release_id="rel-2026-02-25",
+                    target_ids=[
+                        patched_targets[0].id,
+                        patched_targets[1].id,
+                        patched_targets[2].id,
+                    ],
+                    concurrency=3,
+                )
+            )
+            status = await _wait_for_terminal(store, run.id)
+            assert status == RunStatus.SUCCEEDED
+            assert _ConcurrencyTrackingRuntime.max_active() == 1
         finally:
             await store.shutdown()
 
