@@ -29,6 +29,7 @@ make dev-frontend
 - `make managed-demo-refresh SUBSCRIPTION_IDS="<sub1>,<sub2>" [MANAGED_APP_NAME_PREFIX="<prefix>"]`
 - `make managed-app-discover-targets SUBSCRIPTION_IDS="<sub1>,<sub2>"`
 - `make import-targets`
+- `make bootstrap-releases`
 - `make azure-preflight`
 - `make dev-backend-azure`
 - `make dev-frontend`

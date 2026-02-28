@@ -369,7 +369,7 @@ def main() -> int:
             environment = (
                 container_app_tags.get("environment")
                 or managed_app_tags.get("environment")
-                or "demo"
+                or "prod"
             )
             tenant_id = (
                 tenant_by_subscription.get(subscription_id)

@@ -661,3 +661,116 @@ Managed-app-only demo surface:
 - 2026-02-28: Added `make managed-demo-refresh` to chain discovery/import/preflight.
 - 2026-02-28: Updated README, architecture notes, live checklist, and docs command examples to managed-app demo focus.
 - 2026-02-28: Verified managed demo refresh succeeds with current live managed apps (2 targets across 2 subscriptions).
+
+---
+
+## Scope (Phase 5.16 Slice)
+Azure resource naming cleanup:
+- Remove legacy resource groups from earlier demo tracks to reduce operator confusion.
+- Preserve active managed-app demo resources and verify inventory/runtime still healthy.
+
+## Plan (Phase 5.16 Slice)
+- [x] Delete legacy `rg-mappo-target-*` groups from provider subscription.
+- [x] Delete legacy `mappo-sim-*` apps/definitions and `rg-mappo-ma-sim-*` groups across both subscriptions.
+- [x] Delete legacy `rg-mappo-dual-demo-*` groups across both subscriptions.
+- [x] Migrate customer managed-app target app to cleanly named shared environment and remove final blocked dual-demo environment group.
+- [x] Re-run managed demo refresh and preflight.
+
+## Verification Commands (Phase 5.16 Slice)
+- [x] Azure CLI group/app inventory queries for `rg-mappo-target-*`, `rg-mappo-ma-sim-*`, `rg-mappo-dual-demo-*`, `mappo-sim-*`, `mappo-ma-*`
+- [x] `make managed-demo-refresh SUBSCRIPTION_IDS="<provider-sub>,<customer-sub>" MANAGED_APP_NAME_PREFIX="mappo-ma"`
+
+## Results Log (Phase 5.16 Slice)
+- 2026-02-28: Removed all `rg-mappo-target-*` groups from provider subscription.
+- 2026-02-28: Removed all `mappo-sim-*` managed apps/definitions and `rg-mappo-ma-sim-*` groups in both subscriptions.
+- 2026-02-28: Removed all `rg-mappo-dual-demo-*` groups; last customer shared-env RG required migration because active app was still bound.
+- 2026-02-28: Migrated `ca-mappo-ma-target-02` from `cae-mappo-dual-demo-shared-1adaaa48` to `cae-mappo-ma-shared-1adaaa48`, then deleted remaining dual-demo shared-env group.
+- 2026-02-28: Verified final state includes only active `mappo-ma-*` managed-app demo resources and managed-demo refresh/preflight remains healthy.
+
+---
+
+## Scope (Phase 5.17 Slice)
+Production-path cleanup + 2-target demo baseline:
+- Remove implicit runtime seeding from backend production modules.
+- Make execution-mode defaults production-safe (`azure`) instead of `demo`.
+- Keep demo/sample seeding explicit in scripts/tests only.
+- Keep 2-target managed-app flow runnable via script-first commands.
+- Remove remaining MAPPO/TXero DB default drift (`txero` creds/port 5432 remnants).
+
+## Plan (Phase 5.17 Slice)
+- [x] Remove constructor auto-seeding and demo reset behavior from `ControlPlaneStore`.
+- [x] Add explicit public release replacement API for script/test provisioning.
+- [x] Move sample/demo data usage to scripts/tests (not `backend/app` runtime path).
+- [x] Replace legacy target import script naming (`import_pulumi_targets.py`) with generic inventory import path.
+- [x] Add explicit release bootstrap command for runnable demo state after target import.
+- [x] Align backend DB defaults/scripts/tests to MAPPO (`mappo:mappo`, `localhost:5433`).
+- [x] Run verification commands and capture outcomes.
+
+## Verification Commands (Phase 5.17 Slice)
+- [x] `make check-no-demo-leak`
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+- [x] `make managed-demo-refresh SUBSCRIPTION_IDS="<provider-sub>,<customer-sub>" MANAGED_APP_NAME_PREFIX="mappo-ma"`
+
+## Results Log (Phase 5.17 Slice)
+- 2026-02-28: Removed runtime auto-seeding defaults from `backend/app/modules/control_plane.py` and changed default execution mode to `azure`.
+- 2026-02-28: Added `replace_releases(...)` API on store and rewired demo reset to explicit script-level provisioning.
+- 2026-02-28: Added `backend/scripts/import_targets.py` and `backend/scripts/bootstrap_releases.py`; `managed-demo-refresh` now chains discover -> import -> bootstrap releases -> preflight.
+- 2026-02-28: Updated managed-app discovery fallback tags (`environment`) and docs/checklists for explicit release bootstrap step.
+- 2026-02-28: Aligned DB defaults to MAPPO (`mappo:mappo@localhost:5433`) across settings, DB session, Flyway, model-generation, and backend tests.
+- 2026-02-28: Added safe local DB fallback (`5433` preferred, fallback to `5432`) for settings/tests and Flyway invocation to keep local workflows operable when MAPPO compose DB is not running.
+- 2026-02-28: Verified `check-no-demo-leak`, `lint`, `typecheck`, `test`, and `managed-demo-refresh` all pass (azure-preflight emits expected warning for 2-target demo size vs 10-target full demo).
+
+---
+
+## Scope (Phase 5.18 Slice)
+Frontend route/navigation refinement:
+- Replace screen-toggle state with route-based pages for Fleet, Deployments, and Admin.
+- Keep shadcn UI components as the widget/layout system.
+- Keep existing deployment UX behavior intact while adding proper top navigation links.
+- Update UI tests and Playwright page objects for route-based nav interactions.
+
+## Plan (Phase 5.18 Slice)
+- [x] Add `react-router-dom` and refactor app shell to BrowserRouter + Routes.
+- [x] Implement `/fleet`, `/deployments`, `/admin` pages with top navigation.
+- [x] Keep deployment run creation/detail controls on Deployments route.
+- [x] Add Admin page placeholder content for discovery/identity operations.
+- [x] Update unit test + Playwright page object nav selectors (`link` instead of button).
+- [x] Run frontend lint/typecheck/test/e2e verification.
+
+## Verification Commands (Phase 5.18 Slice)
+- [x] `cd frontend && npm run lint`
+- [x] `cd frontend && npm run typecheck`
+- [x] `cd frontend && npm run test`
+- [x] `cd frontend && npm run test:e2e -- --reporter=line`
+
+## Results Log (Phase 5.18 Slice)
+- 2026-02-28: Added route-based app shell with `/fleet`, `/deployments`, and `/admin` pages plus top navigation links.
+- 2026-02-28: Preserved shadcn-based cards/buttons/forms and existing fleet/deployment panel behavior.
+- 2026-02-28: Added Admin route placeholder explaining Managed Identity + discovery direction.
+- 2026-02-28: Updated `App.test.tsx` and Playwright `AppShellPage` for route-link navigation.
+- 2026-02-28: Verified frontend lint/typecheck/unit/e2e all pass (same existing 2 shadcn lint warnings in ui primitives).
+
+---
+
+## Scope (Phase 5.19 Slice)
+Cross-project naming cleanup:
+- Remove lingering `txero` references from MAPPO runtime/test DB settings.
+- Preserve functionality while keeping MAPPO defaults self-contained.
+
+## Plan (Phase 5.19 Slice)
+- [x] Remove `txero` fallback URLs from backend runtime config.
+- [x] Remove `txero` fallback URL from backend test bootstrap config.
+- [x] Re-run backend verification checks.
+
+## Verification Commands (Phase 5.19 Slice)
+- [x] `rg -n "txero" backend/app/core/settings.py backend/app/db/session.py backend/tests/conftest.py`
+- [x] `make lint-backend`
+- [x] `make typecheck-backend`
+- [x] `MAPPO_DATABASE_URL='postgresql+psycopg://txero:txero@localhost:5432/mappo' make test-backend`
+
+## Results Log (Phase 5.19 Slice)
+- 2026-02-28: Removed `txero` references from `backend/app/core/settings.py`, `backend/app/db/session.py`, and `backend/tests/conftest.py`.
+- 2026-02-28: Verified no `txero` matches remain in those files.
+- 2026-02-28: Verified backend lint/typecheck pass and backend tests pass with explicit local DB override.

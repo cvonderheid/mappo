@@ -19,6 +19,8 @@ make phase1-gate-full
 ### Managed app demo commands
 ```bash
 make managed-demo-refresh SUBSCRIPTION_IDS="<provider-sub>,<customer-sub>"
+# optional if you run discover/import manually:
+make bootstrap-releases
 make dev-backend-azure
 make dev-frontend
 ```

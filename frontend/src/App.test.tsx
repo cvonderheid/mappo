@@ -105,11 +105,12 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByText("target-01")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Fleet/i })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Deployments/i })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Fleet/i })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Deployments/i })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Admin/i })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Deployments/i }));
+    fireEvent.click(screen.getByRole("link", { name: /Deployments/i }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Start Run/i })).toBeInTheDocument();
@@ -118,6 +119,13 @@ describe("App", () => {
       expect(screen.getByText("Targets in selected target group: 1")).toBeInTheDocument();
       expect(screen.getByTestId("resume-run-1")).toBeDisabled();
       expect(screen.getByTestId("retry-failed-run-1")).toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByRole("link", { name: /Admin/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Admin" })).toBeInTheDocument();
+      expect(screen.getByText(/Managed Identity on ACA/i)).toBeInTheDocument();
     });
   });
 });

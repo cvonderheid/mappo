@@ -9,9 +9,11 @@ from sqlalchemy import delete
 from app.db.generated.models import Releases, Runs, Targets
 from app.db.session import create_engine_and_session_factory
 from app.modules.control_plane import ControlPlaneStore
-from app.modules.schemas import CreateRunRequest, RunStatus, StrategyMode, Target
+from app.modules.execution import ExecutionMode
+from app.modules.schemas import CreateRunRequest, Release, RunStatus, StrategyMode, Target
+from tests.support.sample_data import sample_releases, seed_store
 
-DEFAULT_DATABASE_URL = "postgresql+psycopg://txero:txero@localhost:5432/mappo"
+DEFAULT_DATABASE_URL = "postgresql+psycopg://mappo:mappo@localhost:5433/mappo"
 
 
 def _database_url() -> str:
@@ -34,8 +36,13 @@ def test_run_persists_across_store_restarts() -> None:
     database_url = _database_url()
     _reset_database(database_url)
 
-    first_store = ControlPlaneStore(database_url=database_url, stage_delay_seconds=0.01)
+    first_store = ControlPlaneStore(
+        database_url=database_url,
+        execution_mode=ExecutionMode.DEMO,
+        stage_delay_seconds=0.01,
+    )
     try:
+        asyncio.run(seed_store(first_store))
         created = asyncio.run(
             first_store.create_run(
                 CreateRunRequest(
@@ -50,7 +57,11 @@ def test_run_persists_across_store_restarts() -> None:
     finally:
         asyncio.run(first_store.shutdown())
 
-    second_store = ControlPlaneStore(database_url=database_url, stage_delay_seconds=0.01)
+    second_store = ControlPlaneStore(
+        database_url=database_url,
+        execution_mode=ExecutionMode.DEMO,
+        stage_delay_seconds=0.01,
+    )
     try:
         summaries = asyncio.run(second_store.list_runs())
         assert any(summary.id == created.id for summary in summaries)
@@ -62,32 +73,31 @@ def test_run_persists_across_store_restarts() -> None:
         _reset_database(database_url)
 
 
-def test_demo_reset_reseeds_targets_and_clears_runs() -> None:
+def test_replace_releases_overwrites_catalog() -> None:
     database_url = _database_url()
     _reset_database(database_url)
-    store = ControlPlaneStore(database_url=database_url, stage_delay_seconds=0.01)
+    store = ControlPlaneStore(
+        database_url=database_url,
+        execution_mode=ExecutionMode.DEMO,
+        stage_delay_seconds=0.01,
+    )
     try:
-        asyncio.run(
-            store.create_run(
-                CreateRunRequest(
-                    release_id="rel-2026-02-25",
-                    strategy_mode=StrategyMode.ALL_AT_ONCE,
-                    target_ids=["target-01"],
-                    concurrency=1,
-                )
-            )
+        asyncio.run(seed_store(store))
+
+        replacement = Release(
+            id="rel-2026-03-01",
+            template_spec_id=sample_releases()[0].template_spec_id,
+            template_spec_version="2026.03.01.1",
+            parameter_defaults={"imageTag": "1.6.0"},
+            release_notes="Replacement release set.",
+            verification_hints=["Health endpoint returns 200"],
+            created_at=datetime.now(tz=UTC),
         )
-        assert len(asyncio.run(store.list_runs())) >= 1
+        asyncio.run(store.replace_releases([replacement]))
 
-        asyncio.run(store.reset_demo_data())
-
-        targets = asyncio.run(store.list_targets())
-        runs = asyncio.run(store.list_runs())
         releases = asyncio.run(store.list_releases())
-
-        assert len(targets) == 10
-        assert len(releases) >= 2
-        assert len(runs) == 0
+        assert len(releases) == 1
+        assert releases[0].id == "rel-2026-03-01"
     finally:
         asyncio.run(store.shutdown())
         _reset_database(database_url)
@@ -96,8 +106,13 @@ def test_demo_reset_reseeds_targets_and_clears_runs() -> None:
 def test_replace_targets_can_clear_runs() -> None:
     database_url = _database_url()
     _reset_database(database_url)
-    store = ControlPlaneStore(database_url=database_url, stage_delay_seconds=0.01)
+    store = ControlPlaneStore(
+        database_url=database_url,
+        execution_mode=ExecutionMode.DEMO,
+        stage_delay_seconds=0.01,
+    )
     try:
+        asyncio.run(seed_store(store))
         asyncio.run(
             store.create_run(
                 CreateRunRequest(

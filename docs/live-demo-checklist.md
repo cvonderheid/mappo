@@ -37,6 +37,8 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
   - `make managed-app-discover-targets SUBSCRIPTION_IDS="<provider-sub>,<customer-sub>"`
 - [ ] Import fleet into MAPPO:
   - `make import-targets`
+- [ ] Ensure release catalog exists (managed-demo-refresh does this automatically):
+  - `make bootstrap-releases`
 - [ ] Run readiness check:
   - `make azure-preflight`
 - [ ] Start backend in Azure mode:

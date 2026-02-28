@@ -75,3 +75,21 @@ Purpose: capture recurring correction patterns and preventative guardrails.
 - Preventative rule: Keep a single default command path in README/Make help for active demo mode; move alternatives out of primary surface.
 - Detection signal: top-level docs list multiple mutually exclusive setup tracks before the first successful demo path.
 - Enforcement (test/lint/checklist): include a “primary demo path” section with <=5 commands and verify it works end-to-end.
+
+- Date: 2026-02-28
+- Pattern: Deleting resource groups that host ACA environments can silently fail when any container app is still attached to the environment.
+- Preventative rule: Before deleting an environment RG, explicitly query for apps bound to that environment and migrate/delete them first.
+- Detection signal: `ResourceGroupDeletionBlocked` with `ManagedEnvironmentHasContainerApps`.
+- Enforcement (test/lint/checklist): add cleanup checklist step to check `az containerapp list` for `managedEnvironmentId` references before RG delete.
+
+- Date: 2026-02-28
+- Pattern: Demo data bootstrap was embedded in production runtime initialization, hiding missing inventory/release setup and causing confusion when validating live behavior.
+- Preventative rule: Keep sample/demo bootstrapping in explicit scripts/tests only; production modules must never auto-seed targets/releases on startup.
+- Detection signal: backend runtime constructors contain `seed` methods or default to demo execution behavior without explicit configuration.
+- Enforcement (test/lint/checklist): `make check-no-demo-leak` includes patterns for runtime seed/default-demo markers; phase-close review verifies live startup with empty DB remains empty until import/bootstrap commands run.
+
+- Date: 2026-02-28
+- Pattern: Cross-project remnants (`txero` identifiers/credentials) persisted in MAPPO defaults after migration work, creating confusion and trust issues.
+- Preventative rule: MAPPO code/config must never embed another project name or credentials; all defaults and examples must be `mappo`-scoped.
+- Detection signal: `rg -n "txero" backend/ frontend/ scripts/ infra/` returns hits outside historical task notes.
+- Enforcement (test/lint/checklist): add cross-project grep sweep to phase-close checklist and fail review if runtime/test config contains non-MAPPO identifiers.

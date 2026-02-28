@@ -2,9 +2,9 @@
 set -euo pipefail
 
 PGHOST="${PGHOST:-localhost}"
-PGPORT="${PGPORT:-5432}"
-PGUSER="${PGUSER:-txero}"
-PGPASSWORD="${PGPASSWORD:-txero}"
+PGPORT="${PGPORT:-5433}"
+PGUSER="${PGUSER:-mappo}"
+PGPASSWORD="${PGPASSWORD:-mappo}"
 DB_NAME="${MAPPO_DB_NAME:-mappo}"
 
 if PGPASSWORD="$PGPASSWORD" psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d postgres -Atqc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1; then

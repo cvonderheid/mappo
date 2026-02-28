@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import os
+import socket
 import subprocess
 from collections.abc import Generator
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,12 +16,25 @@ from app.core.settings import get_settings
 from app.db.generated.models import Releases, Runs, Targets
 from app.db.session import create_engine_and_session_factory
 from app.main import create_app
+from tests.support.sample_data import seed_store
 
-DEFAULT_DATABASE_URL = "postgresql+psycopg://txero:txero@localhost:5432/mappo"
+DEFAULT_DATABASE_URL = "postgresql+psycopg://mappo:mappo@localhost:5433/mappo"
+
+
+def _port_is_open(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(0.15)
+        return sock.connect_ex((host, port)) == 0
+
+
+def _default_database_url() -> str:
+    if _port_is_open("127.0.0.1", 5433):
+        return DEFAULT_DATABASE_URL
+    return "postgresql+psycopg://mappo:mappo@localhost:5432/mappo"
 
 
 def _current_database_url() -> str:
-    return os.getenv("MAPPO_DATABASE_URL") or os.getenv("DATABASE_URL") or DEFAULT_DATABASE_URL
+    return os.getenv("MAPPO_DATABASE_URL") or os.getenv("DATABASE_URL") or _default_database_url()
 
 
 def _reset_database(database_url: str) -> None:
@@ -36,15 +52,36 @@ def _reset_database(database_url: str) -> None:
 @pytest.fixture(scope="session", autouse=True)
 def _bootstrap_postgres() -> Generator[None, None, None]:
     repo_root = Path(__file__).resolve().parents[2]
+    database_url = _current_database_url()
+    parsed = urlsplit(database_url)
+    host = parsed.hostname or "localhost"
+    port = parsed.port or 5433
+    user = parsed.username or "mappo"
+    password = parsed.password or "mappo"
+    env = dict(os.environ)
+    env["MAPPO_DATABASE_URL"] = database_url
+    env["DATABASE_URL"] = database_url
+    env["PGHOST"] = host
+    env["PGPORT"] = str(port)
+    env["PGUSER"] = user
+    env["PGPASSWORD"] = password
+    os.environ.update(
+        {
+            "MAPPO_DATABASE_URL": database_url,
+            "DATABASE_URL": database_url,
+        }
+    )
     subprocess.run(
         [str(repo_root / "backend" / "scripts" / "ensure_db.sh")],
         check=True,
         cwd=repo_root,
+        env=env,
     )
     subprocess.run(
         [str(repo_root / "backend" / "scripts" / "flyway.sh"), "migrate"],
         check=True,
         cwd=repo_root,
+        env=env,
     )
     yield
 
@@ -58,4 +95,5 @@ def client() -> Generator[TestClient, None, None]:
     get_settings.cache_clear()
     app = create_app()
     with TestClient(app) as test_client:
+        asyncio.run(seed_store(app.state.store))
         yield test_client

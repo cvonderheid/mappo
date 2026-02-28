@@ -51,7 +51,7 @@ class ControlPlaneStore:
         self,
         *,
         database_url: str,
-        execution_mode: ExecutionMode = ExecutionMode.DEMO,
+        execution_mode: ExecutionMode = ExecutionMode.AZURE,
         azure_settings: AzureExecutorSettings | None = None,
         retention_days: int = 90,
         stage_delay_seconds: float = 0.2,
@@ -69,14 +69,7 @@ class ControlPlaneStore:
         )
 
         self._targets = self._load_targets()
-        if not self._targets:
-            self._targets = self._seed_targets()
-            self._replace_targets_locked()
-
         self._releases = self._load_releases()
-        if not self._releases:
-            self._releases = self._seed_releases()
-            self._replace_releases_locked()
 
         self._runs = self._load_runs()
         self._reconcile_running_runs_after_startup()
@@ -133,6 +126,17 @@ class ControlPlaneStore:
         async with self._lock:
             releases = [release.model_copy(deep=True) for release in self._releases.values()]
         return sorted(releases, key=lambda release: release.created_at, reverse=True)
+
+    async def replace_releases(self, releases: list[Release]) -> None:
+        by_id: dict[str, Release] = {}
+        for release in releases:
+            if release.id in by_id:
+                raise StoreError(f"duplicate release id in import payload: {release.id}")
+            by_id[release.id] = release
+
+        async with self._lock:
+            self._releases = by_id
+            self._replace_releases_locked()
 
     async def create_release(self, request: CreateReleaseRequest) -> Release:
         release_id = f"rel-{uuid4().hex[:10]}"
@@ -272,24 +276,6 @@ class ControlPlaneStore:
             include_failed=True,
         )
         return await self.get_run(run_id)
-
-    async def reset_demo_data(self) -> None:
-        async with self._lock:
-            tasks = list(self._execution_tasks.values())
-            self._execution_tasks.clear()
-
-            self._targets = self._seed_targets()
-            self._releases = self._seed_releases()
-            self._runs = {}
-
-            self._replace_targets_locked()
-            self._replace_releases_locked()
-            self._delete_all_runs_locked()
-
-        for task in tasks:
-            task.cancel()
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
 
     async def prune_retention(self, retention_days: int | None = None) -> int:
         async with self._lock:
@@ -871,71 +857,3 @@ class ControlPlaneStore:
         with self._session_factory() as session:
             session.execute(delete(Runs).where(Runs.id.in_(removable_ids)))
             session.commit()
-
-    @staticmethod
-    def _seed_targets() -> dict[str, Target]:
-        now = utc_now()
-        seed_rows: list[tuple[str, str, str, str, str, str, str]] = [
-            ("target-01", "canary", "eastus", "gold", "prod", "none", "healthy"),
-            ("target-02", "canary", "westus", "gold", "prod", "none", "healthy"),
-            ("target-03", "prod", "eastus", "gold", "prod", "none", "healthy"),
-            ("target-04", "prod", "westus", "gold", "prod", "none", "healthy"),
-            ("target-05", "prod", "centralus", "silver", "prod", "none", "healthy"),
-            ("target-06", "prod", "eastus2", "silver", "prod", "none", "healthy"),
-            ("target-07", "prod", "westus2", "silver", "prod", "verify_once", "healthy"),
-            ("target-08", "prod", "southcentralus", "silver", "prod", "none", "healthy"),
-            ("target-09", "prod", "northcentralus", "bronze", "prod", "verify_once", "degraded"),
-            ("target-10", "prod", "eastus", "bronze", "prod", "none", "healthy"),
-        ]
-
-        targets: dict[str, Target] = {}
-        for index, row in enumerate(seed_rows, start=1):
-            target_id, ring, region, tier, environment, failure_mode, health_status = row
-            targets[target_id] = Target(
-                id=target_id,
-                tenant_id=f"tenant-{index:03d}",
-                subscription_id=f"sub-{index:04d}",
-                managed_app_id=(
-                    f"/subscriptions/sub-{index:04d}/resourceGroups/rg-{target_id}"
-                    f"/providers/Microsoft.Solutions/applications/{target_id}"
-                ),
-                tags={
-                    "ring": ring,
-                    "region": region,
-                    "tier": tier,
-                    "environment": environment,
-                },
-                last_deployed_release="2026.02.20.1",
-                health_status=health_status,
-                last_check_in_at=now,
-                simulated_failure_mode=failure_mode,
-            )
-        return targets
-
-    @staticmethod
-    def _seed_releases() -> dict[str, Release]:
-        now = utc_now()
-        template_spec_id = (
-            "/subscriptions/provider-sub/resourceGroups/mappo-rg/providers/"
-            "Microsoft.Resources/templateSpecs/mappo-managed-app"
-        )
-        return {
-            "rel-2026-02-20": Release(
-                id="rel-2026-02-20",
-                template_spec_id=template_spec_id,
-                template_spec_version="2026.02.20.1",
-                parameter_defaults={"imageTag": "1.4.2", "featureFlag": "off"},
-                release_notes="Stable baseline release.",
-                verification_hints=["Health endpoint returns 200", "Container revision ready"],
-                created_at=now,
-            ),
-            "rel-2026-02-25": Release(
-                id="rel-2026-02-25",
-                template_spec_id=template_spec_id,
-                template_spec_version="2026.02.25.3",
-                parameter_defaults={"imageTag": "1.5.0", "featureFlag": "on"},
-                release_notes="Canary-first rollout with new API image tag.",
-                verification_hints=["App startup under 60s", "Dependency probe healthy"],
-                created_at=now,
-            ),
-        }

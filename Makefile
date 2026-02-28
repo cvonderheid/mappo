@@ -7,7 +7,7 @@ COMPOSE_FILE := infra/docker-compose.yml
 	dev dev-up dev-down dev-logs dev-backend dev-frontend build build-backend build-frontend \
 	lint lint-backend lint-frontend typecheck typecheck-backend typecheck-frontend \
 	test test-backend test-frontend test-frontend-e2e import-targets retention-prune \
-	azure-auth-bootstrap dev-backend-azure azure-preflight managed-app-discover-targets managed-demo-refresh \
+	azure-auth-bootstrap dev-backend-azure azure-preflight managed-app-discover-targets managed-demo-refresh bootstrap-releases \
 	db-migrate db-validate db-info db-clean db-reset models-gen openapi client-gen \
 	workflow-discipline-check docs-consistency-check golden-principles-check check-no-demo-leak \
 	phase1-gate-fast phase1-gate-full
@@ -80,7 +80,10 @@ test-frontend-e2e: ## Run frontend Playwright click-through tests
 	cd frontend && npm run test:e2e:ci
 
 import-targets: ## Import fleet targets from .data/mappo-target-inventory.json
-	uv --directory backend run --package mappo-backend -- python scripts/import_pulumi_targets.py --file $(abspath .data/mappo-target-inventory.json) --clear-runs
+	uv --directory backend run --package mappo-backend -- python scripts/import_targets.py --file $(abspath .data/mappo-target-inventory.json) --clear-runs
+
+bootstrap-releases: ## Bootstrap default release records when release catalog is empty
+	uv --directory backend run --package mappo-backend -- python scripts/bootstrap_releases.py
 
 azure-auth-bootstrap: ## Create Azure SP credentials and write .data/mappo-azure.env
 	./scripts/azure_auth_bootstrap.sh
@@ -103,6 +106,7 @@ managed-demo-refresh: ## Refresh managed-app fleet inventory then import + prefl
 	fi
 	$(MAKE) managed-app-discover-targets SUBSCRIPTION_IDS="$(SUBSCRIPTION_IDS)" MANAGED_APP_NAME_PREFIX="$(MANAGED_APP_NAME_PREFIX)"
 	$(MAKE) import-targets
+	$(MAKE) bootstrap-releases
 	$(MAKE) azure-preflight
 
 retention-prune: ## Prune run history older than RETENTION_DAYS

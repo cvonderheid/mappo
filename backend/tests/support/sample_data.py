@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-import asyncio
 from datetime import UTC, datetime
 
-from app.core.settings import get_settings
 from app.modules.control_plane import ControlPlaneStore
-from app.modules.execution import AzureExecutorSettings
 from app.modules.schemas import Release, Target
+
+DEFAULT_TEMPLATE_SPEC_ID = (
+    "/subscriptions/provider-sub/resourceGroups/mappo-rg/providers/"
+    "Microsoft.Resources/templateSpecs/mappo-managed-app"
+)
 
 
 def utc_now() -> datetime:
@@ -59,12 +61,11 @@ def sample_targets() -> list[Target]:
     ]
 
 
-def sample_releases() -> list[Release]:
+def sample_releases(
+    *,
+    template_spec_id: str = DEFAULT_TEMPLATE_SPEC_ID,
+) -> list[Release]:
     now = utc_now()
-    template_spec_id = (
-        "/subscriptions/provider-sub/resourceGroups/mappo-rg/providers/"
-        "Microsoft.Resources/templateSpecs/mappo-managed-app"
-    )
     return [
         Release(
             id="rel-2026-02-20",
@@ -87,26 +88,6 @@ def sample_releases() -> list[Release]:
     ]
 
 
-async def main() -> None:
-    settings = get_settings()
-    store = ControlPlaneStore(
-        database_url=settings.database_url,
-        execution_mode=settings.execution_mode,
-        azure_settings=AzureExecutorSettings(
-            tenant_id=settings.azure_tenant_id,
-            client_id=settings.azure_client_id,
-            client_secret=settings.azure_client_secret,
-        ),
-        retention_days=settings.retention_days,
-        stage_delay_seconds=0.0,
-    )
-    try:
-        await store.replace_targets(sample_targets(), clear_runs=True)
-        await store.replace_releases(sample_releases())
-        print("demo-reset: seeded 10 targets + releases into postgres")
-    finally:
-        await store.shutdown()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+async def seed_store(store: ControlPlaneStore) -> None:
+    await store.replace_targets(sample_targets(), clear_runs=True)
+    await store.replace_releases(sample_releases())

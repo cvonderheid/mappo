@@ -10,6 +10,13 @@ BANNED = [
     re.compile(r"temporary\s*demo\s*hack", re.IGNORECASE),
     re.compile(r"todo_demo_hack", re.IGNORECASE),
     re.compile(r"skip_auth_for_demo", re.IGNORECASE),
+    re.compile(r"def\s+reset_demo_data\s*\(", re.IGNORECASE),
+    re.compile(r"def\s+_seed_targets\s*\(", re.IGNORECASE),
+    re.compile(r"def\s+_seed_releases\s*\(", re.IGNORECASE),
+    re.compile(
+        r"execution_mode\s*:\s*ExecutionMode\s*=\s*ExecutionMode\.DEMO",
+        re.IGNORECASE,
+    ),
 ]
 
 CODE_SUFFIXES = {".py", ".ts", ".tsx", ".js", ".jsx"}

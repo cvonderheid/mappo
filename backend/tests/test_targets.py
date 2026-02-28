@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 
-def test_lists_seeded_targets(client: TestClient) -> None:
+def test_lists_inventory_targets(client: TestClient) -> None:
     response = client.get("/api/v1/targets")
 
     assert response.status_code == 200

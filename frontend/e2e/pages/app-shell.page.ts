@@ -8,11 +8,11 @@ export class AppShellPage {
   }
 
   async openFleet(): Promise<void> {
-    await this.page.getByRole("button", { name: "Fleet" }).click();
+    await this.page.getByRole("link", { name: "Fleet" }).click();
   }
 
   async openDeployments(): Promise<void> {
-    await this.page.getByRole("button", { name: "Deployments" }).click();
+    await this.page.getByRole("link", { name: "Deployments" }).click();
   }
 
   async selectTargetGroup(group: "all" | "canary" | "prod"): Promise<void> {

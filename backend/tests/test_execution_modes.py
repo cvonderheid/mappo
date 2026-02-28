@@ -20,8 +20,9 @@ from app.modules.execution import (
     ExecutionMode,
 )
 from app.modules.schemas import CreateRunRequest, Release, RunStatus, Target, TargetStage
+from tests.support.sample_data import seed_store
 
-DEFAULT_DATABASE_URL = "postgresql+psycopg://txero:txero@localhost:5432/mappo"
+DEFAULT_DATABASE_URL = "postgresql+psycopg://mappo:mappo@localhost:5433/mappo"
 TERMINAL_STATUSES = {RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.PARTIAL, RunStatus.HALTED}
 
 
@@ -142,6 +143,7 @@ def test_azure_mode_fails_without_credentials() -> None:
             stage_delay_seconds=0.0,
         )
         try:
+            await seed_store(store)
             run = await store.create_run(
                 CreateRunRequest(
                     release_id="rel-2026-02-25",
@@ -191,6 +193,7 @@ def test_azure_mode_succeeds_with_runtime_stub(monkeypatch: pytest.MonkeyPatch) 
             stage_delay_seconds=0.0,
         )
         try:
+            await seed_store(store)
             run = await store.create_run(
                 CreateRunRequest(
                     release_id="rel-2026-02-25",
@@ -237,6 +240,7 @@ def test_azure_mode_surfaces_deploy_failure(monkeypatch: pytest.MonkeyPatch) -> 
             stage_delay_seconds=0.0,
         )
         try:
+            await seed_store(store)
             run = await store.create_run(
                 CreateRunRequest(
                     release_id="rel-2026-02-25",
