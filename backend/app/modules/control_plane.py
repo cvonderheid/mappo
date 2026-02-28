@@ -102,6 +102,33 @@ class ControlPlaneStore:
             ]
         return sorted(targets, key=lambda target: target.id)
 
+    async def replace_targets(
+        self,
+        targets: list[Target],
+        *,
+        clear_runs: bool = False,
+    ) -> None:
+        by_id: dict[str, Target] = {}
+        for target in targets:
+            if target.id in by_id:
+                raise StoreError(f"duplicate target id in import payload: {target.id}")
+            by_id[target.id] = target
+
+        tasks_to_cancel: list[asyncio.Task[None]] = []
+        async with self._lock:
+            self._targets = by_id
+            self._replace_targets_locked()
+            if clear_runs:
+                tasks_to_cancel = list(self._execution_tasks.values())
+                self._execution_tasks.clear()
+                self._runs = {}
+                self._delete_all_runs_locked()
+
+        for task in tasks_to_cancel:
+            task.cancel()
+        if tasks_to_cancel:
+            await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
+
     async def list_releases(self) -> list[Release]:
         async with self._lock:
             releases = [release.model_copy(deep=True) for release in self._releases.values()]

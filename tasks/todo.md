@@ -300,3 +300,85 @@ Pulumi baseline for live demo tenant provisioning:
 - 2026-02-27: Added root Make targets (`iac-install`, `iac-stack-init`, `iac-preview`, `iac-up`, `iac-destroy`, `iac-export-targets`) with local backend defaults.
 - 2026-02-27: Updated README and docs with Pulumi demo workflow and config references.
 - 2026-02-27: Verified `make iac-install`, `make iac-preview`, `make lint`, `make typecheck`, and `make test` pass (same existing 2 frontend lint warnings in shadcn ui primitives).
+
+---
+
+## Scope (Phase 5.2 Follow-up)
+Pulumi config ergonomics:
+- Move 10-target demo definitions from stack YAML to TypeScript source files.
+- Keep stack YAML minimal and use profile-based target generation in TS.
+
+## Plan (Phase 5.2 Follow-up)
+- [x] Add TypeScript target profile module(s) for demo tenant definitions.
+- [x] Update Pulumi program to load targets from TS profiles (with optional config overrides).
+- [x] Simplify `Pulumi.dev.yaml` to minimal settings and refresh docs.
+- [x] Run IaC preview and core verification commands.
+
+## Verification Commands (Phase 5.2 Follow-up)
+- [x] `make iac-preview`
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+
+## Results Log (Phase 5.2 Follow-up)
+- 2026-02-27: Started TypeScript target-profile conversion for Pulumi demo stack config.
+- 2026-02-27: Added TypeScript target profile modules (`targets.ts`, `targets.demo10.ts`) and removed YAML-based 10-target template.
+- 2026-02-27: Updated Pulumi program to default to `mappo:targetProfile=demo10` with automatic subscription resolution from config/env/active Azure account.
+- 2026-02-27: Reduced `Pulumi.dev.yaml` to minimal config and updated IaC docs for TS profile workflow.
+- 2026-02-27: Verified `make iac-preview`, `make lint`, `make typecheck`, and `make test` pass (same existing 2 frontend lint warnings in shadcn ui primitives).
+- 2026-02-27: Addressed Azure ACA environment quota failures by introducing shared environment mode (`mappo:environmentMode=shared_per_subscription`) and redeploying after stack cleanup.
+- 2026-02-27: Confirmed live deployment success with `make iac-destroy` + `make iac-up` + `make iac-export-targets` (10 target apps created, inventory exported to `.data/mappo-target-inventory.json`).
+
+---
+
+## Scope (Phase 5.3 Slice)
+Fleet sync from live IaC output:
+- Add a deterministic import path from Pulumi target inventory JSON into MAPPO target store.
+- Support reset of run history during import to avoid stale references after fleet replacement.
+
+## Plan (Phase 5.3 Slice)
+- [x] Add control-plane method to replace target inventory atomically.
+- [x] Add backend script + Make target to import `.data/mappo-target-inventory.json`.
+- [x] Add backend test coverage for target-replacement behavior and run reset option.
+- [x] Run verification commands and execute live import.
+
+## Verification Commands (Phase 5.3 Slice)
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+- [x] `make import-targets`
+
+## Results Log (Phase 5.3 Slice)
+- 2026-02-27: Started live fleet-sync implementation from Pulumi inventory output.
+- 2026-02-27: Added `ControlPlaneStore.replace_targets(...)` for atomic fleet replacement with optional run-history reset.
+- 2026-02-27: Added import script `backend/scripts/import_pulumi_targets.py` and Make target `import-targets`.
+- 2026-02-27: Added backend regression test for target replacement with run clearing behavior.
+- 2026-02-27: Executed live import from `.data/mappo-target-inventory.json`; verified 10 targets loaded with Azure subscription ID `c0d51042-7d0a-41f7-b270-151e4c4ea263`.
+
+---
+
+## Scope (Phase 5.4 Slice)
+Live Azure execution adapter implementation:
+- Replace Azure executor scaffold with real Container Apps rollout operations in Azure mode.
+- Keep orchestration/state model unchanged while wiring per-target validate/deploy/verify behavior.
+- Persist operator-visible logs/errors with actionable failure codes for Azure auth/resource/deploy/health failures.
+
+## Plan (Phase 5.4 Slice)
+- [x] Implement Azure SDK executor path for target validation and Container App deployment updates.
+- [x] Implement verification checks (revision readiness + HTTP health probe via ingress FQDN).
+- [x] Add deterministic regression tests for Azure success and failure paths using runtime stubs (no live Azure dependency in tests).
+- [x] Update README/docs for Azure mode auth/runtime expectations.
+- [x] Run verification commands and capture outcomes.
+
+## Verification Commands (Phase 5.4 Slice)
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+- [x] `make phase1-gate-full`
+
+## Results Log (Phase 5.4 Slice)
+- 2026-02-28: Replaced Azure executor scaffold with SDK-based runtime using `azure-identity` + `azure-mgmt-appcontainers`.
+- 2026-02-28: Added real Azure target validation, deploy update, and verify-stage health probing with structured failure codes.
+- 2026-02-28: Added deterministic backend tests for Azure mode missing credentials, successful runtime flow, and deploy failure surfacing via stubbed runtime factory.
+- 2026-02-28: Updated README execution-mode docs to reflect SDK-based Azure behavior and health-path configuration.
+- 2026-02-28: Verified `make lint`, `make typecheck`, `make test`, and `make phase1-gate-full` pass (same existing 2 frontend lint warnings in shadcn ui primitives).

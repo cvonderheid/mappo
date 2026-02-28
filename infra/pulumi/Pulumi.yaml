@@ -7,6 +7,14 @@ description: MAPPO demo target provisioning on Azure Container Apps using Pulumi
 config:
   mappo:defaultLocation:
     value: eastus
+  mappo:targetProfile:
+    value: demo10
+  mappo:environmentMode:
+    value: shared_per_subscription
+  mappo:sharedEnvironmentNamePrefix:
+    value: cae-mappo-shared
+  mappo:sharedEnvironmentResourceGroupPrefix:
+    value: rg-mappo-shared-env
   mappo:defaultImage:
     value: mcr.microsoft.com/azuredocs/containerapps-helloworld:latest
   mappo:defaultCpu:

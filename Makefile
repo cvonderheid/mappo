@@ -11,7 +11,7 @@ export PULUMI_CONFIG_PASSPHRASE
 .PHONY: help install install-backend install-frontend \
 	dev dev-up dev-down dev-logs dev-backend dev-frontend build build-backend build-frontend \
 	lint lint-backend lint-frontend typecheck typecheck-backend typecheck-frontend \
-	test test-backend test-frontend test-frontend-e2e demo-reset retention-prune \
+	test test-backend test-frontend test-frontend-e2e demo-reset import-targets retention-prune \
 	db-migrate db-validate db-info db-clean db-reset models-gen openapi client-gen \
 	iac-install iac-stack-init iac-preview iac-up iac-destroy iac-export-targets \
 	workflow-discipline-check docs-consistency-check golden-principles-check check-no-demo-leak \
@@ -83,6 +83,9 @@ test-frontend-e2e: ## Run frontend Playwright click-through tests
 
 demo-reset: ## Reset and reseed deterministic 10-target demo data
 	uv --directory backend run --package mappo-backend -- python scripts/demo_reset.py
+
+import-targets: ## Import fleet targets from Pulumi inventory JSON
+	uv --directory backend run --package mappo-backend -- python scripts/import_pulumi_targets.py --file $(abspath .data/mappo-target-inventory.json) --clear-runs
 
 retention-prune: ## Prune run history older than RETENTION_DAYS
 	uv --directory backend run --package mappo-backend -- python scripts/prune_retention.py --days $(RETENTION_DAYS)
