@@ -86,6 +86,55 @@ def test_successful_run_updates_fleet_target_release_version(client: TestClient)
     assert after_by_id["target-01"]["last_deployed_release"] == "2026.02.20.1"
 
 
+def test_successful_run_updates_registered_target_health_to_healthy(client: TestClient) -> None:
+    onboarding_response = client.post(
+        "/api/v1/admin/onboarding/events",
+        json={
+            "event_id": "evt-health-001",
+            "tenant_id": "tenant-live-a",
+            "subscription_id": "sub-live-a",
+            "container_app_resource_id": (
+                "/subscriptions/sub-live-a/resourceGroups/rg-mappo-ma-mrg-live-01/providers/"
+                "Microsoft.App/containerApps/ca-mappo-ma-target-live-01"
+            ),
+            "target_id": "mappo-ma-target-live-01",
+            "target_group": "canary",
+            "region": "eastus",
+            "environment": "prod",
+            "tier": "gold",
+            "health_status": "registered",
+        },
+    )
+    assert onboarding_response.status_code == 200
+    assert onboarding_response.json()["status"] == "applied"
+
+    before_response = client.get("/api/v1/targets")
+    assert before_response.status_code == 200
+    before_payload = cast(list[dict[str, Any]], before_response.json())
+    before_by_id = {target["id"]: target for target in before_payload}
+    assert before_by_id["mappo-ma-target-live-01"]["health_status"] == "registered"
+
+    create_response = client.post(
+        "/api/v1/runs",
+        json={
+            "release_id": "rel-2026-02-25",
+            "target_ids": ["mappo-ma-target-live-01"],
+            "concurrency": 1,
+        },
+    )
+    assert create_response.status_code == 201
+    run_id = create_response.json()["id"]
+
+    final_payload = _wait_for_terminal(client, run_id)
+    assert final_payload["status"] == "succeeded"
+
+    after_response = client.get("/api/v1/targets")
+    assert after_response.status_code == 200
+    after_payload = cast(list[dict[str, Any]], after_response.json())
+    after_by_id = {target["id"]: target for target in after_payload}
+    assert after_by_id["mappo-ma-target-live-01"]["health_status"] == "healthy"
+
+
 def test_retry_failed_target_succeeds_on_second_attempt(client: TestClient) -> None:
     create_response = client.post(
         "/api/v1/runs",

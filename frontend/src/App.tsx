@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { BrowserRouter, Navigate, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import AdminPanel from "@/components/AdminPanel";
 import FleetTable from "@/components/FleetTable";
@@ -66,6 +66,7 @@ export default function App() {
 
 function AppShell() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [targets, setTargets] = useState<Target[]>([]);
   const [releases, setReleases] = useState<Release[]>([]);
   const [runs, setRuns] = useState<RunSummary[]>([]);
@@ -75,6 +76,7 @@ function AppShell() {
   const [targetGroupFilter, setTargetGroupFilter] = useState<string>("all");
   const [deploymentControlsOpen, setDeploymentControlsOpen] = useState<boolean>(false);
   const [selectedTargetIds, setSelectedTargetIds] = useState<string[]>([]);
+  const [runActionsMenuOpen, setRunActionsMenuOpen] = useState<boolean>(false);
   const [formState, setFormState] = useState<StartRunFormState>(DEFAULT_FORM);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -158,6 +160,11 @@ function AppShell() {
   }, [refreshRunDetail, selectedRunId]);
 
   useEffect(() => {
+    const isDeploymentsListRoute = location.pathname === "/deployments";
+    if (isDeploymentsListRoute && (deploymentControlsOpen || runActionsMenuOpen)) {
+      return;
+    }
+
     const intervalId = window.setInterval(() => {
       void refreshTargets();
       void refreshRuns();
@@ -167,7 +174,15 @@ function AppShell() {
     }, 1200);
 
     return () => window.clearInterval(intervalId);
-  }, [refreshRunDetail, refreshRuns, refreshTargets, selectedRunId]);
+  }, [
+    deploymentControlsOpen,
+    location.pathname,
+    refreshRunDetail,
+    refreshRuns,
+    refreshTargets,
+    runActionsMenuOpen,
+    selectedRunId,
+  ]);
 
   const deploymentTargets = useMemo(
     () =>
@@ -238,6 +253,7 @@ function AppShell() {
       await refreshRunDetail(created.id);
       await refreshTargets();
       setErrorMessage("");
+      setDeploymentControlsOpen(false);
     } catch (error) {
       setErrorMessage((error as Error).message);
     } finally {
@@ -265,6 +281,44 @@ function AppShell() {
       await refreshRunDetail(runId);
       await refreshTargets();
       setSelectedRunId(runId);
+      setErrorMessage("");
+    } catch (error) {
+      setErrorMessage((error as Error).message);
+    }
+  }
+
+  async function handleCloneRun(runId: string): Promise<void> {
+    try {
+      const sourceRun = await getRun(runId);
+      const clonedTargetIds = [...new Set(sourceRun.target_records.map((record) => record.target_id))].sort();
+      const clonedTargetGroups = [
+        ...new Set(
+          clonedTargetIds
+            .map((targetId) => targets.find((target) => target.id === targetId)?.tags.ring)
+            .filter((group): group is string => Boolean(group))
+        ),
+      ];
+      const clonedTargetGroup = clonedTargetGroups.length === 1 ? clonedTargetGroups[0] : "all";
+
+      setSelectedReleaseId(sourceRun.release_id);
+      setFormState({
+        strategyMode: sourceRun.strategy_mode,
+        concurrency: sourceRun.concurrency,
+        maxFailureCount:
+          sourceRun.stop_policy.max_failure_count === null ||
+          sourceRun.stop_policy.max_failure_count === undefined
+            ? ""
+            : String(sourceRun.stop_policy.max_failure_count),
+        maxFailureRatePercent:
+          sourceRun.stop_policy.max_failure_rate === null ||
+          sourceRun.stop_policy.max_failure_rate === undefined
+            ? ""
+            : String(Math.round(sourceRun.stop_policy.max_failure_rate * 100)),
+      });
+      setTargetGroupFilter(clonedTargetGroup);
+      setSelectedTargetIds(clonedTargetIds);
+      setDeploymentControlsOpen(true);
+      navigate("/deployments");
       setErrorMessage("");
     } catch (error) {
       setErrorMessage((error as Error).message);
@@ -341,6 +395,9 @@ function AppShell() {
                 navigate(`/deployments/${encodeURIComponent(runId)}`);
               }}
               onReleaseChange={setSelectedReleaseId}
+              onCloneRun={(runId) => {
+                void handleCloneRun(runId);
+              }}
               onRetryFailed={(runId) => {
                 void handleRetryFailed(runId);
               }}
@@ -351,6 +408,7 @@ function AppShell() {
               onStartRun={handleStartRun}
               onControlsOpenChange={setDeploymentControlsOpen}
               onTargetGroupFilterChange={setTargetGroupFilter}
+              onRunActionsMenuOpenChange={setRunActionsMenuOpen}
             />
           }
         />
@@ -399,12 +457,14 @@ type DeploymentsPageProps = {
   onControlsOpenChange: (open: boolean) => void;
   onFormStateChange: (state: StartRunFormState) => void;
   onOpenRun: (runId: string) => void;
+  onCloneRun: (runId: string) => void;
   onReleaseChange: (releaseId: string) => void;
   onRetryFailed: (runId: string) => void;
   onResumeRun: (runId: string) => void;
   onSelectedTargetIdsChange: (targetIds: string[]) => void;
   onStartRun: (event: FormEvent<HTMLFormElement>) => Promise<void>;
   onTargetGroupFilterChange: (targetGroup: string) => void;
+  onRunActionsMenuOpenChange: (open: boolean) => void;
 };
 
 function DeploymentsPage({
@@ -422,12 +482,14 @@ function DeploymentsPage({
   onControlsOpenChange,
   onFormStateChange,
   onOpenRun,
+  onCloneRun,
   onReleaseChange,
   onRetryFailed,
   onResumeRun,
   onSelectedTargetIdsChange,
   onStartRun,
   onTargetGroupFilterChange,
+  onRunActionsMenuOpenChange,
 }: DeploymentsPageProps) {
   return (
     <>
@@ -438,7 +500,7 @@ function DeploymentsPage({
         <Drawer direction="top" open={controlsOpen} onOpenChange={onControlsOpenChange}>
           <DrawerTrigger asChild>
             <Button data-testid="open-deployment-controls" variant="outline">
-              Target Filters + Start Deployment Run
+              New Deployment
             </Button>
           </DrawerTrigger>
           <DrawerContent className="glass-card">
@@ -629,10 +691,11 @@ function DeploymentsPage({
       <div className="grid gap-4 lg:grid-cols-1">
         <RunList
           runs={runs}
-          selectedRunId=""
           onOpenRun={onOpenRun}
+          onCloneRun={onCloneRun}
           onResumeRun={onResumeRun}
           onRetryFailed={onRetryFailed}
+          onActionsMenuOpenChange={onRunActionsMenuOpenChange}
         />
       </div>
     </>

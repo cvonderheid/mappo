@@ -1,10 +1,29 @@
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import {
+  type ColumnDef,
+  type ColumnFiltersState,
+  type SortingState,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
 
 import type { RunDetail, RunSummary, TargetExecutionRecord } from "@/lib/types";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type ProgressCounts = {
   total: number;
@@ -18,10 +37,11 @@ type ProgressCounts = {
 
 type RunListProps = {
   runs: RunSummary[];
-  selectedRunId: string;
   onOpenRun: (runId: string) => void;
+  onCloneRun: (runId: string) => void;
   onResumeRun: (runId: string) => void;
   onRetryFailed: (runId: string) => void;
+  onActionsMenuOpenChange?: (open: boolean) => void;
 };
 
 function statusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
@@ -186,86 +206,291 @@ function StackedProgressBar({
 
 export function RunList({
   runs,
-  selectedRunId,
   onOpenRun,
+  onCloneRun,
   onResumeRun,
   onRetryFailed,
+  onActionsMenuOpenChange,
 }: RunListProps) {
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [openActionRunId, setOpenActionRunId] = useState<string | null>(null);
+
+  useEffect(() => {
+    onActionsMenuOpenChange?.(openActionRunId !== null);
+    return () => onActionsMenuOpenChange?.(false);
+  }, [onActionsMenuOpenChange, openActionRunId]);
+
+  const columns = useMemo<ColumnDef<RunSummary>[]>(
+    () => [
+      {
+        accessorKey: "id",
+        header: "Run",
+        cell: ({ row }) => {
+          const run = row.original;
+          return (
+            <button
+              type="button"
+              data-testid={`select-run-${run.id}`}
+              className="font-mono text-xs text-left hover:underline"
+              onClick={() => onOpenRun(run.id)}
+            >
+              {run.id}
+            </button>
+          );
+        },
+      },
+      {
+        accessorKey: "release_id",
+        header: "Release",
+        cell: ({ row }) => (
+          <span className="font-mono text-xs">
+            {row.original.release_id}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        filterFn: (row, id, value) => {
+          if (!value) {
+            return true;
+          }
+          return row.getValue<string>(id) === value;
+        },
+        cell: ({ row }) => (
+          <Badge variant={statusVariant(row.original.status)} className="uppercase">
+            {row.original.status}
+          </Badge>
+        ),
+      },
+      {
+        id: "progress",
+        header: "Progress",
+        cell: ({ row }) => {
+          const progress = progressFromSummary(row.original);
+          return (
+            <div className="min-w-[220px] space-y-1">
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>
+                  {progress.succeeded} ok / {progress.failed} failed / {progress.total} total
+                </span>
+                <span>{progress.percentComplete}%</span>
+              </div>
+              <StackedProgressBar progress={progress} testIdPrefix={`run-progress-${row.original.id}`} />
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "guardrail_warnings",
+        header: "Guardrails",
+        cell: ({ row }) => {
+          const warningCount = row.original.guardrail_warnings?.length ?? 0;
+          if (warningCount <= 0) {
+            return <span className="text-xs text-muted-foreground">None</span>;
+          }
+          return (
+            <Badge variant="outline" className="border-amber-500/60 text-amber-300">
+              {warningCount} warning{warningCount === 1 ? "" : "s"}
+            </Badge>
+          );
+        },
+      },
+      {
+        accessorKey: "created_at",
+        header: "Created",
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">
+            {new Date(row.original.created_at).toLocaleString()}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => {
+          const run = row.original;
+          const resumeEnabled = canResume(run);
+          const retryEnabled = canRetryFailed(run);
+
+          return (
+            <DropdownMenu
+              open={openActionRunId === run.id}
+              onOpenChange={(open) => {
+                setOpenActionRunId(open ? run.id : null);
+              }}
+            >
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 w-7 p-0 font-mono"
+                  data-testid={`run-actions-trigger-${run.id}`}
+                  aria-label={`Actions for ${run.id}`}
+                >
+                  ...
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  data-testid={`run-action-view-${run.id}`}
+                  onSelect={() => onOpenRun(run.id)}
+                >
+                  View Run Details
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  data-testid={`run-action-clone-${run.id}`}
+                  onSelect={() => onCloneRun(run.id)}
+                >
+                  Clone Run
+                </DropdownMenuItem>
+                {resumeEnabled || retryEnabled ? <DropdownMenuSeparator /> : null}
+                {resumeEnabled ? (
+                  <DropdownMenuItem
+                    data-testid={`run-action-resume-${run.id}`}
+                    onSelect={() => onResumeRun(run.id)}
+                  >
+                    Resume
+                  </DropdownMenuItem>
+                ) : null}
+                {retryEnabled ? (
+                  <DropdownMenuItem
+                    data-testid={`run-action-retry-failed-${run.id}`}
+                    onSelect={() => onRetryFailed(run.id)}
+                  >
+                    Retry Failed
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        },
+      },
+    ],
+    [onCloneRun, onOpenRun, onResumeRun, onRetryFailed]
+  );
+
+  const table = useReactTable({
+    data: runs,
+    columns,
+    state: {
+      sorting,
+      columnFilters,
+    },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  const filteredCount = table.getFilteredRowModel().rows.length;
+  const runIdFilter = (table.getColumn("id")?.getFilterValue() as string | undefined) ?? "";
+  const releaseFilter = (table.getColumn("release_id")?.getFilterValue() as string | undefined) ?? "";
+  const statusFilter = (table.getColumn("status")?.getFilterValue() as string | undefined) ?? "";
+  const uniqueStatuses = [...new Set(runs.map((run) => run.status))].sort();
+
   return (
     <Card className="glass-card animate-fade-up [animation-delay:200ms] [animation-fill-mode:forwards]">
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>Deployment Runs</CardTitle>
-        <Badge variant="outline" className="font-mono text-[11px]">
-          {runs.length} total
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="font-mono text-[11px]">
+            {filteredCount}/{runs.length} runs
+          </Badge>
+          <Button type="button" variant="outline" size="sm" onClick={() => table.resetColumnFilters()}>
+            Clear filters
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-2">
-        {runs.map((run) => {
-          const progress = progressFromSummary(run);
-          const resumeEnabled = canResume(run);
-          const retryEnabled = canRetryFailed(run);
-          return (
-            <div
-              key={run.id}
-              data-testid={`run-card-${run.id}`}
-              className={
-                run.id === selectedRunId
-                  ? "rounded-md border border-secondary/60 bg-secondary/5 p-3"
-                  : "rounded-md border border-border/70 bg-card/70 p-3"
-              }
-            >
-              <button
-                type="button"
-                data-testid={`select-run-${run.id}`}
-                className="mb-2 flex w-full items-center justify-between text-left"
-                onClick={() => onOpenRun(run.id)}
-              >
-                <div>
-                  <p className="font-mono text-xs">{run.id}</p>
-                  <p className="text-xs text-muted-foreground">release: {run.release_id}</p>
-                </div>
-                <Badge variant={statusVariant(run.status)} className="uppercase">
-                  {run.status}
-                </Badge>
-              </button>
-              <div className="mb-2 space-y-1">
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span>
-                    succeeded: {progress.succeeded} failed: {progress.failed} total: {progress.total}
-                  </span>
-                  <span>{progress.percentComplete}% processed</span>
-                </div>
-                <StackedProgressBar progress={progress} testIdPrefix={`run-progress-${run.id}`} />
-              </div>
-              {(run.guardrail_warnings ?? []).length > 0 ? <GuardrailWarnings runId={run.id} warnings={run.guardrail_warnings ?? []} /> : null}
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  data-testid={`resume-${run.id}`}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onResumeRun(run.id)}
-                  disabled={!resumeEnabled}
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {table.getFlatHeaders().map((header) => (
+                <TableHead key={header.id}>
+                  {header.column.getCanSort() ? (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-left"
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                      {header.column.getIsSorted() === "asc" ? "▲" : null}
+                      {header.column.getIsSorted() === "desc" ? "▼" : null}
+                    </button>
+                  ) : (
+                    flexRender(header.column.columnDef.header, header.getContext())
+                  )}
+                </TableHead>
+              ))}
+            </TableRow>
+            <TableRow>
+              <TableHead>
+                <Input
+                  value={runIdFilter}
+                  onChange={(event) => table.getColumn("id")?.setFilterValue(event.target.value)}
+                  placeholder="Filter run"
+                  className="h-8"
+                />
+              </TableHead>
+              <TableHead>
+                <Input
+                  value={releaseFilter}
+                  onChange={(event) => table.getColumn("release_id")?.setFilterValue(event.target.value)}
+                  placeholder="Filter release"
+                  className="h-8"
+                />
+              </TableHead>
+              <TableHead>
+                <select
+                  className="h-8 w-full rounded-md border border-input bg-background/90 px-2 text-xs"
+                  value={statusFilter}
+                  onChange={(event) =>
+                    table.getColumn("status")?.setFilterValue(
+                      event.target.value === "all" ? undefined : event.target.value
+                    )
+                  }
                 >
-                  Resume
-                </Button>
-                <Button
-                  data-testid={`retry-failed-${run.id}`}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onRetryFailed(run.id)}
-                  disabled={!retryEnabled}
+                  <option value="all">All statuses</option>
+                  {uniqueStatuses.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+              </TableHead>
+              <TableHead />
+              <TableHead />
+              <TableHead />
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-sm text-muted-foreground">
+                  No deployment runs match current filters.
+                </TableCell>
+              </TableRow>
+            ) : (
+              table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-testid={`run-row-${row.original.id}`}
                 >
-                  Retry Failed
-                </Button>
-              </div>
-              <div className="mt-2">
-                <Button asChild variant="ghost" size="sm" className="w-full">
-                  <Link to={`/deployments/${encodeURIComponent(run.id)}`}>View Run Details</Link>
-                </Button>
-              </div>
-            </div>
-          );
-        })}
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </CardContent>
     </Card>
   );

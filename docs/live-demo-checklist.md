@@ -40,14 +40,13 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
   - `cd infra/pulumi && pulumi config set --stack <stack> mappo:controlPlanePostgresEnabled true`
   - `cd infra/pulumi && pulumi config set --stack <stack> --secret mappo:controlPlanePostgresAdminPassword "<strong-password>"`
   - `make iac-up PULUMI_STACK=<stack>`
-- [ ] Export target inventory from Pulumi output and import into MAPPO:
+- [ ] Export target inventory from Pulumi output (used as webhook simulation input):
   - `make iac-export-targets PULUMI_STACK=<stack>`
   - `make iac-export-db-env PULUMI_STACK=<stack>`
   - `source .data/mappo-db.env`
-  - `make import-targets`
   - `make bootstrap-releases`
 - [ ] Validate event-driven onboarding path (same endpoint used by lifecycle forwarder):
-  - `POST /api/v1/admin/onboarding/events` with one managed-app target payload.
+  - `make marketplace-ingest-events` (or `POST /api/v1/admin/onboarding/events` with one managed-app target payload).
   - `GET /api/v1/admin/onboarding` confirms registration + event status.
 - [ ] Verify managed application resource exists (`Microsoft.Solutions/applications`) and points to a managed resource group.
 - [ ] Verify intended target Container App exists in each managed resource group.
@@ -61,6 +60,7 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
 
 - [ ] Run readiness check:
   - `make azure-preflight`
+  - Default mode is `MAPPO_PREFLIGHT_MODE=marketplace`; set `MAPPO_PREFLIGHT_MODE=inventory` for strict inventory validation.
   - Optional: set `MAPPO_PREFLIGHT_EXPECTED_TARGET_COUNT=10` before preflight when running full 10-target scale rehearsal.
 - [ ] Configure Azure guardrail env vars for demo safety (recommended defaults shown):
   - `MAPPO_AZURE_MAX_RUN_CONCURRENCY=6`
@@ -86,3 +86,13 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
 - [ ] Confirm deployment run shows guardrail warnings (if any) and effective per-subscription batching settings.
 - [ ] Confirm retry/resume behavior on failed or halted runs.
 - [ ] Confirm fleet view reflects latest deployed release per successful target.
+
+## 7) Teardown / Reset (Repeatable Demo Cleanup)
+
+- [ ] Destroy Azure IaC resources:
+  - `make iac-destroy PULUMI_STACK=<stack>`
+- [ ] Remove runtime identity artifacts (role assignments + tenant service principals):
+  - `make azure-cleanup-runtime-identity CLIENT_ID="<app-id>" SUBSCRIPTION_IDS="<sub-a>,<sub-b>" [HOME_SUBSCRIPTION_ID="<sub-home>"]`
+  - Optional full identity teardown (also deletes app registration): add `DELETE_APP_REGISTRATION=true`
+- [ ] Remove local runtime data volumes:
+  - `docker compose -f infra/docker-compose.yml down -v --remove-orphans`

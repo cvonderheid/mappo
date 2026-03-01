@@ -1,12 +1,12 @@
-encryptionsalt: v1:gt2TzarWtBA=:v1:aF5k9ABaxusyksx+:u7y+if0B79Q9Iwp+uCqzYTKWanTfuw==
+encryptionsalt: v1:cdAj3f7t8GM=:v1:358NoIbzXAdT0vD6:+qS6l8iqGVdgMAtcwp8SL0DryWhpRw==
 config:
-  mappo:controlPlanePostgresEnabled: "true"
-  mappo:controlPlanePostgresAdminPassword:
-    secure: v1:taY+p8dg3I2Lknv7:XLCxwElrZjC+gFt8KSP+6nBqq304v6meMN8=
   mappo:targetProfile: empty
   mappo:targets: '[{"id":"target-01","tenantId":"abe468b2-18bb-4dd2-90b9-5b8982337eb7","subscriptionId":"c0d51042-7d0a-41f7-b270-151e4c4ea263","targetGroup":"canary","region":"eastus","tier":"gold","environment":"demo","tags":{"tier":"gold","environment":"demo","ring":"canary"}},{"id":"target-02","tenantId":"5476530d-fba1-4cd5-b2c0-fa118c5ff36e","subscriptionId":"1adaaa48-139a-477b-a8c8-0e6289d6d199","targetGroup":"prod","region":"eastus","tier":"gold","environment":"demo","tags":{"tier":"gold","environment":"demo","ring":"prod"}}]'
-  mappo:publisherPrincipalObjectIds: '{"c0d51042-7d0a-41f7-b270-151e4c4ea263":"f114f7af-c526-469b-8808-93df66d58d74","1adaaa48-139a-477b-a8c8-0e6289d6d199":"248f48ec-44ba-4724-bfb5-a7356b7beee7"}'
+  mappo:publisherPrincipalObjectIds: '{"c0d51042-7d0a-41f7-b270-151e4c4ea263":"61ff8121-2c14-44bc-b378-c24ba2b41bf9","1adaaa48-139a-477b-a8c8-0e6289d6d199":"a070cc1a-f047-4bf0-8728-afc3c9035a78"}'
   mappo:defaultLocation: eastus
   mappo:controlPlaneSubscriptionId: c0d51042-7d0a-41f7-b270-151e4c4ea263
   mappo:controlPlaneLocation: centralus
+  mappo:controlPlanePostgresEnabled: "true"
   mappo:controlPlanePostgresAllowedIpRanges: '["68.226.82.42"]'
+  mappo:controlPlanePostgresAdminPassword:
+    secure: v1:Ca2OBE7LEvZ5tZTK:HYwy6uL7JziNeRO9+ImWEQkB73T/NVRDAOI=

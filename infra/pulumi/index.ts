@@ -463,7 +463,14 @@ function createControlPlanePostgresResources(): ControlPlanePostgresResources | 
       source: "user-override",
       value: "PGCRYPTO",
     },
-    { provider },
+    {
+      provider,
+      dependsOn: [database],
+      customTimeouts: {
+        create: "10m",
+        update: "10m",
+      },
+    },
   );
 
   if (controlPlanePostgresPublicNetworkAccess) {

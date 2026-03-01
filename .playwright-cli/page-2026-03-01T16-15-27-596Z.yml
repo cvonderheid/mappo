@@ -1,0 +1,113 @@
+- main [ref=e3]:
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - paragraph [ref=e7]: Multi-tenant Managed App Deployer
+      - heading "MAPPO Control Plane" [level=3] [ref=e8]
+      - paragraph [ref=e9]: CodeDeploy-style release orchestration for Azure Managed Application fleets.
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - generic [ref=e12]:
+          - paragraph [ref=e13]: Total Targets
+          - paragraph [ref=e14]: "2"
+        - generic [ref=e15]:
+          - paragraph [ref=e16]: Active Runs
+          - paragraph [ref=e17]: "0"
+        - generic [ref=e18]:
+          - paragraph [ref=e19]: Attention Needed
+          - paragraph [ref=e20]: "0"
+      - generic [ref=e21]:
+        - link "Fleet" [ref=e22] [cursor=pointer]:
+          - /url: /fleet
+        - link "Deployments" [ref=e23] [cursor=pointer]:
+          - /url: /deployments
+        - link "Admin" [ref=e24] [cursor=pointer]:
+          - /url: /admin
+  - generic [ref=e25]:
+    - paragraph [ref=e26]: Historical deployment runs and actions.
+    - button "Target Filters + Start Deployment Run" [ref=e27] [cursor=pointer]
+  - generic [ref=e29]:
+    - generic [ref=e30]:
+      - heading "Deployment Runs" [level=3] [ref=e31]
+      - generic [ref=e32]:
+        - generic [ref=e33]: 3/3 runs
+        - button "Clear filters" [ref=e34] [cursor=pointer]
+    - table [ref=e37]:
+      - rowgroup [ref=e38]:
+        - row "Run Release Status Progress Guardrails Created Actions" [ref=e39]:
+          - columnheader "Run" [ref=e40]:
+            - button "Run" [ref=e41] [cursor=pointer]
+          - columnheader "Release" [ref=e42]:
+            - button "Release" [ref=e43] [cursor=pointer]
+          - columnheader "Status" [ref=e44]:
+            - button "Status" [ref=e45] [cursor=pointer]
+          - columnheader "Progress" [ref=e46]
+          - columnheader "Guardrails" [ref=e47]:
+            - button "Guardrails" [ref=e48] [cursor=pointer]
+          - columnheader "Created" [ref=e49]:
+            - button "Created" [ref=e50] [cursor=pointer]
+          - columnheader "Actions" [ref=e51]
+        - row "All statuses" [ref=e52]:
+          - columnheader [ref=e53]:
+            - textbox "Filter run" [ref=e54]
+          - columnheader [ref=e55]:
+            - textbox "Filter release" [ref=e56]
+          - columnheader "All statuses" [ref=e57]:
+            - combobox [ref=e58]:
+              - option "All statuses" [selected]
+              - option "succeeded"
+          - columnheader [ref=e59]
+          - columnheader [ref=e60]
+          - columnheader [ref=e61]
+          - columnheader [ref=e62]
+      - rowgroup [ref=e63]:
+        - 'row "run-092c6b2cd0 rel-2026-02-20 succeeded 1 ok / 0 failed / 1 total 100% succeeded: 1 5 warnings 3/1/2026, 10:50:24 AM Actions for run-092c6b2cd0" [ref=e64]':
+          - cell "run-092c6b2cd0" [ref=e65]:
+            - button "run-092c6b2cd0" [ref=e148] [cursor=pointer]
+          - cell "rel-2026-02-20" [ref=e67]
+          - cell "succeeded" [ref=e68]:
+            - generic [ref=e149]: succeeded
+          - 'cell "1 ok / 0 failed / 1 total 100% succeeded: 1" [ref=e70]':
+            - generic [ref=e150]:
+              - generic [ref=e151]:
+                - generic [ref=e152]: 1 ok / 0 failed / 1 total
+                - generic [ref=e153]: 100%
+              - 'generic "succeeded: 1" [ref=e155]'
+          - cell "5 warnings" [ref=e77]:
+            - generic [ref=e156]: 5 warnings
+          - cell "3/1/2026, 10:50:24 AM" [ref=e79]
+          - cell "Actions for run-092c6b2cd0" [ref=e80]:
+            - button "Actions for run-092c6b2cd0" [ref=e157] [cursor=pointer]: ...
+        - 'row "run-23a00745a8 rel-2026-02-20 succeeded 1 ok / 0 failed / 1 total 100% succeeded: 1 1 warning 3/1/2026, 10:44:31 AM Actions for run-23a00745a8" [ref=e82]':
+          - cell "run-23a00745a8" [ref=e83]:
+            - button "run-23a00745a8" [ref=e158] [cursor=pointer]
+          - cell "rel-2026-02-20" [ref=e85]
+          - cell "succeeded" [ref=e86]:
+            - generic [ref=e159]: succeeded
+          - 'cell "1 ok / 0 failed / 1 total 100% succeeded: 1" [ref=e88]':
+            - generic [ref=e160]:
+              - generic [ref=e161]:
+                - generic [ref=e162]: 1 ok / 0 failed / 1 total
+                - generic [ref=e163]: 100%
+              - 'generic "succeeded: 1" [ref=e165]'
+          - cell "1 warning" [ref=e95]:
+            - generic [ref=e166]: 1 warning
+          - cell "3/1/2026, 10:44:31 AM" [ref=e97]
+          - cell "Actions for run-23a00745a8" [ref=e98]:
+            - button "Actions for run-23a00745a8" [ref=e167] [cursor=pointer]: ...
+        - 'row "run-66ac8859c8 rel-2026-02-20 succeeded 1 ok / 0 failed / 1 total 100% succeeded: 1 5 warnings 3/1/2026, 10:40:37 AM Actions for run-66ac8859c8" [ref=e100]':
+          - cell "run-66ac8859c8" [ref=e101]:
+            - button "run-66ac8859c8" [ref=e168] [cursor=pointer]
+          - cell "rel-2026-02-20" [ref=e103]
+          - cell "succeeded" [ref=e104]:
+            - generic [ref=e169]: succeeded
+          - 'cell "1 ok / 0 failed / 1 total 100% succeeded: 1" [ref=e106]':
+            - generic [ref=e170]:
+              - generic [ref=e171]:
+                - generic [ref=e172]: 1 ok / 0 failed / 1 total
+                - generic [ref=e173]: 100%
+              - 'generic "succeeded: 1" [ref=e175]'
+          - cell "5 warnings" [ref=e113]:
+            - generic [ref=e176]: 5 warnings
+          - cell "3/1/2026, 10:40:37 AM" [ref=e115]
+          - cell "Actions for run-66ac8859c8" [ref=e116]:
+            - button "Actions for run-66ac8859c8" [ref=e177] [cursor=pointer]: ...

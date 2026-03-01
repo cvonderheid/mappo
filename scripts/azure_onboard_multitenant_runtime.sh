@@ -16,7 +16,7 @@ usage: azure_onboard_multitenant_runtime.sh --client-id <app-id> --target-subscr
 Ensures a MAPPO runtime app registration can authenticate and operate across multiple tenants/subscriptions:
 1) sets app sign-in audience to AzureADMultipleOrgs
 2) creates service-principal object in each target tenant
-3) assigns Reader at subscription scope (discovery)
+3) assigns Reader at subscription scope (validation/quota checks)
 4) assigns Contributor on managed target resource groups from inventory (deploy/update)
 
 Options:

@@ -177,3 +177,75 @@ Purpose: capture recurring correction patterns and preventative guardrails.
 - Preventative rule: Keep filtering controls close to the data they affect (column filters in table) and avoid duplicate filter surfaces for the same dataset.
 - Detection signal: users ask to move/merge filters into table columns or report uncertainty about where filtering is applied.
 - Enforcement (test/lint/checklist): for table-heavy views, include an IA check ensuring filters are colocated with table columns unless a clear cross-view dependency exists.
+
+- Date: 2026-03-01
+- Pattern: Marketplace workflow messaging drifted back to inventory/import-first onboarding, conflicting with production intent that webhook events are the source of target registration.
+- Preventative rule: Keep one explicit production onboarding path in commands/docs (event ingestion), and label inventory import as legacy fallback only.
+- Detection signal: quick-start/checklist requires `import-targets` before testing onboarding events.
+- Enforcement (test/lint/checklist): docs + make-help review each slice to ensure `marketplace-ingest-events` is primary and `azure-preflight` defaults to marketplace mode.
+
+- Date: 2026-03-01
+- Pattern: Teardown steps relied on manual/partial cleanup, leaving Entra app/SP artifacts and making demo resets non-repeatable.
+- Preventative rule: Every provisioning workflow must ship with a symmetrical scripted teardown path (IaC resources + identity artifacts + local state).
+- Detection signal: user must ask how to remove lingering identity objects after `pulumi destroy`.
+- Enforcement (test/lint/checklist): include teardown commands in live-demo checklist and add make target for identity cleanup.
+
+- Date: 2026-03-01
+- Pattern: Azure managed Postgres provisioning can fail with transient `ServerIsBusy` when configuration/database operations run concurrently.
+- Preventative rule: Explicitly serialize dependent Postgres control-plane operations (`dependsOn`) and set practical timeouts for configuration resources.
+- Detection signal: Pulumi apply fails on `azure-native:dbforpostgresql:Configuration` with `ServerIsBusy` while server is being created/updated.
+- Enforcement (test/lint/checklist): for managed DB IaC changes, require a build check plus at least one fresh-stack `pulumi up` smoke run.
+
+- Date: 2026-03-01
+- Pattern: Operator actions lacked immediate UI feedback (refresh looked inert, submit allowed invalid payloads, no global toast signaling), reducing trust in control-plane state.
+- Preventative rule: Every mutation or refresh action must have visible pending/success/error feedback and client-side required-field validation.
+- Detection signal: users ask whether an action did anything, or can click submit with incomplete required input.
+- Enforcement (test/lint/checklist): require UX assertions for disabled-state gating and success/error feedback on Admin and Deployment primary actions.
+
+- Date: 2026-03-01
+- Pattern: Target release version was updated on deploy success, but target health state stayed at onboarding default (`registered`), causing fleet status drift from actual runtime outcome.
+- Preventative rule: Any terminal deployment state change that mutates release/check-in must also mutate health state in the same persistence transaction.
+- Detection signal: `last_deployed_release` changes while `health_status` remains `registered` after successful run.
+- Enforcement (test/lint/checklist): add onboarding-to-deploy regression test asserting `registered -> healthy` transition on success.
+
+- Date: 2026-03-01
+- Pattern: Historical deployment cards rendered disabled action buttons for succeeded runs, creating unnecessary vertical clutter and obscuring primary navigation.
+- Preventative rule: For terminal-success states, hide non-actionable controls and keep only the primary next action visible.
+- Detection signal: succeeded run cards show disabled Resume/Retry controls even though no further action can be taken.
+- Enforcement (test/lint/checklist): include a succeeded-run UI assertion in e2e coverage that Resume/Retry controls are absent.
+
+- Date: 2026-03-01
+- Pattern: Clone action initially triggered immediate execution, but operators expected a safe preflight step where configuration is reviewed and edited before launch.
+- Preventative rule: Any "clone/re-run" affordance in deployment tooling should default to pre-populating controls, not auto-submitting, unless explicitly labeled "Run now".
+- Detection signal: user feedback requests "open and pre-populate" rather than immediate run after clicking clone.
+- Enforcement (test/lint/checklist): include an e2e assertion that clone opens controls with expected prefilled values and does not create a run until `Start Run` is clicked.
+
+- Date: 2026-03-01
+- Pattern: Introducing shadcn dropdown primitives without required theme tokens (`--popover`, `--popover-foreground`) caused transparent menus and apparent non-interactive actions.
+- Preventative rule: Any new shadcn primitive using semantic color tokens must be validated against current CSS variable coverage before UI merge.
+- Detection signal: overlay/menu surface appears transparent or unreadable despite rendering and test selectors existing.
+- Enforcement (test/lint/checklist): add a UI token checklist step for newly added primitives and include one manual visual smoke pass for menu/popover surfaces.
+
+- Date: 2026-03-01
+- Pattern: Persisting selection highlight in historical tables can imply active state and confuse operators after navigation.
+- Preventative rule: Use row highlighting only for real in-place selection workflows; avoid sticky highlight for navigation-only click targets.
+- Detection signal: users report confusion that a previously opened row still looks selected.
+- Enforcement (test/lint/checklist): include a UX pass for selection affordances on navigation tables and remove highlight if no multi-select/active-mode behavior exists.
+
+- Date: 2026-03-01
+- Pattern: Fast polling on a list view can invalidate ephemeral UI overlays (dropdown menus), making actions appear broken even when markup/tests pass.
+- Preventative rule: When a transient overlay is open (menu, popover, drawer), suspend or debounce background polling that rerenders the owning list.
+- Detection signal: action menu opens then disappears around the polling interval, and users report clicks not registering.
+- Enforcement (test/lint/checklist): include one e2e check that actions menu remains open for at least one polling interval and action item click succeeds.
+
+- Date: 2026-03-01
+- Pattern: shadcn semantic classes can silently render as transparent when Tailwind theme keys are missing even if CSS variables exist.
+- Preventative rule: For any newly introduced semantic utility classes (for example `bg-popover`, `focus:bg-accent`), verify both Tailwind theme mappings and CSS variables are present.
+- Detection signal: component renders with visible structure but transparent surface/background and low-contrast text.
+- Enforcement (test/lint/checklist): add a UI-theme checklist item requiring theme-key + CSS-variable parity for each semantic class family used by new primitives.
+
+- Date: 2026-03-01
+- Pattern: Admin workflows diverged from the established page IA (inline CRUD plus plain text lists), increasing cognitive switching vs Fleet/Deployments.
+- Preventative rule: Keep control-plane pages consistent: top action CTA + drawer for mutations, tabular snapshot views in tabs for read-heavy data.
+- Detection signal: users ask to move admin mutation forms into drawers and replace inline lists with datatables/tabs.
+- Enforcement (test/lint/checklist): include an IA consistency review item before closing UI slices across Fleet/Deployments/Admin.

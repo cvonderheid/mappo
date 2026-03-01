@@ -1382,3 +1382,305 @@ Pre-deploy database backup + rollback metadata:
 - [ ] Backup result is visible in MAPPO logs/details with artifact or restore-point ID.
 - [ ] If policy is `required`, target deployment does not proceed when backup fails.
 - [ ] Rollback workflow can reference the recorded backup by release + Flyway version.
+
+---
+
+## Scope (Phase 5.41 Slice)
+Marketplace-production parity for registration/preflight:
+- Make Azure preflight default to marketplace event-driven model instead of inventory-first assumptions.
+- Add a scriptable webhook-simulation path that registers targets through onboarding events.
+- Update docs/checklists so primary demo flow no longer depends on direct `import-targets`.
+
+## Plan (Phase 5.41 Slice)
+- [x] Add `MAPPO_PREFLIGHT_MODE` support to `azure_preflight.sh` with `marketplace` default and `inventory` strict mode.
+- [x] Keep inventory checks optional/non-blocking in marketplace mode.
+- [x] Add script + Make target to ingest onboarding events from inventory through `/api/v1/admin/onboarding/events`.
+- [x] Update README + playbooks/checklists to make event-driven registration the default demo path.
+- [x] Run verification and capture outcomes.
+
+## Verification Commands (Phase 5.41 Slice)
+- [x] `bash -n scripts/azure_preflight.sh`
+- [x] `bash -n scripts/marketplace_ingest_events.sh`
+- [x] `make marketplace-ingest-events DRY_RUN=1`
+- [x] `MAPPO_PREFLIGHT_MODE=marketplace MAPPO_TARGET_INVENTORY_PATH=/tmp/does-not-exist MAPPO_AZURE_ENV_FILE=/tmp/does-not-exist ./scripts/azure_preflight.sh || true`
+
+## Results Log (Phase 5.41 Slice)
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/scripts/azure_preflight.sh` to support `MAPPO_PREFLIGHT_MODE` (default `marketplace`) and treat missing inventory as expected for event-driven onboarding.
+- 2026-03-01: Added parser validation for `MAPPO_AZURE_TENANT_BY_SUBSCRIPTION` and explicit warning for unset `MAPPO_MARKETPLACE_INGEST_TOKEN`.
+- 2026-03-01: Added webhook-simulation script `/Users/cvonderheid/workspace/mappo/scripts/marketplace_ingest_events.sh` and Make target `marketplace-ingest-events` to post onboarding events via production API path.
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/README.md`, `/Users/cvonderheid/workspace/mappo/docs/live-demo-checklist.md`, `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`, and `/Users/cvonderheid/workspace/mappo/docs/documentation.md` so event-driven registration is the default marketplace demo workflow.
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/scripts/azure_onboard_multitenant_runtime.sh` wording from discovery-focused to validation/quota-check scope for Reader role.
+
+---
+
+## Scope (Phase 5.42 Slice)
+Repeatable teardown for live demo reset:
+- Add scriptable cleanup for Entra/service-principal artifacts created during multi-tenant runtime onboarding.
+- Ensure teardown includes role-assignment cleanup plus optional app-registration deletion.
+- Document complete reset sequence (IaC + identity + local volumes).
+
+## Plan (Phase 5.42 Slice)
+- [x] Add Azure identity cleanup script for runtime app client ID across target subscriptions.
+- [x] Add Make target wrapper with required arguments and optional app/env deletion flags.
+- [x] Update docs/checklist with repeatable teardown command sequence.
+- [x] Run script syntax and command surface verification.
+
+## Verification Commands (Phase 5.42 Slice)
+- [x] `bash -n scripts/azure_cleanup_runtime_identity.sh`
+- [x] `make help | rg -n "azure-cleanup-runtime-identity|azure-onboard-multitenant-runtime|iac-destroy"`
+
+## Results Log (Phase 5.42 Slice)
+- 2026-03-01: Added `/Users/cvonderheid/workspace/mappo/scripts/azure_cleanup_runtime_identity.sh` to remove runtime SP role assignments in target subscriptions, delete tenant-local SP objects, optionally delete the home-tenant app registration, and optionally remove local Azure env file.
+- 2026-03-01: Added Make target `azure-cleanup-runtime-identity` in `/Users/cvonderheid/workspace/mappo/Makefile`.
+- 2026-03-01: Updated teardown docs in `/Users/cvonderheid/workspace/mappo/README.md`, `/Users/cvonderheid/workspace/mappo/docs/documentation.md`, and `/Users/cvonderheid/workspace/mappo/docs/live-demo-checklist.md`.
+
+---
+
+## Scope (Phase 5.43 Slice)
+IaC resilience for managed Postgres provisioning:
+- Reduce transient Azure `ServerIsBusy` failures during Postgres server/database/configuration creation.
+- Keep stack apply deterministic for repeat demo resets.
+
+## Plan (Phase 5.43 Slice)
+- [x] Sequence Postgres extension configuration after database creation.
+- [x] Add configuration resource timeouts to tolerate Azure control-plane lag.
+- [x] Build-check Pulumi TypeScript program.
+
+## Verification Commands (Phase 5.43 Slice)
+- [x] `cd infra/pulumi && npm run build`
+
+## Results Log (Phase 5.43 Slice)
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/infra/pulumi/index.ts` so `azure-native:dbforpostgresql:Configuration` depends on database creation and includes create/update timeouts; this avoids parallel server operations that caused `ServerIsBusy` errors.
+- 2026-03-01: Verified Pulumi program compiles (`npm run build`).
+
+---
+
+## Scope (Phase 5.44 Slice - UX Follow-ups)
+Operator UX and state-consistency fixes from live demo notes:
+- Improve Admin onboarding visibility and feedback.
+- Add stronger form validation and action-state affordances.
+- Improve global in-app feedback with toasts.
+- Fix fleet health status refresh after successful deployment runs.
+
+## Plan (Phase 5.44 Slice - UX Follow-ups)
+- [ ] Refactor Admin "Recent Onboarding Events" to a dedicated shadcn table view.
+- [ ] Disable "Register from Event" until required fields are valid and complete.
+- [ ] Add explicit success/error feedback for "Refresh Snapshot" so action outcome is visible.
+- [ ] Add shadcn toast provider and use toasts for key user actions (run start, resume/retry, onboarding ingest, refresh, failures).
+- [ ] Fix target health-status transition so a successfully deployed target no longer remains `registered` in Fleet (set healthy/degraded policy and persist consistently).
+- [ ] Add/extend tests for Admin action enablement, snapshot refresh feedback, and fleet health-state update after successful runs.
+
+## Acceptance Criteria (Phase 5.44 Slice - UX Follow-ups)
+- [ ] Admin recent events render in a sortable/filterable table.
+- [ ] Register action cannot be submitted with missing required fields.
+- [ ] Refresh Snapshot always provides visible user feedback.
+- [ ] Toasts appear for both success and failure paths on core operations.
+- [ ] After a successful deployment, Fleet health for that target updates from `registered` to runtime health state.
+
+---
+
+## Scope (Phase 5.45 Slice)
+Fleet health-state correctness after run completion:
+- Ensure target `health_status` transitions from onboarding `registered` state to runtime state on deployment terminal events.
+- Cover regression with onboarding -> deploy -> fleet assertion test.
+
+## Plan (Phase 5.45 Slice)
+- [x] Update terminal stage handling to persist target health updates on success/failure.
+- [x] Add regression test for onboarding-registered target becoming healthy after successful run.
+- [x] Run backend test coverage for run execution path.
+
+## Verification Commands (Phase 5.45 Slice)
+- [x] `cd backend && uv run --package mappo-backend -- pytest -q tests/test_runs.py`
+
+## Results Log (Phase 5.45 Slice)
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/backend/app/modules/control_plane.py` so terminal stage updates set target health (`healthy` on success, `degraded` on failure) and persist `last_check_in_at`.
+- 2026-03-01: Added onboarding regression in `/Users/cvonderheid/workspace/mappo/backend/tests/test_runs.py` verifying a target registered via onboarding transitions from `registered` to `healthy` after a successful run.
+- 2026-03-01: Verified `tests/test_runs.py` passes.
+
+---
+
+## Scope (Phase 5.46 Slice)
+Deployment drawer UX polish:
+- Auto-close Deployment Controls drawer after successful run creation.
+- Keep drawer open when immediate validation/API errors occur.
+
+## Plan (Phase 5.46 Slice)
+- [x] Update start-run success path to close the deployment drawer.
+- [x] Verify frontend unit tests and TypeScript checks pass.
+
+## Verification Commands (Phase 5.46 Slice)
+- [x] `cd frontend && npm run test`
+- [x] `cd frontend && npm run typecheck`
+
+## Results Log (Phase 5.46 Slice)
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/App.tsx` to call `setDeploymentControlsOpen(false)` after successful `createRun` + refresh flow.
+- 2026-03-01: Verified frontend tests and typecheck pass.
+
+---
+
+## Scope (Phase 5.47 Slice)
+Deployment run-card density cleanup:
+- Hide action buttons when they no longer apply for successful runs.
+- Reduce the visual footprint of the run-details action.
+
+## Plan (Phase 5.47 Slice)
+- [x] Update run-card action rendering so successful runs do not render Resume/Retry controls.
+- [x] Make "View Run Details" a compact button instead of full-width.
+- [x] Update e2e expectations for succeeded-run action visibility.
+- [x] Run frontend unit, typecheck, and e2e checks.
+
+## Verification Commands (Phase 5.47 Slice)
+- [x] `cd frontend && npm run test`
+- [x] `cd frontend && npm run typecheck`
+- [x] `cd frontend && npx playwright install chromium && npx playwright test e2e/tests/core-flows.spec.ts --reporter=line`
+
+## Results Log (Phase 5.47 Slice)
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/components/RunPanels.tsx` to hide Resume/Retry controls on succeeded runs and render a compact non-full-width "View Run Details" action.
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/e2e/tests/core-flows.spec.ts` to assert succeeded-run Resume/Retry controls are not rendered.
+- 2026-03-01: Verified frontend test, typecheck, and targeted Playwright core-flow spec pass.
+
+---
+
+## Scope (Phase 5.48 Slice)
+Deployment runs table + clone-prepopulate workflow:
+- Replace tall historical run cards with a compact data table.
+- Move row actions into a contextual `...` menu.
+- Add clone workflow that opens Deployment Controls pre-populated from source run configuration.
+
+## Plan (Phase 5.48 Slice)
+- [x] Convert `RunList` to TanStack/shadcn table layout with compact columns and filters.
+- [x] Add row-level actions menu (`View Run Details`, `Clone Run`, conditional `Resume`/`Retry Failed`).
+- [x] Implement clone handler in App shell to fetch run detail and pre-populate Deployment Controls.
+- [x] Update unit/e2e tests and page objects for table/action-menu interaction model.
+- [x] Run frontend test, typecheck, and Playwright core-flow verification.
+
+## Verification Commands (Phase 5.48 Slice)
+- [x] `cd frontend && npm run test`
+- [x] `cd frontend && npm run typecheck`
+- [x] `cd frontend && npx playwright test e2e/tests/core-flows.spec.ts --reporter=line`
+
+## Results Log (Phase 5.48 Slice)
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/components/RunPanels.tsx` to render deployment history as a compact data table with shadcn dropdown actions and condensed progress/guardrail presentation.
+- 2026-03-01: Added shadcn dropdown primitive in `/Users/cvonderheid/workspace/mappo/frontend/src/components/ui/dropdown-menu.tsx` and dependency `@radix-ui/react-dropdown-menu` in frontend package manifest.
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/App.tsx` to support `Clone Run` prepopulation flow (fetch run detail, set release/strategy/concurrency/stop policy/targets, open Deployment Controls).
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/e2e/pages/deployments.page.ts`, `/Users/cvonderheid/workspace/mappo/frontend/e2e/tests/core-flows.spec.ts`, and `/Users/cvonderheid/workspace/mappo/frontend/src/App.test.tsx` for table/actions behavior and clone regression coverage.
+
+---
+
+## Scope (Phase 5.49 Slice)
+Run actions menu reliability and theming fix:
+- Fix transparent/non-interactive actions dropdown in deployments table.
+- Align dropdown behavior with current MAPPO theme tokens and Radix selection semantics.
+
+## Plan (Phase 5.49 Slice)
+- [x] Add missing popover theme tokens to frontend CSS variables.
+- [x] Harden dropdown content/item styling for visible solid surface and pointer interaction.
+- [x] Switch row-action handlers from click to Radix `onSelect` for consistent menu-item activation.
+- [x] Re-run frontend test, typecheck, and Playwright core flows.
+
+## Verification Commands (Phase 5.49 Slice)
+- [x] `cd frontend && npm run test`
+- [x] `cd frontend && npm run typecheck`
+- [x] `cd frontend && npx playwright test e2e/tests/core-flows.spec.ts --reporter=line`
+
+## Results Log (Phase 5.49 Slice)
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/styles.css` with `--popover` and `--popover-foreground` tokens to match shadcn dropdown expectations.
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/components/ui/dropdown-menu.tsx` to enforce visible layer styling (`z-index`, pointer events, pointer cursor).
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/components/RunPanels.tsx` to use `onSelect` for row actions (`View`, `Clone`, `Resume`, `Retry Failed`).
+- 2026-03-01: Verified frontend unit, typecheck, and Playwright core-flow tests pass.
+
+---
+
+## Scope (Phase 5.50 Slice)
+Deployments table selection clarity:
+- Remove sticky run-row highlight after opening run detail.
+
+## Plan (Phase 5.50 Slice)
+- [x] Remove selected-row styling from deployment runs table.
+- [x] Remove now-unused selected-row prop plumbing.
+- [x] Re-run frontend test and typecheck.
+
+## Verification Commands (Phase 5.50 Slice)
+- [x] `cd frontend && npm run test`
+- [x] `cd frontend && npm run typecheck`
+
+## Results Log (Phase 5.50 Slice)
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/components/RunPanels.tsx` to remove persistent selected-row highlight in runs table.
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/App.tsx` to remove unused selected-run prop path from deployments list rendering.
+- 2026-03-01: Verified frontend tests and typecheck pass.
+
+---
+
+## Scope (Phase 5.51 Slice)
+Stabilize deployments row-actions interaction under auto-refresh:
+- Prevent actions dropdown from collapsing/losing clickability while polling rerenders the runs table.
+
+## Plan (Phase 5.51 Slice)
+- [x] Reproduce issue via Playwright CLI interaction on live UI.
+- [x] Add controlled actions-menu open state in `RunList`.
+- [x] Pause deployments polling while actions menu or deployment drawer is open.
+- [x] Add regression assertion that actions menu stays visible beyond one refresh interval.
+- [x] Re-run frontend unit, typecheck, and Playwright core flows.
+
+## Verification Commands (Phase 5.51 Slice)
+- [x] `cd frontend && npm run test`
+- [x] `cd frontend && npm run typecheck`
+- [x] `cd frontend && npx playwright test e2e/tests/core-flows.spec.ts --reporter=line`
+- [x] `"$PWCLI" run-code "async function (page) { ...actions click probe... }"`
+
+## Results Log (Phase 5.51 Slice)
+- 2026-03-01: Reproduced non-clickable actions flow with Playwright CLI and identified refresh-driven rerender/menu teardown.
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/components/RunPanels.tsx` to control dropdown open state and publish open/close state to parent.
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/App.tsx` polling effect to pause refresh while the deployments drawer or row-actions menu is open on `/deployments`.
+- 2026-03-01: Extended `/Users/cvonderheid/workspace/mappo/frontend/e2e/tests/core-flows.spec.ts` to assert actions menu remains available after refresh interval.
+- 2026-03-01: Verified tests and Playwright flow pass.
+
+---
+
+## Scope (Phase 5.52 Slice)
+Dropdown visual integrity fix for run actions:
+- Resolve transparent actions menu surface in deployments table.
+
+## Plan (Phase 5.52 Slice)
+- [x] Add missing Tailwind semantic color mappings for shadcn popover/accent tokens.
+- [x] Add resilient dropdown style fallback to existing card/muted tokens.
+- [x] Verify computed menu surface style and interaction in live browser automation.
+- [x] Re-run frontend test, typecheck, and core e2e flow.
+
+## Verification Commands (Phase 5.52 Slice)
+- [x] `cd frontend && npm run test`
+- [x] `cd frontend && npm run typecheck`
+- [x] `cd frontend && npx playwright test e2e/tests/core-flows.spec.ts --reporter=line`
+- [x] `"$PWCLI" run-code "async function (page) { ...menu style probe... }"`
+
+## Results Log (Phase 5.52 Slice)
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/tailwind.config.ts` to include `popover` and `accent` color mappings.
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/styles.css` to define `--accent` and `--accent-foreground` tokens.
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/components/ui/dropdown-menu.tsx` to use robust `bg-card`/`text-card-foreground` and `focus:bg-muted` fallback styles.
+- 2026-03-01: Verified in Playwright that menu style resolves to opaque background (`rgb(16, 33, 45)`), `opacity:1`, and `pointer-events:auto`.
+
+---
+
+## Scope (Phase 5.53 Slice)
+Deployment/Admin IA alignment:
+- Rename deployments primary CTA to `New Deployment`.
+- Refactor Admin to match page pattern: top-action drawer for onboarding CRUD and tabbed datatable views for snapshot data.
+
+## Plan (Phase 5.53 Slice)
+- [x] Rename deployments drawer trigger label to `New Deployment` and update affected test copy checks.
+- [x] Add shadcn tabs primitive and dependencies.
+- [x] Rebuild Admin panel with a top drawer (`New Onboarding Event`) for event registration workflow.
+- [x] Convert Admin `Registered Targets` and `Recent Onboarding Events` into tabbed datatables with sortable/filterable columns.
+- [x] Run frontend unit tests, typecheck, and core e2e flow validation.
+
+## Verification Commands (Phase 5.53 Slice)
+- [x] `cd frontend && npm run test`
+- [x] `cd frontend && npm run typecheck`
+- [x] `cd frontend && npx playwright test e2e/tests/core-flows.spec.ts --reporter=line`
+
+## Results Log (Phase 5.53 Slice)
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/App.tsx` deployment drawer trigger text to `New Deployment`.
+- 2026-03-01: Replaced `/Users/cvonderheid/workspace/mappo/frontend/src/components/AdminPanel.tsx` with drawer-driven onboarding form + shadcn tabs containing sortable/filterable datatables for registrations and events.
+- 2026-03-01: Added shadcn tabs primitive in `/Users/cvonderheid/workspace/mappo/frontend/src/components/ui/tabs.tsx` and Radix dependency updates in frontend package manifests.
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/App.test.tsx` and `/Users/cvonderheid/workspace/mappo/frontend/src/lib/types.ts` for label/type alignment.
+- 2026-03-01: Verified frontend unit test, typecheck, and Playwright core flows all pass.

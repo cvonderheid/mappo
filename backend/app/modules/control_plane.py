@@ -719,13 +719,18 @@ class ControlPlaneStore:
             run.updated_at = now
             if terminal_state is not None:
                 record.status = terminal_state
+                target = self._targets.get(target_id)
                 if terminal_state == TargetStage.SUCCEEDED:
                     release = self._releases.get(run.release_id)
-                    target = self._targets.get(target_id)
                     if release is not None and target is not None:
                         target.last_deployed_release = release.template_spec_version
+                        target.health_status = "healthy"
                         target.last_check_in_at = now
                         self._save_target_locked(target)
+                elif terminal_state == TargetStage.FAILED and target is not None:
+                    target.health_status = "degraded"
+                    target.last_check_in_at = now
+                    self._save_target_locked(target)
             elif stage in IN_PROGRESS_TARGET_STATES:
                 record.status = stage
             self._save_run_locked(run)

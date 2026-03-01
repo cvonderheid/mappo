@@ -2,12 +2,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-INVENTORY_PATH="${ROOT_DIR}/.data/mappo-target-inventory.json"
+INVENTORY_PATH="${MAPPO_TARGET_INVENTORY_PATH:-${ROOT_DIR}/.data/mappo-target-inventory.json}"
 ENV_FILE="${MAPPO_AZURE_ENV_FILE:-${ROOT_DIR}/.data/mappo-azure.env}"
 EXPECTED_TARGET_COUNT="${MAPPO_PREFLIGHT_EXPECTED_TARGET_COUNT:-2}"
+PREFLIGHT_MODE="${MAPPO_PREFLIGHT_MODE:-marketplace}"
 
 fail_count=0
 warn_count=0
+strict_inventory_checks=false
 
 pass() {
   echo "PASS: $1"
@@ -23,7 +25,30 @@ fail() {
   fail_count=$((fail_count + 1))
 }
 
-echo "azure-preflight: checking production-like multi-tenant readiness"
+inventory_issue() {
+  local message="$1"
+  if [[ "${strict_inventory_checks}" == "true" ]]; then
+    fail "${message}"
+  else
+    warn "${message}"
+  fi
+}
+
+case "${PREFLIGHT_MODE}" in
+  marketplace)
+    strict_inventory_checks=false
+    ;;
+  inventory)
+    strict_inventory_checks=true
+    ;;
+  *)
+    warn "Unknown MAPPO_PREFLIGHT_MODE='${PREFLIGHT_MODE}', defaulting to marketplace."
+    PREFLIGHT_MODE="marketplace"
+    strict_inventory_checks=false
+    ;;
+esac
+
+echo "azure-preflight: checking production-like multi-tenant readiness (mode=${PREFLIGHT_MODE})"
 
 if ! [[ "${EXPECTED_TARGET_COUNT}" =~ ^[0-9]+$ ]] || [[ "${EXPECTED_TARGET_COUNT}" -lt 1 ]]; then
   warn "Invalid MAPPO_PREFLIGHT_EXPECTED_TARGET_COUNT='${EXPECTED_TARGET_COUNT}'; defaulting to 2."
@@ -95,6 +120,50 @@ else
   fail "Missing MAPPO_AZURE_TENANT_ID / MAPPO_AZURE_CLIENT_ID / MAPPO_AZURE_CLIENT_SECRET."
 fi
 
+tenant_map_parse_error="$(
+  python3 - <<'PY' "${MAPPO_AZURE_TENANT_BY_SUBSCRIPTION:-}"
+import json
+import sys
+
+raw = (sys.argv[1] or "").strip()
+if raw == "":
+    print("")
+    raise SystemExit(0)
+
+try:
+    if raw.startswith("{"):
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            print("JSON map must be an object")
+            raise SystemExit(0)
+    else:
+        chunks = [chunk.strip() for chunk in raw.replace(";", ",").split(",")]
+        chunks = [chunk for chunk in chunks if chunk]
+        for chunk in chunks:
+            if "=" not in chunk and ":" not in chunk:
+                print("entries must use subscription=tenant format")
+                raise SystemExit(0)
+except Exception as error:
+    print(str(error))
+    raise SystemExit(0)
+
+print("")
+PY
+)"
+if [[ -n "${tenant_map_parse_error}" ]]; then
+  fail "MAPPO_AZURE_TENANT_BY_SUBSCRIPTION parse error: ${tenant_map_parse_error}"
+elif [[ -n "${MAPPO_AZURE_TENANT_BY_SUBSCRIPTION:-}" ]]; then
+  pass "MAPPO_AZURE_TENANT_BY_SUBSCRIPTION format looks valid."
+elif [[ "${tenant_count}" -ge 2 ]]; then
+  warn "MAPPO_AZURE_TENANT_BY_SUBSCRIPTION not set; cross-tenant runtime may fail for non-home subscriptions."
+fi
+
+if [[ -n "${MAPPO_MARKETPLACE_INGEST_TOKEN:-}" ]]; then
+  pass "MAPPO_MARKETPLACE_INGEST_TOKEN is set (onboarding endpoint can be token-gated)."
+else
+  warn "MAPPO_MARKETPLACE_INGEST_TOKEN is not set; onboarding endpoint is currently unauthenticated."
+fi
+
 if [[ -f "${INVENTORY_PATH}" ]]; then
   pass "Target inventory file exists: ${INVENTORY_PATH}"
   inventory_stats="$(python3 - <<'PY' "${INVENTORY_PATH}"
@@ -157,7 +226,7 @@ PY
   if [[ "${inventory_tenant_count}" -ge 2 ]]; then
     pass "Inventory references ${inventory_tenant_count} tenant IDs."
   else
-    fail "Inventory references ${inventory_tenant_count} tenant ID. Multi-tenant managed app demo requires 2+ tenant IDs."
+    inventory_issue "Inventory references ${inventory_tenant_count} tenant ID. Multi-tenant managed app demo requires 2+ tenant IDs."
   fi
 
   if [[ "${inventory_subscription_count}" -ge 2 ]]; then
@@ -169,7 +238,7 @@ PY
   if [[ "${invalid_target_resource_ids}" -eq 0 ]]; then
     pass "All inventory managed_app_id values are valid Container App resource IDs."
   else
-    fail "Inventory contains ${invalid_target_resource_ids} invalid managed_app_id value(s); expected /subscriptions/.../resourceGroups/.../providers/Microsoft.App/containerApps/..."
+    inventory_issue "Inventory contains ${invalid_target_resource_ids} invalid managed_app_id value(s); expected /subscriptions/.../resourceGroups/.../providers/Microsoft.App/containerApps/..."
   fi
 
   if [[ "${managed_meta_count}" -eq "${target_count}" && "${target_count}" -gt 0 ]]; then
@@ -276,11 +345,15 @@ PY
     if [[ "${unresolved_tenant_missing_count}" -eq 0 ]]; then
       pass "MAPPO_AZURE_TENANT_BY_SUBSCRIPTION covers all unresolved subscription tenant mappings."
     else
-      fail "Missing tenant mapping for ${unresolved_tenant_missing_count} subscription(s): ${unresolved_tenant_missing_sample:-${unresolved_tenant_sample}}"
+      inventory_issue "Missing tenant mapping for ${unresolved_tenant_missing_count} subscription(s): ${unresolved_tenant_missing_sample:-${unresolved_tenant_sample}}"
     fi
   fi
 else
-  fail "Missing target inventory file at ${INVENTORY_PATH}. Run 'make iac-export-targets' and 'make import-targets'."
+  if [[ "${strict_inventory_checks}" == "true" ]]; then
+    fail "Missing target inventory file at ${INVENTORY_PATH}. Run 'make iac-export-targets'."
+  else
+    pass "No inventory file found at ${INVENTORY_PATH}; marketplace mode expects webhook/event-driven target registration."
+  fi
 fi
 
 echo "azure-preflight: ${fail_count} failure(s), ${warn_count} warning(s)"

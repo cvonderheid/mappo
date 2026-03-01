@@ -12,8 +12,8 @@ export PULUMI_CONFIG_PASSPHRASE
 .PHONY: help install install-deps install-backend install-frontend \
 	dev dev-up dev-down dev-logs dev-backend dev-frontend build build-backend build-frontend \
 	lint lint-backend lint-frontend typecheck typecheck-backend typecheck-frontend \
-	test test-backend test-frontend test-frontend-e2e import-targets retention-prune \
-	azure-auth-bootstrap azure-tenant-map azure-onboard-multitenant-runtime dev-backend-azure azure-preflight bootstrap-releases \
+	test test-backend test-frontend test-frontend-e2e import-targets marketplace-ingest-events retention-prune \
+	azure-auth-bootstrap azure-tenant-map azure-onboard-multitenant-runtime azure-cleanup-runtime-identity dev-backend-azure azure-preflight bootstrap-releases \
 	iac-configure-marketplace-demo \
 	partner-center-token partner-center-api \
 	db-migrate db-validate db-info db-clean db-reset models-gen openapi client-gen \
@@ -93,6 +93,16 @@ test-frontend-e2e: ## Run frontend Playwright click-through tests
 import-targets: ## Import fleet targets from .data/mappo-target-inventory.json
 	uv --directory backend run --package mappo-backend -- python scripts/import_targets.py --file $(abspath .data/mappo-target-inventory.json) --clear-runs
 
+marketplace-ingest-events: ## Register targets via onboarding events (webhook simulation from inventory)
+	./scripts/marketplace_ingest_events.sh \
+		$(if $(INVENTORY_FILE),--inventory-file "$(INVENTORY_FILE)",) \
+		$(if $(API_BASE_URL),--api-base-url "$(API_BASE_URL)",) \
+		$(if $(EVENT_TYPE),--event-type "$(EVENT_TYPE)",) \
+		$(if $(INGEST_TOKEN),--ingest-token "$(INGEST_TOKEN)",) \
+		$(if $(EVENT_ID_PREFIX),--event-id-prefix "$(EVENT_ID_PREFIX)",) \
+		$(if $(SOURCE_LABEL),--source-label "$(SOURCE_LABEL)",) \
+		$(if $(DRY_RUN),--dry-run,)
+
 bootstrap-releases: ## Bootstrap default release records (set FORCE=1 to replace existing)
 	uv --directory backend run --package mappo-backend -- python scripts/bootstrap_releases.py $(if $(FORCE),--force,)
 
@@ -119,6 +129,19 @@ azure-onboard-multitenant-runtime: ## Onboard runtime app across target subscrip
 		$(if $(HOME_SUBSCRIPTION_ID),--home-subscription-id "$(HOME_SUBSCRIPTION_ID)",) \
 		$(if $(INVENTORY_FILE),--inventory-file "$(INVENTORY_FILE)",)
 
+azure-cleanup-runtime-identity: ## Remove runtime SP role assignments + tenant SPs (optional app registration delete)
+	@if [ -z "$(CLIENT_ID)" ] || [ -z "$(SUBSCRIPTION_IDS)" ]; then \
+		echo "usage: make azure-cleanup-runtime-identity CLIENT_ID=<app-id> SUBSCRIPTION_IDS=<sub1,sub2,...> [HOME_SUBSCRIPTION_ID=<sub-id>] [DELETE_APP_REGISTRATION=true] [DELETE_ENV_FILE=.data/mappo-azure.env]"; \
+		exit 2; \
+	fi
+	./scripts/azure_cleanup_runtime_identity.sh \
+		--client-id "$(CLIENT_ID)" \
+		--target-subscriptions "$(SUBSCRIPTION_IDS)" \
+		$(if $(HOME_SUBSCRIPTION_ID),--home-subscription-id "$(HOME_SUBSCRIPTION_ID)",) \
+		$(if $(DELETE_APP_REGISTRATION),--delete-app-registration "$(DELETE_APP_REGISTRATION)",) \
+		$(if $(DELETE_ENV_FILE),--delete-env-file "$(DELETE_ENV_FILE)",) \
+		--yes
+
 partner-center-token: ## Acquire Partner Center access token into .data/mappo-partnercenter.env
 	./scripts/partner_center_get_token.sh --env-file .data/mappo-partnercenter.env
 
@@ -132,18 +155,19 @@ partner-center-api: ## Call Partner Center API (requires URL=<https://...>)
 		--url "$(URL)" \
 		$(if $(BODY_FILE),--body-file "$(BODY_FILE)",)
 
-azure-preflight: ## Validate Azure environment readiness for production-like multi-tenant demo
+azure-preflight: ## Validate Azure readiness (default MAPPO_PREFLIGHT_MODE=marketplace)
 	./scripts/azure_preflight.sh
 
 iac-configure-marketplace-demo: ## Configure Pulumi stack for 2-target cross-tenant marketplace demo
 	@if [ -z "$(PROVIDER_SUBSCRIPTION_ID)" ] || [ -z "$(CUSTOMER_SUBSCRIPTION_ID)" ]; then \
-		echo "usage: make iac-configure-marketplace-demo PROVIDER_SUBSCRIPTION_ID=<id> CUSTOMER_SUBSCRIPTION_ID=<id> [PULUMI_STACK=demo] [RUNTIME_CLIENT_ID=<app-id>] [MANAGED_APP_LOCATION=eastus] [CONTROL_PLANE_SUBSCRIPTION_ID=<id>] [CONTROL_PLANE_LOCATION=centralus] [ENABLE_MANAGED_POSTGRES=true] [ALLOW_CURRENT_IP=true] [POSTGRES_ALLOWED_IP_RANGES=<ip,ip-ip>]"; \
+		echo "usage: make iac-configure-marketplace-demo PROVIDER_SUBSCRIPTION_ID=<id> CUSTOMER_SUBSCRIPTION_ID=<id> [PULUMI_STACK=demo] [HOME_SUBSCRIPTION_ID=<id>] [RUNTIME_CLIENT_ID=<app-id>] [MANAGED_APP_LOCATION=eastus] [CONTROL_PLANE_SUBSCRIPTION_ID=<id>] [CONTROL_PLANE_LOCATION=centralus] [ENABLE_MANAGED_POSTGRES=true] [ALLOW_CURRENT_IP=true] [POSTGRES_ALLOWED_IP_RANGES=<ip,ip-ip>]"; \
 		exit 2; \
 	fi
 	./scripts/iac_configure_marketplace_demo.sh \
 		--stack "$(PULUMI_STACK)" \
 		--provider-subscription-id "$(PROVIDER_SUBSCRIPTION_ID)" \
 		--customer-subscription-id "$(CUSTOMER_SUBSCRIPTION_ID)" \
+		$(if $(HOME_SUBSCRIPTION_ID),--home-subscription-id "$(HOME_SUBSCRIPTION_ID)",) \
 		$(if $(RUNTIME_CLIENT_ID),--runtime-client-id "$(RUNTIME_CLIENT_ID)",) \
 		$(if $(MANAGED_APP_LOCATION),--managed-app-location "$(MANAGED_APP_LOCATION)",) \
 		$(if $(CONTROL_PLANE_SUBSCRIPTION_ID),--control-plane-subscription-id "$(CONTROL_PLANE_SUBSCRIPTION_ID)",) \

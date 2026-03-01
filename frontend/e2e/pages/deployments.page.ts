@@ -19,20 +19,36 @@ export class DeploymentsPage {
     return this.page.locator('[data-testid^="specific-target-row-"]');
   }
 
+  get deploymentControlsDrawer(): Locator {
+    return this.page.getByRole("heading", { name: "Deployment Controls" });
+  }
+
   specificTargetCheckbox(targetId: string): Locator {
     return this.page.locator(`[data-testid="specific-target-checkbox-${targetId}"]`);
   }
 
-  runCard(runId: string): Locator {
-    return this.page.locator(`[data-testid="run-card-${runId}"]`);
+  runRow(runId: string): Locator {
+    return this.page.locator(`[data-testid="run-row-${runId}"]`);
   }
 
-  resumeButton(runId: string): Locator {
-    return this.page.locator(`[data-testid="resume-${runId}"]`);
+  runActionsTrigger(runId: string): Locator {
+    return this.page.locator(`[data-testid="run-actions-trigger-${runId}"]`);
   }
 
-  retryFailedButton(runId: string): Locator {
-    return this.page.locator(`[data-testid="retry-failed-${runId}"]`);
+  runActionView(runId: string): Locator {
+    return this.page.locator(`[data-testid="run-action-view-${runId}"]`);
+  }
+
+  runActionClone(runId: string): Locator {
+    return this.page.locator(`[data-testid="run-action-clone-${runId}"]`);
+  }
+
+  runActionResume(runId: string): Locator {
+    return this.page.locator(`[data-testid="run-action-resume-${runId}"]`);
+  }
+
+  runActionRetryFailed(runId: string): Locator {
+    return this.page.locator(`[data-testid="run-action-retry-failed-${runId}"]`);
   }
 
   selectRunButton(runId: string): Locator {
@@ -68,5 +84,9 @@ export class DeploymentsPage {
 
   async openRun(runId: string): Promise<void> {
     await this.selectRunButton(runId).click();
+  }
+
+  async openRunActions(runId: string): Promise<void> {
+    await this.runActionsTrigger(runId).click();
   }
 }

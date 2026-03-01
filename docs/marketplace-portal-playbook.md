@@ -9,11 +9,11 @@ This playbook defines what is automated versus manual for a marketplace-accurate
 - Managed app instances (`Microsoft.Solutions/applications`)
 - Managed resource groups and target ACA workload shape (via managed app template)
 - Shared ACA environments used by target apps
-- Target inventory export (`mappoTargetInventory`) for MAPPO import
+- Target inventory export (`mappoTargetInventory`) as source input for webhook simulation
 
 ### Automated with CLI/API scripts
 - Azure auth bootstrap (`make azure-auth-bootstrap`)
-- Pulumi inventory export + import (`make iac-export-targets`, `make import-targets`)
+- Pulumi inventory export + webhook simulation (`make iac-export-targets`, `make marketplace-ingest-events`)
 - Partner Center token acquisition (`make partner-center-token`)
 - Partner Center API invocation wrapper (`make partner-center-api URL=...`)
 - MAPPO onboarding ingest (`POST /api/v1/admin/onboarding/events`)
@@ -35,7 +35,7 @@ This playbook defines what is automated versus manual for a marketplace-accurate
   - `make iac-up PULUMI_STACK=<stack>`
 - Export/import targets:
   - `make iac-export-targets PULUMI_STACK=<stack>`
-  - `make import-targets`
+  - `make marketplace-ingest-events`
   - `make bootstrap-releases`
 
 ## 2) Start MAPPO runtime

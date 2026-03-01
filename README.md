@@ -37,12 +37,12 @@ cd infra/pulumi && pulumi config set --stack <stack> --secret mappo:controlPlane
 make iac-up PULUMI_STACK=<stack>
 make iac-export-targets PULUMI_STACK=<stack>
 make iac-export-db-env PULUMI_STACK=<stack>
-make import-targets
 make bootstrap-releases
 # Use FORCE=1 to replace existing releases with current defaults.
 make bootstrap-releases FORCE=1
 ```
    - The stack configurator auto-resolves tenant-local principal object IDs and adds your current public IP to Postgres firewall rules for local demo connectivity (can be overridden).
+   - `make iac-export-targets` exports source data for webhook simulation; MAPPO registration should come from onboarding events (not direct import) for production parity.
 
    - Load managed DB env output when running backend locally:
 ```bash
@@ -52,14 +52,23 @@ source .data/mappo-db.env
 ```bash
 make azure-preflight
 ```
-   - `azure-preflight` expects at least `2` targets by default (`MAPPO_PREFLIGHT_EXPECTED_TARGET_COUNT` to override, e.g. `10`).
+   - Default mode is `MAPPO_PREFLIGHT_MODE=marketplace` (inventory optional, webhook registration model).
+   - Use `MAPPO_PREFLIGHT_MODE=inventory` for strict inventory validation workflows.
+   - `MAPPO_PREFLIGHT_EXPECTED_TARGET_COUNT` defaults to `2` when inventory is present.
 6. Start backend (Azure mode) and frontend:
 ```bash
 make dev-backend-azure
 make dev-frontend
 ```
+7. Register targets through onboarding events (production-like path):
+```bash
+make marketplace-ingest-events
+```
+   - This posts events to `POST /api/v1/admin/onboarding/events` from the exported inventory (simulating a marketplace lifecycle forwarder).
+   - Optional: `make marketplace-ingest-events DRY_RUN=1` to print payloads without sending.
+
    - If you use `docker compose -f infra/docker-compose.yml up`, backend auto-sources `/workspace/.data/mappo-azure.env` and `/workspace/.data/mappo-db.env` when present.
-5. Open:
+8. Open:
 - API docs: `http://localhost:8010/api/v1/docs`
 - UI: `http://localhost:5174`
 
@@ -73,10 +82,14 @@ make dev-frontend
 - `make iac-export-db-env [PULUMI_STACK=<name>]`
 - `make iac-destroy [PULUMI_STACK=<name>]`
 - `make azure-tenant-map SUBSCRIPTION_IDS="<sub1>,<sub2>"`
-- `make import-targets`
+- `make azure-cleanup-runtime-identity CLIENT_ID="<app-id>" SUBSCRIPTION_IDS="<sub1>,<sub2>" [DELETE_APP_REGISTRATION=true]`
+- `make marketplace-ingest-events [INVENTORY_FILE=.data/mappo-target-inventory.json] [API_BASE_URL=http://localhost:8010]`
 - `make bootstrap-releases`
 - `make dev-backend-azure`
 - `make dev-frontend`
+
+Legacy fallback:
+- `make import-targets` (direct DB import, not production-like marketplace onboarding)
 
 ## Marketplace Onboarding API
 - `GET /api/v1/admin/onboarding`: returns registration snapshot + recent onboarding events.

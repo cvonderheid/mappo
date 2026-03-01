@@ -46,7 +46,7 @@ test("creates a run using selected release and specific targets within target-gr
   expect(request.target_ids).toEqual(["target-01", "target-02"]);
   expect(request.target_tags).toEqual({ ring: "canary" });
 
-  await expect(deployments.runCard("run-e2e-1")).toBeVisible();
+  await expect(deployments.runRow("run-e2e-1")).toBeVisible();
 });
 
 test("enforces resume and retry button applicability by run status", async ({ page }) => {
@@ -59,15 +59,20 @@ test("enforces resume and retry button applicability by run status", async ({ pa
   await app.goto();
   await app.openDeployments();
 
-  await expect(deployments.runCard("run-succeeded")).toBeVisible();
-  await expect(deployments.resumeButton("run-succeeded")).toBeDisabled();
-  await expect(deployments.retryFailedButton("run-succeeded")).toBeDisabled();
+  await expect(deployments.runRow("run-succeeded")).toBeVisible();
+  await deployments.openRunActions("run-succeeded");
+  await page.waitForTimeout(1600);
+  await expect(deployments.runActionClone("run-succeeded")).toBeVisible();
+  await expect(deployments.runActionResume("run-succeeded")).toHaveCount(0);
+  await expect(deployments.runActionRetryFailed("run-succeeded")).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await expect(page.getByTestId("run-progress-run-succeeded-segment-succeeded")).toBeVisible();
   await expect(page.getByTestId("run-progress-run-succeeded-segment-failed")).toHaveCount(0);
 
-  await expect(deployments.runCard("run-failed")).toBeVisible();
-  await expect(deployments.resumeButton("run-failed")).toBeEnabled();
-  await expect(deployments.retryFailedButton("run-failed")).toBeEnabled();
+  await expect(deployments.runRow("run-failed")).toBeVisible();
+  await deployments.openRunActions("run-failed");
+  await expect(deployments.runActionResume("run-failed")).toBeVisible();
+  await expect(deployments.runActionRetryFailed("run-failed")).toBeVisible();
   await expect(page.getByTestId("run-progress-run-failed-segment-failed")).toBeVisible();
 });
 
@@ -88,4 +93,24 @@ test("shows structured Azure stage errors in run detail", async ({ page }) => {
 
   await page.getByText("Azure error details").first().click();
   await expect(page.getByText(/MANIFEST_UNKNOWN/)).toBeVisible();
+});
+
+test("clone run opens controls and pre-populates release and targets", async ({ page }) => {
+  const state = createMockApiState();
+  await installMockApi(page, state);
+
+  const app = new AppShellPage(page);
+  const deployments = new DeploymentsPage(page);
+
+  await app.goto();
+  await app.openDeployments();
+
+  await deployments.openRunActions("run-succeeded");
+  await deployments.runActionClone("run-succeeded").click();
+
+  await expect(deployments.deploymentControlsDrawer).toBeVisible();
+  await expect(deployments.releaseVersionDropdown).toHaveValue("rel-2026-02-25");
+  await expect(deployments.targetGroupFilterDropdown).toHaveValue("canary");
+  await expect(deployments.specificTargetCheckbox("target-01")).toBeChecked();
+  await expect(deployments.specificTargetCheckbox("target-02")).toBeChecked();
 });

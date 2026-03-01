@@ -129,16 +129,16 @@ describe("App", () => {
       expect(screen.getByRole("link", { name: /Admin/i })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("link", { name: /Deployments/i }));
+    fireEvent.click(screen.getAllByRole("link", { name: /Deployments/i })[0]);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Target Filters \+ Start Deployment Run/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /New Deployment/i })).toBeInTheDocument();
       expect(screen.getByText("run-1")).toBeInTheDocument();
-      expect(screen.getByTestId("resume-run-1")).toBeDisabled();
-      expect(screen.getByTestId("retry-failed-run-1")).toBeDisabled();
+      expect(screen.getByTestId("run-row-run-1")).toBeInTheDocument();
+      expect(screen.getByTestId("run-actions-trigger-run-1")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Target Filters \+ Start Deployment Run/i }));
+    fireEvent.click(screen.getByRole("button", { name: /New Deployment/i }));
 
     await waitFor(() => {
       expect(screen.getByLabelText("Release version")).toBeInTheDocument();
@@ -156,7 +156,8 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Admin" })).toBeInTheDocument();
-      expect(screen.getByText(/marketplace onboarding events/i)).toBeInTheDocument();
+      expect(screen.getByText(/Recent Onboarding Events/i)).toBeInTheDocument();
     });
   });
+
 });

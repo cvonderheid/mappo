@@ -8,6 +8,7 @@ STACK="${PULUMI_STACK:-demo}"
 PROVIDER_SUBSCRIPTION_ID=""
 CUSTOMER_SUBSCRIPTION_ID=""
 CONTROL_PLANE_SUBSCRIPTION_ID=""
+HOME_SUBSCRIPTION_ID="${MAPPO_HOME_SUBSCRIPTION_ID:-}"
 RUNTIME_CLIENT_ID="${MAPPO_AZURE_CLIENT_ID:-}"
 MANAGED_APP_LOCATION="${MAPPO_MANAGED_APP_LOCATION:-eastus}"
 CONTROL_PLANE_LOCATION="${MAPPO_CONTROL_PLANE_LOCATION:-centralus}"
@@ -29,6 +30,7 @@ Options:
   --stack <name>                      Pulumi stack name (default: \$PULUMI_STACK or demo)
   --provider-subscription-id <id>     Provider subscription ID (target-01)
   --customer-subscription-id <id>     Customer subscription ID (target-02)
+  --home-subscription-id <id>         Home subscription for runtime app registration (default: provider)
   --runtime-client-id <app-id>        Runtime app/client ID (default: \$MAPPO_AZURE_CLIENT_ID)
   --managed-app-location <region>     Managed app target region (default: eastus)
   --control-plane-subscription-id <id> Subscription for managed Postgres (default: provider subscription)
@@ -56,6 +58,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --customer-subscription-id)
       CUSTOMER_SUBSCRIPTION_ID="${2:-}"
+      shift 2
+      ;;
+    --home-subscription-id)
+      HOME_SUBSCRIPTION_ID="${2:-}"
       shift 2
       ;;
     --runtime-client-id)
@@ -110,6 +116,9 @@ fi
 if [[ -z "${CONTROL_PLANE_SUBSCRIPTION_ID}" ]]; then
   CONTROL_PLANE_SUBSCRIPTION_ID="${PROVIDER_SUBSCRIPTION_ID}"
 fi
+if [[ -z "${HOME_SUBSCRIPTION_ID}" ]]; then
+  HOME_SUBSCRIPTION_ID="${PROVIDER_SUBSCRIPTION_ID}"
+fi
 
 if ! command -v az >/dev/null 2>&1; then
   echo "iac-configure-marketplace-demo: Azure CLI is required." >&2
@@ -136,11 +145,32 @@ trap cleanup EXIT
 
 resolve_sp_object_id() {
   local subscription_id="$1"
+  local attempts=8
+  local delay_seconds=4
+  local sp_object_id=""
+
   az account set --subscription "${subscription_id}" >/dev/null
-  if ! az ad sp show --id "${RUNTIME_CLIENT_ID}" --query id -o tsv >/dev/null 2>&1; then
-    az ad sp create --id "${RUNTIME_CLIENT_ID}" >/dev/null
+  sp_object_id="$(az ad sp show --id "${RUNTIME_CLIENT_ID}" --query id -o tsv 2>/dev/null || true)"
+  if [[ -n "${sp_object_id}" ]]; then
+    echo "${sp_object_id}"
+    return 0
   fi
-  az ad sp show --id "${RUNTIME_CLIENT_ID}" --query id -o tsv
+
+  local attempt=1
+  while [[ "${attempt}" -le "${attempts}" ]]; do
+    az ad sp create --id "${RUNTIME_CLIENT_ID}" >/dev/null 2>&1 || true
+    sp_object_id="$(az ad sp show --id "${RUNTIME_CLIENT_ID}" --query id -o tsv 2>/dev/null || true)"
+    if [[ -n "${sp_object_id}" ]]; then
+      echo "${sp_object_id}"
+      return 0
+    fi
+    sleep "${delay_seconds}"
+    attempt=$((attempt + 1))
+  done
+
+  echo "iac-configure-marketplace-demo: failed to create/resolve service principal for clientId ${RUNTIME_CLIENT_ID} in subscription ${subscription_id}." >&2
+  echo "Ensure runtime app registration is multi-tenant (AzureADMultipleOrgs) and replicated, then retry." >&2
+  exit 1
 }
 
 resolve_tenant_id() {
@@ -148,6 +178,19 @@ resolve_tenant_id() {
   az account set --subscription "${subscription_id}" >/dev/null
   az account show --query tenantId -o tsv
 }
+
+ensure_runtime_app_is_multitenant() {
+  az account set --subscription "${HOME_SUBSCRIPTION_ID}" >/dev/null
+  if ! az ad app show --id "${RUNTIME_CLIENT_ID}" --query id -o tsv >/dev/null 2>&1; then
+    echo "iac-configure-marketplace-demo: runtime app ${RUNTIME_CLIENT_ID} not found in home tenant/subscription context (${HOME_SUBSCRIPTION_ID})." >&2
+    echo "Use the clientId from make azure-auth-bootstrap, or pass --home-subscription-id for the app's tenant." >&2
+    exit 1
+  fi
+  az ad app update --id "${RUNTIME_CLIENT_ID}" --sign-in-audience AzureADMultipleOrgs >/dev/null
+}
+
+echo "iac-configure-marketplace-demo: ensuring runtime app is multi-tenant in home subscription ${HOME_SUBSCRIPTION_ID}"
+ensure_runtime_app_is_multitenant
 
 echo "iac-configure-marketplace-demo: resolving tenant/principal for ${PROVIDER_SUBSCRIPTION_ID}"
 provider_tenant_id="$(resolve_tenant_id "${PROVIDER_SUBSCRIPTION_ID}")"
@@ -258,6 +301,7 @@ echo "iac-configure-marketplace-demo: stack ${STACK} configured"
 echo "  provider subscription: ${PROVIDER_SUBSCRIPTION_ID} (tenant ${provider_tenant_id})"
 echo "  customer subscription: ${CUSTOMER_SUBSCRIPTION_ID} (tenant ${customer_tenant_id})"
 echo "  managed app location: ${MANAGED_APP_LOCATION}"
+echo "  runtime app home subscription: ${HOME_SUBSCRIPTION_ID}"
 echo "  control plane subscription: ${CONTROL_PLANE_SUBSCRIPTION_ID}"
 echo "  control plane postgres location: ${CONTROL_PLANE_LOCATION}"
 echo "  managed postgres enabled: ${ENABLE_MANAGED_POSTGRES}"

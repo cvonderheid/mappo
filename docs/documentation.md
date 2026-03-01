@@ -35,11 +35,12 @@ make iac-up
 make iac-export-targets
 make azure-tenant-map SUBSCRIPTION_IDS="<sub1>,<sub2>"
 make azure-onboard-multitenant-runtime CLIENT_ID="$MAPPO_AZURE_CLIENT_ID" SUBSCRIPTION_IDS="<sub1>,<sub2>"
-make import-targets
+make azure-cleanup-runtime-identity CLIENT_ID="$MAPPO_AZURE_CLIENT_ID" SUBSCRIPTION_IDS="<sub1>,<sub2>" DELETE_APP_REGISTRATION=true
 make bootstrap-releases
 make azure-preflight
 make dev-backend-azure
 make dev-frontend
+make marketplace-ingest-events
 ```
 
 ### Partner Center API helpers

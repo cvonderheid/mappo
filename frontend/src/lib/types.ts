@@ -4,6 +4,7 @@ export type CreateRunRequest = components["schemas"]["CreateRunRequest"];
 export type AdminOnboardingSnapshotResponse = components["schemas"]["AdminOnboardingSnapshotResponse"];
 export type MarketplaceEventIngestRequest = components["schemas"]["MarketplaceEventIngestRequest"];
 export type MarketplaceEventIngestResponse = components["schemas"]["MarketplaceEventIngestResponse"];
+export type MarketplaceEventRecord = components["schemas"]["MarketplaceEventRecord"];
 export type MarketplaceEventStatus = components["schemas"]["MarketplaceEventStatus"];
 export type Release = components["schemas"]["Release"];
 export type RunDetail = components["schemas"]["RunDetail"];
