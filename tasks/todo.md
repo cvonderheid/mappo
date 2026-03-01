@@ -276,6 +276,62 @@ Target registration operations in Admin:
 
 ---
 
+## Scope (Backend Size Guardrail Ratchet Slice)
+Backend maintainability guardrails:
+- Enforce frontend-like backend file-size limits.
+- Start shrinking oversized backend modules and tighten temporary exception caps.
+
+## Plan (Backend Size Guardrail Ratchet Slice)
+- [x] Extract execution utility helpers out of `execution.py` into a dedicated module.
+- [x] Keep backend tests/lint/type checks green after extraction.
+- [x] Ratchet backend file-size exception caps downward to current practical limits.
+
+## Verification Commands (Backend Size Guardrail Ratchet Slice)
+- [x] `make lint-backend`
+- [x] `make typecheck-backend`
+- [x] `make test-backend`
+
+## Results Log (Backend Size Guardrail Ratchet Slice)
+- 2026-03-01: Extracted common tenant/retry/error-parsing/image/env/correlation utilities from `backend/app/modules/execution.py` into `backend/app/modules/execution_utils.py`.
+- 2026-03-01: Reduced `execution.py` from 1696 lines to 1222 lines while preserving runtime behavior and test coverage.
+- 2026-03-01: Tightened backend file-size exception caps in `scripts/backend_file_size_check.py`:
+  - `control_plane.py`: `1700 -> 1650`
+  - `execution.py`: `1750 -> 1250`
+- 2026-03-01: Verified backend lint/typecheck/tests pass after refactor + cap ratchet.
+
+- 2026-03-01: Extracted `control_plane.py` helper/storage logic into:
+  - `backend/app/modules/control_plane_helpers.py`
+  - `backend/app/modules/control_plane_storage.py`
+- 2026-03-01: Reduced `control_plane.py` from 1649 lines to 1387 lines.
+- 2026-03-01: Tightened `control_plane.py` exception cap from `1650 -> 1400` in `scripts/backend_file_size_check.py`.
+- 2026-03-01: Re-verified `make lint-backend`, `make typecheck-backend`, and `make test-backend` all pass after control-plane split.
+
+---
+
+## Scope (Script Sweep + Pulumi Boundary Slice)
+Production-alignment cleanup:
+- Inventory all scripts and classify keep/delete/migrate-to-pulumi.
+- Remove dead/deprecated scripts not used by current workflow.
+- Establish migration boundary for runtime ACA + Function App into Pulumi-managed lifecycle.
+
+## Plan (Script Sweep + Pulumi Boundary Slice)
+- [x] Audit `scripts/` and `backend/scripts/` against Make/docs usage.
+- [x] Remove unused/deprecated backend scripts.
+- [x] Publish script disposition + migration priorities in docs.
+
+## Verification Commands (Script Sweep + Pulumi Boundary Slice)
+- [x] `rg -n "scripts/|backend/scripts/" Makefile README.md docs -S`
+- [x] `find scripts backend/scripts -maxdepth 1 -type f | sort`
+
+## Results Log (Script Sweep + Pulumi Boundary Slice)
+- 2026-03-01: Added script sweep report at `/Users/cvonderheid/workspace/mappo/docs/script-sweep.md` with per-script disposition and Pulumi migration priorities.
+- 2026-03-01: Removed dead/deprecated backend scripts:
+  - `/Users/cvonderheid/workspace/mappo/backend/scripts/demo_reset.py`
+  - `/Users/cvonderheid/workspace/mappo/backend/scripts/import_pulumi_targets.py`
+- 2026-03-01: Confirmed highest-priority Pulumi migration targets are `runtime_aca_deploy.sh` and `marketplace_forwarder_deploy.sh`.
+
+---
+
 ## Scope (Phase 5 Slice)
 Live execution boundary hardening:
 - Introduce execution-mode abstraction so run orchestration can target demo or Azure execution backends.
@@ -1775,3 +1831,29 @@ Strict-realism runtime path:
 - 2026-03-01: Executed `make marketplace-forwarder-deploy` using runtime env fallback for API base URL; webhook URL generated.
 - 2026-03-01: Replayed inventory through Function webhook and verified cloud backend onboarding state reached 2 registrations.
 - 2026-03-01: Executed live cloud canaries for target-01 and target-02; both succeeded and targets now report `health_status=healthy`.
+
+---
+
+## Scope (Phase 5.56 Slice)
+EasyAuth hardening for cloud runtime:
+- Add repeatable EasyAuth configuration for MAPPO frontend Container App.
+- Keep Entra app registration lifecycle script-driven for deterministic callback URL wiring.
+- Integrate EasyAuth step into `make deploy` orchestration and update runbooks.
+
+## Plan (Phase 5.56 Slice)
+- [x] Add runtime EasyAuth script to create/update Entra app registration and configure ACA auth.
+- [x] Add Make target for EasyAuth configure and wire into `make deploy`.
+- [x] Update README + runbooks/checklists/architecture docs for the new step.
+- [x] Run syntax/help/docs verification and capture outcomes.
+
+## Verification Commands (Phase 5.56 Slice)
+- [x] `bash -n scripts/runtime_easyauth_configure.sh scripts/runtime_aca_deploy.sh scripts/marketplace_forwarder_deploy.sh`
+- [x] `make help | rg -n "runtime-easyauth-configure|deploy|runtime-aca-deploy"`
+- [x] `python3 scripts/docs_consistency_check.py`
+
+## Results Log (Phase 5.56 Slice)
+- 2026-03-01: Added `/Users/cvonderheid/workspace/mappo/scripts/runtime_easyauth_configure.sh` for idempotent EasyAuth setup (Entra app registration + frontend ACA auth config).
+- 2026-03-01: Added `/Users/cvonderheid/workspace/mappo/scripts/azure_cleanup_easyauth.sh` and Make target `azure-cleanup-easyauth` for repeatable EasyAuth teardown.
+- 2026-03-01: Added Make target `runtime-easyauth-configure` and wired it into `make deploy` (enabled by default; override with `ENABLE_EASYAUTH=false`).
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/README.md`, `/Users/cvonderheid/workspace/mappo/docs/runtime-aca-runbook.md`, `/Users/cvonderheid/workspace/mappo/docs/live-demo-checklist.md`, `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`, `/Users/cvonderheid/workspace/mappo/docs/documentation.md`, and `/Users/cvonderheid/workspace/mappo/docs/architecture.md`.
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/docs/script-sweep.md` inventory/disposition counts to include runtime EasyAuth script.

@@ -42,7 +42,9 @@ source .data/mappo-db.env
 make bootstrap-releases
 make azure-preflight
 make runtime-aca-deploy PULUMI_STACK="<stack>" SUBSCRIPTION_ID="<provider-sub>"
+make runtime-easyauth-configure PULUMI_STACK="<stack>" SUBSCRIPTION_ID="<provider-sub>"
 source .data/mappo-runtime.env
+make deploy PULUMI_STACK="<stack>" SUBSCRIPTION_ID="<provider-sub>"
 make marketplace-forwarder-package
 make marketplace-forwarder-deploy RESOURCE_GROUP="<rg>" FUNCTION_APP_NAME="<name>" MAPPO_API_BASE_URL="$MAPPO_API_BASE_URL" MAPPO_INGEST_TOKEN="$MAPPO_MARKETPLACE_INGEST_TOKEN"
 make marketplace-forwarder-replay-inventory FORWARDER_URL="<https://.../api/marketplace/events?code=...>"

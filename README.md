@@ -3,6 +3,19 @@
 MAPPO is a multi-tenant deployment control plane for Azure Managed Apps (CodeDeploy-style rollout management across customer subscriptions/tenants).
 
 ## Marketplace-Accurate Demo Quick Start
+Single-command workflow (after your IaC stack + env files are ready):
+```bash
+make install
+make deploy PULUMI_STACK=<stack> [SUBSCRIPTION_ID=<provider-sub-id>]
+source .data/mappo-runtime.env
+```
+
+`make deploy` orchestrates:
+- runtime ACA deploy (build + push backend/frontend images)
+- runtime frontend EasyAuth configure (Entra app registration + ACA auth)
+- Function App package build
+- Function App deploy (marketplace forwarder)
+
 1. Install dependencies:
 ```bash
 make install
@@ -58,9 +71,11 @@ make azure-preflight
 6. Deploy MAPPO runtime (backend + frontend) to ACA:
 ```bash
 make runtime-aca-deploy PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub-id>"
+make runtime-easyauth-configure PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub-id>"
 source .data/mappo-runtime.env
 ```
    - Runtime deploy builds/pushes backend + frontend images to ACR and writes runtime URLs into `.data/mappo-runtime.env`.
+   - EasyAuth configure creates/updates an Entra app registration and enables frontend sign-in redirect via Container App auth.
 7. Deploy the Function App lifecycle forwarder (marketplace webhook path):
 ```bash
 make marketplace-forwarder-deploy \
@@ -91,9 +106,12 @@ make marketplace-forwarder-replay-inventory FORWARDER_URL="<webhook_url>"
 - `make iac-export-db-env [PULUMI_STACK=<name>]`
 - `make iac-destroy [PULUMI_STACK=<name>]`
 - `make runtime-aca-deploy [PULUMI_STACK=<name>] [SUBSCRIPTION_ID=<provider-sub>]`
+- `make runtime-easyauth-configure [PULUMI_STACK=<name>] [SUBSCRIPTION_ID=<provider-sub>] [EASYAUTH_SIGN_IN_AUDIENCE=AzureADMyOrg|AzureADMultipleOrgs]`
+- `make deploy [PULUMI_STACK=<name>] [SUBSCRIPTION_ID=<provider-sub>] [FUNCTION_APP_NAME=<name>] [FORWARDER_RESOURCE_GROUP=<rg>] [FORWARDER_LOCATION=<region>]`
 - `make runtime-aca-destroy [RESOURCE_GROUP=<rg>] [SUBSCRIPTION_ID=<provider-sub>]`
 - `make azure-tenant-map SUBSCRIPTION_IDS="<sub1>,<sub2>"`
 - `make azure-cleanup-runtime-identity CLIENT_ID="<app-id>" SUBSCRIPTION_IDS="<sub1>,<sub2>" [DELETE_APP_REGISTRATION=true]`
+- `make azure-cleanup-easyauth [CLIENT_ID="<easy-auth-app-id>"]`
 - `make marketplace-ingest-events [INVENTORY_FILE=.data/mappo-target-inventory.json] [API_BASE_URL=http://localhost:8010]`
 - `make marketplace-forwarder-package [OUTPUT_ZIP=.data/marketplace-forwarder-function.zip]`
 - `make marketplace-forwarder-deploy RESOURCE_GROUP="<rg>" FUNCTION_APP_NAME="<name>" [MAPPO_API_BASE_URL=<url>] [MAPPO_INGEST_ENDPOINT=<url>]`
@@ -112,6 +130,11 @@ Legacy fallback:
 - `PATCH /api/v1/admin/onboarding/registrations/{target_id}`: updates editable registration metadata (display name, customer name, tags, managed app references).
 - `DELETE /api/v1/admin/onboarding/registrations/{target_id}`: removes a registered target from onboarding/fleet state.
 - Optional token gate: set `MAPPO_MARKETPLACE_INGEST_TOKEN`, then send `x-mappo-ingest-token` header.
+
+## EasyAuth Notes
+- MAPPO runtime uses Azure EasyAuth on the frontend Container App.
+- App registration lifecycle is currently script-managed (`make runtime-easyauth-configure`) so callback URLs can be bound after runtime URL allocation.
+- Pulumi-only management of Entra app registrations can be added later via the AzureAD provider if you want full IaC ownership.
 
 ## Quality Commands
 - `make workflow-discipline-check`
@@ -133,6 +156,7 @@ Legacy fallback:
 - Runtime ACA runbook: `/Users/cvonderheid/workspace/mappo/docs/runtime-aca-runbook.md`
 - Portal playbook (manual-only steps): `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`
 - Function forwarder runbook: `/Users/cvonderheid/workspace/mappo/docs/marketplace-forwarder-runbook.md`
+- Script sweep / migration map: `/Users/cvonderheid/workspace/mappo/docs/script-sweep.md`
 - Pulumi details: `/Users/cvonderheid/workspace/mappo/infra/pulumi/README.md`
 
 ## Database workflow

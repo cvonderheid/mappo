@@ -14,7 +14,7 @@ This playbook defines what is automated versus manual for a marketplace-accurate
 ### Automated with CLI/API scripts
 - Azure auth bootstrap (`make azure-auth-bootstrap`)
 - Pulumi inventory export (`make iac-export-targets`)
-- MAPPO runtime deploy to ACA (`make runtime-aca-deploy`, `make runtime-aca-destroy`)
+- MAPPO runtime deploy to ACA (`make runtime-aca-deploy`, `make runtime-easyauth-configure`, `make runtime-aca-destroy`)
 - Function App forwarder package/deploy/replay (`make marketplace-forwarder-package`, `make marketplace-forwarder-deploy`, `make marketplace-forwarder-replay-inventory`)
 - Partner Center token acquisition (`make partner-center-token`)
 - Partner Center API invocation wrapper (`make partner-center-api URL=...`)
@@ -44,7 +44,9 @@ This playbook defines what is automated versus manual for a marketplace-accurate
 ## 2) Deploy MAPPO runtime to ACA
 - `make azure-preflight`
 - `make runtime-aca-deploy PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub>"`
+- `make runtime-easyauth-configure PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub>"`
 - `source .data/mappo-runtime.env`
+- `source .data/mappo-easyauth.env`
 
 ## 2b) Deploy webhook forwarder Function App
 - `make marketplace-forwarder-deploy RESOURCE_GROUP="<rg>" FUNCTION_APP_NAME="<name>" SUBSCRIPTION_ID="<provider-sub>" MAPPO_API_BASE_URL="$MAPPO_API_BASE_URL" MAPPO_INGEST_TOKEN="$MAPPO_MARKETPLACE_INGEST_TOKEN"`

@@ -3,18 +3,34 @@ from __future__ import annotations
 import asyncio
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
-from uuid import UUID, uuid4
+from uuid import uuid4
 
-from sqlalchemy import delete, select
-
-from app.db.generated.models import (
-    MarketplaceEvents,
-    Releases,
-    Runs,
-    TargetRegistrations,
-    Targets,
-)
 from app.db.session import create_engine_and_session_factory
+from app.modules.control_plane_helpers import (
+    build_error_log_lines,
+    count_targets,
+    find_open_stage_record,
+    is_guid,
+    matches_tags,
+)
+from app.modules.control_plane_storage import (
+    delete_all_runs,
+    delete_runs_by_ids,
+    delete_target,
+    delete_target_registration,
+    load_marketplace_events,
+    load_releases,
+    load_runs,
+    load_target_registrations,
+    load_targets,
+    replace_releases,
+    replace_targets,
+    save_marketplace_event,
+    save_release,
+    save_run,
+    save_target,
+    save_target_registration,
+)
 from app.modules.execution import (
     AzureExecutionError,
     AzureExecutorSettings,
@@ -84,12 +100,12 @@ class ControlPlaneStore:
             azure_settings=azure_settings or AzureExecutorSettings(),
         )
 
-        self._targets = self._load_targets()
-        self._registrations = self._load_target_registrations()
-        self._marketplace_events = self._load_marketplace_events()
-        self._releases = self._load_releases()
+        self._targets = load_targets(self._session_factory)
+        self._registrations = load_target_registrations(self._session_factory)
+        self._marketplace_events = load_marketplace_events(self._session_factory)
+        self._releases = load_releases(self._session_factory)
 
-        self._runs = self._load_runs()
+        self._runs = load_runs(self._session_factory)
         self._reconcile_running_runs_after_startup()
         self._prune_retention_locked()
 
@@ -109,7 +125,7 @@ class ControlPlaneStore:
             targets = [
                 target.model_copy(deep=True)
                 for target in self._targets.values()
-                if self._matches_tags(target.tags, filters)
+                if matches_tags(target.tags, filters)
             ]
         return sorted(targets, key=lambda target: target.id)
 
@@ -581,9 +597,7 @@ class ControlPlaneStore:
             for run_id in removable_ids:
                 self._runs.pop(run_id, None)
             if removable_ids:
-                with self._session_factory() as session:
-                    session.execute(delete(Runs).where(Runs.id.in_(removable_ids)))
-                    session.commit()
+                delete_runs_by_ids(self._session_factory, run_ids=removable_ids)
             return len(removable_ids)
 
     async def _launch_execution(
@@ -853,7 +867,7 @@ class ControlPlaneStore:
             run = self._runs[run_id]
             record = run.target_records[target_id]
             now = utc_now()
-            stage_record = self._find_open_stage_record(record, stage)
+            stage_record = find_open_stage_record(record, stage)
             if stage_record is not None:
                 stage_record.ended_at = now
                 stage_record.message = message
@@ -869,7 +883,7 @@ class ControlPlaneStore:
                 )
             )
             if error is not None:
-                for diagnostic_line in self._build_error_log_lines(error):
+                for diagnostic_line in build_error_log_lines(error):
                     record.logs.append(
                         TargetLogEvent(
                             timestamp=now,
@@ -899,85 +913,10 @@ class ControlPlaneStore:
                 record.status = stage
             self._save_run_locked(run)
 
-    @staticmethod
-    def _find_open_stage_record(
-        record: TargetExecutionRecord,
-        stage: TargetStage,
-    ) -> TargetStageRecord | None:
-        for stage_record in reversed(record.stages):
-            if stage_record.stage == stage and stage_record.ended_at is None:
-                return stage_record
-        return None
-
-    @staticmethod
-    def _build_error_log_lines(error: StructuredError) -> list[str]:
-        details = error.details if isinstance(error.details, dict) else {}
-        if not details:
-            return []
-
-        lines: list[str] = []
-        azure_error_code = ControlPlaneStore._to_text(details.get("azure_error_code"))
-        azure_error_message = ControlPlaneStore._to_text(details.get("azure_error_message"))
-        if azure_error_code and azure_error_message:
-            lines.append(f"Azure error [{azure_error_code}]: {azure_error_message}")
-        elif azure_error_message:
-            lines.append(f"Azure error: {azure_error_message}")
-        elif azure_error_code:
-            lines.append(f"Azure error code: {azure_error_code}")
-
-        status_code = details.get("status_code")
-        if isinstance(status_code, int):
-            lines.append(f"Azure HTTP status: {status_code}")
-
-        request_id = (
-            ControlPlaneStore._to_text(details.get("azure_request_id"))
-            or ControlPlaneStore._to_text(details.get("azure_arm_service_request_id"))
-        )
-        if request_id:
-            lines.append(f"Azure request id: {request_id}")
-
-        correlation_id = ControlPlaneStore._to_text(details.get("azure_correlation_id"))
-        if correlation_id:
-            lines.append(f"Azure correlation id: {correlation_id}")
-
-        operation_id = ControlPlaneStore._to_text(details.get("azure_operation_id"))
-        if operation_id:
-            lines.append(f"Azure operation id: {operation_id}")
-
-        detail_entries = details.get("azure_error_details")
-        if isinstance(detail_entries, list):
-            for entry in detail_entries[:3]:
-                if not isinstance(entry, dict):
-                    continue
-                entry_code = ControlPlaneStore._to_text(entry.get("code"))
-                entry_message = ControlPlaneStore._to_text(entry.get("message"))
-                if entry_code and entry_message:
-                    lines.append(f"Azure detail [{entry_code}]: {entry_message}")
-                elif entry_message:
-                    lines.append(f"Azure detail: {entry_message}")
-
-        normalized: list[str] = []
-        seen: set[str] = set()
-        for line in lines:
-            if line in seen:
-                continue
-            seen.add(line)
-            normalized.append(line)
-        return normalized
-
-    @staticmethod
-    def _to_text(value: object) -> str | None:
-        if value is None:
-            return None
-        normalized = str(value).strip()
-        if normalized == "":
-            return None
-        return normalized
-
     async def _apply_stop_policy_if_needed(self, run_id: str) -> bool:
         async with self._lock:
             run = self._runs[run_id]
-            counts = self._count_targets(run)
+            counts = count_targets(run, in_progress_states=IN_PROGRESS_TARGET_STATES)
             attempted = counts["succeeded"] + counts["failed"]
             if attempted == 0:
                 return False
@@ -1013,7 +952,7 @@ class ControlPlaneStore:
             return False
 
     def _refresh_run_terminal_status_locked(self, run: DeploymentRun) -> None:
-        counts = self._count_targets(run)
+        counts = count_targets(run, in_progress_states=IN_PROGRESS_TARGET_STATES)
         if counts["queued"] > 0 or counts["in_progress"] > 0:
             run.status = RunStatus.RUNNING
             run.updated_at = utc_now()
@@ -1047,19 +986,12 @@ class ControlPlaneStore:
         selected = [
             target_id
             for target_id in candidates
-            if self._matches_tags(self._targets[target_id].tags, target_tags)
+            if matches_tags(self._targets[target_id].tags, target_tags)
         ]
         return sorted(set(selected))
 
-    @staticmethod
-    def _matches_tags(target_tags: dict[str, str], requested_tags: dict[str, str]) -> bool:
-        for key, value in requested_tags.items():
-            if target_tags.get(key) != value:
-                return False
-        return True
-
     def _to_run_summary(self, run: DeploymentRun) -> RunSummary:
-        counts = self._count_targets(run)
+        counts = count_targets(run, in_progress_states=IN_PROGRESS_TARGET_STATES)
         return RunSummary(
             id=run.id,
             release_id=run.release_id,
@@ -1107,20 +1039,6 @@ class ControlPlaneStore:
             target_records=ordered_records,
         )
 
-    @staticmethod
-    def _count_targets(run: DeploymentRun) -> dict[str, int]:
-        counts = {"queued": 0, "in_progress": 0, "succeeded": 0, "failed": 0}
-        for record in run.target_records.values():
-            if record.status == TargetStage.QUEUED:
-                counts["queued"] += 1
-            elif record.status in IN_PROGRESS_TARGET_STATES:
-                counts["in_progress"] += 1
-            elif record.status == TargetStage.SUCCEEDED:
-                counts["succeeded"] += 1
-            elif record.status == TargetStage.FAILED:
-                counts["failed"] += 1
-        return counts
-
     def _build_portal_link(self, target_id: str) -> str:
         target = self._targets[target_id]
         resource_id = target.managed_app_id.strip()
@@ -1129,7 +1047,7 @@ class ControlPlaneStore:
 
         # Direct resource blade links are more reliable than BrowseResource links.
         tenant_id = target.tenant_id.strip()
-        if self._is_guid(tenant_id):
+        if is_guid(tenant_id):
             return f"https://portal.azure.com/#@{tenant_id}/resource{resource_id}/overview"
         return f"https://portal.azure.com/#resource{resource_id}/overview"
 
@@ -1140,14 +1058,6 @@ class ControlPlaneStore:
         if link == "":
             return self._build_portal_link(target_id)
         return link
-
-    @staticmethod
-    def _is_guid(value: str) -> bool:
-        try:
-            UUID(value)
-        except ValueError:
-            return False
-        return True
 
     def _build_registration_locked(
         self,
@@ -1407,212 +1317,43 @@ class ControlPlaneStore:
             trimmed = f"/{trimmed}"
         return trimmed
 
-    def _load_targets(self) -> dict[str, Target]:
-        with self._session_factory() as session:
-            rows = session.execute(select(Targets.payload_json)).scalars().all()
-        targets: dict[str, Target] = {}
-        for payload in rows:
-            try:
-                target = Target.model_validate(payload)
-                targets[target.id] = target
-            except Exception as error:
-                print(f"failed to parse target payload: {error}")
-        return targets
-
-    def _load_target_registrations(self) -> dict[str, TargetRegistrationRecord]:
-        with self._session_factory() as session:
-            rows = session.execute(select(TargetRegistrations.payload_json)).scalars().all()
-        registrations: dict[str, TargetRegistrationRecord] = {}
-        for payload in rows:
-            try:
-                item = TargetRegistrationRecord.model_validate(payload)
-                registrations[item.target_id] = item
-            except Exception as error:
-                print(f"failed to parse target registration payload: {error}")
-        return registrations
-
-    def _load_marketplace_events(self) -> dict[str, MarketplaceEventRecord]:
-        with self._session_factory() as session:
-            rows = (
-                session.execute(
-                    select(MarketplaceEvents.payload_json).order_by(
-                        MarketplaceEvents.created_at.asc()
-                    )
-                )
-                .scalars()
-                .all()
-            )
-        events: dict[str, MarketplaceEventRecord] = {}
-        for payload in rows:
-            try:
-                event = MarketplaceEventRecord.model_validate(payload)
-                events[event.event_id] = event
-            except Exception as error:
-                print(f"failed to parse marketplace event payload: {error}")
-        return events
-
-    def _load_releases(self) -> dict[str, Release]:
-        with self._session_factory() as session:
-            rows = session.execute(select(Releases.payload_json)).scalars().all()
-        releases: dict[str, Release] = {}
-        for payload in rows:
-            try:
-                release = Release.model_validate(payload)
-                releases[release.id] = release
-            except Exception as error:
-                print(f"failed to parse release payload: {error}")
-        return releases
-
-    def _load_runs(self) -> dict[str, DeploymentRun]:
-        with self._session_factory() as session:
-            rows = (
-                session.execute(select(Runs.payload_json).order_by(Runs.created_at.asc()))
-                .scalars()
-                .all()
-            )
-        runs: dict[str, DeploymentRun] = {}
-        for payload in rows:
-            try:
-                run = DeploymentRun.model_validate(payload)
-                runs[run.id] = run
-            except Exception as error:
-                print(f"failed to parse run payload: {error}")
-        return runs
-
     def _replace_targets_locked(self) -> None:
-        now = utc_now()
-        with self._session_factory() as session:
-            session.execute(delete(Targets))
-            session.add_all(
-                [
-                    Targets(
-                        id=target.id,
-                        payload_json=target.model_dump(mode="json"),
-                        updated_at=now,
-                    )
-                    for target in sorted(self._targets.values(), key=lambda item: item.id)
-                ]
-            )
-            session.commit()
+        replace_targets(
+            self._session_factory,
+            targets=list(self._targets.values()),
+            updated_at=utc_now(),
+        )
 
     def _replace_releases_locked(self) -> None:
-        with self._session_factory() as session:
-            session.execute(delete(Releases))
-            session.add_all(
-                [
-                    Releases(
-                        id=release.id,
-                        payload_json=release.model_dump(mode="json"),
-                        created_at=release.created_at,
-                    )
-                    for release in sorted(
-                        self._releases.values(),
-                        key=lambda item: item.created_at,
-                    )
-                ]
-            )
-            session.commit()
+        replace_releases(self._session_factory, releases=list(self._releases.values()))
 
     def _save_release_locked(self, release: Release) -> None:
-        with self._session_factory() as session:
-            row = session.get(Releases, release.id)
-            if row is None:
-                session.add(
-                    Releases(
-                        id=release.id,
-                        payload_json=release.model_dump(mode="json"),
-                        created_at=release.created_at,
-                    )
-                )
-            else:
-                row.payload_json = release.model_dump(mode="json")
-                row.created_at = release.created_at
-            session.commit()
+        save_release(self._session_factory, release=release)
 
     def _save_target_locked(self, target: Target) -> None:
-        now = utc_now()
-        with self._session_factory() as session:
-            row = session.get(Targets, target.id)
-            if row is None:
-                session.add(
-                    Targets(
-                        id=target.id,
-                        payload_json=target.model_dump(mode="json"),
-                        updated_at=now,
-                    )
-                )
-            else:
-                row.payload_json = target.model_dump(mode="json")
-                row.updated_at = now
-            session.commit()
+        save_target(self._session_factory, target=target, updated_at=utc_now())
 
     def _save_target_registration_locked(self, registration: TargetRegistrationRecord) -> None:
-        now = utc_now()
-        with self._session_factory() as session:
-            row = session.get(TargetRegistrations, registration.target_id)
-            if row is None:
-                session.add(
-                    TargetRegistrations(
-                        id=registration.target_id,
-                        payload_json=registration.model_dump(mode="json"),
-                        updated_at=now,
-                    )
-                )
-            else:
-                row.payload_json = registration.model_dump(mode="json")
-                row.updated_at = now
-            session.commit()
+        save_target_registration(
+            self._session_factory,
+            registration=registration,
+            updated_at=utc_now(),
+        )
 
     def _delete_target_locked(self, target_id: str) -> None:
-        with self._session_factory() as session:
-            session.execute(delete(Targets).where(Targets.id == target_id))
-            session.commit()
+        delete_target(self._session_factory, target_id=target_id)
 
     def _delete_target_registration_locked(self, target_id: str) -> None:
-        with self._session_factory() as session:
-            session.execute(
-                delete(TargetRegistrations).where(TargetRegistrations.id == target_id)
-            )
-            session.commit()
+        delete_target_registration(self._session_factory, target_id=target_id)
 
     def _save_marketplace_event_locked(self, event: MarketplaceEventRecord) -> None:
-        with self._session_factory() as session:
-            row = session.get(MarketplaceEvents, event.event_id)
-            if row is None:
-                session.add(
-                    MarketplaceEvents(
-                        id=event.event_id,
-                        payload_json=event.model_dump(mode="json"),
-                        created_at=event.created_at,
-                    )
-                )
-            else:
-                row.payload_json = event.model_dump(mode="json")
-                row.created_at = event.created_at
-            session.commit()
+        save_marketplace_event(self._session_factory, event=event)
 
     def _save_run_locked(self, run: DeploymentRun) -> None:
-        with self._session_factory() as session:
-            row = session.get(Runs, run.id)
-            if row is None:
-                session.add(
-                    Runs(
-                        id=run.id,
-                        payload_json=run.model_dump(mode="json"),
-                        created_at=run.created_at,
-                        updated_at=run.updated_at,
-                    )
-                )
-            else:
-                row.payload_json = run.model_dump(mode="json")
-                row.created_at = run.created_at
-                row.updated_at = run.updated_at
-            session.commit()
+        save_run(self._session_factory, run=run)
 
     def _delete_all_runs_locked(self) -> None:
-        with self._session_factory() as session:
-            session.execute(delete(Runs))
-            session.commit()
+        delete_all_runs(self._session_factory)
 
     def _reconcile_running_runs_after_startup(self) -> None:
         changed = False
@@ -1643,7 +1384,4 @@ class ControlPlaneStore:
 
         for run_id in removable_ids:
             self._runs.pop(run_id, None)
-
-        with self._session_factory() as session:
-            session.execute(delete(Runs).where(Runs.id.in_(removable_ids)))
-            session.commit()
+        delete_runs_by_ids(self._session_factory, run_ids=removable_ids)

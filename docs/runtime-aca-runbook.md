@@ -27,6 +27,7 @@ This runbook deploys MAPPO backend and frontend into Azure Container Apps (produ
 
 ```bash
 make runtime-aca-deploy PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-subscription-id>"
+make runtime-easyauth-configure PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-subscription-id>"
 source .data/mappo-runtime.env
 ```
 
@@ -34,6 +35,11 @@ Outputs in `.data/mappo-runtime.env`:
 - `MAPPO_RUNTIME_BACKEND_URL`
 - `MAPPO_RUNTIME_FRONTEND_URL`
 - `MAPPO_API_BASE_URL`
+
+Outputs in `.data/mappo-easyauth.env`:
+- `MAPPO_EASYAUTH_CLIENT_ID`
+- `MAPPO_EASYAUTH_CLIENT_SECRET`
+- `MAPPO_EASYAUTH_CALLBACK_URL`
 
 Quota notes:
 - If your subscription allows only one ACA environment, script automatically reuses an existing environment.
@@ -45,6 +51,9 @@ Quota notes:
 curl -fsSL "$MAPPO_RUNTIME_BACKEND_URL/api/v1/health/live"
 open "$MAPPO_RUNTIME_FRONTEND_URL"
 ```
+
+EasyAuth validation:
+- Opening `$MAPPO_RUNTIME_FRONTEND_URL` should redirect to Microsoft Entra sign-in when not already authenticated.
 
 ## 3) Wire Forwarder to Runtime API
 

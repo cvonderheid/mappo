@@ -10,12 +10,13 @@ PULUMI_CONFIG_PASSPHRASE ?= mappo-local-dev
 export PULUMI_CONFIG_PASSPHRASE
 
 .PHONY: help install install-deps install-backend install-frontend \
+	deploy \
 	dev dev-up dev-down dev-logs dev-backend dev-frontend build build-backend build-frontend \
 	lint lint-backend lint-backend-file-size lint-frontend typecheck typecheck-backend typecheck-frontend \
 	test test-backend test-frontend test-frontend-e2e import-targets marketplace-ingest-events retention-prune \
 	marketplace-forwarder-package marketplace-forwarder-deploy marketplace-forwarder-replay-inventory \
-	runtime-aca-deploy runtime-aca-destroy \
-	azure-auth-bootstrap azure-tenant-map azure-onboard-multitenant-runtime azure-cleanup-runtime-identity dev-backend-azure azure-preflight bootstrap-releases \
+	runtime-aca-deploy runtime-aca-destroy runtime-easyauth-configure \
+	azure-auth-bootstrap azure-tenant-map azure-onboard-multitenant-runtime azure-cleanup-runtime-identity azure-cleanup-easyauth dev-backend-azure azure-preflight bootstrap-releases \
 	iac-configure-marketplace-demo \
 	partner-center-token partner-center-api \
 	db-migrate db-validate db-info db-clean db-reset models-gen openapi client-gen \
@@ -27,6 +28,62 @@ help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*##"; printf "\nTargets:\n"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  %-28s %s\n", $$1, $$2} END {printf "\n"}' $(MAKEFILE_LIST)
 
 install: install-deps db-migrate lint typecheck test phase1-gate-full build ## Full bootstrap: deps + DB + verification + build
+
+deploy: ## Deploy runtime ACA + marketplace forwarder (images + function) using local env files
+	@set -euo pipefail; \
+	if [ ! -f ".data/mappo-azure.env" ]; then \
+		echo "deploy: missing .data/mappo-azure.env (run make azure-auth-bootstrap first)."; \
+		exit 1; \
+	fi; \
+	if [ ! -f ".data/mappo-db.env" ]; then \
+		echo "deploy: missing .data/mappo-db.env (run make iac-export-db-env first)."; \
+		exit 1; \
+	fi; \
+	set -a; \
+	source .data/mappo-azure.env; \
+	set +a; \
+	subscription_id="$(SUBSCRIPTION_ID)"; \
+	if [ -z "$$subscription_id" ]; then \
+		subscription_id="$$(az account show --query id -o tsv --only-show-errors)"; \
+	fi; \
+	stack_token="$$(printf '%s' '$(PULUMI_STACK)' | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9-' | sed -E 's/^-+//; s/-+$$//; s/-+/-/g')"; \
+	if [ -z "$$stack_token" ]; then \
+		stack_token="demo"; \
+	fi; \
+	forwarder_rg="$(FORWARDER_RESOURCE_GROUP)"; \
+	if [ -z "$$forwarder_rg" ]; then \
+		forwarder_rg="rg-mappo-marketplace-forwarder-$$stack_token"; \
+	fi; \
+	forwarder_name="$(FUNCTION_APP_NAME)"; \
+	if [ -z "$$forwarder_name" ]; then \
+		sub_suffix="$${subscription_id//-/}"; \
+		sub_suffix="$${sub_suffix:0:8}"; \
+		forwarder_name="fa-mappo-forwarder-$$stack_token-$$sub_suffix"; \
+	fi; \
+	echo "deploy: subscription=$$subscription_id"; \
+	echo "deploy: stack=$(PULUMI_STACK)"; \
+	echo "deploy: forwarder_resource_group=$$forwarder_rg"; \
+	echo "deploy: forwarder_function_app=$$forwarder_name"; \
+	enable_easyauth="$(ENABLE_EASYAUTH)"; \
+	if [ -z "$$enable_easyauth" ]; then \
+		enable_easyauth="true"; \
+	fi; \
+	echo "deploy: enable_easyauth=$$enable_easyauth"; \
+	$(MAKE) runtime-aca-deploy PULUMI_STACK="$(PULUMI_STACK)" SUBSCRIPTION_ID="$$subscription_id"; \
+	if [[ "$$enable_easyauth" =~ ^(1|true|yes|on)$$ ]]; then \
+		$(MAKE) runtime-easyauth-configure PULUMI_STACK="$(PULUMI_STACK)" SUBSCRIPTION_ID="$$subscription_id"; \
+	else \
+		echo "deploy: skipping runtime EasyAuth configuration (set ENABLE_EASYAUTH=true to enable)."; \
+	fi; \
+	$(MAKE) marketplace-forwarder-deploy \
+		RESOURCE_GROUP="$$forwarder_rg" \
+		FUNCTION_APP_NAME="$$forwarder_name" \
+		SUBSCRIPTION_ID="$$subscription_id" \
+		LOCATION="$(if $(FORWARDER_LOCATION),$(FORWARDER_LOCATION),eastus)" \
+		MAPPO_API_BASE_URL="$(MAPPO_API_BASE_URL)"; \
+	echo "deploy: complete."; \
+	echo "deploy: source .data/mappo-runtime.env"; \
+	echo "deploy: open \$$MAPPO_RUNTIME_FRONTEND_URL"
 
 install-deps: install-backend install-frontend ## Install all dependencies only
 
@@ -168,6 +225,24 @@ runtime-aca-destroy: ## Delete MAPPO runtime ACA resource group
 		$(if $(RUNTIME_ENV_FILE),--runtime-env-file "$(RUNTIME_ENV_FILE)",) \
 		$(if $(WAIT),--wait "$(WAIT)",)
 
+runtime-easyauth-configure: ## Configure EasyAuth for MAPPO frontend Container App
+	./scripts/runtime_easyauth_configure.sh \
+		$(if $(PULUMI_STACK),--stack "$(PULUMI_STACK)",) \
+		$(if $(SUBSCRIPTION_ID),--subscription-id "$(SUBSCRIPTION_ID)",) \
+		$(if $(RESOURCE_GROUP),--resource-group "$(RESOURCE_GROUP)",) \
+		$(if $(FRONTEND_APP_NAME),--frontend-app-name "$(FRONTEND_APP_NAME)",) \
+		$(if $(FRONTEND_URL),--frontend-url "$(FRONTEND_URL)",) \
+		$(if $(AZURE_ENV_FILE),--azure-env-file "$(AZURE_ENV_FILE)",) \
+		$(if $(RUNTIME_ENV_FILE),--runtime-env-file "$(RUNTIME_ENV_FILE)",) \
+		$(if $(OUTPUT_ENV_FILE),--output-env-file "$(OUTPUT_ENV_FILE)",) \
+		$(if $(TENANT_ID),--tenant-id "$(TENANT_ID)",) \
+		$(if $(EASYAUTH_APP_DISPLAY_NAME),--app-display-name "$(EASYAUTH_APP_DISPLAY_NAME)",) \
+		$(if $(EASYAUTH_CLIENT_ID),--client-id "$(EASYAUTH_CLIENT_ID)",) \
+		$(if $(EASYAUTH_CLIENT_SECRET),--client-secret "$(EASYAUTH_CLIENT_SECRET)",) \
+		$(if $(EASYAUTH_SIGN_IN_AUDIENCE),--sign-in-audience "$(EASYAUTH_SIGN_IN_AUDIENCE)",) \
+		$(if $(EASYAUTH_REDIRECT_URIS),--extra-redirect-uris "$(EASYAUTH_REDIRECT_URIS)",) \
+		$(if $(EASYAUTH_SECRET_YEARS),--secret-valid-years "$(EASYAUTH_SECRET_YEARS)",)
+
 bootstrap-releases: ## Bootstrap default release records (set FORCE=1 to replace existing)
 	uv --directory backend run --package mappo-backend -- python scripts/bootstrap_releases.py $(if $(FORCE),--force,)
 
@@ -204,6 +279,17 @@ azure-cleanup-runtime-identity: ## Remove runtime SP role assignments + tenant S
 		--target-subscriptions "$(SUBSCRIPTION_IDS)" \
 		$(if $(HOME_SUBSCRIPTION_ID),--home-subscription-id "$(HOME_SUBSCRIPTION_ID)",) \
 		$(if $(DELETE_APP_REGISTRATION),--delete-app-registration "$(DELETE_APP_REGISTRATION)",) \
+		$(if $(DELETE_ENV_FILE),--delete-env-file "$(DELETE_ENV_FILE)",) \
+		--yes
+
+azure-cleanup-easyauth: ## Remove EasyAuth app registration and optional frontend auth config
+	./scripts/azure_cleanup_easyauth.sh \
+		$(if $(CLIENT_ID),--client-id "$(CLIENT_ID)",) \
+		$(if $(RESOURCE_GROUP),--resource-group "$(RESOURCE_GROUP)",) \
+		$(if $(FRONTEND_APP_NAME),--frontend-app-name "$(FRONTEND_APP_NAME)",) \
+		$(if $(SUBSCRIPTION_ID),--subscription-id "$(SUBSCRIPTION_ID)",) \
+		$(if $(EASYAUTH_ENV_FILE),--easyauth-env-file "$(EASYAUTH_ENV_FILE)",) \
+		$(if $(RUNTIME_ENV_FILE),--runtime-env-file "$(RUNTIME_ENV_FILE)",) \
 		$(if $(DELETE_ENV_FILE),--delete-env-file "$(DELETE_ENV_FILE)",) \
 		--yes
 

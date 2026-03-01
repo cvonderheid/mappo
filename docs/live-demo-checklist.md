@@ -77,10 +77,13 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
   - `MAPPO_AZURE_QUOTA_MIN_REMAINING_WARNING=2`
 - [ ] Deploy runtime to Azure Container Apps:
   - `make runtime-aca-deploy PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub>"`
+  - `make runtime-easyauth-configure PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub>"`
   - `source .data/mappo-runtime.env`
+  - `source .data/mappo-easyauth.env`
 - [ ] Validate runtime endpoints:
   - Backend docs: `$MAPPO_RUNTIME_BACKEND_URL/api/v1/docs`
   - Frontend UI: `$MAPPO_RUNTIME_FRONTEND_URL`
+  - Frontend sign-in redirects through Microsoft Entra (EasyAuth).
 
 ## 6) Validation Run
 
@@ -105,6 +108,8 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
 - [ ] Remove runtime identity artifacts (role assignments + tenant service principals):
   - `make azure-cleanup-runtime-identity CLIENT_ID="<app-id>" SUBSCRIPTION_IDS="<sub-a>,<sub-b>" [HOME_SUBSCRIPTION_ID="<sub-home>"]`
   - Optional full identity teardown (also deletes app registration): add `DELETE_APP_REGISTRATION=true`
+- [ ] Remove EasyAuth app registration artifacts:
+  - `make azure-cleanup-easyauth [CLIENT_ID="<easy-auth-app-id>"]`
 - [ ] Remove local runtime data volumes:
   - `docker compose -f infra/docker-compose.yml down -v --remove-orphans`
 - [ ] Remove ACA runtime resources:

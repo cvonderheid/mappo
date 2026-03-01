@@ -55,6 +55,7 @@ MAPPO is a provider-tenant control plane that orchestrates release rollouts acro
 
 ## Deployment Direction
 - App services hosted on Azure Container Apps.
+- Frontend sign-in is protected with Azure EasyAuth (Microsoft Entra ID) on the frontend Container App.
 - Azure APIs accessed through provider identity authorization on managed resource groups created by managed application instances.
 - Runtime Azure credentials are resolved per subscription tenant authority (via target tenant ID and/or `MAPPO_AZURE_TENANT_BY_SUBSCRIPTION`) to support cross-tenant deployments.
 - Target discovery is registration-driven (marketplace lifecycle events), not runtime subscription scanning.
@@ -62,6 +63,7 @@ MAPPO is a provider-tenant control plane that orchestrates release rollouts acro
 - Demo automation boundary:
   - Pulumi IaC provisions managed app definitions, managed app instances, shared ACA environments, and exports MAPPO inventory.
   - Runtime ACA deployment is scripted outside Pulumi (`make runtime-aca-deploy`) into a dedicated runtime resource group to keep Pulumi destroy deterministic.
+  - EasyAuth app registration + frontend auth wiring is handled by script (`make runtime-easyauth-configure`) for deterministic post-deploy callback URL binding.
   - CLI scripts provision/deploy the Function App webhook forwarder and replay inventory events through the webhook path.
   - Partner Center offer lifecycle is handled via API/CLI helper scripts.
   - Portal-only steps are documented in `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`.
