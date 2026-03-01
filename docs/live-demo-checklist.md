@@ -29,16 +29,21 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
 
 ## 3) IaC Provisioning (Pulumi, primary path)
 
-- [ ] Optional: generate a deterministic dual-subscription stack file:
-  - `make iac-prepare-dual-stack CUSTOMER_SUBSCRIPTION_ID="<sub-id>" PULUMI_STACK=dual-demo`
 - [ ] Install/select stack:
   - `make iac-install`
   - `make iac-stack-init PULUMI_STACK=<stack>`
+- [ ] Configure deterministic 2-target stack (prevents accidental `demo10` target profile usage):
+  - `make iac-configure-marketplace-demo PULUMI_STACK=<stack> PROVIDER_SUBSCRIPTION_ID="<provider-sub>" CUSTOMER_SUBSCRIPTION_ID="<customer-sub>"`
+  - (default behavior adds your current public IP to Postgres firewall rules so local backend can connect)
 - [ ] Preview/apply:
   - `make iac-preview PULUMI_STACK=<stack>`
+  - `cd infra/pulumi && pulumi config set --stack <stack> mappo:controlPlanePostgresEnabled true`
+  - `cd infra/pulumi && pulumi config set --stack <stack> --secret mappo:controlPlanePostgresAdminPassword "<strong-password>"`
   - `make iac-up PULUMI_STACK=<stack>`
 - [ ] Export target inventory from Pulumi output and import into MAPPO:
   - `make iac-export-targets PULUMI_STACK=<stack>`
+  - `make iac-export-db-env PULUMI_STACK=<stack>`
+  - `source .data/mappo-db.env`
   - `make import-targets`
   - `make bootstrap-releases`
 - [ ] Validate event-driven onboarding path (same endpoint used by lifecycle forwarder):
@@ -56,6 +61,7 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
 
 - [ ] Run readiness check:
   - `make azure-preflight`
+  - Optional: set `MAPPO_PREFLIGHT_EXPECTED_TARGET_COUNT=10` before preflight when running full 10-target scale rehearsal.
 - [ ] Configure Azure guardrail env vars for demo safety (recommended defaults shown):
   - `MAPPO_AZURE_MAX_RUN_CONCURRENCY=6`
   - `MAPPO_AZURE_MAX_SUBSCRIPTION_CONCURRENCY=2`

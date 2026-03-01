@@ -123,3 +123,39 @@ Purpose: capture recurring correction patterns and preventative guardrails.
 - Preventative rule: Resolve tenant authority per subscription (mapping + target metadata), and instantiate Azure credentials per tenant instead of per process.
 - Detection signal: run/discovery fails only for subscriptions in non-default tenants while same-tenant targets succeed.
 - Enforcement (test/lint/checklist): add tenant-resolution unit tests, require `MAPPO_AZURE_TENANT_BY_SUBSCRIPTION` coverage in `azure-preflight` for non-GUID inventory tenants, and verify one cross-tenant deployment smoke before demo signoff.
+
+- Date: 2026-02-28
+- Pattern: Demo stack defaults (`targetProfile=demo10`, single global principal object ID) caused accidental 10-target provisioning and managed app authorization failures in customer tenant.
+- Preventative rule: Keep Pulumi defaults non-destructive (`targetProfile=empty`) and require deterministic stack configuration scripts that resolve tenant-local principal object IDs per subscription.
+- Detection signal: `pulumi up` plans/creates unexpected `managed-app-target-03..10` resources or returns `Principal ... does not exist in the directory ...`.
+- Enforcement (test/lint/checklist): require running `make iac-configure-marketplace-demo ...` before live demo stack updates and keep docs/checklist aligned to that command.
+
+- Date: 2026-02-28
+- Pattern: Azure Database for PostgreSQL Flexible Server integration drifted on provider-specific details (admin username format, extension allowlist, firewall access) causing runtime/migration failures.
+- Preventative rule: Treat managed DB provider behavior as first-class infra contract: emit provider-correct connection username, configure required server parameters (`azure.extensions`), and include explicit local access firewall strategy for demo workflows.
+- Detection signal: local DB connection fails after successful provisioning, or Flyway fails with extension allowlist errors (`pgcrypto` not allow-listed).
+- Enforcement (test/lint/checklist): after IaC apply, run managed DB smoke sequence (`iac-export-db-env` -> connect test -> `make db-migrate`) before declaring demo stack ready.
+
+- Date: 2026-02-28
+- Pattern: Preflight used a hardcoded target-count expectation (`~10`) that generated noise during intentional 2-target demo phases.
+- Preventative rule: Operational readiness checks must use configurable thresholds with phase-appropriate defaults rather than fixed assumptions.
+- Detection signal: preflight warns about target count even when current planned demo topology is intentionally smaller.
+- Enforcement (test/lint/checklist): expose target-count threshold via env/config and verify preflight output for both 2-target and 10-target modes.
+
+- Date: 2026-03-01
+- Pattern: UX cleanup request to remove Azure Portal links was only partially implemented, leaving one "Open in Azure Portal" button in run-stage cards.
+- Preventative rule: When removing a UI affordance globally, run a project-wide grep for all label variants and remove every render path before close.
+- Detection signal: `rg -n "Open in Azure Portal|portal_link" frontend/src` still returns clickable UI usage after cleanup.
+- Enforcement (test/lint/checklist): add a UI cleanup checklist step requiring label grep + one click-through verification in Deployments view.
+
+- Date: 2026-03-01
+- Pattern: Azure deployment failures were captured in structured payloads but surfaced in UI as generic stage text, forcing operators to open portal links for actionable details.
+- Preventative rule: For external API failures, always emit a concise operator-facing diagnostic summary line plus key request identifiers directly into in-app logs.
+- Detection signal: failed run cards only show generic messages (for example, "update failed") while `stage.error.details` contains richer provider error metadata.
+- Enforcement (test/lint/checklist): add regression assertions that failed-stage logs include provider error summary + request/correlation IDs when available.
+
+- Date: 2026-03-01
+- Pattern: Route-level polling rerenders can make local page UI state (like drawer open/closed) flaky and break interaction tests.
+- Preventative rule: Keep transient UI state that must survive route rerenders at the shell level (or URL state), not only inside route element components.
+- Detection signal: Playwright shows repeated "element not stable/intercepts pointer events" while controls appear/disappear on periodic refresh ticks.
+- Enforcement (test/lint/checklist): add a POM flow that opens the control surface, performs 2+ interactions, and starts the action while periodic refresh is active.

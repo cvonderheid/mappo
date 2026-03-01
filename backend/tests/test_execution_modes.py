@@ -128,7 +128,20 @@ class _DeployFailureRuntime(_SuccessRuntime):
         raise AzureExecutionError(
             code="azure_deploy_failed",
             message="Azure Container App update failed.",
-            details={"target_id": target.id},
+            details={
+                "target_id": target.id,
+                "azure_error_code": "ContainerAppOperationError",
+                "azure_error_message": "Container image could not be pulled.",
+                "status_code": 400,
+                "azure_request_id": "req-001",
+                "azure_correlation_id": "corr-azure-001",
+                "azure_error_details": [
+                    {
+                        "code": "MANIFEST_UNKNOWN",
+                        "message": "manifest for ghcr.io/example/mappo:1.5.0 not found",
+                    }
+                ],
+            },
         )
 
 
@@ -301,6 +314,16 @@ def test_azure_mode_surfaces_deploy_failure(monkeypatch: pytest.MonkeyPatch) -> 
                 stage.error.code for stage in target_record.stages if stage.error is not None
             ]
             assert "azure_deploy_failed" in error_codes
+            log_messages = [event.message for event in target_record.logs]
+            assert (
+                "Azure error [ContainerAppOperationError]: "
+                "Container image could not be pulled."
+            ) in log_messages
+            assert "Azure request id: req-001" in log_messages
+            assert (
+                "Azure detail [MANIFEST_UNKNOWN]: "
+                "manifest for ghcr.io/example/mappo:1.5.0 not found"
+            ) in log_messages
         finally:
             await store.shutdown()
 

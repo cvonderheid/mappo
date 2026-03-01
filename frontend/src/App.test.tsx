@@ -132,12 +132,24 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("link", { name: /Deployments/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Start Run/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Target Filters \+ Start Deployment Run/i })).toBeInTheDocument();
       expect(screen.getByText("run-1")).toBeInTheDocument();
-      expect(screen.getByLabelText("Release version")).toBeInTheDocument();
-      expect(screen.getByText("Targets in selected target group: 1")).toBeInTheDocument();
       expect(screen.getByTestId("resume-run-1")).toBeDisabled();
       expect(screen.getByTestId("retry-failed-run-1")).toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Target Filters \+ Start Deployment Run/i }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Release version")).toBeInTheDocument();
+      expect(screen.getByText("Targets in selected target group: 1")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("select-run-run-1"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Back To Deployments/i })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Run Detail" })).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("link", { name: /Admin/i }));

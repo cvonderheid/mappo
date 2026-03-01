@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import socket
 from collections.abc import Generator
 
 from sqlalchemy import create_engine
@@ -9,16 +8,8 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 
-def _port_is_open(host: str, port: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.settimeout(0.15)
-        return sock.connect_ex((host, port)) == 0
-
-
 def _default_database_url() -> str:
-    if _port_is_open("127.0.0.1", 5433):
-        return "postgresql+psycopg://mappo:mappo@localhost:5433/mappo"
-    return "postgresql+psycopg://mappo:mappo@localhost:5432/mappo"
+    return "postgresql+psycopg://mappo:mappo@localhost:5433/mappo"
 
 
 DEFAULT_DATABASE_URL = (

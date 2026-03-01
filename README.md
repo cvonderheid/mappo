@@ -28,35 +28,49 @@ export MAPPO_PUBLISHER_PRINCIPAL_OBJECT_ID="<azure-ad-object-id>"
 4. Provision managed app demo targets with Pulumi IaC:
 ```bash
 make iac-install
-make iac-stack-init
-make iac-up
-make iac-export-targets
+make iac-stack-init PULUMI_STACK=<stack>
+make iac-configure-marketplace-demo PULUMI_STACK=<stack> \
+  PROVIDER_SUBSCRIPTION_ID="<provider-sub-id>" \
+  CUSTOMER_SUBSCRIPTION_ID="<customer-sub-id>"
+cd infra/pulumi && pulumi config set --stack <stack> mappo:controlPlanePostgresEnabled true
+cd infra/pulumi && pulumi config set --stack <stack> --secret mappo:controlPlanePostgresAdminPassword "<strong-password>"
+make iac-up PULUMI_STACK=<stack>
+make iac-export-targets PULUMI_STACK=<stack>
+make iac-export-db-env PULUMI_STACK=<stack>
 make import-targets
 make bootstrap-releases
 # Use FORCE=1 to replace existing releases with current defaults.
 make bootstrap-releases FORCE=1
 ```
+   - The stack configurator auto-resolves tenant-local principal object IDs and adds your current public IP to Postgres firewall rules for local demo connectivity (can be overridden).
+
+   - Load managed DB env output when running backend locally:
+```bash
+source .data/mappo-db.env
+```
 5. Run readiness check:
 ```bash
 make azure-preflight
 ```
+   - `azure-preflight` expects at least `2` targets by default (`MAPPO_PREFLIGHT_EXPECTED_TARGET_COUNT` to override, e.g. `10`).
 6. Start backend (Azure mode) and frontend:
 ```bash
 make dev-backend-azure
 make dev-frontend
 ```
-   - If you use `docker compose -f infra/docker-compose.yml up`, backend now auto-sources `/workspace/.data/mappo-azure.env` when present.
+   - If you use `docker compose -f infra/docker-compose.yml up`, backend auto-sources `/workspace/.data/mappo-azure.env` and `/workspace/.data/mappo-db.env` when present.
 5. Open:
 - API docs: `http://localhost:8010/api/v1/docs`
 - UI: `http://localhost:5174`
 
 ## Primary Demo Commands
-- `make iac-prepare-dual-stack CUSTOMER_SUBSCRIPTION_ID="<sub2>" [PULUMI_STACK=dual-demo]`
 - `make iac-install`
 - `make iac-stack-init [PULUMI_STACK=<name>]`
+- `make iac-configure-marketplace-demo PROVIDER_SUBSCRIPTION_ID="<sub1>" CUSTOMER_SUBSCRIPTION_ID="<sub2>" [PULUMI_STACK=<name>]`
 - `make iac-preview [PULUMI_STACK=<name>]`
 - `make iac-up [PULUMI_STACK=<name>]`
 - `make iac-export-targets [PULUMI_STACK=<name>]`
+- `make iac-export-db-env [PULUMI_STACK=<name>]`
 - `make iac-destroy [PULUMI_STACK=<name>]`
 - `make azure-tenant-map SUBSCRIPTION_IDS="<sub1>,<sub2>"`
 - `make import-targets`

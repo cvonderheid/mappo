@@ -27,12 +27,14 @@ MAPPO is a provider-tenant control plane that orchestrates release rollouts acro
 - Executes state machine per target:
   - `QUEUED` -> `VALIDATING` -> `DEPLOYING` -> `VERIFYING` -> (`SUCCEEDED` | `FAILED`)
 - Captures stage timestamps, errors, and correlation IDs.
+- Normalizes Azure API failure payloads into operator-facing run logs (error code/message, HTTP status, request/correlation IDs, detail entries) so troubleshooting does not require portal navigation.
 - Adapter boundary supports execution modes (`demo` and `azure`) so orchestration and persistence stay unchanged across runtimes.
 
 4. Persistence
 - Stores fleet state, run history, per-target stage records, and logs.
 - Stores onboarding registry records and event-ingest history for idempotent target registration.
 - Retains run/deployment history for 3 months.
+- Cloud runtime path uses Azure Database for PostgreSQL Flexible Server (local dev keeps Docker Postgres).
 
 ## Control / Data / Verification Boundaries
 - Control flow: run/wave scheduling and per-target stage transitions.

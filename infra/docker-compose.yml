@@ -41,8 +41,8 @@ services:
         condition: service_completed_successfully
     working_dir: /workspace
     environment:
-      MAPPO_DATABASE_URL: postgresql+psycopg://mappo:mappo@postgres:5432/mappo
-      DATABASE_URL: postgresql+psycopg://mappo:mappo@postgres:5432/mappo
+      MAPPO_DATABASE_URL: ${MAPPO_DATABASE_URL:-postgresql+psycopg://mappo:mappo@postgres:5432/mappo}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://mappo:mappo@postgres:5432/mappo}
       MAPPO_RETENTION_DAYS: "90"
       MAPPO_EXECUTION_MODE: ${MAPPO_EXECUTION_MODE:-azure}
       MAPPO_AZURE_TENANT_ID: ${MAPPO_AZURE_TENANT_ID:-}
@@ -56,6 +56,9 @@ services:
       - |
         if [ -f /workspace/.data/mappo-azure.env ]; then
           source /workspace/.data/mappo-azure.env
+        fi
+        if [ -f /workspace/.data/mappo-db.env ]; then
+          source /workspace/.data/mappo-db.env
         fi
         uv sync --all-packages --all-groups && uv --directory backend run --package mappo-backend -- uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:

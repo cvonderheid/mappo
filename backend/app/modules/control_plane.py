@@ -704,6 +704,17 @@ class ControlPlaneStore:
                     correlation_id=correlation_id,
                 )
             )
+            if error is not None:
+                for diagnostic_line in self._build_error_log_lines(error):
+                    record.logs.append(
+                        TargetLogEvent(
+                            timestamp=now,
+                            level="ERROR",
+                            stage=stage,
+                            message=diagnostic_line,
+                            correlation_id=correlation_id,
+                        )
+                    )
             record.updated_at = now
             run.updated_at = now
             if terminal_state is not None:
@@ -728,6 +739,71 @@ class ControlPlaneStore:
             if stage_record.stage == stage and stage_record.ended_at is None:
                 return stage_record
         return None
+
+    @staticmethod
+    def _build_error_log_lines(error: StructuredError) -> list[str]:
+        details = error.details if isinstance(error.details, dict) else {}
+        if not details:
+            return []
+
+        lines: list[str] = []
+        azure_error_code = ControlPlaneStore._to_text(details.get("azure_error_code"))
+        azure_error_message = ControlPlaneStore._to_text(details.get("azure_error_message"))
+        if azure_error_code and azure_error_message:
+            lines.append(f"Azure error [{azure_error_code}]: {azure_error_message}")
+        elif azure_error_message:
+            lines.append(f"Azure error: {azure_error_message}")
+        elif azure_error_code:
+            lines.append(f"Azure error code: {azure_error_code}")
+
+        status_code = details.get("status_code")
+        if isinstance(status_code, int):
+            lines.append(f"Azure HTTP status: {status_code}")
+
+        request_id = (
+            ControlPlaneStore._to_text(details.get("azure_request_id"))
+            or ControlPlaneStore._to_text(details.get("azure_arm_service_request_id"))
+        )
+        if request_id:
+            lines.append(f"Azure request id: {request_id}")
+
+        correlation_id = ControlPlaneStore._to_text(details.get("azure_correlation_id"))
+        if correlation_id:
+            lines.append(f"Azure correlation id: {correlation_id}")
+
+        operation_id = ControlPlaneStore._to_text(details.get("azure_operation_id"))
+        if operation_id:
+            lines.append(f"Azure operation id: {operation_id}")
+
+        detail_entries = details.get("azure_error_details")
+        if isinstance(detail_entries, list):
+            for entry in detail_entries[:3]:
+                if not isinstance(entry, dict):
+                    continue
+                entry_code = ControlPlaneStore._to_text(entry.get("code"))
+                entry_message = ControlPlaneStore._to_text(entry.get("message"))
+                if entry_code and entry_message:
+                    lines.append(f"Azure detail [{entry_code}]: {entry_message}")
+                elif entry_message:
+                    lines.append(f"Azure detail: {entry_message}")
+
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for line in lines:
+            if line in seen:
+                continue
+            seen.add(line)
+            normalized.append(line)
+        return normalized
+
+    @staticmethod
+    def _to_text(value: object) -> str | None:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        if normalized == "":
+            return None
+        return normalized
 
     async def _apply_stop_policy_if_needed(self, run_id: str) -> bool:
         async with self._lock:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import hashlib
+import json
 import random
 import re
 import time
@@ -304,7 +305,7 @@ class DemoTargetExecutor:
             event_type="started",
             stage=TargetStage.SUCCEEDED,
             correlation_id=success_correlation,
-            message="Succeeded started.",
+            message="Finalizing success state.",
         )
         yield TargetExecutionEvent(
             event_type="completed",
@@ -545,7 +546,7 @@ class AzureTargetExecutor:
             event_type="started",
             stage=TargetStage.SUCCEEDED,
             correlation_id=success_correlation,
-            message="Succeeded started.",
+            message="Finalizing success state.",
         )
         yield TargetExecutionEvent(
             event_type="completed",
@@ -1156,12 +1157,25 @@ class AzureSdkRuntime:
                 details={**(details or {}), "error": str(error)},
             )
         if isinstance(error, HttpResponseError):
+            http_error_details = extract_http_response_error_details(error)
+            azure_summary = format_azure_error_summary(
+                azure_error_code=to_non_empty_string(
+                    http_error_details.get("azure_error_code")
+                ),
+                azure_error_message=to_non_empty_string(
+                    http_error_details.get("azure_error_message")
+                ),
+            )
+            translated_message = message
+            if azure_summary and azure_summary not in translated_message:
+                translated_message = f"{translated_message} {azure_summary}"
             return AzureExecutionError(
                 code=code,
-                message=message,
+                message=translated_message,
                 details={
                     **(details or {}),
                     "error": str(error),
+                    **http_error_details,
                     "status_code": getattr(error, "status_code", None),
                 },
             )
@@ -1283,6 +1297,238 @@ def stringify_exception(error: Exception) -> str:
     if message:
         return message
     return error.__class__.__name__
+
+
+def extract_http_response_error_details(error: Exception) -> dict[str, Any]:
+    details: dict[str, Any] = {}
+    response = getattr(error, "response", None)
+    if response is not None:
+        details.update(extract_azure_response_headers(getattr(response, "headers", None)))
+        response_text = read_response_body_text(response)
+        response_json = parse_json_payload(response_text)
+        if response_json is not None:
+            details["azure_response_body"] = response_json
+            details.update(extract_azure_error_from_payload(response_json))
+        elif response_text:
+            details["azure_response_text"] = truncate_text(response_text, 4096)
+
+    for key, value in extract_azure_error_from_model(getattr(error, "error", None)).items():
+        details.setdefault(key, value)
+    for key, value in extract_azure_error_from_text(stringify_exception(error)).items():
+        details.setdefault(key, value)
+    return details
+
+
+def extract_azure_response_headers(headers: Any) -> dict[str, str]:
+    if headers is None:
+        return {}
+    extracted: dict[str, str] = {}
+    header_map = {
+        "x-ms-request-id": "azure_request_id",
+        "x-ms-correlation-request-id": "azure_correlation_id",
+        "x-ms-routing-request-id": "azure_routing_request_id",
+        "x-ms-arm-service-request-id": "azure_arm_service_request_id",
+        "x-ms-client-request-id": "azure_client_request_id",
+        "x-ms-operation-id": "azure_operation_id",
+        "azure-asyncoperation": "azure_async_operation_url",
+    }
+    for source_header, target_key in header_map.items():
+        header_value = read_header_value(headers, source_header)
+        if header_value:
+            extracted[target_key] = header_value
+    return extracted
+
+
+def read_header_value(headers: Any, key: str) -> str | None:
+    key_lower = key.lower()
+    try:
+        items = headers.items()
+    except Exception:
+        items = []
+    for header_key, header_value in items:
+        if str(header_key).lower() != key_lower:
+            continue
+        normalized = to_non_empty_string(header_value)
+        if normalized:
+            return normalized
+    try:
+        raw = headers.get(key)
+    except Exception:
+        raw = None
+    return to_non_empty_string(raw)
+
+
+def read_response_body_text(response: Any) -> str | None:
+    text_attr = getattr(response, "text", None)
+    if isinstance(text_attr, str):
+        return text_attr.strip() or None
+    if callable(text_attr):
+        try:
+            text_value = text_attr()
+        except TypeError:
+            text_value = text_attr(encoding="utf-8")
+        except Exception:
+            text_value = None
+        normalized = to_non_empty_string(text_value)
+        if normalized:
+            return normalized
+
+    content_attr = getattr(response, "content", None)
+    if isinstance(content_attr, bytes):
+        try:
+            decoded = content_attr.decode("utf-8", errors="replace")
+        except Exception:
+            decoded = ""
+        normalized = decoded.strip()
+        return normalized or None
+    if isinstance(content_attr, str):
+        return content_attr.strip() or None
+    return None
+
+
+def parse_json_payload(raw: str | None) -> Any | None:
+    if raw is None:
+        return None
+    normalized = raw.strip()
+    if normalized == "":
+        return None
+    if not normalized.startswith("{") and not normalized.startswith("["):
+        return None
+    try:
+        return json.loads(normalized)
+    except json.JSONDecodeError:
+        return None
+
+
+def extract_azure_error_from_payload(payload: Any) -> dict[str, Any]:
+    root = payload
+    if isinstance(payload, dict) and isinstance(payload.get("error"), dict):
+        root = payload["error"]
+    if not isinstance(root, dict):
+        return {}
+
+    extracted: dict[str, Any] = {}
+    error_code = to_non_empty_string(root.get("code"))
+    error_message = to_non_empty_string(root.get("message"))
+    if error_code:
+        extracted["azure_error_code"] = error_code
+    if error_message:
+        extracted["azure_error_message"] = error_message
+
+    details_value = root.get("details")
+    detail_entries = normalize_azure_error_detail_entries(details_value)
+    if detail_entries:
+        extracted["azure_error_details"] = detail_entries
+
+    inner_error = root.get("innererror") or root.get("innerError")
+    inner_entry = normalize_azure_error_detail_entry(inner_error)
+    if inner_entry:
+        extracted["azure_inner_error"] = inner_entry
+    return extracted
+
+
+def extract_azure_error_from_model(error_model: Any) -> dict[str, Any]:
+    if error_model is None:
+        return {}
+    extracted: dict[str, Any] = {}
+    error_code = to_non_empty_string(getattr(error_model, "code", None))
+    error_message = to_non_empty_string(getattr(error_model, "message", None))
+    if error_code:
+        extracted["azure_error_code"] = error_code
+    if error_message:
+        extracted["azure_error_message"] = error_message
+
+    detail_entries = normalize_azure_error_detail_entries(
+        getattr(error_model, "details", None)
+    )
+    if detail_entries:
+        extracted["azure_error_details"] = detail_entries
+    return extracted
+
+
+def normalize_azure_error_detail_entries(value: Any) -> list[dict[str, str]] | None:
+    if not isinstance(value, list):
+        return None
+    entries: list[dict[str, str]] = []
+    for item in value:
+        normalized = normalize_azure_error_detail_entry(item)
+        if normalized is not None:
+            entries.append(normalized)
+    if not entries:
+        return None
+    return entries
+
+
+def normalize_azure_error_detail_entry(value: Any) -> dict[str, str] | None:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        source = value
+    else:
+        source = {
+            "code": getattr(value, "code", None),
+            "message": getattr(value, "message", None),
+            "target": getattr(value, "target", None),
+        }
+    entry: dict[str, str] = {}
+    for key in ("code", "message", "target"):
+        normalized = to_non_empty_string(source.get(key))
+        if normalized:
+            entry[key] = normalized
+    if not entry:
+        return None
+    return entry
+
+
+def extract_azure_error_from_text(text: str) -> dict[str, str]:
+    if text.strip() == "":
+        return {}
+    code_match = re.search(r"\bCode[:=]\s*\"?([A-Za-z0-9_.-]+)\"?", text, re.IGNORECASE)
+    message_match = re.search(
+        r"\bMessage[:=]\s*\"?([^\n\"]+)",
+        text,
+        re.IGNORECASE,
+    )
+    extracted: dict[str, str] = {}
+    if code_match:
+        extracted["azure_error_code"] = code_match.group(1).strip()
+    if message_match:
+        extracted["azure_error_message"] = message_match.group(1).strip()
+    return extracted
+
+
+def format_azure_error_summary(
+    *,
+    azure_error_code: str | None,
+    azure_error_message: str | None,
+) -> str | None:
+    if azure_error_code and azure_error_message:
+        return (
+            f"(Azure {azure_error_code}: "
+            f"{truncate_text(azure_error_message, 240)})"
+        )
+    if azure_error_message:
+        return f"(Azure: {truncate_text(azure_error_message, 240)})"
+    if azure_error_code:
+        return f"(Azure code: {azure_error_code})"
+    return None
+
+
+def to_non_empty_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if normalized == "":
+        return None
+    return normalized
+
+
+def truncate_text(value: str, max_length: int) -> str:
+    if len(value) <= max_length:
+        return value
+    if max_length <= 3:
+        return value[:max_length]
+    return f"{value[: max_length - 3]}..."
 
 
 def parse_container_app_resource_id(managed_app_id: str) -> ContainerAppResourceRef:

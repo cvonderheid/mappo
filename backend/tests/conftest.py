@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import socket
 import subprocess
 from collections.abc import Generator
 from pathlib import Path
@@ -21,16 +20,8 @@ from tests.support.sample_data import seed_store
 DEFAULT_DATABASE_URL = "postgresql+psycopg://mappo:mappo@localhost:5433/mappo"
 
 
-def _port_is_open(host: str, port: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.settimeout(0.15)
-        return sock.connect_ex((host, port)) == 0
-
-
 def _default_database_url() -> str:
-    if _port_is_open("127.0.0.1", 5433):
-        return DEFAULT_DATABASE_URL
-    return "postgresql+psycopg://mappo:mappo@localhost:5432/mappo"
+    return DEFAULT_DATABASE_URL
 
 
 def _current_database_url() -> str:

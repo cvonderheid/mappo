@@ -29,8 +29,6 @@ This playbook defines what is automated versus manual for a marketplace-accurate
 ## 1) Provision target surface with Pulumi
 - Export publisher principal object ID:
   - `export MAPPO_PUBLISHER_PRINCIPAL_OBJECT_ID="<azure-ad-object-id>"`
-- Optional dual-subscription stack file:
-  - `make iac-prepare-dual-stack CUSTOMER_SUBSCRIPTION_ID="<customer-sub-id>" PULUMI_STACK=dual-demo`
 - Deploy:
   - `make iac-install`
   - `make iac-stack-init PULUMI_STACK=<stack>`

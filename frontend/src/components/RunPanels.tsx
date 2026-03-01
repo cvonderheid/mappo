@@ -1,4 +1,7 @@
+import { Link } from "react-router-dom";
+
 import type { RunDetail, RunSummary, TargetExecutionRecord } from "@/lib/types";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +19,7 @@ type ProgressCounts = {
 type RunListProps = {
   runs: RunSummary[];
   selectedRunId: string;
-  onSelectRun: (runId: string) => void;
+  onOpenRun: (runId: string) => void;
   onResumeRun: (runId: string) => void;
   onRetryFailed: (runId: string) => void;
 };
@@ -63,6 +66,17 @@ function percentComplete(completed: number, total: number): number {
     return 0;
   }
   return Math.round((completed / total) * 100);
+}
+
+function asNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    return null;
+  }
+  return normalized;
 }
 
 type ProgressSegment = {
@@ -173,7 +187,7 @@ function StackedProgressBar({
 export function RunList({
   runs,
   selectedRunId,
-  onSelectRun,
+  onOpenRun,
   onResumeRun,
   onRetryFailed,
 }: RunListProps) {
@@ -204,7 +218,7 @@ export function RunList({
                 type="button"
                 data-testid={`select-run-${run.id}`}
                 className="mb-2 flex w-full items-center justify-between text-left"
-                onClick={() => onSelectRun(run.id)}
+                onClick={() => onOpenRun(run.id)}
               >
                 <div>
                   <p className="font-mono text-xs">{run.id}</p>
@@ -223,13 +237,7 @@ export function RunList({
                 </div>
                 <StackedProgressBar progress={progress} testIdPrefix={`run-progress-${run.id}`} />
               </div>
-              {(run.guardrail_warnings ?? []).length > 0 ? (
-                <div className="mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] text-amber-200">
-                  {(run.guardrail_warnings ?? []).map((warning) => (
-                    <p key={`${run.id}-${warning}`}>{warning}</p>
-                  ))}
-                </div>
-              ) : null}
+              {(run.guardrail_warnings ?? []).length > 0 ? <GuardrailWarnings runId={run.id} warnings={run.guardrail_warnings ?? []} /> : null}
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   data-testid={`resume-${run.id}`}
@@ -248,6 +256,11 @@ export function RunList({
                   disabled={!retryEnabled}
                 >
                   Retry Failed
+                </Button>
+              </div>
+              <div className="mt-2">
+                <Button asChild variant="ghost" size="sm" className="w-full">
+                  <Link to={`/deployments/${encodeURIComponent(run.id)}`}>View Run Details</Link>
                 </Button>
               </div>
             </div>
@@ -314,11 +327,7 @@ export function RunDetailPanel({ run }: RunDetailProps) {
           </div>
         ) : null}
         {(run.guardrail_warnings ?? []).length > 0 ? (
-          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-200">
-            {(run.guardrail_warnings ?? []).map((warning) => (
-              <p key={`detail-${run.id}-${warning}`}>{warning}</p>
-            ))}
-          </div>
+          <GuardrailWarnings runId={`detail-${run.id}`} warnings={run.guardrail_warnings ?? []} />
         ) : null}
         <div className="space-y-2">
           {run.target_records.map((record) => (
@@ -333,6 +342,7 @@ export function RunDetailPanel({ run }: RunDetailProps) {
 function TargetRecordCard({ record }: { record: TargetExecutionRecord }) {
   const stages = record.stages ?? [];
   const logs = record.logs ?? [];
+  const visibleLogs = logs.slice(-12);
 
   return (
     <article className="rounded-md border border-border/70 bg-card/70 p-3">
@@ -360,15 +370,7 @@ function TargetRecordCard({ record }: { record: TargetExecutionRecord }) {
             </div>
             <p className="text-[11px]">{stage.message}</p>
             <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
-              <span className="font-mono">corr: {stage.correlation_id}</span>
-              <a
-                href={stage.portal_link}
-                target="_blank"
-                rel="noreferrer"
-                className="underline decoration-dotted underline-offset-2"
-              >
-                Open in Azure Portal
-              </a>
+              <span className="font-mono">correlation-id: {stage.correlation_id}</span>
             </div>
             {stage.error ? (
               <div className="mt-2 rounded-md border border-destructive/60 bg-destructive/10 p-2 text-[11px]">
@@ -376,6 +378,9 @@ function TargetRecordCard({ record }: { record: TargetExecutionRecord }) {
                   Error code: {stage.error.code}
                 </p>
                 <p className="mt-1">{stage.error.message}</p>
+                {stage.error.details ? (
+                  <AzureErrorSummary details={stage.error.details} />
+                ) : null}
                 {stage.error.details ? (
                   <details className="mt-2">
                     <summary className="cursor-pointer text-[10px] text-muted-foreground">
@@ -397,13 +402,16 @@ function TargetRecordCard({ record }: { record: TargetExecutionRecord }) {
             Logs ({logs.length})
           </summary>
           <div className="mt-2 space-y-1">
-            {logs.slice(-6).map((log) => (
+            {visibleLogs.map((log, index) => (
               <div
-                key={`${log.correlation_id}-${log.timestamp}`}
-                className="grid gap-1 rounded-sm border-t border-border/40 pt-1 text-[11px] sm:grid-cols-[80px_90px_1fr]"
+                key={`${log.correlation_id}-${log.timestamp}-${index}`}
+                className="grid gap-1 rounded-sm border-t border-border/40 pt-1 text-[11px] sm:grid-cols-[80px_60px_90px_1fr]"
               >
                 <span className="font-mono text-muted-foreground">
                   {new Date(log.timestamp).toLocaleTimeString()}
+                </span>
+                <span className={log.level === "ERROR" ? "font-semibold text-destructive" : "text-muted-foreground"}>
+                  {log.level}
                 </span>
                 <span>{log.stage}</span>
                 <span>{log.message}</span>
@@ -413,5 +421,47 @@ function TargetRecordCard({ record }: { record: TargetExecutionRecord }) {
         </details>
       ) : null}
     </article>
+  );
+}
+
+function AzureErrorSummary({ details }: { details: Record<string, unknown> }) {
+  const azureCode = asNonEmptyString(details.azure_error_code);
+  const azureMessage = asNonEmptyString(details.azure_error_message);
+  const requestId =
+    asNonEmptyString(details.azure_request_id) ?? asNonEmptyString(details.azure_arm_service_request_id);
+  const correlationId = asNonEmptyString(details.azure_correlation_id);
+
+  if (!azureCode && !azureMessage && !requestId && !correlationId) {
+    return null;
+  }
+
+  return (
+    <div className="mt-1 space-y-1 font-mono text-[10px] text-destructive/90">
+      {azureCode || azureMessage ? (
+        <p>
+          Azure: {azureCode ? `[${azureCode}] ` : ""}
+          {azureMessage ?? ""}
+        </p>
+      ) : null}
+      {requestId ? <p>request-id: {requestId}</p> : null}
+      {correlationId ? <p>correlation-id: {correlationId}</p> : null}
+    </div>
+  );
+}
+
+function GuardrailWarnings({ runId, warnings }: { runId: string; warnings: string[] }) {
+  return (
+    <Accordion type="single" collapsible className="mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 text-amber-200">
+      <AccordionItem value={`warnings-${runId}`} className="border-b-0">
+        <AccordionTrigger className="py-2 text-[11px] hover:no-underline">
+          Guardrail warnings ({warnings.length})
+        </AccordionTrigger>
+        <AccordionContent className="space-y-1 pb-2 text-[11px]">
+          {warnings.map((warning) => (
+            <p key={`${runId}-${warning}`}>{warning}</p>
+          ))}
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
   );
 }

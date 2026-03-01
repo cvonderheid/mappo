@@ -3,6 +3,14 @@ import type { Locator, Page } from "@playwright/test";
 export class DeploymentsPage {
   constructor(private readonly page: Page) {}
 
+  get openControlsButton(): Locator {
+    return this.page.getByTestId("open-deployment-controls");
+  }
+
+  get targetGroupFilterDropdown(): Locator {
+    return this.page.locator("#target-group-filter");
+  }
+
   get releaseVersionDropdown(): Locator {
     return this.page.locator("#release-version");
   }
@@ -39,6 +47,14 @@ export class DeploymentsPage {
     await this.releaseVersionDropdown.selectOption({ label: versionLabel });
   }
 
+  async openControls(): Promise<void> {
+    await this.openControlsButton.click();
+  }
+
+  async selectTargetGroup(group: "all" | "canary" | "prod"): Promise<void> {
+    await this.targetGroupFilterDropdown.selectOption(group);
+  }
+
   async selectTargetScope(scope: "filtered" | "specific"): Promise<void> {
     await this.page.locator("#target-scope").selectOption(scope);
   }
@@ -46,7 +62,11 @@ export class DeploymentsPage {
   async setSpecificTargetChecked(targetId: string, checked: boolean): Promise<void> {
     const checkbox = this.specificTargetCheckbox(targetId);
     if ((await checkbox.isChecked()) !== checked) {
-      await checkbox.click();
+      if (checked) {
+        await checkbox.check({ force: true });
+      } else {
+        await checkbox.uncheck({ force: true });
+      }
     }
   }
 

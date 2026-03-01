@@ -3,11 +3,12 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COMPOSE_FILE="${MAPPO_COMPOSE_FILE:-${ROOT_DIR}/infra/docker-compose.yml}"
-PGHOST="${PGHOST:-localhost}"
-PGPORT="${PGPORT:-5433}"
-PGUSER="${PGUSER:-mappo}"
-PGPASSWORD="${PGPASSWORD:-mappo}"
+PGHOST="${MAPPO_DB_HOST:-${PGHOST:-localhost}}"
+PGPORT="${MAPPO_DB_PORT:-${PGPORT:-5433}}"
+PGUSER="${MAPPO_DB_USER:-${PGUSER:-mappo}}"
+PGPASSWORD="${MAPPO_DB_PASSWORD:-${PGPASSWORD:-mappo}}"
 DB_NAME="${MAPPO_DB_NAME:-mappo}"
+SKIP_NON_LOCAL_ENSURE="${MAPPO_SKIP_DB_ENSURE_NON_LOCAL:-1}"
 
 can_use_host_psql() {
   command -v psql >/dev/null 2>&1 && command -v createdb >/dev/null 2>&1
@@ -73,6 +74,10 @@ if can_use_host_psql; then
 fi
 
 if ! is_local_compose_postgres; then
+  if [[ "${SKIP_NON_LOCAL_ENSURE}" == "1" || "${SKIP_NON_LOCAL_ENSURE}" == "true" ]]; then
+    echo "skipping DB bootstrap for non-local host (${PGHOST}:${PGPORT}); run Flyway directly against managed DB"
+    exit 0
+  fi
   echo "psql/createdb not available and non-compose DB host configured (${PGHOST}:${PGPORT})" >&2
   exit 1
 fi

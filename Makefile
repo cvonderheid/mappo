@@ -5,6 +5,7 @@ COMPOSE_FILE := infra/docker-compose.yml
 IAC_DIR := infra/pulumi
 PULUMI_STACK ?= dev
 IAC_TARGET_EXPORT ?= .data/mappo-target-inventory.json
+IAC_DB_ENV_EXPORT ?= .data/mappo-db.env
 PULUMI_CONFIG_PASSPHRASE ?= mappo-local-dev
 export PULUMI_CONFIG_PASSPHRASE
 
@@ -13,10 +14,10 @@ export PULUMI_CONFIG_PASSPHRASE
 	lint lint-backend lint-frontend typecheck typecheck-backend typecheck-frontend \
 	test test-backend test-frontend test-frontend-e2e import-targets retention-prune \
 	azure-auth-bootstrap azure-tenant-map azure-onboard-multitenant-runtime dev-backend-azure azure-preflight bootstrap-releases \
+	iac-configure-marketplace-demo \
 	partner-center-token partner-center-api \
-	cleanup-legacy-managed-app-demo \
 	db-migrate db-validate db-info db-clean db-reset models-gen openapi client-gen \
-	iac-install iac-stack-init iac-preview iac-up iac-destroy iac-export-targets iac-prepare-dual-stack \
+	iac-install iac-stack-init iac-preview iac-up iac-destroy iac-export-targets iac-export-db-env \
 	workflow-discipline-check docs-consistency-check golden-principles-check check-no-demo-leak \
 	phase1-gate-fast phase1-gate-full
 
@@ -131,22 +132,30 @@ partner-center-api: ## Call Partner Center API (requires URL=<https://...>)
 		--url "$(URL)" \
 		$(if $(BODY_FILE),--body-file "$(BODY_FILE)",)
 
-cleanup-legacy-managed-app-demo: ## Delete legacy pre-Pulumi managed-app demo resource groups
-	@if [ -z "$(PROVIDER_SUBSCRIPTION_ID)" ] || [ -z "$(CUSTOMER_SUBSCRIPTION_ID)" ]; then \
-		echo "usage: make cleanup-legacy-managed-app-demo PROVIDER_SUBSCRIPTION_ID=<id> CUSTOMER_SUBSCRIPTION_ID=<id>"; \
-		exit 2; \
-	fi
-	./scripts/cleanup_legacy_managed_app_demo.sh \
-		--provider-subscription-id "$(PROVIDER_SUBSCRIPTION_ID)" \
-		--customer-subscription-id "$(CUSTOMER_SUBSCRIPTION_ID)"
-
 azure-preflight: ## Validate Azure environment readiness for production-like multi-tenant demo
 	./scripts/azure_preflight.sh
+
+iac-configure-marketplace-demo: ## Configure Pulumi stack for 2-target cross-tenant marketplace demo
+	@if [ -z "$(PROVIDER_SUBSCRIPTION_ID)" ] || [ -z "$(CUSTOMER_SUBSCRIPTION_ID)" ]; then \
+		echo "usage: make iac-configure-marketplace-demo PROVIDER_SUBSCRIPTION_ID=<id> CUSTOMER_SUBSCRIPTION_ID=<id> [PULUMI_STACK=demo] [RUNTIME_CLIENT_ID=<app-id>] [MANAGED_APP_LOCATION=eastus] [CONTROL_PLANE_SUBSCRIPTION_ID=<id>] [CONTROL_PLANE_LOCATION=centralus] [ENABLE_MANAGED_POSTGRES=true] [ALLOW_CURRENT_IP=true] [POSTGRES_ALLOWED_IP_RANGES=<ip,ip-ip>]"; \
+		exit 2; \
+	fi
+	./scripts/iac_configure_marketplace_demo.sh \
+		--stack "$(PULUMI_STACK)" \
+		--provider-subscription-id "$(PROVIDER_SUBSCRIPTION_ID)" \
+		--customer-subscription-id "$(CUSTOMER_SUBSCRIPTION_ID)" \
+		$(if $(RUNTIME_CLIENT_ID),--runtime-client-id "$(RUNTIME_CLIENT_ID)",) \
+		$(if $(MANAGED_APP_LOCATION),--managed-app-location "$(MANAGED_APP_LOCATION)",) \
+		$(if $(CONTROL_PLANE_SUBSCRIPTION_ID),--control-plane-subscription-id "$(CONTROL_PLANE_SUBSCRIPTION_ID)",) \
+		$(if $(CONTROL_PLANE_LOCATION),--control-plane-location "$(CONTROL_PLANE_LOCATION)",) \
+		$(if $(ENABLE_MANAGED_POSTGRES),--enable-managed-postgres "$(ENABLE_MANAGED_POSTGRES)",) \
+		$(if $(ALLOW_CURRENT_IP),--allow-current-ip "$(ALLOW_CURRENT_IP)",) \
+		$(if $(POSTGRES_ALLOWED_IP_RANGES),--postgres-allowed-ip-ranges "$(POSTGRES_ALLOWED_IP_RANGES)",)
 
 retention-prune: ## Prune run history older than RETENTION_DAYS
 	uv --directory backend run --package mappo-backend -- python scripts/prune_retention.py --days $(RETENTION_DAYS)
 
-db-migrate: ## Run Flyway migrations against local Postgres
+db-migrate: ## Run Flyway migrations against configured Postgres (auto-bootstraps local compose DB only)
 	./backend/scripts/ensure_db.sh
 	./backend/scripts/flyway.sh migrate
 
@@ -191,20 +200,9 @@ iac-export-targets: iac-stack-init ## Export MAPPO target inventory from Pulumi 
 	cd $(IAC_DIR) && pulumi stack output mappoTargetInventory --stack $(PULUMI_STACK) --json > $(abspath $(IAC_TARGET_EXPORT))
 	@echo "wrote $(abspath $(IAC_TARGET_EXPORT))"
 
-iac-prepare-dual-stack: ## Generate dual-subscription Pulumi stack config for managed-app demo targets
-	@if [ -z "$(CUSTOMER_SUBSCRIPTION_ID)" ]; then \
-		echo "usage: make iac-prepare-dual-stack CUSTOMER_SUBSCRIPTION_ID=<id> [PULUMI_STACK=<name>] [PROVIDER_SUBSCRIPTION_ID=<id>] [PROVIDER_PRINCIPAL_OBJECT_ID=<object-id>] [CUSTOMER_PRINCIPAL_OBJECT_ID=<object-id>] [LOCATION=<region>] [TARGET_COUNT=<n>]"; \
-		exit 2; \
-	fi
-	./scripts/iac_prepare_dual_stack.sh \
-		--stack "$(PULUMI_STACK)" \
-		$(if $(PROVIDER_SUBSCRIPTION_ID),--provider-subscription-id "$(PROVIDER_SUBSCRIPTION_ID)",) \
-		--customer-subscription-id "$(CUSTOMER_SUBSCRIPTION_ID)" \
-		$(if $(PROVIDER_PRINCIPAL_OBJECT_ID),--provider-principal-object-id "$(PROVIDER_PRINCIPAL_OBJECT_ID)",) \
-		$(if $(PUBLISHER_PRINCIPAL_OBJECT_ID),--publisher-principal-object-id "$(PUBLISHER_PRINCIPAL_OBJECT_ID)",) \
-		$(if $(CUSTOMER_PRINCIPAL_OBJECT_ID),--customer-principal-object-id "$(CUSTOMER_PRINCIPAL_OBJECT_ID)",) \
-		$(if $(LOCATION),--location "$(LOCATION)",) \
-		$(if $(TARGET_COUNT),--target-count "$(TARGET_COUNT)",)
+iac-export-db-env: iac-stack-init ## Export managed Postgres env file from Pulumi stack outputs
+	./scripts/iac_export_db_env.sh --stack $(PULUMI_STACK) --env-file $(abspath $(IAC_DB_ENV_EXPORT))
+	@echo "wrote $(abspath $(IAC_DB_ENV_EXPORT))"
 
 workflow-discipline-check: ## Validate required planning artifacts and structure
 	python3 scripts/workflow_discipline_check.py

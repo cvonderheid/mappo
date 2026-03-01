@@ -31,6 +31,24 @@ interface DeploymentOutput {
   managedApplication: solutions.Application;
 }
 
+interface ControlPlanePostgresResources {
+  subscriptionId: string;
+  resourceGroupName: pulumi.Output<string>;
+  serverName: pulumi.Output<string>;
+  host: pulumi.Output<string>;
+  port: number;
+  databaseName: string;
+  adminLogin: string;
+  connectionUsername: pulumi.Output<string>;
+  password: pulumi.Output<string>;
+  databaseUrl: pulumi.Output<string>;
+}
+
+interface FirewallIpRange {
+  startIpAddress: string;
+  endIpAddress: string;
+}
+
 const CONTRIBUTOR_ROLE_DEFINITION_ID = "b24988ac-6180-42a0-ab88-20f7382dd24c";
 
 const config = new pulumi.Config("mappo");
@@ -50,6 +68,77 @@ const managedResourceGroupPrefix = config.get("managedResourceGroupPrefix") ?? "
 const managedEnvironmentNamePrefix =
   config.get("managedEnvironmentNamePrefix") ?? "cae-mappo-ma";
 const containerAppNamePrefix = config.get("containerAppNamePrefix") ?? "ca-mappo-ma";
+const controlPlaneResourceGroupPrefix =
+  config.get("controlPlaneResourceGroupPrefix") ?? "rg-mappo-control-plane";
+const controlPlanePostgresServerNamePrefix =
+  config.get("controlPlanePostgresServerNamePrefix") ?? "pg-mappo";
+const controlPlanePostgresDatabaseName =
+  config.get("controlPlanePostgresDatabaseName") ?? "mappo";
+const controlPlanePostgresAdminLogin = normalizePostgresLogin(
+  optionalConfigWithEnvFallback(
+    config,
+    "controlPlanePostgresAdminLogin",
+    "MAPPO_CONTROL_PLANE_DB_ADMIN_LOGIN",
+  ) ?? "mappoadmin",
+);
+const controlPlanePostgresVersion = config.get("controlPlanePostgresVersion") ?? "16";
+const controlPlanePostgresSkuName =
+  config.get("controlPlanePostgresSkuName") ?? "Standard_B1ms";
+const controlPlanePostgresStorageSizeGb = numberConfigWithEnvFallback(
+  config,
+  "controlPlanePostgresStorageSizeGb",
+  "MAPPO_CONTROL_PLANE_DB_STORAGE_GB",
+  32,
+);
+const controlPlanePostgresBackupRetentionDays = numberConfigWithEnvFallback(
+  config,
+  "controlPlanePostgresBackupRetentionDays",
+  "MAPPO_CONTROL_PLANE_DB_BACKUP_RETENTION_DAYS",
+  7,
+);
+const controlPlanePostgresPublicNetworkAccess = booleanConfigWithEnvFallback(
+  config,
+  "controlPlanePostgresPublicNetworkAccess",
+  "MAPPO_CONTROL_PLANE_DB_PUBLIC_NETWORK_ACCESS",
+  true,
+);
+const controlPlanePostgresAllowAzureServices = booleanConfigWithEnvFallback(
+  config,
+  "controlPlanePostgresAllowAzureServices",
+  "MAPPO_CONTROL_PLANE_DB_ALLOW_AZURE_SERVICES",
+  true,
+);
+const controlPlanePostgresProvisioningEnabled = booleanConfigWithEnvFallback(
+  config,
+  "controlPlanePostgresEnabled",
+  "MAPPO_CONTROL_PLANE_DB_ENABLED",
+  false,
+);
+const controlPlaneSubscriptionId =
+  optionalConfigWithEnvFallback(
+    config,
+    "controlPlaneSubscriptionId",
+    "MAPPO_CONTROL_PLANE_SUBSCRIPTION_ID",
+  ) ?? resolveDemoSubscriptionId(config.get("demoSubscriptionId"));
+const controlPlaneLocation = config.get("controlPlaneLocation") ?? defaultLocation;
+const controlPlanePostgresAdminPassword = optionalSecretConfigWithEnvFallback(
+  config,
+  "controlPlanePostgresAdminPassword",
+  "MAPPO_CONTROL_PLANE_DB_ADMIN_PASSWORD",
+);
+const controlPlanePostgresFirewallIpRanges = parseFirewallIpRanges(
+  config,
+  "controlPlanePostgresAllowedIpRanges",
+  "MAPPO_CONTROL_PLANE_DB_ALLOWED_IPS",
+);
+
+if (controlPlanePostgresProvisioningEnabled && !controlPlanePostgresAdminPassword) {
+  throw new Error(
+    "Managed Postgres is enabled, but control plane DB admin password is missing. "
+      + "Set mappo:controlPlanePostgresAdminPassword (secret) or "
+      + "MAPPO_CONTROL_PLANE_DB_ADMIN_PASSWORD.",
+  );
+}
 
 const publisherPrincipalObjectId = optionalConfigWithEnvFallback(
   config,
@@ -86,6 +175,7 @@ const contextBySubscription = new Map<string, SubscriptionContext>();
 
 const managedAppMainTemplate = buildManagedAppMainTemplate(defaultCpu, defaultMemory);
 const createUiDefinition = buildCreateUiDefinition();
+const controlPlanePostgres = createControlPlanePostgresResources();
 
 const targetDeployments = targets.map((target, index) => {
   const normalizedTargetId = normalizeName(target.id, `target-${index + 1}`, 40);
@@ -238,6 +328,198 @@ export const mappoTargetInventory = pulumi.all(
 export const mappoTargetInventoryJson = mappoTargetInventory.apply((rows) =>
   JSON.stringify(rows, null, 2),
 );
+
+export const controlPlanePostgresEnabled = controlPlanePostgresProvisioningEnabled;
+export const controlPlanePostgresSubscriptionId = controlPlanePostgres
+  ? controlPlanePostgres.subscriptionId
+  : null;
+export const controlPlanePostgresResourceGroupName = controlPlanePostgres
+  ? controlPlanePostgres.resourceGroupName
+  : null;
+export const controlPlanePostgresServerName = controlPlanePostgres
+  ? controlPlanePostgres.serverName
+  : null;
+export const controlPlanePostgresHost = controlPlanePostgres
+  ? controlPlanePostgres.host
+  : null;
+export const controlPlanePostgresPort = controlPlanePostgres
+  ? controlPlanePostgres.port
+  : null;
+export const controlPlanePostgresDatabase = controlPlanePostgres
+  ? controlPlanePostgres.databaseName
+  : null;
+export const controlPlanePostgresAdmin = controlPlanePostgres
+  ? controlPlanePostgres.adminLogin
+  : null;
+export const controlPlanePostgresConnectionUsername = controlPlanePostgres
+  ? controlPlanePostgres.connectionUsername
+  : null;
+export const controlPlanePostgresPassword = controlPlanePostgres
+  ? controlPlanePostgres.password
+  : null;
+export const controlPlaneDatabaseUrl = controlPlanePostgres ? controlPlanePostgres.databaseUrl : null;
+
+function createControlPlanePostgresResources(): ControlPlanePostgresResources | null {
+  if (!controlPlanePostgresProvisioningEnabled) {
+    return null;
+  }
+
+  if (!controlPlanePostgresAdminPassword) {
+    throw new Error(
+      "Managed Postgres provisioning requested without admin password. "
+        + "Set mappo:controlPlanePostgresAdminPassword (secret).",
+    );
+  }
+
+  const provider = getProvider(controlPlaneSubscriptionId);
+  const subscriptionKeyValue = subscriptionKey(controlPlaneSubscriptionId);
+  const resourceGroupName = normalizeName(
+    `${controlPlaneResourceGroupPrefix}-${subscriptionKeyValue}`,
+    `rg-mappo-control-plane-${subscriptionKeyValue}`,
+    90,
+  );
+  const serverName = normalizeName(
+    `${controlPlanePostgresServerNamePrefix}-${subscriptionKeyValue}`,
+    `pg-mappo-${subscriptionKeyValue}`,
+    63,
+  );
+
+  const resourceGroup = new resources.ResourceGroup(
+    `control-plane-rg-${subscriptionKeyValue}`,
+    {
+      resourceGroupName,
+      location: controlPlaneLocation,
+      tags: {
+        managedBy: "pulumi",
+        system: "mappo",
+        scope: "control-plane",
+      },
+    },
+    { provider },
+  );
+
+  const server = new azureNative.dbforpostgresql.Server(
+    `control-plane-postgres-${subscriptionKeyValue}`,
+    {
+      resourceGroupName: resourceGroup.name,
+      serverName,
+      location: controlPlaneLocation,
+      createMode: "Create",
+      administratorLogin: controlPlanePostgresAdminLogin,
+      administratorLoginPassword: controlPlanePostgresAdminPassword,
+      version: controlPlanePostgresVersion,
+      backup: {
+        backupRetentionDays: controlPlanePostgresBackupRetentionDays,
+        geoRedundantBackup: "Disabled",
+      },
+      highAvailability: {
+        mode: "Disabled",
+      },
+      network: {
+        publicNetworkAccess: controlPlanePostgresPublicNetworkAccess ? "Enabled" : "Disabled",
+      },
+      sku: {
+        name: controlPlanePostgresSkuName,
+        tier: inferPostgresSkuTier(controlPlanePostgresSkuName),
+      },
+      storage: {
+        storageSizeGB: controlPlanePostgresStorageSizeGb,
+        autoGrow: "Enabled",
+      },
+      tags: {
+        managedBy: "pulumi",
+        system: "mappo",
+        scope: "control-plane-postgres",
+      },
+    },
+    {
+      provider,
+      customTimeouts: {
+        create: "30m",
+        update: "30m",
+        delete: "30m",
+      },
+    },
+  );
+
+  const database = new azureNative.dbforpostgresql.Database(
+    `control-plane-postgres-db-${subscriptionKeyValue}`,
+    {
+      resourceGroupName: resourceGroup.name,
+      serverName: server.name,
+      databaseName: controlPlanePostgresDatabaseName,
+      charset: "UTF8",
+      collation: "en_US.utf8",
+    },
+    { provider },
+  );
+
+  new azureNative.dbforpostgresql.Configuration(
+    `control-plane-postgres-ext-${subscriptionKeyValue}`,
+    {
+      resourceGroupName: resourceGroup.name,
+      serverName: server.name,
+      configurationName: "azure.extensions",
+      source: "user-override",
+      value: "PGCRYPTO",
+    },
+    { provider },
+  );
+
+  if (controlPlanePostgresPublicNetworkAccess) {
+    if (controlPlanePostgresAllowAzureServices) {
+      new azureNative.dbforpostgresql.FirewallRule(
+        `control-plane-postgres-fw-azure-${subscriptionKeyValue}`,
+        {
+          resourceGroupName: resourceGroup.name,
+          serverName: server.name,
+          firewallRuleName: "allow-azure-services",
+          startIpAddress: "0.0.0.0",
+          endIpAddress: "0.0.0.0",
+        },
+        { provider },
+      );
+    }
+
+    controlPlanePostgresFirewallIpRanges.forEach((range, index) => {
+      new azureNative.dbforpostgresql.FirewallRule(
+        `control-plane-postgres-fw-custom-${subscriptionKeyValue}-${index + 1}`,
+        {
+          resourceGroupName: resourceGroup.name,
+          serverName: server.name,
+          firewallRuleName: `allow-ip-${index + 1}`,
+          startIpAddress: range.startIpAddress,
+          endIpAddress: range.endIpAddress,
+        },
+        { provider },
+      );
+    });
+  }
+
+  const host = server.fullyQualifiedDomainName;
+  const connectionUsername = pulumi.output(controlPlanePostgresAdminLogin);
+  const databaseUrl = pulumi
+    .all([connectionUsername, controlPlanePostgresAdminPassword, host, database.name])
+    .apply(
+      ([username, password, fqdn, databaseName]) =>
+        "postgresql+psycopg://"
+          + `${encodeURIComponent(username)}:${encodeURIComponent(password)}`
+          + `@${fqdn}:5432/${databaseName}?sslmode=require`,
+    );
+
+  return {
+    subscriptionId: controlPlaneSubscriptionId,
+    resourceGroupName: resourceGroup.name,
+    serverName: server.name,
+    host,
+    port: 5432,
+    databaseName: controlPlanePostgresDatabaseName,
+    adminLogin: controlPlanePostgresAdminLogin,
+    connectionUsername,
+    password: controlPlanePostgresAdminPassword,
+    databaseUrl,
+  };
+}
 
 function getOrCreateSubscriptionContext(input: {
   provider: azureNative.Provider;
@@ -551,6 +833,154 @@ function optionalConfigWithEnvFallback(
     return value;
   }
   return undefined;
+}
+
+function optionalSecretConfigWithEnvFallback(
+  pulumiConfig: pulumi.Config,
+  configKey: string,
+  envKey: string,
+): pulumi.Output<string> | undefined {
+  const fromConfig = pulumiConfig.getSecret(configKey);
+  if (fromConfig) {
+    return fromConfig;
+  }
+  const fromEnv = (process.env[envKey] ?? "").trim();
+  if (fromEnv.length > 0) {
+    return pulumi.secret(fromEnv);
+  }
+  return undefined;
+}
+
+function booleanConfigWithEnvFallback(
+  pulumiConfig: pulumi.Config,
+  configKey: string,
+  envKey: string,
+  defaultValue: boolean,
+): boolean {
+  const fromConfig = pulumiConfig.getBoolean(configKey);
+  if (fromConfig !== undefined) {
+    return fromConfig;
+  }
+  const fromEnv = (process.env[envKey] ?? "").trim().toLowerCase();
+  if (fromEnv.length === 0) {
+    return defaultValue;
+  }
+  if (["1", "true", "yes", "on"].includes(fromEnv)) {
+    return true;
+  }
+  if (["0", "false", "no", "off"].includes(fromEnv)) {
+    return false;
+  }
+  throw new Error(
+    `Invalid boolean for ${configKey}/${envKey}. Use one of: 1,true,yes,on,0,false,no,off.`,
+  );
+}
+
+function numberConfigWithEnvFallback(
+  pulumiConfig: pulumi.Config,
+  configKey: string,
+  envKey: string,
+  defaultValue: number,
+): number {
+  const fromConfig = pulumiConfig.getNumber(configKey);
+  if (fromConfig !== undefined) {
+    return fromConfig;
+  }
+  const fromEnv = (process.env[envKey] ?? "").trim();
+  if (fromEnv.length === 0) {
+    return defaultValue;
+  }
+  const parsed = Number(fromEnv);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`Invalid numeric value for ${configKey}/${envKey}: '${fromEnv}'.`);
+  }
+  return parsed;
+}
+
+function parseFirewallIpRanges(
+  pulumiConfig: pulumi.Config,
+  configKey: string,
+  envKey: string,
+): FirewallIpRange[] {
+  const fromConfig = pulumiConfig.getObject<string[]>(configKey);
+  const fromEnvRaw = (process.env[envKey] ?? "").trim();
+  const fromEnv = fromEnvRaw.length
+    ? fromEnvRaw.split(",").map((item) => item.trim()).filter((item) => item.length > 0)
+    : [];
+
+  const raw = (fromConfig && fromConfig.length > 0 ? fromConfig : fromEnv)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+
+  return raw.map((value) => {
+    const parts = value.split("-", 2).map((segment) => segment.trim());
+    if (parts.length === 1 || parts[1] === "") {
+      validateIpv4(parts[0], `${configKey}/${envKey}`);
+      return {
+        startIpAddress: parts[0],
+        endIpAddress: parts[0],
+      };
+    }
+    validateIpv4(parts[0], `${configKey}/${envKey}`);
+    validateIpv4(parts[1], `${configKey}/${envKey}`);
+    return {
+      startIpAddress: parts[0],
+      endIpAddress: parts[1],
+    };
+  });
+}
+
+function validateIpv4(value: string, source: string): void {
+  const segments = value.split(".");
+  if (segments.length !== 4) {
+    throw new Error(`Invalid IPv4 address in ${source}: '${value}'.`);
+  }
+  for (const segment of segments) {
+    if (!/^\d+$/.test(segment)) {
+      throw new Error(`Invalid IPv4 address in ${source}: '${value}'.`);
+    }
+    const numeric = Number(segment);
+    if (!Number.isInteger(numeric) || numeric < 0 || numeric > 255) {
+      throw new Error(`Invalid IPv4 address in ${source}: '${value}'.`);
+    }
+  }
+}
+
+function inferPostgresSkuTier(skuName: string): string {
+  const normalized = skuName.trim().toLowerCase();
+  if (
+    normalized.startsWith("standard_b")
+    || normalized.startsWith("b_")
+    || normalized.startsWith("burstable")
+  ) {
+    return "Burstable";
+  }
+  if (
+    normalized.startsWith("standard_d")
+    || normalized.startsWith("standard_ds")
+    || normalized.startsWith("gp_")
+    || normalized.startsWith("generalpurpose")
+  ) {
+    return "GeneralPurpose";
+  }
+  if (
+    normalized.startsWith("standard_e")
+    || normalized.startsWith("mo_")
+    || normalized.startsWith("memoryoptimized")
+  ) {
+    return "MemoryOptimized";
+  }
+  throw new Error(
+    `Unable to infer PostgreSQL sku tier from '${skuName}'. Set a known Burstable/GeneralPurpose/MemoryOptimized SKU.`,
+  );
+}
+
+function normalizePostgresLogin(value: string): string {
+  const normalized = value.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (normalized.length < 3) {
+    return `mappoadmin${normalized}`.slice(0, 16);
+  }
+  return normalized.slice(0, 63);
 }
 
 function resolveDemoSubscriptionId(configuredValue: string | undefined): string {

@@ -1133,3 +1133,172 @@ Marketplace registration-driven onboarding (remove auto-discovery path):
 - 2026-02-28: Replaced frontend admin workflow with onboarding registration UX in `/Users/cvonderheid/workspace/mappo/frontend/src/components/AdminPanel.tsx` and `/Users/cvonderheid/workspace/mappo/frontend/src/App.tsx`.
 - 2026-02-28: Updated API client/types and regenerated contract artifacts (`/Users/cvonderheid/workspace/mappo/backend/openapi/openapi.json`, `/Users/cvonderheid/workspace/mappo/frontend/src/lib/api/generated/schema.ts`).
 - 2026-02-28: Updated docs/ops references in `/Users/cvonderheid/workspace/mappo/README.md`, `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`, `/Users/cvonderheid/workspace/mappo/docs/live-demo-checklist.md`, `/Users/cvonderheid/workspace/mappo/docs/architecture.md`, `/Users/cvonderheid/workspace/mappo/scripts/azure_preflight.sh`, and `/Users/cvonderheid/workspace/mappo/Makefile`.
+
+---
+
+## Scope (Phase 5.32 Slice)
+Cloud DB parity for production-like runtime:
+- Provision an optional Azure Database for PostgreSQL Flexible Server via Pulumi.
+- Keep local Docker Postgres as the default dev/test path.
+- Add reproducible script/Make flow to export managed DB env settings.
+- Keep Flyway + ORM generation workflow unchanged.
+
+## Plan (Phase 5.32 Slice)
+- [x] Add Pulumi resources/config for optional control-plane managed Postgres.
+- [x] Export managed DB connection metadata and password output from Pulumi.
+- [x] Add script/Make target to generate `.data/mappo-db.env` from stack outputs.
+- [x] Update DB migration path so managed DB mode does not assume local compose bootstrap.
+- [x] Update docs (`README.md`, `infra/pulumi/README.md`, `docs/live-demo-checklist.md`) for managed DB setup/run.
+- [x] Run verification and capture outcomes.
+
+## Verification Commands (Phase 5.32 Slice)
+- [x] `make iac-install`
+- [x] `cd infra/pulumi && npm run build`
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+
+## Results Log (Phase 5.32 Slice)
+- 2026-02-28: Added optional managed Postgres provisioning in `/Users/cvonderheid/workspace/mappo/infra/pulumi/index.ts` (Flexible Server, database, firewall rules, and stack outputs for runtime env export).
+- 2026-02-28: Added reproducible env export script `/Users/cvonderheid/workspace/mappo/scripts/iac_export_db_env.sh` and Make target `make iac-export-db-env` to produce `/Users/cvonderheid/workspace/mappo/.data/mappo-db.env`.
+- 2026-02-28: Updated DB bootstrap/migration helpers to support managed DB settings without forcing local compose bootstrap (`/Users/cvonderheid/workspace/mappo/backend/scripts/ensure_db.sh`, `/Users/cvonderheid/workspace/mappo/backend/scripts/flyway.sh`).
+- 2026-02-28: Updated runtime startup env sourcing to include DB env exports (`/Users/cvonderheid/workspace/mappo/scripts/with_mappo_azure_env.sh`, `/Users/cvonderheid/workspace/mappo/infra/docker-compose.yml`).
+- 2026-02-28: Updated docs/checklists for managed DB enablement and command flow (`/Users/cvonderheid/workspace/mappo/README.md`, `/Users/cvonderheid/workspace/mappo/infra/pulumi/README.md`, `/Users/cvonderheid/workspace/mappo/docs/live-demo-checklist.md`, `/Users/cvonderheid/workspace/mappo/docs/architecture.md`).
+- 2026-02-28: Standardized local default DB port to `5433` across runtime/session/test bootstrapping (`/Users/cvonderheid/workspace/mappo/backend/app/core/settings.py`, `/Users/cvonderheid/workspace/mappo/backend/app/db/session.py`, `/Users/cvonderheid/workspace/mappo/backend/tests/conftest.py`) to avoid accidental fallback to unrelated `5432` instances.
+
+---
+
+## Scope (Phase 5.33 Slice)
+Demo stack correctness + legacy demo default cleanup:
+- Eliminate accidental `demo10` default behavior for active stacks.
+- Add reproducible stack configurator for 2-target cross-tenant marketplace demo (tenant-local principal object IDs).
+- Ensure Pulumi config path prevents principal mismatch failures in customer tenant definitions.
+- Update docs/commands to use the new deterministic stack prep flow.
+
+## Plan (Phase 5.33 Slice)
+- [x] Add script + Make target to configure a 2-target marketplace demo stack with tenant-local principal mapping.
+- [x] Switch Pulumi defaults away from `demo10` to prevent accidental 10-target provisioning.
+- [x] Update docs/checklists with the new stack configuration flow.
+- [x] Run verification (`bash -n`, lint/typecheck/test, checks) and capture outcomes.
+
+## Verification Commands (Phase 5.33 Slice)
+- [x] `bash -n scripts/iac_configure_marketplace_demo.sh`
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+- [x] `make workflow-discipline-check`
+
+## Results Log (Phase 5.33 Slice)
+- 2026-02-28: Added deterministic stack prep script `/Users/cvonderheid/workspace/mappo/scripts/iac_configure_marketplace_demo.sh` that resolves tenant-local service principal object IDs per subscription and configures a 2-target cross-tenant stack (`mappo:targets` + `mappo:publisherPrincipalObjectIds`).
+- 2026-02-28: Added Make target `make iac-configure-marketplace-demo` in `/Users/cvonderheid/workspace/mappo/Makefile` for reproducible stack configuration without manual Pulumi JSON editing.
+- 2026-02-28: Switched Pulumi defaults to `mappo:targetProfile=empty` in `/Users/cvonderheid/workspace/mappo/infra/pulumi/Pulumi.yaml` and `/Users/cvonderheid/workspace/mappo/infra/pulumi/Pulumi.dev.yaml` to prevent accidental 10-target provisioning.
+- 2026-02-28: Updated demo docs to use the new stack prep flow in `/Users/cvonderheid/workspace/mappo/README.md`, `/Users/cvonderheid/workspace/mappo/infra/pulumi/README.md`, and `/Users/cvonderheid/workspace/mappo/docs/live-demo-checklist.md`.
+- 2026-02-28: Verified `bash -n`, `make lint`, `make typecheck`, `make test`, and discipline checks pass after the stack-config changes.
+- 2026-02-28: Applied `make iac-configure-marketplace-demo ...` + `make iac-up PULUMI_STACK=demo`; stack now converges with 2 managed app targets and no cross-tenant principal mismatch failures.
+- 2026-02-28: Added Postgres server create timeout hardening (`30m`) in `/Users/cvonderheid/workspace/mappo/infra/pulumi/index.ts` to avoid Azure long-running create timeouts.
+- 2026-02-28: Added managed Postgres local-connectivity support by auto-configuring current public IP firewall allowlist via stack configurator and applying a custom firewall rule (`control-plane-postgres-fw-custom-*`).
+- 2026-02-28: Corrected managed Postgres connection username output for Flexible Server (use `adminLogin`, not `adminLogin@server`) and confirmed DB connectivity with exported env settings.
+- 2026-02-28: Added `azure.extensions=PGCRYPTO` server configuration in Pulumi so Flyway baseline migration succeeds on Azure Flexible Server.
+- 2026-02-28: Verified managed DB path end-to-end: `make iac-export-db-env`, `source .data/mappo-db.env`, `make db-migrate`, `make import-targets`, `make bootstrap-releases` (DB now contains 2 targets + 2 releases).
+
+---
+
+## Scope (Phase 5.34 Slice)
+Preflight signal cleanup for current 2-target demo phase:
+- Remove hardcoded 10-target warning in `azure-preflight`.
+- Make expected target count configurable for 2-target vs 10-target rehearsals.
+
+## Plan (Phase 5.34 Slice)
+- [x] Update preflight target-count expectation to be environment-driven with a safe default for current phase.
+- [x] Update docs to describe the override knob for full-scale rehearsals.
+- [x] Validate script syntax and run preflight to confirm warning removal.
+
+## Verification Commands (Phase 5.34 Slice)
+- [x] `bash -n scripts/azure_preflight.sh`
+- [x] `make azure-preflight`
+
+## Results Log (Phase 5.34 Slice)
+- 2026-02-28: Updated `/Users/cvonderheid/workspace/mappo/scripts/azure_preflight.sh` to use `MAPPO_PREFLIGHT_EXPECTED_TARGET_COUNT` (default `2`) instead of hardcoded `~10` warning threshold.
+- 2026-02-28: Updated docs in `/Users/cvonderheid/workspace/mappo/README.md` and `/Users/cvonderheid/workspace/mappo/docs/live-demo-checklist.md` to document the preflight target-count override.
+- 2026-02-28: Verified `make azure-preflight` now reports `PASS: Inventory has 2 targets.` with `0 warning(s)` for the current demo profile.
+
+---
+
+## Scope (Phase 5.35 Slice)
+Portal-link UX cleanup consistency:
+- Remove remaining "Open in Azure Portal" links from deployment run stage cards.
+- Keep operators focused on in-app logs/correlation IDs.
+
+## Plan (Phase 5.35 Slice)
+- [x] Remove residual portal-link anchor rendering from run detail stage UI.
+- [x] Run frontend typecheck and tests.
+
+## Verification Commands (Phase 5.35 Slice)
+- [x] `cd frontend && npm run typecheck`
+- [x] `cd frontend && npm run test`
+
+## Results Log (Phase 5.35 Slice)
+- 2026-03-01: Removed remaining "Open in Azure Portal" link from `/Users/cvonderheid/workspace/mappo/frontend/src/components/RunPanels.tsx` (`TargetRecordCard` stage metadata row).
+- 2026-03-01: Verified frontend checks pass (`npm run typecheck`, `npm run test`).
+
+---
+
+## Scope (Phase 5.36 Slice)
+Operator-visible Azure diagnostics in MAPPO run logs:
+- Surface concrete Azure API error code/message/IDs in deployment failure events.
+- Emit those diagnostics as first-class per-target log entries (no portal hop required).
+- Improve run-detail log readability to show severity inline.
+
+## Plan (Phase 5.36 Slice)
+- [x] Enrich Azure HTTP exception translation with parsed response headers/body metadata.
+- [x] Append normalized Azure diagnostic lines into per-target execution logs when stages fail.
+- [x] Update run-detail UI to expose diagnostic summaries and log severity inline.
+- [x] Add/extend backend regression coverage for diagnostic log emission.
+- [x] Run backend/frontend verification and capture outcomes.
+
+## Verification Commands (Phase 5.36 Slice)
+- [x] `make lint-backend`
+- [x] `make typecheck`
+- [x] `make test-backend`
+- [x] `make lint-frontend`
+- [x] `make test-frontend`
+
+## Results Log (Phase 5.36 Slice)
+- 2026-03-01: Added Azure error-context extraction in `/Users/cvonderheid/workspace/mappo/backend/app/modules/execution.py` (response header IDs, parsed ARM error payload, and message enrichment).
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/backend/app/modules/control_plane.py` to append operator-facing Azure diagnostic lines (error code/message, HTTP status, request/correlation IDs, detail entries) to run logs on failed stages.
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/components/RunPanels.tsx` to show inline Azure error summary fields and log-level column, with a larger recent-log window.
+- 2026-03-01: Extended deploy-failure regression in `/Users/cvonderheid/workspace/mappo/backend/tests/test_execution_modes.py` to assert emitted diagnostic log lines.
+- 2026-03-01: Verified `make lint-backend`, `make typecheck`, `make test-backend`, `make lint-frontend`, and `make test-frontend` pass (frontend retains existing 2 baseline warnings in shadcn primitives).
+
+---
+
+## Scope (Phase 5.37 Slice)
+Deployment UX split + clarity refinements:
+- Move deployment controls into a top drawer so `/deployments` focuses on historical run management.
+- Move run detail into a dedicated route (`/deployments/:runId`).
+- Collapse guardrail warning blocks into accordion sections.
+- Clarify success-stage and correlation-id log wording.
+
+## Plan (Phase 5.37 Slice)
+- [x] Add top-drawer deployment controls surface and wire existing start-run form + target filters into it.
+- [x] Move run detail to dedicated route and navigation flow from run cards.
+- [x] Replace expanded guardrail warnings with collapsible accordion sections.
+- [x] Clarify success-stage start message in executor and correlation-id label in UI.
+- [x] Update unit and Playwright POM tests for the new IA.
+- [x] Run verification and capture outcomes.
+
+## Verification Commands (Phase 5.37 Slice)
+- [x] `make lint-backend`
+- [x] `make test-backend`
+- [x] `make typecheck`
+- [x] `make lint-frontend`
+- [x] `make test-frontend`
+- [x] `make test-frontend-e2e`
+
+## Results Log (Phase 5.37 Slice)
+- 2026-03-01: Updated deployment navigation/IA in `/Users/cvonderheid/workspace/mappo/frontend/src/App.tsx` so controls live in a top drawer and run detail is a separate route (`/deployments/:runId`) with back navigation.
+- 2026-03-01: Added reusable UI primitives `/Users/cvonderheid/workspace/mappo/frontend/src/components/ui/drawer.tsx` and `/Users/cvonderheid/workspace/mappo/frontend/src/components/ui/accordion.tsx`.
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/components/RunPanels.tsx` to render guardrail warnings as accordions, add explicit "View Run Details" actions, and label stage metadata as `correlation-id`.
+- 2026-03-01: Updated executor success-start wording in `/Users/cvonderheid/workspace/mappo/backend/app/modules/execution.py` from "Succeeded started." to "Finalizing success state.".
+- 2026-03-01: Updated browser-flow coverage (`/Users/cvonderheid/workspace/mappo/frontend/e2e/pages/deployments.page.ts`, `/Users/cvonderheid/workspace/mappo/frontend/e2e/tests/core-flows.spec.ts`) and app unit test (`/Users/cvonderheid/workspace/mappo/frontend/src/App.test.tsx`) for drawer and detail-route behavior.
+- 2026-03-01: Verified `make lint-backend`, `make test-backend`, `make typecheck`, `make lint-frontend`, `make test-frontend`, and `make test-frontend-e2e` all pass.

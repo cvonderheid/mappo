@@ -24,10 +24,12 @@ config:
   mappo:publisherRoleDefinitionId:
     value: b24988ac-6180-42a0-ab88-20f7382dd24c
   mappo:targetProfile:
-    value: demo10
+    value: empty
   mappo:defaultImage:
     value: mcr.microsoft.com/azuredocs/containerapps-helloworld:latest
   mappo:defaultCpu:
     value: 0.25
   mappo:defaultMemory:
     value: 0.5Gi
+  mappo:controlPlanePostgresEnabled:
+    value: false

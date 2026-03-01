@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INVENTORY_PATH="${ROOT_DIR}/.data/mappo-target-inventory.json"
 ENV_FILE="${MAPPO_AZURE_ENV_FILE:-${ROOT_DIR}/.data/mappo-azure.env}"
+EXPECTED_TARGET_COUNT="${MAPPO_PREFLIGHT_EXPECTED_TARGET_COUNT:-2}"
 
 fail_count=0
 warn_count=0
@@ -23,6 +24,11 @@ fail() {
 }
 
 echo "azure-preflight: checking production-like multi-tenant readiness"
+
+if ! [[ "${EXPECTED_TARGET_COUNT}" =~ ^[0-9]+$ ]] || [[ "${EXPECTED_TARGET_COUNT}" -lt 1 ]]; then
+  warn "Invalid MAPPO_PREFLIGHT_EXPECTED_TARGET_COUNT='${EXPECTED_TARGET_COUNT}'; defaulting to 2."
+  EXPECTED_TARGET_COUNT=2
+fi
 
 if [[ -f "${ENV_FILE}" ]]; then
   # shellcheck source=/dev/null
@@ -142,10 +148,10 @@ PY
   managed_meta_count="$(echo "${inventory_stats}" | cut -d'|' -f4)"
   invalid_target_resource_ids="$(echo "${inventory_stats}" | cut -d'|' -f5)"
 
-  if [[ "${target_count}" -ge 10 ]]; then
+  if [[ "${target_count}" -ge "${EXPECTED_TARGET_COUNT}" ]]; then
     pass "Inventory has ${target_count} targets."
   else
-    warn "Inventory has ${target_count} targets; expected ~10 for demo."
+    warn "Inventory has ${target_count} targets; expected >=${EXPECTED_TARGET_COUNT} for this demo profile."
   fi
 
   if [[ "${inventory_tenant_count}" -ge 2 ]]; then
