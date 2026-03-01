@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import delete, select
 
 from app.db.generated.models import (
+    ForwarderLogs,
     MarketplaceEvents,
     Releases,
     Runs,
@@ -14,6 +15,7 @@ from app.db.generated.models import (
 )
 from app.modules.schemas import (
     DeploymentRun,
+    ForwarderLogRecord,
     MarketplaceEventRecord,
     Release,
     Target,
@@ -66,6 +68,28 @@ def load_marketplace_events(session_factory: Any) -> dict[str, MarketplaceEventR
         except Exception as error:
             print(f"failed to parse marketplace event payload: {error}")
     return events
+
+
+def load_forwarder_logs(session_factory: Any, *, limit: int = 100) -> list[ForwarderLogRecord]:
+    safe_limit = max(1, limit)
+    with session_factory() as session:
+        rows = (
+            session.execute(
+                select(ForwarderLogs.payload_json)
+                .order_by(ForwarderLogs.created_at.desc())
+                .limit(safe_limit)
+            )
+            .scalars()
+            .all()
+        )
+    records: list[ForwarderLogRecord] = []
+    for payload in rows:
+        try:
+            record = ForwarderLogRecord.model_validate(payload)
+            records.append(record)
+        except Exception as error:
+            print(f"failed to parse forwarder log payload: {error}")
+    return records
 
 
 def load_releases(session_factory: Any) -> dict[str, Release]:
@@ -225,6 +249,29 @@ def save_marketplace_event(session_factory: Any, *, event: MarketplaceEventRecor
             row.payload_json = event.model_dump(mode="json")
             row.created_at = event.created_at
         session.commit()
+
+
+def save_forwarder_log(session_factory: Any, *, record: ForwarderLogRecord) -> None:
+    with session_factory() as session:
+        row = session.get(ForwarderLogs, record.log_id)
+        if row is None:
+            session.add(
+                ForwarderLogs(
+                    id=record.log_id,
+                    payload_json=record.model_dump(mode="json"),
+                    created_at=record.created_at,
+                )
+            )
+        else:
+            row.payload_json = record.model_dump(mode="json")
+            row.created_at = record.created_at
+        session.commit()
+
+
+def forwarder_log_exists(session_factory: Any, *, log_id: str) -> bool:
+    with session_factory() as session:
+        row = session.get(ForwarderLogs, log_id)
+        return row is not None
 
 
 def save_run(session_factory: Any, *, run: DeploymentRun) -> None:

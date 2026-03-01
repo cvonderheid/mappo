@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import uuid4
 
 from app.db.session import create_engine_and_session_factory
@@ -108,6 +109,10 @@ class ControlPlaneStore:
         self._runs = load_runs(self._session_factory)
         self._reconcile_running_runs_after_startup()
         self._prune_retention_locked()
+
+    @property
+    def session_factory(self) -> Any:
+        return self._session_factory
 
     async def shutdown(self) -> None:
         async with self._lock:

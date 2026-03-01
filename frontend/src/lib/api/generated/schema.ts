@@ -38,6 +38,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/onboarding/forwarder-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Forwarder Logs */
+        get: operations["get_forwarder_logs_api_v1_admin_onboarding_forwarder_logs_get"];
+        put?: never;
+        /** Ingest Forwarder Log */
+        post: operations["ingest_forwarder_log_api_v1_admin_onboarding_forwarder_logs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/onboarding/registrations/{target_id}": {
         parameters: {
             query?: never;
@@ -202,6 +220,8 @@ export interface components {
         AdminOnboardingSnapshotResponse: {
             /** Events */
             events?: components["schemas"]["MarketplaceEventRecord"][];
+            /** Forwarder Logs */
+            forwarder_logs?: components["schemas"]["ForwarderLogRecord"][];
             /** Registrations */
             registrations?: components["schemas"]["TargetRegistrationRecord"][];
         };
@@ -255,6 +275,88 @@ export interface components {
             deleted: boolean;
             /** Target Id */
             target_id: string;
+        };
+        /** ForwarderLogIngestRequest */
+        ForwarderLogIngestRequest: {
+            /** Backend Status Code */
+            backend_status_code?: number | null;
+            /** Details */
+            details?: {
+                [key: string]: unknown;
+            };
+            /** Event Id */
+            event_id?: string | null;
+            /** Event Type */
+            event_type?: string | null;
+            /** Forwarder Request Id */
+            forwarder_request_id?: string | null;
+            /** Function App Name */
+            function_app_name?: string | null;
+            /** @default error */
+            level: components["schemas"]["ForwarderLogLevel"];
+            /** Log Id */
+            log_id: string;
+            /** Message */
+            message: string;
+            /** Occurred At */
+            occurred_at?: string | null;
+            /** Subscription Id */
+            subscription_id?: string | null;
+            /** Target Id */
+            target_id?: string | null;
+            /** Tenant Id */
+            tenant_id?: string | null;
+        };
+        /** ForwarderLogIngestResponse */
+        ForwarderLogIngestResponse: {
+            /** Log Id */
+            log_id: string;
+            /** Message */
+            message: string;
+            status: components["schemas"]["ForwarderLogIngestStatus"];
+        };
+        /**
+         * ForwarderLogIngestStatus
+         * @enum {string}
+         */
+        ForwarderLogIngestStatus: "applied" | "duplicate";
+        /**
+         * ForwarderLogLevel
+         * @enum {string}
+         */
+        ForwarderLogLevel: "info" | "warning" | "error";
+        /** ForwarderLogRecord */
+        ForwarderLogRecord: {
+            /** Backend Status Code */
+            backend_status_code?: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Details */
+            details?: {
+                [key: string]: unknown;
+            };
+            /** Event Id */
+            event_id?: string | null;
+            /** Event Type */
+            event_type?: string | null;
+            /** Forwarder Request Id */
+            forwarder_request_id?: string | null;
+            /** Function App Name */
+            function_app_name?: string | null;
+            level: components["schemas"]["ForwarderLogLevel"];
+            /** Log Id */
+            log_id: string;
+            /** Message */
+            message: string;
+            /** Subscription Id */
+            subscription_id?: string | null;
+            /** Target Id */
+            target_id?: string | null;
+            /** Tenant Id */
+            tenant_id?: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -743,6 +845,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MarketplaceEventIngestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_forwarder_logs_api_v1_admin_onboarding_forwarder_logs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForwarderLogRecord"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_forwarder_log_api_v1_admin_onboarding_forwarder_logs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-mappo-ingest-token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForwarderLogIngestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForwarderLogIngestResponse"];
                 };
             };
             /** @description Validation Error */

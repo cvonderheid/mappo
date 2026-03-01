@@ -127,8 +127,11 @@ Legacy fallback:
 ## Marketplace Onboarding API
 - `GET /api/v1/admin/onboarding`: returns registration snapshot + recent onboarding events.
 - `POST /api/v1/admin/onboarding/events`: registers/updates targets from marketplace lifecycle events (idempotent on `event_id`).
+- `POST /api/v1/admin/onboarding/forwarder-logs`: records forwarder delivery/normalization failures for operator visibility (idempotent on `log_id`).
+- `GET /api/v1/admin/onboarding/forwarder-logs`: returns recent forwarder logs.
 - `PATCH /api/v1/admin/onboarding/registrations/{target_id}`: updates editable registration metadata (display name, customer name, tags, managed app references).
 - `DELETE /api/v1/admin/onboarding/registrations/{target_id}`: removes a registered target from onboarding/fleet state.
+- Admin UI `/admin`: includes `Registered Targets`, `Recent Onboarding Events`, and `Forwarder Logs` tabs.
 - Optional token gate: set `MAPPO_MARKETPLACE_INGEST_TOKEN`, then send `x-mappo-ingest-token` header.
 
 ## EasyAuth Notes

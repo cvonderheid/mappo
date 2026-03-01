@@ -136,6 +136,17 @@ class MarketplaceEventStatus(StrEnum):
     REJECTED = "rejected"
 
 
+class ForwarderLogIngestStatus(StrEnum):
+    APPLIED = "applied"
+    DUPLICATE = "duplicate"
+
+
+class ForwarderLogLevel(StrEnum):
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+
+
 class MarketplaceEventIngestRequest(BaseModel):
     event_id: str
     event_type: str = "subscription_purchased"
@@ -164,6 +175,44 @@ class MarketplaceEventIngestResponse(BaseModel):
     status: MarketplaceEventStatus
     message: str
     target_id: str | None = None
+
+
+class ForwarderLogIngestRequest(BaseModel):
+    log_id: str
+    level: ForwarderLogLevel = ForwarderLogLevel.ERROR
+    message: str
+    event_id: str | None = None
+    event_type: str | None = None
+    target_id: str | None = None
+    tenant_id: str | None = None
+    subscription_id: str | None = None
+    function_app_name: str | None = None
+    forwarder_request_id: str | None = None
+    backend_status_code: int | None = None
+    details: dict[str, Any] = Field(default_factory=dict)
+    occurred_at: datetime | None = None
+
+
+class ForwarderLogIngestResponse(BaseModel):
+    log_id: str
+    status: ForwarderLogIngestStatus
+    message: str
+
+
+class ForwarderLogRecord(BaseModel):
+    log_id: str
+    level: ForwarderLogLevel
+    message: str
+    event_id: str | None = None
+    event_type: str | None = None
+    target_id: str | None = None
+    tenant_id: str | None = None
+    subscription_id: str | None = None
+    function_app_name: str | None = None
+    forwarder_request_id: str | None = None
+    backend_status_code: int | None = None
+    details: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
 
 
 class TargetRegistrationRecord(BaseModel):
@@ -219,6 +268,7 @@ class MarketplaceEventRecord(BaseModel):
 class AdminOnboardingSnapshotResponse(BaseModel):
     registrations: list[TargetRegistrationRecord] = Field(default_factory=list)
     events: list[MarketplaceEventRecord] = Field(default_factory=list)
+    forwarder_logs: list[ForwarderLogRecord] = Field(default_factory=list)
 
 
 class RunSummary(BaseModel):

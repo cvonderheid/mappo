@@ -10,6 +10,13 @@
             "title": "Events",
             "type": "array"
           },
+          "forwarder_logs": {
+            "items": {
+              "$ref": "#/components/schemas/ForwarderLogRecord"
+            },
+            "title": "Forwarder Logs",
+            "type": "array"
+          },
           "registrations": {
             "items": {
               "$ref": "#/components/schemas/TargetRegistrationRecord"
@@ -134,6 +141,293 @@
           "deleted"
         ],
         "title": "DeleteTargetRegistrationResponse",
+        "type": "object"
+      },
+      "ForwarderLogIngestRequest": {
+        "properties": {
+          "backend_status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backend Status Code"
+          },
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "event_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Type"
+          },
+          "forwarder_request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forwarder Request Id"
+          },
+          "function_app_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Function App Name"
+          },
+          "level": {
+            "$ref": "#/components/schemas/ForwarderLogLevel",
+            "default": "error"
+          },
+          "log_id": {
+            "title": "Log Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurred At"
+          },
+          "subscription_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subscription Id"
+          },
+          "target_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Id"
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenant Id"
+          }
+        },
+        "required": [
+          "log_id",
+          "message"
+        ],
+        "title": "ForwarderLogIngestRequest",
+        "type": "object"
+      },
+      "ForwarderLogIngestResponse": {
+        "properties": {
+          "log_id": {
+            "title": "Log Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ForwarderLogIngestStatus"
+          }
+        },
+        "required": [
+          "log_id",
+          "status",
+          "message"
+        ],
+        "title": "ForwarderLogIngestResponse",
+        "type": "object"
+      },
+      "ForwarderLogIngestStatus": {
+        "enum": [
+          "applied",
+          "duplicate"
+        ],
+        "title": "ForwarderLogIngestStatus",
+        "type": "string"
+      },
+      "ForwarderLogLevel": {
+        "enum": [
+          "info",
+          "warning",
+          "error"
+        ],
+        "title": "ForwarderLogLevel",
+        "type": "string"
+      },
+      "ForwarderLogRecord": {
+        "properties": {
+          "backend_status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backend Status Code"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "event_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Type"
+          },
+          "forwarder_request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forwarder Request Id"
+          },
+          "function_app_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Function App Name"
+          },
+          "level": {
+            "$ref": "#/components/schemas/ForwarderLogLevel"
+          },
+          "log_id": {
+            "title": "Log Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "subscription_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subscription Id"
+          },
+          "target_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Id"
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenant Id"
+          }
+        },
+        "required": [
+          "log_id",
+          "level",
+          "message",
+          "created_at"
+        ],
+        "title": "ForwarderLogRecord",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -1397,6 +1691,112 @@
           }
         },
         "summary": "Ingest Marketplace Event",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/onboarding/forwarder-logs": {
+      "get": {
+        "operationId": "get_forwarder_logs_api_v1_admin_onboarding_forwarder_logs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 250,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ForwarderLogRecord"
+                  },
+                  "title": "Response Get Forwarder Logs Api V1 Admin Onboarding Forwarder Logs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Forwarder Logs",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "ingest_forwarder_log_api_v1_admin_onboarding_forwarder_logs_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-mappo-ingest-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Mappo-Ingest-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForwarderLogIngestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForwarderLogIngestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ingest Forwarder Log",
         "tags": [
           "admin"
         ]

@@ -32,6 +32,23 @@ def _sample_onboarding_event(event_id: str) -> dict[str, object]:
     }
 
 
+def _sample_forwarder_log(log_id: str) -> dict[str, object]:
+    return {
+        "log_id": log_id,
+        "level": "error",
+        "message": "MAPPO backend rejected forwarded marketplace event.",
+        "event_id": "evt-001",
+        "event_type": "subscription_purchased",
+        "target_id": "mappo-ma-target-live-01",
+        "tenant_id": "tenant-live-a",
+        "subscription_id": "sub-live-a",
+        "function_app_name": "fa-mappo-forwarder-demo",
+        "forwarder_request_id": "request-abc-123",
+        "backend_status_code": 400,
+        "details": {"backend_response": '{"detail":"invalid payload"}'},
+    }
+
+
 def test_admin_onboarding_event_registers_target(client: TestClient) -> None:
     response = client.post(
         "/api/v1/admin/onboarding/events",
@@ -53,6 +70,7 @@ def test_admin_onboarding_event_registers_target(client: TestClient) -> None:
     assert snapshot["registrations"][0]["target_id"] == "mappo-ma-target-live-01"
     assert snapshot["events"][0]["event_id"] == "evt-001"
     assert snapshot["events"][0]["status"] == "applied"
+    assert snapshot["forwarder_logs"] == []
 
 
 def test_admin_onboarding_event_is_idempotent(client: TestClient) -> None:
@@ -171,3 +189,64 @@ def test_admin_registration_can_be_deleted(client: TestClient) -> None:
     snapshot = snapshot_response.json()
     registration_ids = {item["target_id"] for item in snapshot["registrations"]}
     assert "mappo-ma-target-live-01" not in registration_ids
+
+
+def test_admin_forwarder_log_ingest_and_snapshot(client: TestClient) -> None:
+    create_response = client.post(
+        "/api/v1/admin/onboarding/forwarder-logs",
+        json=_sample_forwarder_log("fwd-001"),
+    )
+    assert create_response.status_code == 200
+    assert create_response.json() == {
+        "log_id": "fwd-001",
+        "status": "applied",
+        "message": "Forwarder log recorded.",
+    }
+
+    snapshot_response = client.get("/api/v1/admin/onboarding")
+    assert snapshot_response.status_code == 200
+    snapshot = snapshot_response.json()
+    assert snapshot["forwarder_logs"][0]["log_id"] == "fwd-001"
+    assert snapshot["forwarder_logs"][0]["level"] == "error"
+    assert snapshot["forwarder_logs"][0]["backend_status_code"] == 400
+
+    list_response = client.get("/api/v1/admin/onboarding/forwarder-logs")
+    assert list_response.status_code == 200
+    payload = list_response.json()
+    assert payload[0]["log_id"] == "fwd-001"
+
+
+def test_admin_forwarder_log_is_idempotent(client: TestClient) -> None:
+    payload = _sample_forwarder_log("fwd-002")
+    first = client.post("/api/v1/admin/onboarding/forwarder-logs", json=payload)
+    assert first.status_code == 200
+    assert first.json()["status"] == "applied"
+
+    duplicate = client.post("/api/v1/admin/onboarding/forwarder-logs", json=payload)
+    assert duplicate.status_code == 200
+    assert duplicate.json()["status"] == "duplicate"
+
+
+def test_admin_forwarder_log_ingest_token_enforced(
+    client: TestClient,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MAPPO_MARKETPLACE_INGEST_TOKEN", "expected-token")
+    get_settings.cache_clear()
+    try:
+        without_token = client.post(
+            "/api/v1/admin/onboarding/forwarder-logs",
+            json=_sample_forwarder_log("fwd-003"),
+        )
+        assert without_token.status_code == 401
+
+        with_token = client.post(
+            "/api/v1/admin/onboarding/forwarder-logs",
+            json=_sample_forwarder_log("fwd-003"),
+            headers={"x-mappo-ingest-token": "expected-token"},
+        )
+        assert with_token.status_code == 200
+        assert with_token.json()["status"] == "applied"
+    finally:
+        monkeypatch.delenv("MAPPO_MARKETPLACE_INGEST_TOKEN", raising=False)
+        get_settings.cache_clear()

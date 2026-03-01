@@ -4,6 +4,7 @@ import os
 import time
 import urllib.error
 import urllib.request
+from uuid import uuid4
 from typing import Any
 
 import azure.functions as func
@@ -113,25 +114,32 @@ def _ingest_endpoint() -> str:
     return f"{base_url.rstrip('/')}/api/v1/admin/onboarding/events"
 
 
-def _forward_to_mappo(event_payload: dict[str, Any]) -> tuple[int, str]:
-    endpoint = _ingest_endpoint()
-    ingest_token = _string_value(os.getenv("MAPPO_INGEST_TOKEN"))
-    timeout_seconds = float(_string_value(os.getenv("MAPPO_INGEST_TIMEOUT_SECONDS"), "15"))
+def _forwarder_logs_endpoint() -> str:
+    endpoint = _string_value(os.getenv("MAPPO_FORWARDER_LOGS_ENDPOINT"))
+    if endpoint != "":
+        return endpoint
 
+    base_url = _string_value(os.getenv("MAPPO_API_BASE_URL"))
+    if base_url == "":
+        return ""
+    return f"{base_url.rstrip('/')}/api/v1/admin/onboarding/forwarder-logs"
+
+
+def _ingest_headers() -> dict[str, str]:
+    ingest_token = _string_value(os.getenv("MAPPO_INGEST_TOKEN"))
     headers = {
         "Content-Type": "application/json",
         "User-Agent": "mappo-marketplace-forwarder/1.0",
     }
     if ingest_token != "":
         headers["x-mappo-ingest-token"] = ingest_token
+    return headers
 
-    request_body = json.dumps(event_payload).encode("utf-8")
-    request = urllib.request.Request(
-        endpoint,
-        data=request_body,
-        headers=headers,
-        method="POST",
-    )
+
+def _post_json(endpoint: str, payload: dict[str, Any], *, timeout_seconds: float) -> tuple[int, str]:
+    headers = _ingest_headers()
+    request_body = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(endpoint, data=request_body, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
             response_body = response.read().decode("utf-8")
@@ -141,11 +149,75 @@ def _forward_to_mappo(event_payload: dict[str, Any]) -> tuple[int, str]:
         return error.code, response_body
 
 
+def _forward_to_mappo(event_payload: dict[str, Any]) -> tuple[int, str]:
+    endpoint = _ingest_endpoint()
+    timeout_seconds = float(_string_value(os.getenv("MAPPO_INGEST_TIMEOUT_SECONDS"), "15"))
+    return _post_json(endpoint, event_payload, timeout_seconds=timeout_seconds)
+
+
+def _truncate(value: str, max_length: int = 1600) -> str:
+    if len(value) <= max_length:
+        return value
+    return value[: max_length - 3] + "..."
+
+
+def _emit_forwarder_log(
+    *,
+    level: str,
+    message: str,
+    normalized_event: dict[str, Any] | None,
+    backend_status_code: int | None = None,
+    response_body: str | None = None,
+    detail: str | None = None,
+    request_id: str | None = None,
+) -> None:
+    endpoint = _forwarder_logs_endpoint()
+    if endpoint == "":
+        return
+
+    timeout_seconds = float(_string_value(os.getenv("MAPPO_INGEST_TIMEOUT_SECONDS"), "15"))
+    details: dict[str, Any] = {}
+    if response_body:
+        details["backend_response"] = _truncate(response_body)
+    if detail:
+        details["detail"] = _truncate(detail)
+
+    payload = {
+        "log_id": f"fwd-{int(time.time() * 1000)}-{uuid4().hex[:8]}",
+        "level": level,
+        "message": message,
+        "event_id": _string_value((normalized_event or {}).get("event_id")) or None,
+        "event_type": _string_value((normalized_event or {}).get("event_type")) or None,
+        "target_id": _string_value((normalized_event or {}).get("target_id")) or None,
+        "tenant_id": _string_value((normalized_event or {}).get("tenant_id")) or None,
+        "subscription_id": _string_value((normalized_event or {}).get("subscription_id")) or None,
+        "function_app_name": _string_value(os.getenv("WEBSITE_SITE_NAME")) or None,
+        "forwarder_request_id": request_id,
+        "backend_status_code": backend_status_code,
+        "details": details,
+    }
+    try:
+        status_code, response = _post_json(endpoint, payload, timeout_seconds=timeout_seconds)
+        if status_code >= 400:
+            logger.warning("Forwarder log ingestion failed: status=%s body=%s", status_code, response)
+    except Exception:  # pragma: no cover - runtime safety
+        logger.exception("Unable to emit forwarder log to MAPPO backend.")
+
+
 @app.route(route="marketplace/events", methods=["POST"])
 def marketplace_events(req: func.HttpRequest) -> func.HttpResponse:
+    request_id = req.headers.get("x-ms-request-id") or req.headers.get("x-request-id")
+    normalized_event: dict[str, Any] | None = None
     try:
         payload = req.get_json()
     except ValueError:
+        _emit_forwarder_log(
+            level="warning",
+            message="Forwarder received invalid JSON payload.",
+            normalized_event=None,
+            detail="Invalid JSON payload.",
+            request_id=request_id,
+        )
         return func.HttpResponse(
             json.dumps({"detail": "Invalid JSON payload."}),
             status_code=400,
@@ -153,6 +225,13 @@ def marketplace_events(req: func.HttpRequest) -> func.HttpResponse:
         )
 
     if not isinstance(payload, dict):
+        _emit_forwarder_log(
+            level="warning",
+            message="Forwarder received non-object JSON payload.",
+            normalized_event=None,
+            detail="Payload must be a JSON object.",
+            request_id=request_id,
+        )
         return func.HttpResponse(
             json.dumps({"detail": "Payload must be a JSON object."}),
             status_code=400,
@@ -162,6 +241,13 @@ def marketplace_events(req: func.HttpRequest) -> func.HttpResponse:
     try:
         normalized_event = _build_normalized_event(payload)
     except ValueError as error:
+        _emit_forwarder_log(
+            level="warning",
+            message="Forwarder could not normalize marketplace payload.",
+            normalized_event=None,
+            detail=str(error),
+            request_id=request_id,
+        )
         return func.HttpResponse(
             json.dumps({"detail": str(error)}),
             status_code=400,
@@ -172,10 +258,27 @@ def marketplace_events(req: func.HttpRequest) -> func.HttpResponse:
         status_code, response_body = _forward_to_mappo(normalized_event)
     except Exception as error:  # pragma: no cover - runtime safety
         logger.exception("Failed to forward marketplace event to MAPPO backend.")
+        _emit_forwarder_log(
+            level="error",
+            message="Forwarder request to MAPPO backend failed.",
+            normalized_event=normalized_event,
+            detail=str(error),
+            request_id=request_id,
+        )
         return func.HttpResponse(
             json.dumps({"detail": f"Forwarding failure: {error}"}),
             status_code=502,
             mimetype="application/json",
+        )
+
+    if status_code >= 400:
+        _emit_forwarder_log(
+            level="error",
+            message="MAPPO backend rejected forwarded marketplace event.",
+            normalized_event=normalized_event,
+            backend_status_code=status_code,
+            response_body=response_body,
+            request_id=request_id,
         )
 
     return func.HttpResponse(

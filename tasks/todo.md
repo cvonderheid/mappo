@@ -3,6 +3,40 @@
 Date: 2026-02-26
 Owner: Codex
 
+## Scope (Current Slice)
+Forwarder operator visibility:
+- Persist forwarder delivery failures in control-plane storage.
+- Surface forwarder failure logs in Admin console (no Azure portal digging).
+- Keep API/client contracts generated via OpenAPI workflow.
+
+## Scope (Next Round)
+Deployment operations hardening:
+- Make DB migrations a containerized job so migrations run inside Azure without local firewall/IP exceptions.
+- Trigger migrations via Azure CLI (job start/invoke) as part of deployment flow.
+- Restart ACA runtime containers after migration execution so app revisions pick up schema changes cleanly.
+
+## Plan (Next Round)
+- [ ] Add migration container job definition (IaC-managed) with Flyway execution entrypoint.
+- [ ] Add CLI script/Make target to invoke migration job and wait for completion.
+- [ ] Add deploy orchestration step to restart backend/frontend container apps after successful migration job run.
+- [ ] Update runbooks/docs with migration-job-first deployment sequence.
+
+## Plan (Current Slice)
+- [x] Add Flyway migration + generated ORM model for forwarder logs persistence.
+- [x] Add backend schemas/router/storage for forwarder log ingest + snapshot read path.
+- [x] Update marketplace forwarder function to emit structured failure logs to MAPPO backend.
+- [x] Update Admin UI tab/table to show recent forwarder logs.
+- [x] Regenerate OpenAPI + frontend client types.
+- [x] Run lint/typecheck/tests and capture outcomes.
+
+## Results Log (Current Slice)
+- 2026-03-01: Added Flyway migration `V3__forwarder_logs.sql` and regenerated ORM models with new `forwarder_logs` table.
+- 2026-03-01: Added backend forwarder log schemas, storage helpers, admin ingest/list endpoints, and included logs in onboarding snapshot payload.
+- 2026-03-01: Updated Azure Function forwarder to emit structured log events on invalid payloads, forwarding exceptions, and backend non-2xx responses.
+- 2026-03-01: Added Admin UI Forwarder Logs tab with shadcn data-table filters and status badges.
+- 2026-03-01: Regenerated OpenAPI + frontend generated schema/types.
+- 2026-03-01: Verification passed: `make db-migrate`, `make models-gen`, `make openapi`, `make client-gen`, `make lint`, `make typecheck`, `make test`.
+
 ## Scope
 Phase 4 database foundation:
 - Replace SQLite backend persistence with Postgres.

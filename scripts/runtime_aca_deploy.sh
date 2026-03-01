@@ -237,7 +237,8 @@ else
 import json
 import sys
 
-payload = json.loads(sys.argv[1])
+raw = (sys.argv[1] if len(sys.argv) > 1 else "").strip()
+payload = None if raw in {"", "null"} else json.loads(raw)
 if payload is None:
     print("")
     raise SystemExit(0)
@@ -270,7 +271,8 @@ PY
 import json
 import sys
 
-payload = json.loads(sys.argv[1])
+raw = (sys.argv[1] if len(sys.argv) > 1 else "").strip()
+payload = None if raw in {"", "null"} else json.loads(raw)
 if payload is None:
     print("")
     raise SystemExit(0)

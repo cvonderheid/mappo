@@ -325,8 +325,8 @@ az containerapp auth microsoft update \
   --tenant-id "${TENANT_ID}" \
   --client-id "${APP_CLIENT_ID}" \
   --client-secret "${APP_CLIENT_SECRET}" \
-  --issuer "https://sts.windows.net/${TENANT_ID}/" \
-  --allowed-audiences "${APP_CLIENT_ID}" "api://${APP_CLIENT_ID}" \
+  --allowed-audiences "${APP_CLIENT_ID}" \
+  --yes \
   --only-show-errors \
   >/dev/null
 

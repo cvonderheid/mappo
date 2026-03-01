@@ -1,6 +1,10 @@
 import { useState, type FormEvent } from "react";
 
-import { EventsDataTable, RegistrationsDataTable } from "@/components/AdminTables";
+import {
+  EventsDataTable,
+  ForwarderLogsDataTable,
+  RegistrationsDataTable,
+} from "@/components/AdminTables";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -95,6 +99,7 @@ export default function AdminPanel({
 
   const registrations = adminSnapshot?.registrations ?? [];
   const events = adminSnapshot?.events ?? [];
+  const forwarderLogs = adminSnapshot?.forwarder_logs ?? [];
 
   const canSubmit =
     eventId.trim() !== "" &&
@@ -565,6 +570,9 @@ export default function AdminPanel({
               <TabsTrigger value="events">
                 Recent Onboarding Events ({events.length})
               </TabsTrigger>
+              <TabsTrigger value="forwarder-logs">
+                Forwarder Logs ({forwarderLogs.length})
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="registrations">
               <RegistrationsDataTable
@@ -578,6 +586,9 @@ export default function AdminPanel({
             </TabsContent>
             <TabsContent value="events">
               <EventsDataTable events={events} />
+            </TabsContent>
+            <TabsContent value="forwarder-logs">
+              <ForwarderLogsDataTable logs={forwarderLogs} />
             </TabsContent>
           </Tabs>
         </CardContent>

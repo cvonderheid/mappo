@@ -55,7 +55,8 @@ make marketplace-forwarder-replay-inventory \
 
 Expected:
 - Function App returns MAPPO onboarding response bodies.
-- `GET /api/v1/admin/onboarding` shows applied events and registered targets.
+- `GET /api/v1/admin/onboarding` shows applied events, registered targets, and recent forwarder logs.
+- Forwarder failures are posted to `POST /api/v1/admin/onboarding/forwarder-logs` and visible in the Admin `Forwarder Logs` tab.
 
 ## Function Payload Contract
 
