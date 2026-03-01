@@ -142,7 +142,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText("Release version")).toBeInTheDocument();
-      expect(screen.getByText("Targets in selected target group: 1")).toBeInTheDocument();
+      expect(screen.getByText(/Specific targets selected: 0/i)).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("select-run-run-1"));

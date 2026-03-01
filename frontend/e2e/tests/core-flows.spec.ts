@@ -4,7 +4,7 @@ import { AppShellPage } from "../pages/app-shell.page";
 import { DeploymentsPage } from "../pages/deployments.page";
 import { createMockApiState, installMockApi } from "../support/mock-api";
 
-test("shows release dropdown and target-group members in filtered scope", async ({ page }) => {
+test("shows release dropdown and optional specific-target list for selected group", async ({ page }) => {
   const state = createMockApiState();
   await installMockApi(page, state);
 
@@ -19,12 +19,12 @@ test("shows release dropdown and target-group members in filtered scope", async 
   await expect(deployments.releaseVersionDropdown).toHaveValue("rel-2026-02-25");
 
   await deployments.selectTargetGroup("canary");
-  await expect(deployments.filteredMemberRows).toHaveCount(2);
-  await expect(deployments.filteredMemberCheckbox("target-01")).toBeChecked();
-  await expect(deployments.filteredMemberCheckbox("target-01")).toBeDisabled();
+  await expect(deployments.specificTargetRows).toHaveCount(2);
+  await expect(deployments.specificTargetCheckbox("target-01")).not.toBeChecked();
+  await expect(deployments.specificTargetCheckbox("target-01")).toBeEnabled();
 });
 
-test("creates a run using selected release and current target-group filter", async ({ page }) => {
+test("creates a run using selected release and specific targets within target-group filter", async ({ page }) => {
   const state = createMockApiState();
   await installMockApi(page, state);
 
@@ -37,11 +37,13 @@ test("creates a run using selected release and current target-group filter", asy
   await deployments.selectTargetGroup("canary");
 
   await deployments.selectReleaseVersion("2026.02.20.1");
+  await page.getByRole("button", { name: "Select all visible" }).click();
   await deployments.startRun();
 
   await expect.poll(() => state.createRunRequests.length).toBe(1);
   const request = state.createRunRequests[0];
   expect(request.release_id).toBe("rel-2026-02-20");
+  expect(request.target_ids).toEqual(["target-01", "target-02"]);
   expect(request.target_tags).toEqual({ ring: "canary" });
 
   await expect(deployments.runCard("run-e2e-1")).toBeVisible();

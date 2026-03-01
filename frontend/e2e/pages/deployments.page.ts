@@ -15,12 +15,8 @@ export class DeploymentsPage {
     return this.page.locator("#release-version");
   }
 
-  get filteredMemberRows(): Locator {
-    return this.page.locator('[data-testid="filtered-member-row"]');
-  }
-
-  filteredMemberCheckbox(targetId: string): Locator {
-    return this.page.locator(`[data-testid="filtered-member-checkbox-${targetId}"]`);
+  get specificTargetRows(): Locator {
+    return this.page.locator('[data-testid^="specific-target-row-"]');
   }
 
   specificTargetCheckbox(targetId: string): Locator {
@@ -55,10 +51,6 @@ export class DeploymentsPage {
     await this.targetGroupFilterDropdown.selectOption(group);
   }
 
-  async selectTargetScope(scope: "filtered" | "specific"): Promise<void> {
-    await this.page.locator("#target-scope").selectOption(scope);
-  }
-
   async setSpecificTargetChecked(targetId: string, checked: boolean): Promise<void> {
     const checkbox = this.specificTargetCheckbox(targetId);
     if ((await checkbox.isChecked()) !== checked) {
@@ -71,7 +63,7 @@ export class DeploymentsPage {
   }
 
   async startRun(): Promise<void> {
-    await this.page.getByRole("button", { name: "Start Run" }).click();
+    await this.page.getByRole("button", { name: "Start Run" }).click({ force: true });
   }
 
   async openRun(runId: string): Promise<void> {

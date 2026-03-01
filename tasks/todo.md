@@ -1302,3 +1302,83 @@ Deployment UX split + clarity refinements:
 - 2026-03-01: Updated executor success-start wording in `/Users/cvonderheid/workspace/mappo/backend/app/modules/execution.py` from "Succeeded started." to "Finalizing success state.".
 - 2026-03-01: Updated browser-flow coverage (`/Users/cvonderheid/workspace/mappo/frontend/e2e/pages/deployments.page.ts`, `/Users/cvonderheid/workspace/mappo/frontend/e2e/tests/core-flows.spec.ts`) and app unit test (`/Users/cvonderheid/workspace/mappo/frontend/src/App.test.tsx`) for drawer and detail-route behavior.
 - 2026-03-01: Verified `make lint-backend`, `make test-backend`, `make typecheck`, `make lint-frontend`, `make test-frontend`, and `make test-frontend-e2e` all pass.
+- 2026-03-01: Replaced interim custom drawer/accordion shims with official shadcn-backed implementations (`vaul` + Radix Accordion) in `/Users/cvonderheid/workspace/mappo/frontend/src/components/ui/drawer.tsx` and `/Users/cvonderheid/workspace/mappo/frontend/src/components/ui/accordion.tsx`; added `window.matchMedia` test polyfill in `/Users/cvonderheid/workspace/mappo/frontend/src/testSetup.ts` for vaul in jsdom.
+
+---
+
+## Scope (Phase 5.38 Slice)
+Deployment-control simplification:
+- Remove the standalone `Target Scope` control.
+- Make specific-target selection an optional refinement under `Target Group`.
+- Keep run request semantics clear: no specific selection means full target-group deployment.
+
+## Plan (Phase 5.38 Slice)
+- [x] Remove `Target Scope` state/selector from deployment controls.
+- [x] Always show optional specific-target picker under target-group filter.
+- [x] Update run creation request logic for optional specific-target IDs.
+- [x] Update unit and Playwright tests for the simplified control flow.
+- [x] Run verification and capture outcomes.
+
+## Verification Commands (Phase 5.38 Slice)
+- [x] `make lint-frontend`
+- [x] `make typecheck`
+- [x] `make test-frontend`
+- [x] `make test-frontend-e2e`
+
+## Results Log (Phase 5.38 Slice)
+- 2026-03-01: Removed `Target Scope` from `/Users/cvonderheid/workspace/mappo/frontend/src/App.tsx` and simplified run creation so `target_ids` are only sent when optional specific targets are selected.
+- 2026-03-01: Reworked deployment drawer controls to keep `Target Group` primary and place `Specific Targets (optional)` directly beneath it.
+- 2026-03-01: Updated Playwright page object and flows in `/Users/cvonderheid/workspace/mappo/frontend/e2e/pages/deployments.page.ts` and `/Users/cvonderheid/workspace/mappo/frontend/e2e/tests/core-flows.spec.ts` for the new selection model.
+- 2026-03-01: Updated app unit expectation in `/Users/cvonderheid/workspace/mappo/frontend/src/App.test.tsx`.
+- 2026-03-01: Verified `make lint-frontend`, `make typecheck`, `make test-frontend`, and `make test-frontend-e2e` pass.
+
+---
+
+## Scope (Phase 5.39 Slice)
+Fleet filtering UX modernization:
+- Replace dedicated Fleet filter card with per-column filters in a shadcn-style data table.
+- Keep deployment targeting filters in Deployments drawer only.
+
+## Plan (Phase 5.39 Slice)
+- [x] Remove standalone Fleet Target Filters section from app shell.
+- [x] Introduce Fleet data table with per-column filter controls and sortable headers.
+- [x] Decouple deployment target-group filtering from Fleet page rendering.
+- [x] Update API usage to fetch full fleet inventory and filter client-side in Fleet table.
+- [x] Run verification and capture outcomes.
+
+## Verification Commands (Phase 5.39 Slice)
+- [x] `make lint-frontend`
+- [x] `make typecheck`
+- [x] `make test-frontend`
+- [x] `make test-frontend-e2e`
+
+## Results Log (Phase 5.39 Slice)
+- 2026-03-01: Removed dedicated Fleet Target Filters card from `/Users/cvonderheid/workspace/mappo/frontend/src/App.tsx`.
+- 2026-03-01: Added TanStack-backed shadcn-style Fleet data table with per-column filters/sorting in `/Users/cvonderheid/workspace/mappo/frontend/src/components/FleetTable.tsx`.
+- 2026-03-01: Updated target fetching/filter flow in `/Users/cvonderheid/workspace/mappo/frontend/src/App.tsx` and `/Users/cvonderheid/workspace/mappo/frontend/src/lib/api.ts` to fetch full target list and apply deployment-group filtering only where needed.
+- 2026-03-01: Added `@tanstack/react-table` dependency in `/Users/cvonderheid/workspace/mappo/frontend/package.json`.
+- 2026-03-01: Verified `make lint-frontend`, `make typecheck`, `make test-frontend`, and `make test-frontend-e2e` pass.
+
+---
+
+## Scope (Phase 5.40 Slice - Feature Request)
+Pre-deploy database backup + rollback metadata:
+- Add a per-target pre-deploy backup stage (CodeDeploy-style `BeforeInstall` equivalent).
+- Capture backup artifacts/restore points with release + Flyway version metadata.
+- Support operator-visible backup status and backup identifiers in run logs/detail.
+- Gate deployment on backup policy (`required` vs `best-effort`) for each run.
+
+## Plan (Phase 5.40 Slice - Feature Request)
+- [ ] Extend per-target state machine with `BACKING_UP` stage before `DEPLOYING`.
+- [ ] Add backup adapter interface with initial Postgres implementation.
+- [ ] Persist backup records tied to target/run/release/Flyway version.
+- [ ] Add rollback metadata plumbing in API + UI run detail views.
+- [ ] Add run-level policy knobs for backup required/best-effort semantics.
+- [ ] Add backend tests for backup failure gating and rollback record creation.
+- [ ] Add docs for backup/restore operational flow and guardrails.
+
+## Acceptance Criteria (Phase 5.40 Slice - Feature Request)
+- [ ] A deployment run can execute a backup stage per target before deploy.
+- [ ] Backup result is visible in MAPPO logs/details with artifact or restore-point ID.
+- [ ] If policy is `required`, target deployment does not proceed when backup fails.
+- [ ] Rollback workflow can reference the recorded backup by release + Flyway version.

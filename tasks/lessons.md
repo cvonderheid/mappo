@@ -159,3 +159,21 @@ Purpose: capture recurring correction patterns and preventative guardrails.
 - Preventative rule: Keep transient UI state that must survive route rerenders at the shell level (or URL state), not only inside route element components.
 - Detection signal: Playwright shows repeated "element not stable/intercepts pointer events" while controls appear/disappear on periodic refresh ticks.
 - Enforcement (test/lint/checklist): add a POM flow that opens the control surface, performs 2+ interactions, and starts the action while periodic refresh is active.
+
+- Date: 2026-03-01
+- Pattern: UI speed patch introduced non-standard local shims for shadcn primitives, causing visual drift and violating project component standards.
+- Preventative rule: Prefer official shadcn primitives first; only use local fallback shims when a concrete blocker is documented and tracked.
+- Detection signal: `src/components/ui/*` diverges from shadcn patterns while matching package dependencies (`vaul`, Radix primitives) are available in repo conventions.
+- Enforcement (test/lint/checklist): for new UI primitives, confirm implementation source against shadcn docs and existing txero primitive patterns before merge.
+
+- Date: 2026-03-01
+- Pattern: Deployment form accumulated overlapping controls (`Target Scope` + specific target picker), which increased cognitive load without adding distinct operator value.
+- Preventative rule: Prefer a single primary selector with optional refinement (group -> specific subset) instead of parallel mode selectors for the same outcome.
+- Detection signal: users ask whether one of two adjacent controls is necessary or where to click for the same targeting behavior.
+- Enforcement (test/lint/checklist): for control-plane UX updates, include one “operator path simplification” review checkpoint before closing the slice.
+
+- Date: 2026-03-01
+- Pattern: Fleet-level global filters and table-level filtering responsibilities were split across separate UI surfaces, making filtering feel inconsistent.
+- Preventative rule: Keep filtering controls close to the data they affect (column filters in table) and avoid duplicate filter surfaces for the same dataset.
+- Detection signal: users ask to move/merge filters into table columns or report uncertainty about where filtering is applied.
+- Enforcement (test/lint/checklist): for table-heavy views, include an IA check ensuring filters are colocated with table columns unless a clear cross-view dependency exists.

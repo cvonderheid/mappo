@@ -38,7 +38,7 @@ function requireData<T>(label: string, result: ApiResult<T>): T {
   throw new Error(`${label} failed (${status}): ${errorText}`);
 }
 
-export async function listTargets(ringFilter: string): Promise<Target[]> {
+export async function listTargets(ringFilter = "all"): Promise<Target[]> {
   const { data, error, response } = await apiClient.GET("/api/v1/targets", {
     params: {
       query: ringFilter === "all" ? undefined : { ring: ringFilter },

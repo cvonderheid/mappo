@@ -1,11 +1,11 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import { BrowserRouter, Navigate, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
 import AdminPanel from "@/components/AdminPanel";
 import FleetTable from "@/components/FleetTable";
 import { RunDetailPanel, RunList } from "@/components/RunPanels";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Drawer,
   DrawerClose,
@@ -56,8 +56,6 @@ const DEFAULT_FORM: StartRunFormState = {
   maxFailureRatePercent: "35",
 };
 
-type DeploymentScope = "filtered" | "specific";
-
 export default function App() {
   return (
     <BrowserRouter>
@@ -67,7 +65,6 @@ export default function App() {
 }
 
 function AppShell() {
-  const location = useLocation();
   const navigate = useNavigate();
   const [targets, setTargets] = useState<Target[]>([]);
   const [releases, setReleases] = useState<Release[]>([]);
@@ -76,7 +73,6 @@ function AppShell() {
   const [selectedRunId, setSelectedRunId] = useState<string>("");
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
   const [targetGroupFilter, setTargetGroupFilter] = useState<string>("all");
-  const [deploymentScope, setDeploymentScope] = useState<DeploymentScope>("filtered");
   const [deploymentControlsOpen, setDeploymentControlsOpen] = useState<boolean>(false);
   const [selectedTargetIds, setSelectedTargetIds] = useState<string[]>([]);
   const [formState, setFormState] = useState<StartRunFormState>(DEFAULT_FORM);
@@ -89,12 +85,12 @@ function AppShell() {
 
   const refreshTargets = useCallback(async () => {
     try {
-      setTargets(await listTargets(targetGroupFilter));
+      setTargets(await listTargets());
       setErrorMessage("");
     } catch (error) {
       setErrorMessage((error as Error).message);
     }
-  }, [targetGroupFilter]);
+  }, []);
 
   const refreshReleases = useCallback(async () => {
     try {
@@ -173,11 +169,19 @@ function AppShell() {
     return () => window.clearInterval(intervalId);
   }, [refreshRunDetail, refreshRuns, refreshTargets, selectedRunId]);
 
+  const deploymentTargets = useMemo(
+    () =>
+      targetGroupFilter === "all"
+        ? targets
+        : targets.filter((target) => target.tags.ring === targetGroupFilter),
+    [targetGroupFilter, targets]
+  );
+
   useEffect(() => {
     setSelectedTargetIds((current) =>
-      current.filter((targetId) => targets.some((target) => target.id === targetId))
+      current.filter((targetId) => deploymentTargets.some((target) => target.id === targetId))
     );
-  }, [targets]);
+  }, [deploymentTargets]);
 
   const runStats = useMemo(() => {
     let running = 0;
@@ -222,13 +226,8 @@ function AppShell() {
       },
     };
 
-    if (deploymentScope === "specific") {
-      if (selectedTargetIds.length === 0) {
-        setErrorMessage("Select at least one target for a specific-target deployment.");
-        return;
-      }
+    if (selectedTargetIds.length > 0) {
       request.target_ids = [...selectedTargetIds].sort();
-      request.target_tags = {};
     }
 
     setIsSubmitting(true);
@@ -290,8 +289,6 @@ function AppShell() {
     }
   }
 
-  const showFleetFilters = location.pathname.startsWith("/fleet");
-
   return (
     <main className="mx-auto flex w-[min(1400px,96vw)] flex-col gap-4 py-6">
       <Card className="glass-card hero-gradient animate-fade-up [animation-fill-mode:forwards]">
@@ -320,30 +317,6 @@ function AppShell() {
         </CardHeader>
       </Card>
 
-      {showFleetFilters ? (
-        <Card className="glass-card animate-fade-up [animation-delay:40ms] [animation-fill-mode:forwards]">
-          <CardHeader className="flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <CardTitle>Target Filters</CardTitle>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="target-group-filter">Target group</Label>
-              <select
-                id="target-group-filter"
-                className="h-10 rounded-md border border-input bg-background/90 px-3 text-sm"
-                value={targetGroupFilter}
-                onChange={(event) => setTargetGroupFilter(event.target.value)}
-              >
-                <option value="all">All groups</option>
-                <option value="canary">Canary group</option>
-                <option value="prod">Production group</option>
-              </select>
-            </div>
-          </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
-            Group is the deployment cohort tag currently stored as `ring` (`canary`, `prod`) in target metadata.
-          </CardContent>
-        </Card>
-      ) : null}
-
       <Routes>
         <Route path="/" element={<Navigate to="/fleet" replace />} />
         <Route path="/fleet" element={<FleetTable targets={targets} />} />
@@ -351,7 +324,6 @@ function AppShell() {
           path="/deployments"
           element={
             <DeploymentsPage
-              deploymentScope={deploymentScope}
               errorMessage={errorMessage}
               formState={formState}
               isSubmitting={isSubmitting}
@@ -361,9 +333,8 @@ function AppShell() {
               selectedReleaseId={selectedReleaseId}
               selectedTargetIds={selectedTargetIds}
               targetGroupFilter={targetGroupFilter}
-              targets={targets}
+              targets={deploymentTargets}
               controlsOpen={deploymentControlsOpen}
-              onDeploymentScopeChange={setDeploymentScope}
               onFormStateChange={setFormState}
               onOpenRun={(runId) => {
                 setSelectedRunId(runId);
@@ -414,7 +385,6 @@ function AppShell() {
 }
 
 type DeploymentsPageProps = {
-  deploymentScope: DeploymentScope;
   errorMessage: string;
   formState: StartRunFormState;
   isSubmitting: boolean;
@@ -426,7 +396,6 @@ type DeploymentsPageProps = {
   targetGroupFilter: string;
   targets: Target[];
   controlsOpen: boolean;
-  onDeploymentScopeChange: (scope: DeploymentScope) => void;
   onControlsOpenChange: (open: boolean) => void;
   onFormStateChange: (state: StartRunFormState) => void;
   onOpenRun: (runId: string) => void;
@@ -439,7 +408,6 @@ type DeploymentsPageProps = {
 };
 
 function DeploymentsPage({
-  deploymentScope,
   errorMessage,
   formState,
   isSubmitting,
@@ -451,7 +419,6 @@ function DeploymentsPage({
   targetGroupFilter,
   targets,
   controlsOpen,
-  onDeploymentScopeChange,
   onControlsOpenChange,
   onFormStateChange,
   onOpenRun,
@@ -469,17 +436,16 @@ function DeploymentsPage({
           Historical deployment runs and actions.
         </p>
         <Drawer direction="top" open={controlsOpen} onOpenChange={onControlsOpenChange}>
-          <DrawerTrigger
-            data-testid="open-deployment-controls"
-            className={buttonVariants({ variant: "outline" })}
-          >
-            Target Filters + Start Deployment Run
+          <DrawerTrigger asChild>
+            <Button data-testid="open-deployment-controls" variant="outline">
+              Target Filters + Start Deployment Run
+            </Button>
           </DrawerTrigger>
           <DrawerContent className="glass-card">
             <DrawerHeader>
               <DrawerTitle>Deployment Controls</DrawerTitle>
               <DrawerDescription>
-                Choose target scope, release version, and stop policies before starting a run.
+                Choose target group, optional specific targets, release version, and stop policies before starting a run.
               </DrawerDescription>
             </DrawerHeader>
             <div className="max-h-[74vh] overflow-y-auto px-4 pb-2">
@@ -501,7 +467,7 @@ function DeploymentsPage({
                   Group is the deployment cohort tag stored as <code>ring</code> in target metadata.
                 </p>
               </div>
-              <form className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7" onSubmit={onStartRun}>
+              <form className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6" onSubmit={onStartRun}>
                 <div className="space-y-1">
                   <Label htmlFor="release-version">Release version</Label>
                   <select
@@ -534,18 +500,6 @@ function DeploymentsPage({
                   >
                     <option value="waves">Grouped rollout (target group order)</option>
                     <option value="all_at_once">All-at-once</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="target-scope">Target scope</Label>
-                  <select
-                    id="target-scope"
-                    className="h-10 w-full rounded-md border border-input bg-background/90 px-3 text-sm"
-                    value={deploymentScope}
-                    onChange={(event) => onDeploymentScopeChange(event.target.value as DeploymentScope)}
-                  >
-                    <option value="filtered">Current target-group filter</option>
-                    <option value="specific">Specific targets</option>
                   </select>
                 </div>
                 <div className="space-y-1">
@@ -601,26 +555,51 @@ function DeploymentsPage({
               <p className="mt-2 text-xs text-muted-foreground">
                 Max failures and max failure rate are both active when provided. The run halts if either threshold is exceeded.
               </p>
-              {deploymentScope === "filtered" ? (
-                <div className="mt-3 rounded-md border border-border/70 bg-muted/20 p-3">
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="mt-3 rounded-md border border-border/70 bg-muted/20 p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-medium">Specific Targets (optional)</p>
                     <p className="text-xs text-muted-foreground">
-                      Targets in selected target group: {targets.length}
+                      Targets in selected target group: {targets.length}. If none are selected, deployment targets the full group.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Specific targets selected: {selectedTargetIds.length}
                     </p>
                   </div>
-                  <div className="grid max-h-44 grid-cols-1 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-4">
-                    {targets.map((target) => (
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onSelectedTargetIdsChange(targets.map((target) => target.id))}
+                    >
+                      Select all visible
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => onSelectedTargetIdsChange([])}>
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid max-h-44 grid-cols-1 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-4">
+                  {targets.map((target) => {
+                    const checked = selectedTargetIds.includes(target.id);
+                    return (
                       <label
                         key={target.id}
-                        data-testid="filtered-member-row"
-                        className="flex items-center gap-2 rounded-md border border-border/70 bg-card/70 px-2 py-1.5 text-xs"
+                        data-testid={`specific-target-row-${target.id}`}
+                        className="flex cursor-pointer items-center gap-2 rounded-md border border-border/70 bg-card/70 px-2 py-1.5 text-xs"
                       >
                         <input
-                          data-testid={`filtered-member-checkbox-${target.id}`}
+                          data-testid={`specific-target-checkbox-${target.id}`}
                           type="checkbox"
-                          checked
-                          readOnly
-                          disabled
+                          checked={checked}
+                          onChange={() =>
+                            onSelectedTargetIdsChange(
+                              checked
+                                ? selectedTargetIds.filter((id) => id !== target.id)
+                                : [...selectedTargetIds, target.id]
+                            )
+                          }
                           className="h-3.5 w-3.5 accent-primary"
                         />
                         <span className="font-mono">{target.id}</span>
@@ -628,60 +607,10 @@ function DeploymentsPage({
                           {target.tags.ring}/{target.tags.region}
                         </span>
                       </label>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
-              ) : null}
-              {deploymentScope === "specific" ? (
-                <div className="mt-3 rounded-md border border-border/70 bg-muted/20 p-3">
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs text-muted-foreground">Selected targets: {selectedTargetIds.length}</p>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onSelectedTargetIdsChange(targets.map((target) => target.id))}
-                      >
-                        Select all visible
-                      </Button>
-                      <Button type="button" variant="outline" size="sm" onClick={() => onSelectedTargetIdsChange([])}>
-                        Clear
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="grid max-h-44 grid-cols-1 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-4">
-                    {targets.map((target) => {
-                      const checked = selectedTargetIds.includes(target.id);
-                      return (
-                        <label
-                          key={target.id}
-                          data-testid={`specific-target-row-${target.id}`}
-                          className="flex cursor-pointer items-center gap-2 rounded-md border border-border/70 bg-card/70 px-2 py-1.5 text-xs"
-                        >
-                          <input
-                            data-testid={`specific-target-checkbox-${target.id}`}
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() =>
-                              onSelectedTargetIdsChange(
-                                checked
-                                  ? selectedTargetIds.filter((id) => id !== target.id)
-                                  : [...selectedTargetIds, target.id]
-                              )
-                            }
-                            className="h-3.5 w-3.5 accent-primary"
-                          />
-                          <span className="font-mono">{target.id}</span>
-                          <span className="text-muted-foreground">
-                            {target.tags.ring}/{target.tags.region}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
+              </div>
               {errorMessage ? (
                 <div className="mt-3 rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive-foreground">
                   {errorMessage}
@@ -689,8 +618,8 @@ function DeploymentsPage({
               ) : null}
             </div>
             <DrawerFooter className="border-t border-border/70">
-              <DrawerClose type="button" className={buttonVariants({ variant: "outline" })}>
-                Close
+              <DrawerClose asChild>
+                <Button type="button" variant="outline">Close</Button>
               </DrawerClose>
             </DrawerFooter>
           </DrawerContent>
