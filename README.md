@@ -55,22 +55,31 @@ make azure-preflight
    - Default mode is `MAPPO_PREFLIGHT_MODE=marketplace` (inventory optional, webhook registration model).
    - Use `MAPPO_PREFLIGHT_MODE=inventory` for strict inventory validation workflows.
    - `MAPPO_PREFLIGHT_EXPECTED_TARGET_COUNT` defaults to `2` when inventory is present.
-6. Start backend (Azure mode) and frontend:
+6. Deploy MAPPO runtime (backend + frontend) to ACA:
 ```bash
-make dev-backend-azure
-make dev-frontend
+make runtime-aca-deploy PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub-id>"
+source .data/mappo-runtime.env
 ```
-7. Register targets through onboarding events (production-like path):
+   - Runtime deploy builds/pushes backend + frontend images to ACR and writes runtime URLs into `.data/mappo-runtime.env`.
+7. Deploy the Function App lifecycle forwarder (marketplace webhook path):
 ```bash
-make marketplace-ingest-events
+make marketplace-forwarder-deploy \
+  RESOURCE_GROUP="rg-mappo-marketplace-forwarder" \
+  FUNCTION_APP_NAME="fa-mappo-marketplace-forwarder-<suffix>" \
+  LOCATION="eastus" \
+  SUBSCRIPTION_ID="<provider-sub-id>" \
+  MAPPO_API_BASE_URL="$MAPPO_API_BASE_URL" \
+  MAPPO_INGEST_TOKEN="$MAPPO_MARKETPLACE_INGEST_TOKEN"
 ```
-   - This posts events to `POST /api/v1/admin/onboarding/events` from the exported inventory (simulating a marketplace lifecycle forwarder).
-   - Optional: `make marketplace-ingest-events DRY_RUN=1` to print payloads without sending.
-
-   - If you use `docker compose -f infra/docker-compose.yml up`, backend auto-sources `/workspace/.data/mappo-azure.env` and `/workspace/.data/mappo-db.env` when present.
-8. Open:
-- API docs: `http://localhost:8010/api/v1/docs`
-- UI: `http://localhost:5174`
+   - The deploy output prints `webhook_url` for Partner Center technical configuration.
+8. Register targets through onboarding events (forwarder path):
+```bash
+make marketplace-forwarder-replay-inventory FORWARDER_URL="<webhook_url>"
+```
+   - This replays inventory as webhook events through the Function App into MAPPO onboarding.
+9. Open:
+- API docs: `$MAPPO_RUNTIME_BACKEND_URL/api/v1/docs`
+- UI: `$MAPPO_RUNTIME_FRONTEND_URL`
 
 ## Primary Demo Commands
 - `make iac-install`
@@ -81,19 +90,27 @@ make marketplace-ingest-events
 - `make iac-export-targets [PULUMI_STACK=<name>]`
 - `make iac-export-db-env [PULUMI_STACK=<name>]`
 - `make iac-destroy [PULUMI_STACK=<name>]`
+- `make runtime-aca-deploy [PULUMI_STACK=<name>] [SUBSCRIPTION_ID=<provider-sub>]`
+- `make runtime-aca-destroy [RESOURCE_GROUP=<rg>] [SUBSCRIPTION_ID=<provider-sub>]`
 - `make azure-tenant-map SUBSCRIPTION_IDS="<sub1>,<sub2>"`
 - `make azure-cleanup-runtime-identity CLIENT_ID="<app-id>" SUBSCRIPTION_IDS="<sub1>,<sub2>" [DELETE_APP_REGISTRATION=true]`
 - `make marketplace-ingest-events [INVENTORY_FILE=.data/mappo-target-inventory.json] [API_BASE_URL=http://localhost:8010]`
+- `make marketplace-forwarder-package [OUTPUT_ZIP=.data/marketplace-forwarder-function.zip]`
+- `make marketplace-forwarder-deploy RESOURCE_GROUP="<rg>" FUNCTION_APP_NAME="<name>" [MAPPO_API_BASE_URL=<url>] [MAPPO_INGEST_ENDPOINT=<url>]`
+- `make marketplace-forwarder-replay-inventory FORWARDER_URL="<https://.../api/marketplace/events?code=...>" [INVENTORY_FILE=.data/mappo-target-inventory.json]`
 - `make bootstrap-releases`
 - `make dev-backend-azure`
 - `make dev-frontend`
 
 Legacy fallback:
 - `make import-targets` (direct DB import, not production-like marketplace onboarding)
+- `make dev-backend-azure` / `make dev-frontend` (local runtime fallback)
 
 ## Marketplace Onboarding API
 - `GET /api/v1/admin/onboarding`: returns registration snapshot + recent onboarding events.
 - `POST /api/v1/admin/onboarding/events`: registers/updates targets from marketplace lifecycle events (idempotent on `event_id`).
+- `PATCH /api/v1/admin/onboarding/registrations/{target_id}`: updates editable registration metadata (display name, customer name, tags, managed app references).
+- `DELETE /api/v1/admin/onboarding/registrations/{target_id}`: removes a registered target from onboarding/fleet state.
 - Optional token gate: set `MAPPO_MARKETPLACE_INGEST_TOKEN`, then send `x-mappo-ingest-token` header.
 
 ## Quality Commands
@@ -101,6 +118,7 @@ Legacy fallback:
 - `make docs-consistency-check`
 - `make golden-principles-check`
 - `make check-no-demo-leak`
+- `make lint-backend-file-size`
 - `make phase1-gate-fast`
 - `make phase1-gate-full`
 - `make lint`
@@ -112,7 +130,9 @@ Legacy fallback:
 
 ## Live Demo Guides
 - Checklist: `/Users/cvonderheid/workspace/mappo/docs/live-demo-checklist.md`
+- Runtime ACA runbook: `/Users/cvonderheid/workspace/mappo/docs/runtime-aca-runbook.md`
 - Portal playbook (manual-only steps): `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`
+- Function forwarder runbook: `/Users/cvonderheid/workspace/mappo/docs/marketplace-forwarder-runbook.md`
 - Pulumi details: `/Users/cvonderheid/workspace/mappo/infra/pulumi/README.md`
 
 ## Database workflow

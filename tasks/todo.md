@@ -243,6 +243,39 @@ Deployment form and progress accuracy refinements:
 
 ---
 
+## Scope (Admin Target CRUD Slice)
+Target registration operations in Admin:
+- Add operator edit/delete capabilities for registered targets.
+- Keep onboarding-event create flow as the source of registration.
+- Ensure generated API contracts and docs are updated.
+
+## Plan (Admin Target CRUD Slice)
+- [x] Add backend update/delete registration routes and store operations.
+- [x] Add frontend API client wrappers for registration update/delete.
+- [x] Add Admin registrations table actions (Edit/Delete) with an edit drawer.
+- [x] Regenerate OpenAPI + frontend generated schema.
+- [x] Update docs for new onboarding registration APIs.
+- [x] Run verification commands and capture outcomes.
+
+## Verification Commands (Admin Target CRUD Slice)
+- [x] `make openapi`
+- [x] `make client-gen`
+- [x] `make typecheck-backend`
+- [x] `make test-backend`
+- [x] `make typecheck-frontend`
+- [x] `make lint-frontend`
+- [x] `make test-frontend`
+
+## Results Log (Admin Target CRUD Slice)
+- 2026-03-01: Added backend onboarding registration update/delete routes and persistence wiring.
+- 2026-03-01: Added frontend API wrappers for `PATCH/DELETE /api/v1/admin/onboarding/registrations/{target_id}`.
+- 2026-03-01: Added Admin Registered Targets table row actions (`Edit`, `Delete`) and top-drawer edit form.
+- 2026-03-01: Split Admin datatable rendering into `frontend/src/components/AdminTables.tsx` to satisfy frontend file-size guardrails.
+- 2026-03-01: Updated onboarding API docs in `README.md` and `docs/architecture.md`.
+- 2026-03-01: Verified `openapi`, `client-gen`, backend tests/typecheck, frontend typecheck/test, and frontend lint (existing 3 warnings only).
+
+---
+
 ## Scope (Phase 5 Slice)
 Live execution boundary hardening:
 - Introduce execution-mode abstraction so run orchestration can target demo or Azure execution backends.
@@ -1684,3 +1717,61 @@ Deployment/Admin IA alignment:
 - 2026-03-01: Added shadcn tabs primitive in `/Users/cvonderheid/workspace/mappo/frontend/src/components/ui/tabs.tsx` and Radix dependency updates in frontend package manifests.
 - 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/frontend/src/App.test.tsx` and `/Users/cvonderheid/workspace/mappo/frontend/src/lib/types.ts` for label/type alignment.
 - 2026-03-01: Verified frontend unit test, typecheck, and Playwright core flows all pass.
+
+---
+
+## Scope (Phase 5.54 Slice)
+Marketplace webhook-forwarder preparation for production-like demo path:
+- Add deployable Azure Function forwarder package (webhook receiver -> MAPPO onboarding API).
+- Add repeatable CLI/make workflows for package/deploy/replay.
+- Update docs/runbooks/checklists for the function-app-driven demo flow and security boundary.
+
+## Plan (Phase 5.54 Slice)
+- [x] Add Azure Function forwarder source package with normalization + forwarding logic.
+- [x] Add packaging/deployment/replay scripts and expose via Make targets.
+- [x] Document full runbook and update README/checklists/playbook references.
+- [x] Validate script syntax, make help surface, and docs consistency checks.
+
+## Verification Commands (Phase 5.54 Slice)
+- [x] `bash -n scripts/marketplace_forwarder_package.sh scripts/marketplace_forwarder_deploy.sh scripts/marketplace_forwarder_replay_inventory.sh`
+- [x] `make help | rg -n "marketplace-forwarder|marketplace-ingest-events|partner-center"`
+- [x] `python3 scripts/docs_consistency_check.py`
+
+## Results Log (Phase 5.54 Slice)
+- 2026-03-01: Added Azure Function source package at `/Users/cvonderheid/workspace/mappo/integrations/marketplace-forwarder-function/` (`function_app.py`, `host.json`, `requirements.txt`) with MAPPO onboarding payload normalization + forwarding.
+- 2026-03-01: Added scripts `/Users/cvonderheid/workspace/mappo/scripts/marketplace_forwarder_package.sh`, `/Users/cvonderheid/workspace/mappo/scripts/marketplace_forwarder_deploy.sh`, and `/Users/cvonderheid/workspace/mappo/scripts/marketplace_forwarder_replay_inventory.sh`.
+- 2026-03-01: Added Make targets `marketplace-forwarder-package`, `marketplace-forwarder-deploy`, and `marketplace-forwarder-replay-inventory`.
+- 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/README.md`, `/Users/cvonderheid/workspace/mappo/docs/live-demo-checklist.md`, `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`, `/Users/cvonderheid/workspace/mappo/docs/documentation.md`, and `/Users/cvonderheid/workspace/mappo/docs/architecture.md` for function-app-forwarder workflow and security guidance.
+
+---
+
+## Scope (Phase 5.55 Slice)
+Strict-realism runtime path:
+- Deploy MAPPO backend + frontend to Azure Container Apps (not local dev servers) with repeatable scripts.
+- Keep runtime resources outside Pulumi-managed resource groups to preserve deterministic `iac-destroy`.
+- Wire docs/make targets so forwarder can target cloud runtime by default.
+
+## Plan (Phase 5.55 Slice)
+- [x] Add production container artifacts for backend and frontend.
+- [x] Add ACA runtime deploy script (RG/env/ACR + image build + app create/update + output env file).
+- [x] Add ACA runtime destroy script for repeatable cleanup.
+- [x] Add Make targets for runtime deploy/destroy.
+- [x] Update runbooks/checklists/README to make cloud runtime the primary path.
+- [x] Run syntax/docs verification and capture final command sequence.
+
+## Verification Commands (Phase 5.55 Slice)
+- [x] `bash -n scripts/runtime_aca_deploy.sh scripts/runtime_aca_destroy.sh scripts/marketplace_forwarder_deploy.sh`
+- [x] `make help | rg -n "runtime-aca|marketplace-forwarder"`
+- [x] `python3 scripts/docs_consistency_check.py`
+
+## Results Log (Phase 5.55 Slice)
+- 2026-03-01: Added backend runtime image at `/Users/cvonderheid/workspace/mappo/backend/Dockerfile`.
+- 2026-03-01: Added frontend runtime image at `/Users/cvonderheid/workspace/mappo/frontend/Dockerfile` and SPA nginx config at `/Users/cvonderheid/workspace/mappo/infra/nginx/mappo-frontend.conf`.
+- 2026-03-01: Added runtime deploy/destroy scripts at `/Users/cvonderheid/workspace/mappo/scripts/runtime_aca_deploy.sh` and `/Users/cvonderheid/workspace/mappo/scripts/runtime_aca_destroy.sh`.
+- 2026-03-01: Added `.dockerignore` tuned for ACR build context hygiene.
+- 2026-03-01: Added Make targets `runtime-aca-deploy` and `runtime-aca-destroy`.
+- 2026-03-01: Updated docs (`README`, live checklist, marketplace playbook, forwarder runbook, architecture, documentation) and added `/Users/cvonderheid/workspace/mappo/docs/runtime-aca-runbook.md`.
+- 2026-03-01: Executed `make runtime-aca-deploy` successfully against stack `demo`; runtime URLs emitted to `.data/mappo-runtime.env`.
+- 2026-03-01: Executed `make marketplace-forwarder-deploy` using runtime env fallback for API base URL; webhook URL generated.
+- 2026-03-01: Replayed inventory through Function webhook and verified cloud backend onboarding state reached 2 registrations.
+- 2026-03-01: Executed live cloud canaries for target-01 and target-02; both succeeded and targets now report `health_status=healthy`.

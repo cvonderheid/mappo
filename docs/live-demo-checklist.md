@@ -45,9 +45,6 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
   - `make iac-export-db-env PULUMI_STACK=<stack>`
   - `source .data/mappo-db.env`
   - `make bootstrap-releases`
-- [ ] Validate event-driven onboarding path (same endpoint used by lifecycle forwarder):
-  - `make marketplace-ingest-events` (or `POST /api/v1/admin/onboarding/events` with one managed-app target payload).
-  - `GET /api/v1/admin/onboarding` confirms registration + event status.
 - [ ] Verify managed application resource exists (`Microsoft.Solutions/applications`) and points to a managed resource group.
 - [ ] Verify intended target Container App exists in each managed resource group.
 
@@ -55,6 +52,12 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
 
 - [ ] Run Partner Center API/CLI steps for offer + plan lifecycle (see `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`).
 - [ ] Use Portal playbook for actions that are still portal-only for this demo.
+- [ ] Deploy Function App lifecycle forwarder (webhook receiver -> MAPPO onboarding endpoint):
+  - `make marketplace-forwarder-deploy RESOURCE_GROUP="<rg>" FUNCTION_APP_NAME="<name>" SUBSCRIPTION_ID="<provider-sub>" MAPPO_API_BASE_URL="$MAPPO_API_BASE_URL" MAPPO_INGEST_TOKEN="$MAPPO_MARKETPLACE_INGEST_TOKEN"`
+  - Capture printed `webhook_url` and place it in Partner Center technical configuration.
+- [ ] Validate forwarder path:
+  - `make marketplace-forwarder-replay-inventory FORWARDER_URL="<webhook_url>"`
+  - `GET /api/v1/admin/onboarding` confirms applied events + registered targets.
 
 ## 5) MAPPO Runtime
 
@@ -72,13 +75,18 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
   - `MAPPO_AZURE_ENABLE_QUOTA_PREFLIGHT=true`
   - `MAPPO_AZURE_QUOTA_WARNING_HEADROOM_RATIO=0.1`
   - `MAPPO_AZURE_QUOTA_MIN_REMAINING_WARNING=2`
-- [ ] Start backend in Azure mode:
-  - `make dev-backend-azure`
-- [ ] Start frontend:
-  - `make dev-frontend`
+- [ ] Deploy runtime to Azure Container Apps:
+  - `make runtime-aca-deploy PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub>"`
+  - `source .data/mappo-runtime.env`
+- [ ] Validate runtime endpoints:
+  - Backend docs: `$MAPPO_RUNTIME_BACKEND_URL/api/v1/docs`
+  - Frontend UI: `$MAPPO_RUNTIME_FRONTEND_URL`
 
 ## 6) Validation Run
 
+- [ ] Validate event-driven onboarding path through forwarder:
+  - `make marketplace-forwarder-replay-inventory FORWARDER_URL="<webhook_url>"`
+  - `curl -s "$MAPPO_RUNTIME_BACKEND_URL/api/v1/admin/onboarding" | jq`
 - [ ] Create a single-target canary run and verify stage progression:
   - `VALIDATING -> DEPLOYING -> VERIFYING -> SUCCEEDED`
 - [ ] Verify per-target logs include structured error details and Azure correlation IDs.
@@ -86,6 +94,9 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
 - [ ] Confirm deployment run shows guardrail warnings (if any) and effective per-subscription batching settings.
 - [ ] Confirm retry/resume behavior on failed or halted runs.
 - [ ] Confirm fleet view reflects latest deployed release per successful target.
+- [ ] Confirm forwarder security controls:
+  - Function URL uses function key (`?code=...`) and MAPPO onboarding ingest remains token-gated.
+  - No assumption of marketplace-specific service-tag filtering for inbound webhook traffic.
 
 ## 7) Teardown / Reset (Repeatable Demo Cleanup)
 
@@ -96,3 +107,5 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
   - Optional full identity teardown (also deletes app registration): add `DELETE_APP_REGISTRATION=true`
 - [ ] Remove local runtime data volumes:
   - `docker compose -f infra/docker-compose.yml down -v --remove-orphans`
+- [ ] Remove ACA runtime resources:
+  - `make runtime-aca-destroy [RESOURCE_GROUP="<rg>"] [SUBSCRIPTION_ID="<provider-sub>"]`

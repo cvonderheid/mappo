@@ -2,12 +2,15 @@ import { apiClient } from "@/lib/api/client";
 import type {
   AdminOnboardingSnapshotResponse,
   CreateRunRequest,
+  DeleteTargetRegistrationResponse,
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
   Release,
   RunDetail,
   RunSummary,
   Target,
+  TargetRegistrationRecord,
+  UpdateTargetRegistrationRequest,
 } from "@/lib/types";
 
 type ApiResult<T> = {
@@ -106,4 +109,30 @@ export async function adminIngestMarketplaceEvent(
         : { "x-mappo-ingest-token": ingestToken.trim() },
   });
   return requireData("adminIngestMarketplaceEvent", { data, error, response });
+}
+
+export async function adminUpdateTargetRegistration(
+  targetId: string,
+  request: UpdateTargetRegistrationRequest
+): Promise<TargetRegistrationRecord> {
+  const { data, error, response } = await apiClient.PATCH(
+    "/api/v1/admin/onboarding/registrations/{target_id}",
+    {
+      params: { path: { target_id: targetId } },
+      body: request,
+    }
+  );
+  return requireData("adminUpdateTargetRegistration", { data, error, response });
+}
+
+export async function adminDeleteTargetRegistration(
+  targetId: string
+): Promise<DeleteTargetRegistrationResponse> {
+  const { data, error, response } = await apiClient.DELETE(
+    "/api/v1/admin/onboarding/registrations/{target_id}",
+    {
+      params: { path: { target_id: targetId } },
+    }
+  );
+  return requireData("adminDeleteTargetRegistration", { data, error, response });
 }

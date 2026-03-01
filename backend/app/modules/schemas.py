@@ -182,6 +182,27 @@ class TargetRegistrationRecord(BaseModel):
     updated_at: datetime
 
 
+class UpdateTargetRegistrationRequest(BaseModel):
+    display_name: str | None = None
+    customer_name: str | None = None
+    managed_application_id: str | None = None
+    managed_resource_group_id: str | None = None
+    container_app_resource_id: str | None = None
+    target_group: str | None = None
+    region: str | None = None
+    environment: str | None = None
+    tier: str | None = None
+    tags: dict[str, str] | None = None
+    metadata: dict[str, Any] | None = None
+    health_status: str | None = None
+    last_deployed_release: str | None = None
+
+
+class DeleteTargetRegistrationResponse(BaseModel):
+    target_id: str
+    deleted: bool
+
+
 class MarketplaceEventRecord(BaseModel):
     event_id: str
     event_type: str

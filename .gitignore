@@ -21,6 +21,7 @@ build/
 coverage/
 playwright-report/
 test-results/
+.playwright-cli/*.log
 
 # Local env
 .env

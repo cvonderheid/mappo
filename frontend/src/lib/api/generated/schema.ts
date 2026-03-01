@@ -38,6 +38,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/onboarding/registrations/{target_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Target Registration */
+        delete: operations["delete_target_registration_api_v1_admin_onboarding_registrations__target_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Target Registration */
+        patch: operations["update_target_registration_api_v1_admin_onboarding_registrations__target_id__patch"];
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -230,6 +248,13 @@ export interface components {
              * @default ring
              */
             wave_tag: string;
+        };
+        /** DeleteTargetRegistrationResponse */
+        DeleteTargetRegistrationResponse: {
+            /** Deleted */
+            deleted: boolean;
+            /** Target Id */
+            target_id: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -610,6 +635,39 @@ export interface components {
              */
             started_at: string;
         };
+        /** UpdateTargetRegistrationRequest */
+        UpdateTargetRegistrationRequest: {
+            /** Container App Resource Id */
+            container_app_resource_id?: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Environment */
+            environment?: string | null;
+            /** Health Status */
+            health_status?: string | null;
+            /** Last Deployed Release */
+            last_deployed_release?: string | null;
+            /** Managed Application Id */
+            managed_application_id?: string | null;
+            /** Managed Resource Group Id */
+            managed_resource_group_id?: string | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            } | null;
+            /** Region */
+            region?: string | null;
+            /** Tags */
+            tags?: {
+                [key: string]: string;
+            } | null;
+            /** Target Group */
+            target_group?: string | null;
+            /** Tier */
+            tier?: string | null;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -685,6 +743,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MarketplaceEventIngestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_target_registration_api_v1_admin_onboarding_registrations__target_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteTargetRegistrationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_target_registration_api_v1_admin_onboarding_registrations__target_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTargetRegistrationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TargetRegistrationRecord"];
                 };
             };
             /** @description Validation Error */

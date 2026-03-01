@@ -13,7 +13,9 @@ This playbook defines what is automated versus manual for a marketplace-accurate
 
 ### Automated with CLI/API scripts
 - Azure auth bootstrap (`make azure-auth-bootstrap`)
-- Pulumi inventory export + webhook simulation (`make iac-export-targets`, `make marketplace-ingest-events`)
+- Pulumi inventory export (`make iac-export-targets`)
+- MAPPO runtime deploy to ACA (`make runtime-aca-deploy`, `make runtime-aca-destroy`)
+- Function App forwarder package/deploy/replay (`make marketplace-forwarder-package`, `make marketplace-forwarder-deploy`, `make marketplace-forwarder-replay-inventory`)
 - Partner Center token acquisition (`make partner-center-token`)
 - Partner Center API invocation wrapper (`make partner-center-api URL=...`)
 - MAPPO onboarding ingest (`POST /api/v1/admin/onboarding/events`)
@@ -33,15 +35,22 @@ This playbook defines what is automated versus manual for a marketplace-accurate
   - `make iac-install`
   - `make iac-stack-init PULUMI_STACK=<stack>`
   - `make iac-up PULUMI_STACK=<stack>`
-- Export/import targets:
+- Export target snapshot + bootstrap releases:
   - `make iac-export-targets PULUMI_STACK=<stack>`
-  - `make marketplace-ingest-events`
+  - `make iac-export-db-env PULUMI_STACK=<stack>`
+  - `source .data/mappo-db.env`
   - `make bootstrap-releases`
 
-## 2) Start MAPPO runtime
+## 2) Deploy MAPPO runtime to ACA
 - `make azure-preflight`
-- `make dev-backend-azure`
-- `make dev-frontend`
+- `make runtime-aca-deploy PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub>"`
+- `source .data/mappo-runtime.env`
+
+## 2b) Deploy webhook forwarder Function App
+- `make marketplace-forwarder-deploy RESOURCE_GROUP="<rg>" FUNCTION_APP_NAME="<name>" SUBSCRIPTION_ID="<provider-sub>" MAPPO_API_BASE_URL="$MAPPO_API_BASE_URL" MAPPO_INGEST_TOKEN="$MAPPO_MARKETPLACE_INGEST_TOKEN"`
+- Capture printed `webhook_url` and use it in Partner Center technical config.
+- Validate path:
+  - `make marketplace-forwarder-replay-inventory FORWARDER_URL="<webhook_url>"`
 
 ## 3) Partner Center API path (non-IaC)
 - Acquire token:
@@ -53,3 +62,7 @@ This playbook defines what is automated versus manual for a marketplace-accurate
 - Complete remaining Partner Center listing/certification/publish tasks in portal.
 - Record the portal action and resulting artifact IDs in demo notes.
 - Re-run `make azure-preflight` and a MAPPO canary rollout before presenting.
+
+## Security Boundary Note
+- Prefer token/auth based controls for inbound webhooks (Function key + MAPPO ingest token + payload validation).
+- Do not assume a dedicated marketplace webhook service tag exists for Function inbound restrictions.

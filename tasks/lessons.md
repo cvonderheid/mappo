@@ -218,6 +218,12 @@ Purpose: capture recurring correction patterns and preventative guardrails.
 - Pattern: Clone action initially triggered immediate execution, but operators expected a safe preflight step where configuration is reviewed and edited before launch.
 - Preventative rule: Any "clone/re-run" affordance in deployment tooling should default to pre-populating controls, not auto-submitting, unless explicitly labeled "Run now".
 - Detection signal: user feedback requests "open and pre-populate" rather than immediate run after clicking clone.
+
+- Date: 2026-03-01
+- Pattern: Backend files grew large without a line-count guardrail, while frontend already enforced a max-lines policy.
+- Preventative rule: Mirror critical maintainability guardrails across backend and frontend lint workflows, including explicit file-size limits.
+- Detection signal: modules exceed 750 lines with no automated lint failure in backend checks.
+- Enforcement (test/lint/checklist): add `make lint-backend-file-size` and include it under `lint-backend`.
 - Enforcement (test/lint/checklist): include an e2e assertion that clone opens controls with expected prefilled values and does not create a run until `Start Run` is clicked.
 
 - Date: 2026-03-01
@@ -249,3 +255,27 @@ Purpose: capture recurring correction patterns and preventative guardrails.
 - Preventative rule: Keep control-plane pages consistent: top action CTA + drawer for mutations, tabular snapshot views in tabs for read-heavy data.
 - Detection signal: users ask to move admin mutation forms into drawers and replace inline lists with datatables/tabs.
 - Enforcement (test/lint/checklist): include an IA consistency review item before closing UI slices across Fleet/Deployments/Admin.
+
+- Date: 2026-03-01
+- Pattern: Marketplace-realistic demos drift when webhook ingress is simulated only by direct backend calls.
+- Preventative rule: Keep a first-class webhook forwarder path (deployable Function App + replay script) so validation runs the same ingress boundary used in production.
+- Detection signal: onboarding works only via direct `POST /api/v1/admin/onboarding/events` and there is no tested endpoint that mirrors marketplace callback shape.
+- Enforcement (test/lint/checklist): live-demo checklist must include forwarder deploy + replay verification before signoff.
+
+- Date: 2026-03-01
+- Pattern: Network-restriction decisions for marketplace webhooks can over-index on service tags that may not exist for the specific producer.
+- Preventative rule: Treat marketplace webhook ingress as auth-first (function key + token validation + gateway controls) and use service-tag allowlists only when a producer-specific tag is documented.
+- Detection signal: architecture proposal assumes "marketplace service tag" without explicit doc confirmation.
+- Enforcement (test/lint/checklist): security design review must include documented producer identity/auth controls and explicit source for any service-tag dependency.
+
+- Date: 2026-03-01
+- Pattern: Saying “targets configured” without explicitly separating Azure target infrastructure from DB registration state causes operator confusion and trust loss.
+- Preventative rule: Every status summary must separately report (1) target surface provisioned in Azure and (2) targets registered in MAPPO via onboarding events.
+- Detection signal: user asks whether setup is production-like after hearing stack targets exist while DB remains empty.
+- Enforcement (test/lint/checklist): include dual-state checkpoints in runbooks (`az resource`/Pulumi outputs for infra, API/SQL counts for registration).
+
+- Date: 2026-03-01
+- Pattern: Retrying cloud runtime deploy with random default resource names causes orphan sprawl (multiple ACRs/workspaces) after partial failures.
+- Preventative rule: Default runtime deploy resources must be deterministic/reused, and environment quota fallbacks should happen before attempting new environment creation.
+- Detection signal: runtime RG accumulates many similarly prefixed registries/workspaces across consecutive retries.
+- Enforcement (test/lint/checklist): add post-deploy hygiene check that runtime RG has one active ACR and no orphan Log Analytics workspaces.

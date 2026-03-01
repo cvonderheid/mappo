@@ -9,8 +9,11 @@ from app.core.settings import get_settings
 from app.modules.control_plane import ControlPlaneStore, StoreError
 from app.modules.schemas import (
     AdminOnboardingSnapshotResponse,
+    DeleteTargetRegistrationResponse,
     MarketplaceEventIngestRequest,
     MarketplaceEventIngestResponse,
+    TargetRegistrationRecord,
+    UpdateTargetRegistrationRequest,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -40,3 +43,33 @@ async def ingest_marketplace_event(
         return await store.ingest_marketplace_event(request)
     except StoreError as error:
         raise HTTPException(status_code=400, detail=error.message) from error
+
+
+@router.patch(
+    "/onboarding/registrations/{target_id}",
+    response_model=TargetRegistrationRecord,
+)
+async def update_target_registration(
+    target_id: str,
+    request: UpdateTargetRegistrationRequest,
+    store: ControlPlaneStore = Depends(get_store),
+) -> TargetRegistrationRecord:
+    try:
+        return await store.update_target_registration(target_id=target_id, request=request)
+    except StoreError as error:
+        raise HTTPException(status_code=400, detail=error.message) from error
+
+
+@router.delete(
+    "/onboarding/registrations/{target_id}",
+    response_model=DeleteTargetRegistrationResponse,
+)
+async def delete_target_registration(
+    target_id: str,
+    store: ControlPlaneStore = Depends(get_store),
+) -> DeleteTargetRegistrationResponse:
+    try:
+        await store.delete_target_registration(target_id=target_id)
+    except StoreError as error:
+        raise HTTPException(status_code=400, detail=error.message) from error
+    return DeleteTargetRegistrationResponse(target_id=target_id, deleted=True)

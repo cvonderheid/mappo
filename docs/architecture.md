@@ -12,6 +12,7 @@ MAPPO is a provider-tenant control plane that orchestrates release rollouts acro
 1. API service
 - Owns Targets/Releases/Runs APIs.
 - Owns marketplace onboarding APIs (`/admin/onboarding`, `/admin/onboarding/events`) used by event-forwarders.
+- Owns onboarding registration maintenance APIs (`PATCH/DELETE /admin/onboarding/registrations/{target_id}`) for operator CRUD fixes.
 - Exposes UI-facing status/query surfaces.
 
 2. Orchestrator service
@@ -36,6 +37,11 @@ MAPPO is a provider-tenant control plane that orchestrates release rollouts acro
 - Retains run/deployment history for 3 months.
 - Cloud runtime path uses Azure Database for PostgreSQL Flexible Server (local dev keeps Docker Postgres).
 
+5. Marketplace webhook forwarder (Azure Function App)
+- Receives marketplace technical-config webhook calls.
+- Normalizes payloads to MAPPO onboarding contract and forwards to `/api/v1/admin/onboarding/events`.
+- Runs as independent ingress boundary so MAPPO API can stay token-gated and internal behind stricter controls.
+
 ## Control / Data / Verification Boundaries
 - Control flow: run/wave scheduling and per-target stage transitions.
 - Data flow: release parameters and target-scoped overrides.
@@ -55,6 +61,8 @@ MAPPO is a provider-tenant control plane that orchestrates release rollouts acro
 - UI and API are separate deployable containers.
 - Demo automation boundary:
   - Pulumi IaC provisions managed app definitions, managed app instances, shared ACA environments, and exports MAPPO inventory.
+  - Runtime ACA deployment is scripted outside Pulumi (`make runtime-aca-deploy`) into a dedicated runtime resource group to keep Pulumi destroy deterministic.
+  - CLI scripts provision/deploy the Function App webhook forwarder and replay inventory events through the webhook path.
   - Partner Center offer lifecycle is handled via API/CLI helper scripts.
   - Portal-only steps are documented in `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`.
 

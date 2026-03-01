@@ -45,6 +45,7 @@ from app.modules.schemas import (
     TargetRegistrationRecord,
     TargetStage,
     TargetStageRecord,
+    UpdateTargetRegistrationRequest,
 )
 
 TERMINAL_RUN_STATUSES = {RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.PARTIAL, RunStatus.HALTED}
@@ -156,6 +157,169 @@ class ControlPlaneStore:
                 reverse=True,
             )[:safe_limit]
         return AdminOnboardingSnapshotResponse(registrations=registrations, events=events)
+
+    async def update_target_registration(
+        self,
+        target_id: str,
+        request: UpdateTargetRegistrationRequest,
+    ) -> TargetRegistrationRecord:
+        async with self._lock:
+            registration = self._registrations.get(target_id)
+            target = self._targets.get(target_id)
+            if registration is None or target is None:
+                raise StoreError(f"target registration not found: {target_id}")
+
+            fields = set(request.model_fields_set)
+            if not fields:
+                return registration.model_copy(deep=True)
+
+            now = utc_now()
+            updated_registration = registration.model_copy(deep=True)
+            updated_target = target.model_copy(deep=True)
+
+            if "display_name" in fields:
+                if request.display_name is None:
+                    updated_registration.display_name = updated_target.id
+                else:
+                    display_name = request.display_name.strip()
+                    if display_name == "":
+                        raise StoreError("display_name must not be empty when provided")
+                    updated_registration.display_name = display_name
+
+            if "customer_name" in fields:
+                customer_name = request.customer_name.strip() if request.customer_name else ""
+                updated_registration.customer_name = customer_name or None
+
+            if "managed_application_id" in fields:
+                managed_app_id = (
+                    request.managed_application_id.strip()
+                    if request.managed_application_id is not None
+                    else ""
+                )
+                updated_registration.managed_application_id = (
+                    self._normalize_resource_id(managed_app_id)
+                    if managed_app_id != ""
+                    else None
+                )
+
+            if "managed_resource_group_id" in fields:
+                managed_rg_id = (
+                    request.managed_resource_group_id.strip()
+                    if request.managed_resource_group_id is not None
+                    else ""
+                )
+                if managed_rg_id == "":
+                    raise StoreError(
+                        "managed_resource_group_id must not be empty when provided"
+                    )
+                updated_registration.managed_resource_group_id = self._normalize_resource_id(
+                    managed_rg_id
+                )
+
+            if "container_app_resource_id" in fields:
+                container_resource_id = (
+                    request.container_app_resource_id.strip()
+                    if request.container_app_resource_id is not None
+                    else ""
+                )
+                if container_resource_id == "":
+                    raise StoreError(
+                        "container_app_resource_id must not be empty when provided"
+                    )
+                normalized_container_resource_id = self._normalize_resource_id(
+                    container_resource_id
+                )
+                container_ref = self._parse_container_app_resource_id_safe(
+                    normalized_container_resource_id
+                )
+                if container_ref.subscription_id != updated_target.subscription_id:
+                    raise StoreError(
+                        "container_app_resource_id subscription must match target subscription_id"
+                    )
+                updated_registration.container_app_resource_id = (
+                    normalized_container_resource_id
+                )
+                updated_target.managed_app_id = normalized_container_resource_id
+                if "managed_resource_group_id" not in fields:
+                    updated_registration.managed_resource_group_id = (
+                        f"/subscriptions/{container_ref.subscription_id}/resourceGroups/"
+                        f"{container_ref.resource_group_name}"
+                    )
+
+            tags = dict(updated_registration.tags)
+            if "tags" in fields:
+                tags = {}
+                for key, value in (request.tags or {}).items():
+                    normalized_key = key.strip()
+                    normalized_value = value.strip()
+                    if normalized_key == "" or normalized_value == "":
+                        continue
+                    tags[normalized_key] = normalized_value
+
+            if "target_group" in fields:
+                target_group = request.target_group.strip() if request.target_group else ""
+                tags["ring"] = target_group or "prod"
+            if "region" in fields:
+                region = request.region.strip() if request.region else ""
+                tags["region"] = region or "unknown"
+            if "environment" in fields:
+                environment = request.environment.strip() if request.environment else ""
+                tags["environment"] = environment or "prod"
+            if "tier" in fields:
+                tier = request.tier.strip() if request.tier else ""
+                tags["tier"] = tier or "standard"
+
+            if fields.intersection({"tags", "target_group", "region", "environment", "tier"}):
+                if tags.get("ring", "").strip() == "":
+                    tags["ring"] = "prod"
+                if tags.get("region", "").strip() == "":
+                    tags["region"] = "unknown"
+                if tags.get("environment", "").strip() == "":
+                    tags["environment"] = "prod"
+                if tags.get("tier", "").strip() == "":
+                    tags["tier"] = "standard"
+                updated_registration.tags = tags
+                updated_target.tags = dict(tags)
+
+            if "metadata" in fields:
+                updated_registration.metadata = request.metadata or {}
+
+            if "health_status" in fields:
+                health_status = request.health_status.strip() if request.health_status else ""
+                if health_status == "":
+                    raise StoreError("health_status must not be empty when provided")
+                updated_target.health_status = health_status
+
+            if "last_deployed_release" in fields:
+                deployed_release = (
+                    request.last_deployed_release.strip()
+                    if request.last_deployed_release
+                    else ""
+                )
+                updated_target.last_deployed_release = deployed_release or "unknown"
+
+            updated_registration.updated_at = now
+
+            self._registrations[target_id] = updated_registration
+            self._save_target_registration_locked(updated_registration)
+            self._targets[target_id] = updated_target
+            self._save_target_locked(updated_target)
+
+            return updated_registration.model_copy(deep=True)
+
+    async def delete_target_registration(self, target_id: str) -> None:
+        async with self._lock:
+            deleted = False
+            if target_id in self._registrations:
+                del self._registrations[target_id]
+                self._delete_target_registration_locked(target_id)
+                deleted = True
+            if target_id in self._targets:
+                del self._targets[target_id]
+                self._delete_target_locked(target_id)
+                deleted = True
+            if not deleted:
+                raise StoreError(f"target registration not found: {target_id}")
 
     async def ingest_marketplace_event(
         self,
@@ -1397,6 +1561,18 @@ class ControlPlaneStore:
             else:
                 row.payload_json = registration.model_dump(mode="json")
                 row.updated_at = now
+            session.commit()
+
+    def _delete_target_locked(self, target_id: str) -> None:
+        with self._session_factory() as session:
+            session.execute(delete(Targets).where(Targets.id == target_id))
+            session.commit()
+
+    def _delete_target_registration_locked(self, target_id: str) -> None:
+        with self._session_factory() as session:
+            session.execute(
+                delete(TargetRegistrations).where(TargetRegistrations.id == target_id)
+            )
             session.commit()
 
     def _save_marketplace_event_locked(self, event: MarketplaceEventRecord) -> None:

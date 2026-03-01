@@ -23,6 +23,7 @@ make workflow-discipline-check
 make docs-consistency-check
 make golden-principles-check
 make check-no-demo-leak
+make lint-backend-file-size
 make phase1-gate-fast
 make phase1-gate-full
 ```
@@ -33,14 +34,19 @@ export MAPPO_PUBLISHER_PRINCIPAL_OBJECT_ID="<azure-ad-object-id>"
 make iac-stack-init
 make iac-up
 make iac-export-targets
+make iac-export-db-env
 make azure-tenant-map SUBSCRIPTION_IDS="<sub1>,<sub2>"
 make azure-onboard-multitenant-runtime CLIENT_ID="$MAPPO_AZURE_CLIENT_ID" SUBSCRIPTION_IDS="<sub1>,<sub2>"
 make azure-cleanup-runtime-identity CLIENT_ID="$MAPPO_AZURE_CLIENT_ID" SUBSCRIPTION_IDS="<sub1>,<sub2>" DELETE_APP_REGISTRATION=true
+source .data/mappo-db.env
 make bootstrap-releases
 make azure-preflight
-make dev-backend-azure
-make dev-frontend
-make marketplace-ingest-events
+make runtime-aca-deploy PULUMI_STACK="<stack>" SUBSCRIPTION_ID="<provider-sub>"
+source .data/mappo-runtime.env
+make marketplace-forwarder-package
+make marketplace-forwarder-deploy RESOURCE_GROUP="<rg>" FUNCTION_APP_NAME="<name>" MAPPO_API_BASE_URL="$MAPPO_API_BASE_URL" MAPPO_INGEST_TOKEN="$MAPPO_MARKETPLACE_INGEST_TOKEN"
+make marketplace-forwarder-replay-inventory FORWARDER_URL="<https://.../api/marketplace/events?code=...>"
+make runtime-aca-destroy RESOURCE_GROUP="<runtime-rg>"
 ```
 
 ### Partner Center API helpers

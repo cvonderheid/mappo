@@ -1,16 +1,6 @@
-import { useMemo, useState, type FormEvent } from "react";
-import {
-  type ColumnDef,
-  type ColumnFiltersState,
-  type SortingState,
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from "@tanstack/react-table";
+import { useState, type FormEvent } from "react";
 
-import { Badge } from "@/components/ui/badge";
+import { EventsDataTable, RegistrationsDataTable } from "@/components/AdminTables";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -25,14 +15,13 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
   AdminOnboardingSnapshotResponse,
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
-  MarketplaceEventRecord,
   TargetRegistrationRecord,
+  UpdateTargetRegistrationRequest,
 } from "@/lib/types";
 
 type AdminPanelProps = {
@@ -44,31 +33,12 @@ type AdminPanelProps = {
     request: MarketplaceEventIngestRequest,
     ingestToken?: string
   ) => Promise<void>;
+  onUpdateTargetRegistration: (
+    targetId: string,
+    request: UpdateTargetRegistrationRequest
+  ) => Promise<void>;
+  onDeleteTargetRegistration: (targetId: string) => Promise<void>;
   onRefreshSnapshot: () => Promise<void>;
-};
-
-type RegistrationRow = {
-  targetId: string;
-  displayName: string;
-  customerName: string;
-  targetGroup: string;
-  region: string;
-  tier: string;
-  environment: string;
-  subscriptionId: string;
-  tenantId: string;
-  updatedAt: string;
-};
-
-type EventRow = {
-  eventId: string;
-  status: string;
-  eventType: string;
-  targetId: string;
-  subscriptionId: string;
-  tenantId: string;
-  createdAt: string;
-  message: string;
 };
 
 function nextEventId(): string {
@@ -79,445 +49,35 @@ function normalizeTagValue(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() !== "" ? value : fallback;
 }
 
-function eventStatusVariant(
-  status: string
-): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "applied") {
-    return "default";
-  }
-  if (status === "duplicate") {
-    return "secondary";
-  }
-  if (status === "rejected") {
-    return "destructive";
-  }
-  return "outline";
-}
-
-function RegistrationsDataTable({
-  registrations,
-}: {
-  registrations: TargetRegistrationRecord[];
-}) {
-  const rows = useMemo<RegistrationRow[]>(
-    () =>
-      registrations.map((record) => ({
-        targetId: record.target_id,
-        displayName: record.display_name,
-        customerName: record.customer_name ?? "unknown",
-        targetGroup: normalizeTagValue(record.tags?.ring, "unassigned"),
-        region: normalizeTagValue(record.tags?.region, "unknown"),
-        tier: normalizeTagValue(record.tags?.tier, "unknown"),
-        environment: normalizeTagValue(record.tags?.environment, "unknown"),
-        subscriptionId: record.subscription_id,
-        tenantId: record.tenant_id,
-        updatedAt: record.updated_at,
-      })),
-    [registrations]
-  );
-
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-
-  const columns = useMemo<ColumnDef<RegistrationRow>[]>(
-    () => [
-      { accessorKey: "targetId", header: "Target" },
-      { accessorKey: "displayName", header: "Display Name" },
-      { accessorKey: "customerName", header: "Customer" },
-      {
-        accessorKey: "targetGroup",
-        header: "Group",
-        filterFn: (row, id, value) => {
-          if (!value) {
-            return true;
-          }
-          return row.getValue<string>(id) === value;
-        },
-      },
-      {
-        accessorKey: "region",
-        header: "Region",
-        filterFn: (row, id, value) => {
-          if (!value) {
-            return true;
-          }
-          return row.getValue<string>(id) === value;
-        },
-      },
-      {
-        accessorKey: "tier",
-        header: "Tier",
-        filterFn: (row, id, value) => {
-          if (!value) {
-            return true;
-          }
-          return row.getValue<string>(id) === value;
-        },
-      },
-      { accessorKey: "environment", header: "Env" },
-      { accessorKey: "subscriptionId", header: "Subscription" },
-      { accessorKey: "tenantId", header: "Tenant" },
-      {
-        accessorKey: "updatedAt",
-        header: "Updated",
-        cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
-            {new Date(row.original.updatedAt).toLocaleString()}
-          </span>
-        ),
-      },
-    ],
-    []
-  );
-
-  const table = useReactTable({
-    data: rows,
-    columns,
-    state: { sorting, columnFilters },
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  });
-
-  const targetIdFilter =
-    (table.getColumn("targetId")?.getFilterValue() as string | undefined) ?? "";
-  const groupFilter =
-    (table.getColumn("targetGroup")?.getFilterValue() as string | undefined) ?? "";
-  const regionFilter =
-    (table.getColumn("region")?.getFilterValue() as string | undefined) ?? "";
-  const tierFilter =
-    (table.getColumn("tier")?.getFilterValue() as string | undefined) ?? "";
-  const groups = [...new Set(rows.map((row) => row.targetGroup))].sort();
-  const regions = [...new Set(rows.map((row) => row.region))].sort();
-  const tiers = [...new Set(rows.map((row) => row.tier))].sort();
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <Badge variant="outline" className="font-mono text-[11px]">
-          {table.getFilteredRowModel().rows.length}/{rows.length}
-        </Badge>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => table.resetColumnFilters()}
-        >
-          Clear filters
-        </Button>
-      </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {table.getFlatHeaders().map((header) => (
-              <TableHead key={header.id}>
-                {header.column.getCanSort() ? (
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 text-left"
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                    {header.column.getIsSorted() === "asc" ? "▲" : null}
-                    {header.column.getIsSorted() === "desc" ? "▼" : null}
-                  </button>
-                ) : (
-                  flexRender(header.column.columnDef.header, header.getContext())
-                )}
-              </TableHead>
-            ))}
-          </TableRow>
-          <TableRow>
-            <TableHead>
-              <Input
-                value={targetIdFilter}
-                onChange={(event) =>
-                  table.getColumn("targetId")?.setFilterValue(event.target.value)
-                }
-                placeholder="Filter target"
-                className="h-8"
-              />
-            </TableHead>
-            <TableHead />
-            <TableHead />
-            <TableHead>
-              <select
-                className="h-8 w-full rounded-md border border-input bg-background/90 px-2 text-xs"
-                value={groupFilter}
-                onChange={(event) =>
-                  table
-                    .getColumn("targetGroup")
-                    ?.setFilterValue(event.target.value === "all" ? undefined : event.target.value)
-                }
-              >
-                <option value="all">All groups</option>
-                {groups.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </TableHead>
-            <TableHead>
-              <select
-                className="h-8 w-full rounded-md border border-input bg-background/90 px-2 text-xs"
-                value={regionFilter}
-                onChange={(event) =>
-                  table
-                    .getColumn("region")
-                    ?.setFilterValue(event.target.value === "all" ? undefined : event.target.value)
-                }
-              >
-                <option value="all">All regions</option>
-                {regions.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </TableHead>
-            <TableHead>
-              <select
-                className="h-8 w-full rounded-md border border-input bg-background/90 px-2 text-xs"
-                value={tierFilter}
-                onChange={(event) =>
-                  table
-                    .getColumn("tier")
-                    ?.setFilterValue(event.target.value === "all" ? undefined : event.target.value)
-                }
-              >
-                <option value="all">All tiers</option>
-                {tiers.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </TableHead>
-            <TableHead />
-            <TableHead />
-            <TableHead />
-            <TableHead />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={10} className="text-sm text-muted-foreground">
-                No registered targets match current filters.
-              </TableCell>
-            </TableRow>
-          ) : (
-            table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell
-                    key={cell.id}
-                    className={
-                      cell.column.id === "targetId" || cell.column.id === "subscriptionId"
-                        ? "font-mono text-xs"
-                        : undefined
-                    }
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </div>
-  );
-}
-
-function EventsDataTable({ events }: { events: MarketplaceEventRecord[] }) {
-  const rows = useMemo<EventRow[]>(
-    () =>
-      events.map((record) => ({
-        eventId: record.event_id,
-        status: record.status,
-        eventType: record.event_type,
-        targetId: record.target_id ?? "n/a",
-        subscriptionId: record.subscription_id,
-        tenantId: record.tenant_id,
-        createdAt: record.created_at,
-        message: record.message,
-      })),
-    [events]
-  );
-
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-
-  const columns = useMemo<ColumnDef<EventRow>[]>(
-    () => [
-      { accessorKey: "eventId", header: "Event ID" },
-      {
-        accessorKey: "status",
-        header: "Status",
-        filterFn: (row, id, value) => {
-          if (!value) {
-            return true;
-          }
-          return row.getValue<string>(id) === value;
-        },
-        cell: ({ row }) => (
-          <Badge variant={eventStatusVariant(row.original.status)} className="capitalize">
-            {row.original.status}
-          </Badge>
-        ),
-      },
-      { accessorKey: "eventType", header: "Event Type" },
-      { accessorKey: "targetId", header: "Target" },
-      { accessorKey: "subscriptionId", header: "Subscription" },
-      { accessorKey: "tenantId", header: "Tenant" },
-      {
-        accessorKey: "createdAt",
-        header: "Created",
-        cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
-            {new Date(row.original.createdAt).toLocaleString()}
-          </span>
-        ),
-      },
-      { accessorKey: "message", header: "Message" },
-    ],
-    []
-  );
-
-  const table = useReactTable({
-    data: rows,
-    columns,
-    state: { sorting, columnFilters },
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  });
-
-  const eventIdFilter =
-    (table.getColumn("eventId")?.getFilterValue() as string | undefined) ?? "";
-  const statusFilter =
-    (table.getColumn("status")?.getFilterValue() as string | undefined) ?? "";
-  const statuses = [...new Set(rows.map((row) => row.status))].sort();
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <Badge variant="outline" className="font-mono text-[11px]">
-          {table.getFilteredRowModel().rows.length}/{rows.length}
-        </Badge>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => table.resetColumnFilters()}
-        >
-          Clear filters
-        </Button>
-      </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {table.getFlatHeaders().map((header) => (
-              <TableHead key={header.id}>
-                {header.column.getCanSort() ? (
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 text-left"
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                    {header.column.getIsSorted() === "asc" ? "▲" : null}
-                    {header.column.getIsSorted() === "desc" ? "▼" : null}
-                  </button>
-                ) : (
-                  flexRender(header.column.columnDef.header, header.getContext())
-                )}
-              </TableHead>
-            ))}
-          </TableRow>
-          <TableRow>
-            <TableHead>
-              <Input
-                value={eventIdFilter}
-                onChange={(event) =>
-                  table.getColumn("eventId")?.setFilterValue(event.target.value)
-                }
-                placeholder="Filter event"
-                className="h-8"
-              />
-            </TableHead>
-            <TableHead>
-              <select
-                className="h-8 w-full rounded-md border border-input bg-background/90 px-2 text-xs"
-                value={statusFilter}
-                onChange={(event) =>
-                  table
-                    .getColumn("status")
-                    ?.setFilterValue(event.target.value === "all" ? undefined : event.target.value)
-                }
-              >
-                <option value="all">All statuses</option>
-                {statuses.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </TableHead>
-            <TableHead />
-            <TableHead />
-            <TableHead />
-            <TableHead />
-            <TableHead />
-            <TableHead />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={8} className="text-sm text-muted-foreground">
-                No onboarding events match current filters.
-              </TableCell>
-            </TableRow>
-          ) : (
-            table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell
-                    key={cell.id}
-                    className={
-                      cell.column.id === "eventId" || cell.column.id === "subscriptionId"
-                        ? "font-mono text-xs"
-                        : undefined
-                    }
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </div>
-  );
-}
-
 export default function AdminPanel({
   adminErrorMessage,
   adminIsSubmitting,
   adminResult,
   adminSnapshot,
   onIngestMarketplaceEvent,
+  onUpdateTargetRegistration,
+  onDeleteTargetRegistration,
   onRefreshSnapshot,
 }: AdminPanelProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editDrawerOpen, setEditDrawerOpen] = useState(false);
+
+  const [editingTargetId, setEditingTargetId] = useState<string>("");
+  const [editDisplayName, setEditDisplayName] = useState<string>("");
+  const [editCustomerName, setEditCustomerName] = useState<string>("");
+  const [editManagedApplicationId, setEditManagedApplicationId] = useState<string>("");
+  const [editManagedResourceGroupId, setEditManagedResourceGroupId] = useState<string>("");
+  const [editContainerAppResourceId, setEditContainerAppResourceId] = useState<string>("");
+  const [editTargetGroup, setEditTargetGroup] = useState<string>("prod");
+  const [editRegion, setEditRegion] = useState<string>("eastus");
+  const [editEnvironment, setEditEnvironment] = useState<string>("prod");
+  const [editTier, setEditTier] = useState<string>("standard");
+  const [editIsSubmitting, setEditIsSubmitting] = useState<boolean>(false);
+
+  const [deletingTargetId, setDeletingTargetId] = useState<string | null>(null);
+  const [registrationErrorMessage, setRegistrationErrorMessage] = useState<string>("");
+  const [registrationResultMessage, setRegistrationResultMessage] = useState<string>("");
+
   const [eventId, setEventId] = useState<string>(nextEventId());
   const [tenantId, setTenantId] = useState<string>("");
   const [subscriptionId, setSubscriptionId] = useState<string>("");
@@ -532,13 +92,91 @@ export default function AdminPanel({
   const [environment, setEnvironment] = useState<string>("prod");
   const [tier, setTier] = useState<string>("standard");
   const [ingestToken, setIngestToken] = useState<string>("");
+
   const registrations = adminSnapshot?.registrations ?? [];
   const events = adminSnapshot?.events ?? [];
+
   const canSubmit =
     eventId.trim() !== "" &&
     tenantId.trim() !== "" &&
     subscriptionId.trim() !== "" &&
     containerAppResourceId.trim() !== "";
+
+  const canSubmitEdit =
+    editingTargetId.trim() !== "" &&
+    editDisplayName.trim() !== "" &&
+    editContainerAppResourceId.trim() !== "";
+
+  function openEditDrawer(registration: TargetRegistrationRecord): void {
+    setEditingTargetId(registration.target_id);
+    setEditDisplayName(registration.display_name);
+    setEditCustomerName(registration.customer_name ?? "");
+    setEditManagedApplicationId(registration.managed_application_id ?? "");
+    setEditManagedResourceGroupId(registration.managed_resource_group_id ?? "");
+    setEditContainerAppResourceId(registration.container_app_resource_id);
+    setEditTargetGroup(normalizeTagValue(registration.tags?.ring, "prod"));
+    setEditRegion(normalizeTagValue(registration.tags?.region, "unknown"));
+    setEditEnvironment(normalizeTagValue(registration.tags?.environment, "prod"));
+    setEditTier(normalizeTagValue(registration.tags?.tier, "standard"));
+    setRegistrationErrorMessage("");
+    setRegistrationResultMessage("");
+    setEditDrawerOpen(true);
+  }
+
+  async function handleDeleteRegistration(
+    registration: TargetRegistrationRecord
+  ): Promise<void> {
+    const confirmed = window.confirm(
+      `Delete registered target ${registration.target_id}? This removes it from fleet and admin registration state.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingTargetId(registration.target_id);
+    try {
+      await onDeleteTargetRegistration(registration.target_id);
+      setRegistrationResultMessage(`Deleted target ${registration.target_id}.`);
+      setRegistrationErrorMessage("");
+    } catch (error) {
+      setRegistrationErrorMessage((error as Error).message);
+    } finally {
+      setDeletingTargetId(null);
+    }
+  }
+
+  async function handleUpdateRegistration(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!canSubmitEdit) {
+      return;
+    }
+
+    const request: UpdateTargetRegistrationRequest = {
+      display_name: editDisplayName.trim(),
+      customer_name: editCustomerName.trim() || null,
+      managed_application_id: editManagedApplicationId.trim() || null,
+      container_app_resource_id: editContainerAppResourceId.trim(),
+      target_group: editTargetGroup.trim() || "prod",
+      region: editRegion.trim() || "unknown",
+      environment: editEnvironment.trim() || "prod",
+      tier: editTier.trim() || "standard",
+    };
+    if (editManagedResourceGroupId.trim() !== "") {
+      request.managed_resource_group_id = editManagedResourceGroupId.trim();
+    }
+
+    setEditIsSubmitting(true);
+    try {
+      await onUpdateTargetRegistration(editingTargetId, request);
+      setRegistrationResultMessage(`Updated target ${editingTargetId}.`);
+      setRegistrationErrorMessage("");
+      setEditDrawerOpen(false);
+    } catch (error) {
+      setRegistrationErrorMessage((error as Error).message);
+    } finally {
+      setEditIsSubmitting(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -579,6 +217,8 @@ export default function AdminPanel({
 
     await onIngestMarketplaceEvent(request, ingestToken.trim() || undefined);
     setEventId(nextEventId());
+    setRegistrationErrorMessage("");
+    setRegistrationResultMessage("");
   }
 
   return (
@@ -591,6 +231,7 @@ export default function AdminPanel({
           <Button type="button" variant="outline" onClick={() => void onRefreshSnapshot()}>
             Refresh Snapshot
           </Button>
+
           <Drawer direction="top" open={drawerOpen} onOpenChange={setDrawerOpen}>
             <DrawerTrigger asChild>
               <Button data-testid="open-admin-onboarding-drawer" variant="outline">
@@ -758,6 +399,126 @@ export default function AdminPanel({
               </DrawerFooter>
             </DrawerContent>
           </Drawer>
+
+          <Drawer direction="top" open={editDrawerOpen} onOpenChange={setEditDrawerOpen}>
+            <DrawerContent className="glass-card">
+              <DrawerHeader>
+                <DrawerTitle>Edit Registered Target</DrawerTitle>
+                <DrawerDescription>
+                  Update target metadata and managed app references.
+                </DrawerDescription>
+              </DrawerHeader>
+              <div className="max-h-[74vh] overflow-y-auto px-4 pb-2">
+                <form
+                  id="admin-edit-registration-form"
+                  className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+                  onSubmit={handleUpdateRegistration}
+                >
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-target-id">Target ID</Label>
+                    <Input id="edit-target-id" value={editingTargetId} disabled />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-display-name">Display Name</Label>
+                    <Input
+                      id="edit-display-name"
+                      value={editDisplayName}
+                      onChange={(item) => setEditDisplayName(item.target.value)}
+                      placeholder="Contoso - Prod"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-customer-name">Customer Name</Label>
+                    <Input
+                      id="edit-customer-name"
+                      value={editCustomerName}
+                      onChange={(item) => setEditCustomerName(item.target.value)}
+                      placeholder="Contoso"
+                    />
+                  </div>
+                  <div className="space-y-1 lg:col-span-2">
+                    <Label htmlFor="edit-container-app-id">Container App ID</Label>
+                    <Input
+                      id="edit-container-app-id"
+                      value={editContainerAppResourceId}
+                      onChange={(item) => setEditContainerAppResourceId(item.target.value)}
+                      placeholder="/subscriptions/.../providers/Microsoft.App/containerApps/..."
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1 lg:col-span-2">
+                    <Label htmlFor="edit-managed-application-id">Managed Application ID</Label>
+                    <Input
+                      id="edit-managed-application-id"
+                      value={editManagedApplicationId}
+                      onChange={(item) => setEditManagedApplicationId(item.target.value)}
+                      placeholder="/subscriptions/.../providers/Microsoft.Solutions/applications/..."
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-managed-rg-id">Managed RG ID</Label>
+                    <Input
+                      id="edit-managed-rg-id"
+                      value={editManagedResourceGroupId}
+                      onChange={(item) => setEditManagedResourceGroupId(item.target.value)}
+                      placeholder="/subscriptions/.../resourceGroups/..."
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-target-group">Target Group</Label>
+                    <Input
+                      id="edit-target-group"
+                      value={editTargetGroup}
+                      onChange={(item) => setEditTargetGroup(item.target.value)}
+                      placeholder="prod"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-region">Region</Label>
+                    <Input
+                      id="edit-region"
+                      value={editRegion}
+                      onChange={(item) => setEditRegion(item.target.value)}
+                      placeholder="eastus"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-environment">Environment</Label>
+                    <Input
+                      id="edit-environment"
+                      value={editEnvironment}
+                      onChange={(item) => setEditEnvironment(item.target.value)}
+                      placeholder="prod"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-tier">Tier</Label>
+                    <Input
+                      id="edit-tier"
+                      value={editTier}
+                      onChange={(item) => setEditTier(item.target.value)}
+                      placeholder="standard"
+                    />
+                  </div>
+                </form>
+              </div>
+              <DrawerFooter className="border-t border-border/70">
+                <DrawerClose asChild>
+                  <Button type="button" variant="outline">
+                    Close
+                  </Button>
+                </DrawerClose>
+                <Button
+                  type="submit"
+                  form="admin-edit-registration-form"
+                  disabled={editIsSubmitting || !canSubmitEdit}
+                >
+                  {editIsSubmitting ? "Saving..." : "Save Changes"}
+                </Button>
+              </DrawerFooter>
+            </DrawerContent>
+          </Drawer>
         </div>
       </div>
 
@@ -779,6 +540,18 @@ export default function AdminPanel({
         </div>
       ) : null}
 
+      {registrationErrorMessage ? (
+        <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive-foreground">
+          {registrationErrorMessage}
+        </div>
+      ) : null}
+
+      {registrationResultMessage ? (
+        <div className="rounded-md border border-border/70 bg-card/70 p-3 text-sm text-foreground">
+          {registrationResultMessage}
+        </div>
+      ) : null}
+
       <Card className="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]">
         <CardHeader>
           <CardTitle>Admin</CardTitle>
@@ -794,7 +567,14 @@ export default function AdminPanel({
               </TabsTrigger>
             </TabsList>
             <TabsContent value="registrations">
-              <RegistrationsDataTable registrations={registrations} />
+              <RegistrationsDataTable
+                registrations={registrations}
+                onEditRegistration={openEditDrawer}
+                onDeleteRegistration={(registration) => {
+                  void handleDeleteRegistration(registration);
+                }}
+                deletingTargetId={deletingTargetId}
+              />
             </TabsContent>
             <TabsContent value="events">
               <EventsDataTable events={events} />

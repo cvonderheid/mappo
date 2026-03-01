@@ -103,3 +103,71 @@ def test_admin_onboarding_ingest_token_enforced(
     finally:
         monkeypatch.delenv("MAPPO_MARKETPLACE_INGEST_TOKEN", raising=False)
         get_settings.cache_clear()
+
+
+def test_admin_registration_can_be_updated(client: TestClient) -> None:
+    create_response = client.post(
+        "/api/v1/admin/onboarding/events",
+        json=_sample_onboarding_event("evt-005"),
+    )
+    assert create_response.status_code == 200
+
+    update_response = client.patch(
+        "/api/v1/admin/onboarding/registrations/mappo-ma-target-live-01",
+        json={
+            "display_name": "Contoso Production",
+            "customer_name": "Contoso Ltd",
+            "target_group": "prod",
+            "region": "centralus",
+            "environment": "staging",
+            "tier": "platinum",
+            "health_status": "healthy",
+        },
+    )
+    assert update_response.status_code == 200
+    payload = update_response.json()
+    assert payload["display_name"] == "Contoso Production"
+    assert payload["customer_name"] == "Contoso Ltd"
+    assert payload["tags"]["ring"] == "prod"
+    assert payload["tags"]["region"] == "centralus"
+    assert payload["tags"]["environment"] == "staging"
+    assert payload["tags"]["tier"] == "platinum"
+
+    targets_response = client.get("/api/v1/targets")
+    assert targets_response.status_code == 200
+    target = next(
+        item
+        for item in targets_response.json()
+        if item["id"] == "mappo-ma-target-live-01"
+    )
+    assert target["health_status"] == "healthy"
+    assert target["tags"]["ring"] == "prod"
+    assert target["tags"]["region"] == "centralus"
+
+
+def test_admin_registration_can_be_deleted(client: TestClient) -> None:
+    create_response = client.post(
+        "/api/v1/admin/onboarding/events",
+        json=_sample_onboarding_event("evt-006"),
+    )
+    assert create_response.status_code == 200
+
+    delete_response = client.delete(
+        "/api/v1/admin/onboarding/registrations/mappo-ma-target-live-01"
+    )
+    assert delete_response.status_code == 200
+    assert delete_response.json() == {
+        "target_id": "mappo-ma-target-live-01",
+        "deleted": True,
+    }
+
+    targets_response = client.get("/api/v1/targets")
+    assert targets_response.status_code == 200
+    target_ids = {item["id"] for item in targets_response.json()}
+    assert "mappo-ma-target-live-01" not in target_ids
+
+    snapshot_response = client.get("/api/v1/admin/onboarding")
+    assert snapshot_response.status_code == 200
+    snapshot = snapshot_response.json()
+    registration_ids = {item["target_id"] for item in snapshot["registrations"]}
+    assert "mappo-ma-target-live-01" not in registration_ids

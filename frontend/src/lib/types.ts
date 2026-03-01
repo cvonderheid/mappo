@@ -2,6 +2,7 @@ import type { components } from "@/lib/api/generated/schema";
 
 export type CreateRunRequest = components["schemas"]["CreateRunRequest"];
 export type AdminOnboardingSnapshotResponse = components["schemas"]["AdminOnboardingSnapshotResponse"];
+export type DeleteTargetRegistrationResponse = components["schemas"]["DeleteTargetRegistrationResponse"];
 export type MarketplaceEventIngestRequest = components["schemas"]["MarketplaceEventIngestRequest"];
 export type MarketplaceEventIngestResponse = components["schemas"]["MarketplaceEventIngestResponse"];
 export type MarketplaceEventRecord = components["schemas"]["MarketplaceEventRecord"];
@@ -19,3 +20,4 @@ export type TargetExecutionRecord = components["schemas"]["TargetExecutionRecord
 export type TargetLogEvent = components["schemas"]["TargetLogEvent"];
 export type TargetStage = components["schemas"]["TargetStage"];
 export type TargetStageRecord = components["schemas"]["TargetStageRecord"];
+export type UpdateTargetRegistrationRequest = components["schemas"]["UpdateTargetRegistrationRequest"];

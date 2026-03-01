@@ -1,0 +1,17 @@
+.git
+.github
+.venv
+node_modules
+frontend/node_modules
+infra/pulumi/node_modules
+frontend/dist
+backend/.mypy_cache
+backend/.pytest_cache
+backend/.ruff_cache
+frontend/test-results
+playwright-report
+.playwright-cli
+.data
+coverage
+dist
+build

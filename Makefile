@@ -11,8 +11,10 @@ export PULUMI_CONFIG_PASSPHRASE
 
 .PHONY: help install install-deps install-backend install-frontend \
 	dev dev-up dev-down dev-logs dev-backend dev-frontend build build-backend build-frontend \
-	lint lint-backend lint-frontend typecheck typecheck-backend typecheck-frontend \
+	lint lint-backend lint-backend-file-size lint-frontend typecheck typecheck-backend typecheck-frontend \
 	test test-backend test-frontend test-frontend-e2e import-targets marketplace-ingest-events retention-prune \
+	marketplace-forwarder-package marketplace-forwarder-deploy marketplace-forwarder-replay-inventory \
+	runtime-aca-deploy runtime-aca-destroy \
 	azure-auth-bootstrap azure-tenant-map azure-onboard-multitenant-runtime azure-cleanup-runtime-identity dev-backend-azure azure-preflight bootstrap-releases \
 	iac-configure-marketplace-demo \
 	partner-center-token partner-center-api \
@@ -65,8 +67,11 @@ build-frontend: ## Build frontend app
 
 lint: lint-backend lint-frontend ## Run backend + frontend linters
 
-lint-backend: ## Run backend lint checks
+lint-backend: lint-backend-file-size ## Run backend lint checks
 	uv --directory backend run --package mappo-backend -- ruff check .
+
+lint-backend-file-size: ## Enforce backend Python file-size limits
+	python3 scripts/backend_file_size_check.py
 
 lint-frontend: ## Run frontend lint checks
 	cd frontend && npm run lint
@@ -102,6 +107,66 @@ marketplace-ingest-events: ## Register targets via onboarding events (webhook si
 		$(if $(EVENT_ID_PREFIX),--event-id-prefix "$(EVENT_ID_PREFIX)",) \
 		$(if $(SOURCE_LABEL),--source-label "$(SOURCE_LABEL)",) \
 		$(if $(DRY_RUN),--dry-run,)
+
+marketplace-forwarder-package: ## Package Azure Function marketplace forwarder zip artifact
+	./scripts/marketplace_forwarder_package.sh \
+		$(if $(SRC_DIR),--src-dir "$(SRC_DIR)",) \
+		$(if $(PACKAGE_ZIP),--output-zip "$(PACKAGE_ZIP)",) \
+		$(if $(OUTPUT_ZIP),--output-zip "$(OUTPUT_ZIP)",)
+
+marketplace-forwarder-deploy: marketplace-forwarder-package ## Provision/deploy Function App forwarder
+	@if [ -z "$(RESOURCE_GROUP)" ] || [ -z "$(FUNCTION_APP_NAME)" ]; then \
+		echo "usage: make marketplace-forwarder-deploy RESOURCE_GROUP=<rg> FUNCTION_APP_NAME=<name> [LOCATION=eastus] [SUBSCRIPTION_ID=<id>] [STORAGE_ACCOUNT=<name>] [MAPPO_INGEST_ENDPOINT=<url>] [MAPPO_API_BASE_URL=<url>] [MAPPO_INGEST_TOKEN=<token>] [RUNTIME_ENV_FILE=.data/mappo-runtime.env] [TIMEOUT_SECONDS=15] [PACKAGE_ZIP=.data/marketplace-forwarder-function.zip]"; \
+		exit 2; \
+	fi
+	./scripts/marketplace_forwarder_deploy.sh \
+		--resource-group "$(RESOURCE_GROUP)" \
+		--function-app-name "$(FUNCTION_APP_NAME)" \
+		$(if $(LOCATION),--location "$(LOCATION)",) \
+		$(if $(SUBSCRIPTION_ID),--subscription-id "$(SUBSCRIPTION_ID)",) \
+		$(if $(STORAGE_ACCOUNT),--storage-account "$(STORAGE_ACCOUNT)",) \
+		$(if $(PACKAGE_ZIP),--package-zip "$(PACKAGE_ZIP)",) \
+		$(if $(MAPPO_INGEST_ENDPOINT),--mappo-ingest-endpoint "$(MAPPO_INGEST_ENDPOINT)",) \
+		$(if $(MAPPO_API_BASE_URL),--mappo-api-base-url "$(MAPPO_API_BASE_URL)",) \
+		$(if $(MAPPO_INGEST_TOKEN),--mappo-ingest-token "$(MAPPO_INGEST_TOKEN)",) \
+		$(if $(RUNTIME_ENV_FILE),--runtime-env-file "$(RUNTIME_ENV_FILE)",) \
+		$(if $(TIMEOUT_SECONDS),--timeout-seconds "$(TIMEOUT_SECONDS)",)
+
+marketplace-forwarder-replay-inventory: ## Replay inventory through Function App webhook endpoint
+	@if [ -z "$(FORWARDER_URL)" ]; then \
+		echo "usage: make marketplace-forwarder-replay-inventory FORWARDER_URL=<https://.../api/marketplace/events?code=...> [INVENTORY_FILE=.data/mappo-target-inventory.json] [EVENT_TYPE=subscription_purchased] [EVENT_ID_PREFIX=evt-marketplace-webhook] [DRY_RUN=1]"; \
+		exit 2; \
+	fi
+	./scripts/marketplace_forwarder_replay_inventory.sh \
+		--forwarder-url "$(FORWARDER_URL)" \
+		$(if $(INVENTORY_FILE),--inventory-file "$(INVENTORY_FILE)",) \
+		$(if $(EVENT_TYPE),--event-type "$(EVENT_TYPE)",) \
+		$(if $(EVENT_ID_PREFIX),--event-id-prefix "$(EVENT_ID_PREFIX)",) \
+		$(if $(DRY_RUN),--dry-run,)
+
+runtime-aca-deploy: ## Deploy MAPPO backend+frontend runtime to Azure Container Apps
+	./scripts/runtime_aca_deploy.sh \
+		$(if $(PULUMI_STACK),--stack "$(PULUMI_STACK)",) \
+		$(if $(RESOURCE_GROUP),--resource-group "$(RESOURCE_GROUP)",) \
+		$(if $(LOCATION),--location "$(LOCATION)",) \
+		$(if $(SUBSCRIPTION_ID),--subscription-id "$(SUBSCRIPTION_ID)",) \
+		$(if $(ENVIRONMENT_NAME),--environment-name "$(ENVIRONMENT_NAME)",) \
+		$(if $(BACKEND_APP_NAME),--backend-app-name "$(BACKEND_APP_NAME)",) \
+		$(if $(FRONTEND_APP_NAME),--frontend-app-name "$(FRONTEND_APP_NAME)",) \
+		$(if $(ACR_NAME),--acr-name "$(ACR_NAME)",) \
+		$(if $(IMAGE_TAG),--image-tag "$(IMAGE_TAG)",) \
+		$(if $(AZURE_ENV_FILE),--azure-env-file "$(AZURE_ENV_FILE)",) \
+		$(if $(DB_ENV_FILE),--db-env-file "$(DB_ENV_FILE)",) \
+		$(if $(OUTPUT_ENV_FILE),--output-env-file "$(OUTPUT_ENV_FILE)",) \
+		$(if $(MIN_REPLICAS),--min-replicas "$(MIN_REPLICAS)",) \
+		$(if $(MAX_REPLICAS),--max-replicas "$(MAX_REPLICAS)",)
+
+runtime-aca-destroy: ## Delete MAPPO runtime ACA resource group
+	./scripts/runtime_aca_destroy.sh \
+		$(if $(RESOURCE_GROUP),--resource-group "$(RESOURCE_GROUP)",) \
+		$(if $(SUBSCRIPTION_ID),--subscription-id "$(SUBSCRIPTION_ID)",) \
+		$(if $(RUNTIME_ENV_FILE),--runtime-env-file "$(RUNTIME_ENV_FILE)",) \
+		$(if $(WAIT),--wait "$(WAIT)",)
 
 bootstrap-releases: ## Bootstrap default release records (set FORCE=1 to replace existing)
 	uv --directory backend run --package mappo-backend -- python scripts/bootstrap_releases.py $(if $(FORCE),--force,)

@@ -19,7 +19,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  adminDeleteTargetRegistration,
   adminIngestMarketplaceEvent,
+  adminUpdateTargetRegistration,
   createRun,
   getAdminOnboardingSnapshot,
   getRun,
@@ -39,6 +41,7 @@ import type {
   RunSummary,
   StrategyMode,
   Target,
+  UpdateTargetRegistrationRequest,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -343,6 +346,21 @@ function AppShell() {
     }
   }
 
+  async function handleAdminUpdateRegistration(
+    targetId: string,
+    request: UpdateTargetRegistrationRequest
+  ): Promise<void> {
+    await adminUpdateTargetRegistration(targetId, request);
+    await refreshTargets();
+    await refreshAdminSnapshot();
+  }
+
+  async function handleAdminDeleteRegistration(targetId: string): Promise<void> {
+    await adminDeleteTargetRegistration(targetId);
+    await refreshTargets();
+    await refreshAdminSnapshot();
+  }
+
   return (
     <main className="mx-auto flex w-[min(1400px,96vw)] flex-col gap-4 py-6">
       <Card className="glass-card hero-gradient animate-fade-up [animation-fill-mode:forwards]">
@@ -432,6 +450,8 @@ function AppShell() {
               adminResult={adminResult}
               adminSnapshot={adminSnapshot}
               onIngestMarketplaceEvent={handleAdminIngestMarketplaceEvent}
+              onUpdateTargetRegistration={handleAdminUpdateRegistration}
+              onDeleteTargetRegistration={handleAdminDeleteRegistration}
               onRefreshSnapshot={refreshAdminSnapshot}
             />
           }
