@@ -9,6 +9,25 @@ DB schema reset (start-from-scratch V1):
 - Make target/registration metadata single-source-of-truth at DB level (3NF-oriented).
 - Keep API behavior stable while changing persistence internals.
 
+## Scope (Current Slice)
+Control-plane domain modularization:
+- Split oversized control-plane modules into `admin`, `targets`, `runs`, and `releases` domains.
+- Keep behavior/API unchanged while reducing per-file size and coupling.
+- Split storage adapters by domain so persistence code follows the same boundaries.
+
+## Plan (Current Slice)
+- [x] Extract domain mixins for `admin`, `targets`, `runs`, and `releases`.
+- [x] Reduce `control_plane.py` to orchestration/wiring and persistence wrapper methods.
+- [x] Split storage into `control_plane_storage_targets.py`, `control_plane_storage_runs.py`, and shared helpers.
+- [x] Keep `control_plane_storage.py` as a thin compatibility export surface.
+- [x] Run backend lint/typecheck/tests and confirm file-size checks pass.
+
+## Results Log (Current Slice)
+- 2026-03-01: Refactored control-plane logic into domain modules (`control_plane_domain_admin.py`, `control_plane_domain_targets.py`, `control_plane_domain_runs.py`, `control_plane_domain_releases.py`) and kept `ControlPlaneStore` as the orchestration facade.
+- 2026-03-01: Split persistence layer into domain modules (`control_plane_storage_targets.py`, `control_plane_storage_runs.py`, `control_plane_storage_releases.py`) plus GUID helper module (`control_plane_storage_common.py`).
+- 2026-03-01: Converted `control_plane_storage.py` into a thin re-export module to preserve existing import paths.
+- 2026-03-01: Verification passed: `make lint-backend`, `make typecheck-backend`, `make test-backend`.
+
 ## Plan (Current Slice)
 - [ ] Replace Flyway SQL set with a new normalized `V1__baseline.sql` (no `payload_json` envelope columns).
 - [ ] Regenerate SQLAlchemy models from new schema.

@@ -10,6 +10,12 @@ Purpose: capture recurring correction patterns and preventative guardrails.
 - Enforcement (test/lint/checklist):
 
 ## Entries
+- Date: 2026-03-01
+- Pattern: Mixin refactor introduced shadowed helper methods (`NotImplementedError` stubs) due inheritance order, causing runtime regressions despite typecheck passing.
+- Preventative rule: Avoid stub methods in mixins that duplicate concrete method names from sibling domains; prefer attribute annotations or explicit integration tests before merge.
+- Detection signal: core API flows fail with `NotImplementedError` from domain mixin methods after class hierarchy changes.
+- Enforcement (test/lint/checklist): after domain refactors, run full backend tests (not just lint/mypy) and verify MRO-sensitive methods in `ControlPlaneStore`.
+
 - Date: 2026-02-25
 - Pattern: Starting implementation before governance/process contract is explicitly established.
 - Preventative rule: For non-trivial work, update `tasks/todo.md` and relevant `plans*.md` before writing implementation code.
