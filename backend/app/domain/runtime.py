@@ -5,29 +5,11 @@ from datetime import timedelta
 from typing import Any
 
 from app.db.session import create_engine_and_session_factory
-from app.modules.control_plane_common import StoreError, utc_now
-from app.modules.control_plane_domain_admin import AdminDomainMixin
-from app.modules.control_plane_domain_releases import ReleasesDomainMixin
-from app.modules.control_plane_domain_runs import RunsDomainMixin
-from app.modules.control_plane_domain_targets import TargetsDomainMixin
-from app.modules.control_plane_storage import (
-    delete_all_runs,
-    delete_runs_by_ids,
-    delete_target,
-    delete_target_registration,
-    load_marketplace_events,
-    load_releases,
-    load_runs,
-    load_target_registrations,
-    load_targets,
-    replace_releases,
-    replace_targets,
-    save_marketplace_event,
-    save_release,
-    save_run,
-    save_target,
-    save_target_registration,
-)
+from app.domain.admin import AdminDomainMixin
+from app.domain.common import StoreError, utc_now
+from app.domain.releases import ReleasesDomainMixin
+from app.domain.runs import RunsDomainMixin
+from app.domain.targets import TargetsDomainMixin
 from app.modules.execution import (
     AzureExecutorSettings,
     ExecutionMode,
@@ -42,11 +24,15 @@ from app.modules.schemas import (
     Target,
     TargetRegistrationRecord,
 )
+from app.repositories.admin_repository import AdminRepository
+from app.repositories.releases_repository import ReleasesRepository
+from app.repositories.runs_repository import RunsRepository
+from app.repositories.targets_repository import TargetsRepository
 
-__all__ = ["ControlPlaneStore", "StoreError"]
+__all__ = ["ControlPlaneRuntime", "StoreError"]
 
 
-class ControlPlaneStore(
+class ControlPlaneRuntime(
     AdminDomainMixin,
     ReleasesDomainMixin,
     TargetsDomainMixin,
@@ -55,7 +41,9 @@ class ControlPlaneStore(
     def __init__(
         self,
         *,
-        database_url: str,
+        database_url: str | None = None,
+        engine: Any | None = None,
+        session_factory: Any | None = None,
         execution_mode: ExecutionMode = ExecutionMode.AZURE,
         azure_settings: AzureExecutorSettings | None = None,
         retention_days: int = 90,
@@ -65,7 +53,15 @@ class ControlPlaneStore(
         self._retention_days = max(1, retention_days)
         self._execution_tasks: dict[str, asyncio.Task[None]] = {}
         self._database_url = database_url
-        self._engine, self._session_factory = create_engine_and_session_factory(database_url)
+        if engine is None or session_factory is None:
+            self._engine, self._session_factory = create_engine_and_session_factory(database_url)
+        else:
+            self._engine = engine
+            self._session_factory = session_factory
+        self._admin_repository = AdminRepository(self._session_factory)
+        self._targets_repository = TargetsRepository(self._session_factory)
+        self._releases_repository = ReleasesRepository(self._session_factory)
+        self._runs_repository = RunsRepository(self._session_factory)
         self._execution_mode = execution_mode
         self._target_executor: TargetExecutor = create_target_executor(
             mode=execution_mode,
@@ -73,12 +69,12 @@ class ControlPlaneStore(
             azure_settings=azure_settings or AzureExecutorSettings(),
         )
 
-        self._targets = load_targets(self._session_factory)
-        self._registrations = load_target_registrations(self._session_factory)
-        self._marketplace_events = load_marketplace_events(self._session_factory)
-        self._releases = load_releases(self._session_factory)
+        self._targets = self._targets_repository.load_targets()
+        self._registrations = self._targets_repository.load_target_registrations()
+        self._marketplace_events = self._admin_repository.load_marketplace_events()
+        self._releases = self._releases_repository.load_releases()
 
-        self._runs = load_runs(self._session_factory)
+        self._runs = self._runs_repository.load_runs()
         self._reconcile_running_runs_after_startup()
         self._prune_retention_locked()
 
@@ -117,46 +113,44 @@ class ControlPlaneStore(
             for run_id in removable_ids:
                 self._runs.pop(run_id, None)
             if removable_ids:
-                delete_runs_by_ids(self._session_factory, run_ids=removable_ids)
+                self._runs_repository.delete_runs_by_ids(run_ids=removable_ids)
             return len(removable_ids)
 
     def _replace_targets_locked(self) -> None:
-        replace_targets(
-            self._session_factory,
+        self._targets_repository.replace_targets(
             targets=list(self._targets.values()),
             updated_at=utc_now(),
         )
 
     def _replace_releases_locked(self) -> None:
-        replace_releases(self._session_factory, releases=list(self._releases.values()))
+        self._releases_repository.replace_releases(releases=list(self._releases.values()))
 
     def _save_release_locked(self, release: Release) -> None:
-        save_release(self._session_factory, release=release)
+        self._releases_repository.save_release(release=release)
 
     def _save_target_locked(self, target: Target) -> None:
-        save_target(self._session_factory, target=target, updated_at=utc_now())
+        self._targets_repository.save_target(target=target, updated_at=utc_now())
 
     def _save_target_registration_locked(self, registration: TargetRegistrationRecord) -> None:
-        save_target_registration(
-            self._session_factory,
+        self._targets_repository.save_target_registration(
             registration=registration,
             updated_at=utc_now(),
         )
 
     def _delete_target_locked(self, target_id: str) -> None:
-        delete_target(self._session_factory, target_id=target_id)
+        self._targets_repository.delete_target(target_id=target_id)
 
     def _delete_target_registration_locked(self, target_id: str) -> None:
-        delete_target_registration(self._session_factory, target_id=target_id)
+        self._targets_repository.delete_target_registration(target_id=target_id)
 
     def _save_marketplace_event_locked(self, event: MarketplaceEventRecord) -> None:
-        save_marketplace_event(self._session_factory, event=event)
+        self._admin_repository.save_marketplace_event(event=event)
 
     def _save_run_locked(self, run: DeploymentRun) -> None:
-        save_run(self._session_factory, run=run)
+        self._runs_repository.save_run(run=run)
 
     def _delete_all_runs_locked(self) -> None:
-        delete_all_runs(self._session_factory)
+        self._runs_repository.delete_all_runs()
 
     def _reconcile_running_runs_after_startup(self) -> None:
         changed = False
@@ -187,4 +181,4 @@ class ControlPlaneStore(
 
         for run_id in removable_ids:
             self._runs.pop(run_id, None)
-        delete_runs_by_ids(self._session_factory, run_ids=removable_ids)
+        self._runs_repository.delete_runs_by_ids(run_ids=removable_ids)

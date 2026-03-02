@@ -9,7 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import api_router
 from app.api.routers.health import root_router
 from app.core.settings import get_settings
-from app.modules.control_plane import ControlPlaneStore
+from app.db.session import create_engine_and_session_factory
+from app.domain.runtime import ControlPlaneRuntime
 from app.modules.execution import AzureExecutorSettings
 
 
@@ -18,8 +19,13 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def app_lifespan(app: FastAPI) -> AsyncIterator[None]:
-        app.state.store = ControlPlaneStore(
+        engine, session_factory = create_engine_and_session_factory(settings.database_url)
+        app.state.db_engine = engine
+        app.state.db_session_factory = session_factory
+        app.state.store = ControlPlaneRuntime(
             database_url=settings.database_url,
+            engine=engine,
+            session_factory=session_factory,
             execution_mode=settings.execution_mode,
             azure_settings=AzureExecutorSettings(
                 tenant_id=settings.azure_tenant_id,

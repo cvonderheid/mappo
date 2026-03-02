@@ -3,8 +3,8 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime
 
-from app.modules.control_plane_common import StoreError, utc_now
-from app.modules.control_plane_helpers import project_registration_from_target
+from app.domain.common import StoreError, utc_now
+from app.domain.helpers import project_registration_from_target
 from app.modules.execution import (
     AzureExecutionError,
     ContainerAppResourceRef,

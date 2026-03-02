@@ -40,11 +40,12 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
   - `cd infra/pulumi && pulumi config set --stack <stack> mappo:controlPlanePostgresEnabled true`
   - `cd infra/pulumi && pulumi config set --stack <stack> --secret mappo:controlPlanePostgresAdminPassword "<strong-password>"`
   - `make iac-up PULUMI_STACK=<stack>`
-- [ ] Export target inventory from Pulumi output (used as webhook simulation input):
-  - `make iac-export-targets PULUMI_STACK=<stack>`
+- [ ] Export DB env and bootstrap releases:
   - `make iac-export-db-env PULUMI_STACK=<stack>`
   - `source .data/mappo-db.env`
   - `make bootstrap-releases`
+- [ ] Optional simulation-only inventory export (for fake webhook replay):
+  - `make iac-export-targets PULUMI_STACK=<stack>`
 - [ ] Verify managed application resource exists (`Microsoft.Solutions/applications`) and points to a managed resource group.
 - [ ] Verify intended target Container App exists in each managed resource group.
 
@@ -56,7 +57,8 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
   - `make marketplace-forwarder-deploy RESOURCE_GROUP="<rg>" FUNCTION_APP_NAME="<name>" SUBSCRIPTION_ID="<provider-sub>" MAPPO_API_BASE_URL="$MAPPO_API_BASE_URL" MAPPO_INGEST_TOKEN="$MAPPO_MARKETPLACE_INGEST_TOKEN"`
   - Capture printed `webhook_url` and place it in Partner Center technical configuration.
 - [ ] Validate forwarder path:
-  - `make marketplace-forwarder-replay-inventory FORWARDER_URL="<webhook_url>"`
+  - Production-like: trigger a real onboarding event from marketplace/private offer flow.
+  - Simulation fallback: `make marketplace-forwarder-replay-inventory FORWARDER_URL="<webhook_url>"`
   - `GET /api/v1/admin/onboarding` confirms applied events + registered targets.
 
 ## 5) MAPPO Runtime
@@ -88,7 +90,8 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
 ## 6) Validation Run
 
 - [ ] Validate event-driven onboarding path through forwarder:
-  - `make marketplace-forwarder-replay-inventory FORWARDER_URL="<webhook_url>"`
+  - Production-like: submit/renew marketplace subscription to trigger lifecycle event.
+  - Simulation fallback: `make marketplace-forwarder-replay-inventory FORWARDER_URL="<webhook_url>"`
   - `curl -s "$MAPPO_RUNTIME_BACKEND_URL/api/v1/admin/onboarding" | jq`
 - [ ] Create a single-target canary run and verify stage progression:
   - `VALIDATING -> DEPLOYING -> VERIFYING -> SUCCEEDED`
@@ -112,5 +115,7 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
   - `make azure-cleanup-easyauth [CLIENT_ID="<easy-auth-app-id>"]`
 - [ ] Remove local runtime data volumes:
   - `docker compose -f infra/docker-compose.yml down -v --remove-orphans`
+- [ ] Remove local MAPPO env/artifact files:
+  - `make clean-slate-local`
 - [ ] Remove ACA runtime resources:
   - `make runtime-aca-destroy [RESOURCE_GROUP="<rg>"] [SUBSCRIPTION_ID="<provider-sub>"]`

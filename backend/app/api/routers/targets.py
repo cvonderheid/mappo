@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.deps import get_store
-from app.modules.control_plane import ControlPlaneStore
+from app.api.deps import get_targets_service
 from app.modules.schemas import Target
+from app.services.errors import ServiceError
+from app.services.targets_service import TargetsService
 
 router = APIRouter(prefix="/targets", tags=["targets"])
 
@@ -15,7 +16,7 @@ async def list_targets(
     region: str | None = Query(default=None),
     tier: str | None = Query(default=None),
     environment: str | None = Query(default=None),
-    store: ControlPlaneStore = Depends(get_store),
+    service: TargetsService = Depends(get_targets_service),
 ) -> list[Target]:
     filters = {
         key: value
@@ -27,4 +28,7 @@ async def list_targets(
         }.items()
         if value is not None
     }
-    return await store.list_targets(filters)
+    try:
+        return await service.list_targets(filters)
+    except ServiceError as error:
+        raise HTTPException(status_code=400, detail=error.message) from error

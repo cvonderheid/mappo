@@ -48,14 +48,14 @@ make iac-configure-marketplace-demo PULUMI_STACK=<stack> \
 cd infra/pulumi && pulumi config set --stack <stack> mappo:controlPlanePostgresEnabled true
 cd infra/pulumi && pulumi config set --stack <stack> --secret mappo:controlPlanePostgresAdminPassword "<strong-password>"
 make iac-up PULUMI_STACK=<stack>
-make iac-export-targets PULUMI_STACK=<stack>
 make iac-export-db-env PULUMI_STACK=<stack>
 make bootstrap-releases
 # Use FORCE=1 to replace existing releases with current defaults.
 make bootstrap-releases FORCE=1
 ```
    - The stack configurator auto-resolves tenant-local principal object IDs and adds your current public IP to Postgres firewall rules for local demo connectivity (can be overridden).
-   - `make iac-export-targets` exports source data for webhook simulation; MAPPO registration should come from onboarding events (not direct import) for production parity.
+   - Do not run `make import-targets` for marketplace-realistic demos.
+   - Optional simulation-only path: `make iac-export-targets` exports source data you can replay as fake webhook events before a real offer is wired.
 
    - Load managed DB env output when running backend locally:
 ```bash
@@ -91,7 +91,7 @@ make marketplace-forwarder-deploy \
 ```bash
 make marketplace-forwarder-replay-inventory FORWARDER_URL="<webhook_url>"
 ```
-   - This replays inventory as webhook events through the Function App into MAPPO onboarding.
+   - This is simulation-only. In production flow, registrations come from actual marketplace lifecycle events.
 9. Open:
 - API docs: `$MAPPO_RUNTIME_BACKEND_URL/api/v1/docs`
 - UI: `$MAPPO_RUNTIME_FRONTEND_URL`
@@ -102,20 +102,20 @@ make marketplace-forwarder-replay-inventory FORWARDER_URL="<webhook_url>"
 - `make iac-configure-marketplace-demo PROVIDER_SUBSCRIPTION_ID="<sub1>" CUSTOMER_SUBSCRIPTION_ID="<sub2>" [PULUMI_STACK=<name>]`
 - `make iac-preview [PULUMI_STACK=<name>]`
 - `make iac-up [PULUMI_STACK=<name>]`
-- `make iac-export-targets [PULUMI_STACK=<name>]`
 - `make iac-export-db-env [PULUMI_STACK=<name>]`
 - `make iac-destroy [PULUMI_STACK=<name>]`
 - `make runtime-aca-deploy [PULUMI_STACK=<name>] [SUBSCRIPTION_ID=<provider-sub>]`
 - `make runtime-easyauth-configure [PULUMI_STACK=<name>] [SUBSCRIPTION_ID=<provider-sub>] [EASYAUTH_SIGN_IN_AUDIENCE=AzureADMyOrg|AzureADMultipleOrgs]`
 - `make deploy [PULUMI_STACK=<name>] [SUBSCRIPTION_ID=<provider-sub>] [FUNCTION_APP_NAME=<name>] [FORWARDER_RESOURCE_GROUP=<rg>] [FORWARDER_LOCATION=<region>]`
 - `make runtime-aca-destroy [RESOURCE_GROUP=<rg>] [SUBSCRIPTION_ID=<provider-sub>]`
+- `make clean-slate-local`
 - `make azure-tenant-map SUBSCRIPTION_IDS="<sub1>,<sub2>"`
 - `make azure-cleanup-runtime-identity CLIENT_ID="<app-id>" SUBSCRIPTION_IDS="<sub1>,<sub2>" [DELETE_APP_REGISTRATION=true]`
 - `make azure-cleanup-easyauth [CLIENT_ID="<easy-auth-app-id>"]`
-- `make marketplace-ingest-events [INVENTORY_FILE=.data/mappo-target-inventory.json] [API_BASE_URL=http://localhost:8010]`
+- `make marketplace-ingest-events [INVENTORY_FILE=.data/mappo-target-inventory.json] [API_BASE_URL=http://localhost:8010]` (simulation-only)
 - `make marketplace-forwarder-package [OUTPUT_ZIP=.data/marketplace-forwarder-function.zip]`
 - `make marketplace-forwarder-deploy RESOURCE_GROUP="<rg>" FUNCTION_APP_NAME="<name>" [MAPPO_API_BASE_URL=<url>] [MAPPO_INGEST_ENDPOINT=<url>]`
-- `make marketplace-forwarder-replay-inventory FORWARDER_URL="<https://.../api/marketplace/events?code=...>" [INVENTORY_FILE=.data/mappo-target-inventory.json]`
+- `make marketplace-forwarder-replay-inventory FORWARDER_URL="<https://.../api/marketplace/events?code=...>" [INVENTORY_FILE=.data/mappo-target-inventory.json]` (simulation-only)
 - `make bootstrap-releases`
 - `make dev-backend-azure`
 - `make dev-frontend`

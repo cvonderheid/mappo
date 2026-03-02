@@ -8,7 +8,7 @@ from sqlalchemy import delete
 
 from app.db.generated.models import MarketplaceEvents, Releases, Runs, TargetRegistrations, Targets
 from app.db.session import create_engine_and_session_factory
-from app.modules.control_plane import ControlPlaneStore
+from app.domain.runtime import ControlPlaneRuntime
 from app.modules.execution import ExecutionMode
 from app.modules.schemas import (
     CreateRunRequest,
@@ -49,7 +49,7 @@ def test_run_persists_across_store_restarts() -> None:
     database_url = _database_url()
     _reset_database(database_url)
 
-    first_store = ControlPlaneStore(
+    first_store = ControlPlaneRuntime(
         database_url=database_url,
         execution_mode=ExecutionMode.DEMO,
         stage_delay_seconds=0.01,
@@ -70,7 +70,7 @@ def test_run_persists_across_store_restarts() -> None:
     finally:
         asyncio.run(first_store.shutdown())
 
-    second_store = ControlPlaneStore(
+    second_store = ControlPlaneRuntime(
         database_url=database_url,
         execution_mode=ExecutionMode.DEMO,
         stage_delay_seconds=0.01,
@@ -89,7 +89,7 @@ def test_run_persists_across_store_restarts() -> None:
 def test_replace_releases_overwrites_catalog() -> None:
     database_url = _database_url()
     _reset_database(database_url)
-    store = ControlPlaneStore(
+    store = ControlPlaneRuntime(
         database_url=database_url,
         execution_mode=ExecutionMode.DEMO,
         stage_delay_seconds=0.01,
@@ -119,7 +119,7 @@ def test_replace_releases_overwrites_catalog() -> None:
 def test_replace_targets_can_clear_runs() -> None:
     database_url = _database_url()
     _reset_database(database_url)
-    store = ControlPlaneStore(
+    store = ControlPlaneRuntime(
         database_url=database_url,
         execution_mode=ExecutionMode.DEMO,
         stage_delay_seconds=0.01,
@@ -168,7 +168,7 @@ def test_registration_metadata_derives_from_target_source() -> None:
     database_url = _database_url()
     _reset_database(database_url)
 
-    first_store = ControlPlaneStore(
+    first_store = ControlPlaneRuntime(
         database_url=database_url,
         execution_mode=ExecutionMode.DEMO,
         stage_delay_seconds=0.01,
@@ -246,7 +246,7 @@ def test_registration_metadata_derives_from_target_source() -> None:
     finally:
         asyncio.run(first_store.shutdown())
 
-    second_store = ControlPlaneStore(
+    second_store = ControlPlaneRuntime(
         database_url=database_url,
         execution_mode=ExecutionMode.DEMO,
         stage_delay_seconds=0.01,

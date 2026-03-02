@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from uuid import uuid4
 
-from app.modules.control_plane_common import StoreError, utc_now
+from app.domain.common import StoreError, utc_now
 from app.modules.schemas import CreateReleaseRequest, Release
 
 

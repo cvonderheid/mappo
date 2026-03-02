@@ -11,6 +11,30 @@ Purpose: capture recurring correction patterns and preventative guardrails.
 
 ## Entries
 - Date: 2026-03-01
+- Pattern: Intermediate refactor state left compatibility shim modules (`control_plane_storage*`) in place, which obscured actual ownership boundaries.
+- Preventative rule: Once repositories are domain-scoped and stable, delete compatibility shims in the same slice; do not carry dead adapter layers into subsequent work.
+- Detection signal: runtime code compiles without shim imports, but shim files still exist and suggest obsolete architecture.
+- Enforcement (test/lint/checklist): add an architecture grep check for forbidden module names (`control_plane_storage`) under `backend/app`.
+
+- Date: 2026-03-01
+- Pattern: Initial repository extraction used a single cross-domain repository, preserving monolith coupling and unclear ownership.
+- Preventative rule: Repositories must be domain-scoped (`admin`, `runs`, `targets`, `releases`) and should not aggregate unrelated use-cases.
+- Detection signal: repository class exposes mixed CRUD methods across multiple bounded contexts.
+- Enforcement (test/lint/checklist): architecture checklist requires one repository per domain plus router imports restricted to services only.
+
+- Date: 2026-03-01
+- Pattern: DB session factory was created in multiple places (module-global and runtime), making lifecycle ownership ambiguous.
+- Preventative rule: App lifespan is the single owner of engine/session-factory for API runtime; dependencies resolve sessions from app state.
+- Detection signal: `create_engine_and_session_factory()` invoked both at import-time and app-startup for the same runtime process.
+- Enforcement (test/lint/checklist): grep check for module-global session factory creation in runtime modules; require app-state session-factory in startup flow.
+
+- Date: 2026-03-01
+- Pattern: Router logic drifted into persistence access (forwarder logs), bypassing service boundaries and making protocol handlers responsible for data concerns.
+- Preventative rule: Routers should only map HTTP protocol to service calls; no router should import repository/storage modules.
+- Detection signal: `rg -n "control_plane_storage|repositories" backend/app/api/routers` returns matches.
+- Enforcement (test/lint/checklist): add layering grep check to phase-close checklist and require router dependency injection from `app/services/*` only.
+
+- Date: 2026-03-01
 - Pattern: Mixin refactor introduced shadowed helper methods (`NotImplementedError` stubs) due inheritance order, causing runtime regressions despite typecheck passing.
 - Preventative rule: Avoid stub methods in mixins that duplicate concrete method names from sibling domains; prefer attribute annotations or explicit integration tests before merge.
 - Detection signal: core API flows fail with `NotImplementedError` from domain mixin methods after class hierarchy changes.

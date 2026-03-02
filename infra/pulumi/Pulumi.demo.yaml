@@ -1,9 +1,0 @@
-encryptionsalt: v1:q55l32oIZ2Q=:v1:Se4/AAsEnmDynhxI:owUqFv7rtpBcAgYet/XvujI+jJVZ1g==
-config:
-  mappo:targetProfile: empty
-  mappo:controlPlaneSubscriptionId: c0d51042-7d0a-41f7-b270-151e4c4ea263
-  mappo:controlPlaneLocation: centralus
-  mappo:controlPlanePostgresEnabled: "true"
-  mappo:controlPlanePostgresAdminPassword:
-    secure: v1:e72aXRNJwGDALxCj:6+IuB0lTN8p5xPNKPC9IkzdfdVmVwyBWbxT02yJfYWW2gcbQpsFv2Q24sGAMpS2yBBFX
-  mappo:controlPlanePostgresAllowedIpRanges: '["68.226.82.42"]'

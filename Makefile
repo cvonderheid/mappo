@@ -17,6 +17,7 @@ export PULUMI_CONFIG_PASSPHRASE
 	marketplace-forwarder-package marketplace-forwarder-deploy marketplace-forwarder-replay-inventory \
 	runtime-aca-deploy runtime-aca-destroy runtime-easyauth-configure \
 	azure-auth-bootstrap azure-tenant-map azure-onboard-multitenant-runtime azure-cleanup-runtime-identity azure-cleanup-easyauth dev-backend-azure azure-preflight bootstrap-releases \
+	clean-slate-local \
 	iac-configure-marketplace-demo \
 	partner-center-token partner-center-api \
 	db-migrate db-validate db-info db-clean db-reset models-gen openapi client-gen \
@@ -308,6 +309,9 @@ partner-center-api: ## Call Partner Center API (requires URL=<https://...>)
 
 azure-preflight: ## Validate Azure readiness (default MAPPO_PREFLIGHT_MODE=marketplace)
 	./scripts/azure_preflight.sh
+
+clean-slate-local: ## Remove local MAPPO env/artifact files for a fresh marketplace demo start
+	./scripts/clean_slate_local.sh
 
 iac-configure-marketplace-demo: ## Configure Pulumi stack for 2-target cross-tenant marketplace demo
 	@if [ -z "$(PROVIDER_SUBSCRIPTION_ID)" ] || [ -z "$(CUSTOMER_SUBSCRIPTION_ID)" ]; then \

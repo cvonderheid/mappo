@@ -10,8 +10,8 @@ from sqlalchemy import delete
 
 from app.db.generated.models import Releases, Runs, Targets
 from app.db.session import create_engine_and_session_factory
+from app.domain.runtime import ControlPlaneRuntime
 from app.modules import execution as execution_module
-from app.modules.control_plane import ControlPlaneStore
 from app.modules.execution import (
     AzureDeployResult,
     AzureExecutionError,
@@ -44,7 +44,7 @@ def _reset_database(database_url: str) -> None:
 
 
 async def _wait_for_terminal(
-    store: ControlPlaneStore,
+    store: ControlPlaneRuntime,
     run_id: str,
     timeout_seconds: float = 2.0,
 ) -> RunStatus:
@@ -190,7 +190,7 @@ def test_azure_mode_fails_without_credentials() -> None:
     _reset_database(database_url)
 
     async def _scenario() -> None:
-        store = ControlPlaneStore(
+        store = ControlPlaneRuntime(
             database_url=database_url,
             execution_mode=ExecutionMode.AZURE,
             azure_settings=AzureExecutorSettings(),
@@ -236,7 +236,7 @@ def test_azure_mode_succeeds_with_runtime_stub(monkeypatch: pytest.MonkeyPatch) 
     )
 
     async def _scenario() -> None:
-        store = ControlPlaneStore(
+        store = ControlPlaneRuntime(
             database_url=database_url,
             execution_mode=ExecutionMode.AZURE,
             azure_settings=AzureExecutorSettings(
@@ -283,7 +283,7 @@ def test_azure_mode_surfaces_deploy_failure(monkeypatch: pytest.MonkeyPatch) -> 
     )
 
     async def _scenario() -> None:
-        store = ControlPlaneStore(
+        store = ControlPlaneRuntime(
             database_url=database_url,
             execution_mode=ExecutionMode.AZURE,
             azure_settings=AzureExecutorSettings(
@@ -345,7 +345,7 @@ def test_azure_mode_applies_guardrail_concurrency_caps(
     )
 
     async def _scenario() -> None:
-        store = ControlPlaneStore(
+        store = ControlPlaneRuntime(
             database_url=database_url,
             execution_mode=ExecutionMode.AZURE,
             azure_settings=AzureExecutorSettings(
@@ -392,7 +392,7 @@ def test_azure_mode_enforces_per_subscription_batching(
     )
 
     async def _scenario() -> None:
-        store = ControlPlaneStore(
+        store = ControlPlaneRuntime(
             database_url=database_url,
             execution_mode=ExecutionMode.AZURE,
             azure_settings=AzureExecutorSettings(

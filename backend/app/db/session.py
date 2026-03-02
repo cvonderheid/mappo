@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import os
 from collections.abc import Generator
+from typing import cast
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
+from starlette.requests import Request
 
 
 def _default_database_url() -> str:
@@ -33,11 +35,9 @@ def create_engine_and_session_factory(
     return engine, session_factory
 
 
-_engine, _session_factory = create_engine_and_session_factory()
-
-
-def get_db_session() -> Generator[Session, None, None]:
-    session = _session_factory()
+def get_db_session(request: Request) -> Generator[Session, None, None]:
+    session_factory = cast(sessionmaker[Session], request.app.state.db_session_factory)
+    session = session_factory()
     try:
         yield session
     finally:

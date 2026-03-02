@@ -4,10 +4,67 @@ Date: 2026-02-26
 Owner: Codex
 
 ## Scope (Current Slice)
+Domain architecture refactor cleanup:
+- Remove remaining control-plane storage shims.
+- Move business logic modules from `app/modules/control_plane*` into `app/domain/*`.
+- Keep strict layering: `Router -> Service -> Repository -> ORM`.
+- Preserve runtime behavior while renaming runtime facade to `ControlPlaneRuntime`.
+- Keep marketplace onboarding flow clean (no runtime target seeding/import side effects).
+
+## Plan (Current Slice)
+- [x] Move domain logic files to `backend/app/domain` and update imports.
+- [x] Rename runtime facade from `ControlPlaneStore` to `ControlPlaneRuntime`.
+- [x] Delete obsolete `control_plane_storage*` shim modules.
+- [x] Update app wiring (`main.py`, deps, services, tests) to new domain runtime path.
+- [x] Run verification suite and confirm no regressions.
+
+## Verification Commands (Current Slice)
+- [x] `make lint-backend`
+- [x] `make typecheck-backend`
+- [x] `make test-backend`
+- [x] `make lint`
+- [x] `make typecheck`
+- [x] `make test`
+
+## Results Log (Current Slice)
+- 2026-03-01: Reorganized backend runtime/domain code into `backend/app/domain/{runtime,admin,targets,runs,releases,common,helpers}.py`.
+- 2026-03-01: Renamed runtime facade to `ControlPlaneRuntime` and rewired FastAPI lifespan/dependencies/services/tests.
+- 2026-03-01: Removed storage compatibility layer files (`backend/app/modules/control_plane_storage*.py`).
+- 2026-03-01: Fixed request-scoped admin persistence commit semantics for forwarder-log ingestion.
+- 2026-03-01: Verification passed (`make lint-backend`, `make typecheck-backend`, `make test-backend`, `make lint`, `make typecheck`, `make test`).
+
+## Scope (Current Slice)
 DB schema reset (start-from-scratch V1):
 - Replace JSON payload envelope persistence with normalized relational tables.
 - Make target/registration metadata single-source-of-truth at DB level (3NF-oriented).
 - Keep API behavior stable while changing persistence internals.
+
+## Scope (Current Slice)
+Backend layering alignment:
+- Enforce `Router -> Service -> Repository -> ORM` boundaries for API code paths.
+- Remove router-level persistence calls from admin endpoints.
+- Keep existing API contracts and behavior stable.
+- Split monolithic repository surface into domain repositories.
+- Unify app session-factory ownership in FastAPI lifespan.
+
+## Plan (Current Slice)
+- [x] Introduce repository layer package with typed persistence facade over storage adapters.
+- [x] Split repository layer into domain-specific repositories (`admin`, `targets`, `runs`, `releases`).
+- [x] Introduce service layer package for targets/runs/releases/admin use-cases.
+- [x] Update API dependency wiring to inject services (routers no longer depend on store directly).
+- [x] Move admin forwarder-log persistence workflow out of router into service.
+- [x] Move DB session-factory ownership to app lifespan and expose `app.state.db_session_factory`.
+- [x] Wire `AdminService` dependency through request-scoped DB session (`Depends(get_db_session)`).
+- [x] Run backend lint/typecheck/tests and confirm no behavior regressions.
+
+## Results Log (Current Slice)
+- 2026-03-01: Added repository facade `backend/app/repositories/control_plane_repository.py` and wired `ControlPlaneStore` to call repository methods for persistence.
+- 2026-03-01: Replaced monolithic repository with domain repositories (`admin_repository.py`, `targets_repository.py`, `runs_repository.py`, `releases_repository.py`).
+- 2026-03-01: Added service layer modules under `backend/app/services/` (`admin`, `runs`, `releases`, `targets`) with explicit error translation.
+- 2026-03-01: Updated API deps and routers to depend on services only; removed direct storage calls from `admin` router.
+- 2026-03-01: Updated app startup/session wiring so FastAPI lifespan creates shared engine/session-factory and publishes `db_session_factory` on app state; removed duplicate module-global DB factory usage.
+- 2026-03-01: Wired `get_admin_service` through `Depends(get_db_session)` and added session-backed `AdminRepository` path for request-time forwarder-log operations.
+- 2026-03-01: Verification passed: `make lint-backend`, `make typecheck-backend`, `make test-backend`.
 
 ## Scope (Current Slice)
 Control-plane domain modularization:

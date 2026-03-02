@@ -33,7 +33,6 @@ make phase1-gate-full
 export MAPPO_PUBLISHER_PRINCIPAL_OBJECT_ID="<azure-ad-object-id>"
 make iac-stack-init
 make iac-up
-make iac-export-targets
 make iac-export-db-env
 make azure-tenant-map SUBSCRIPTION_IDS="<sub1>,<sub2>"
 make azure-onboard-multitenant-runtime CLIENT_ID="$MAPPO_AZURE_CLIENT_ID" SUBSCRIPTION_IDS="<sub1>,<sub2>"
@@ -47,8 +46,14 @@ source .data/mappo-runtime.env
 make deploy PULUMI_STACK="<stack>" SUBSCRIPTION_ID="<provider-sub>"
 make marketplace-forwarder-package
 make marketplace-forwarder-deploy RESOURCE_GROUP="<rg>" FUNCTION_APP_NAME="<name>" MAPPO_API_BASE_URL="$MAPPO_API_BASE_URL" MAPPO_INGEST_TOKEN="$MAPPO_MARKETPLACE_INGEST_TOKEN"
-make marketplace-forwarder-replay-inventory FORWARDER_URL="<https://.../api/marketplace/events?code=...>"
 make runtime-aca-destroy RESOURCE_GROUP="<runtime-rg>"
+make clean-slate-local
+```
+
+Simulation-only helpers:
+```bash
+make iac-export-targets
+make marketplace-forwarder-replay-inventory FORWARDER_URL="<https://.../api/marketplace/events?code=...>"
 ```
 
 ### Partner Center API helpers

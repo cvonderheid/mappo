@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from app.modules.control_plane import ControlPlaneStore
+from app.domain.runtime import ControlPlaneRuntime
 from app.modules.schemas import Release, Target
 
 DEFAULT_TEMPLATE_SPEC_ID = (
@@ -102,6 +102,6 @@ def sample_releases(
     ]
 
 
-async def seed_store(store: ControlPlaneStore) -> None:
+async def seed_store(store: ControlPlaneRuntime) -> None:
     await store.replace_targets(sample_targets(), clear_runs=True)
     await store.replace_releases(sample_releases())

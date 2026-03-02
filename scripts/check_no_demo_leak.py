@@ -17,6 +17,7 @@ BANNED = [
         r"execution_mode\s*:\s*ExecutionMode\s*=\s*ExecutionMode\.DEMO",
         re.IGNORECASE,
     ),
+    re.compile(r"\bcontrol_plane_storage\b", re.IGNORECASE),
 ]
 
 CODE_SUFFIXES = {".py", ".ts", ".tsx", ".js", ".jsx"}
