@@ -5,22 +5,25 @@ from pytest import MonkeyPatch
 
 from app.core.settings import get_settings
 
+TENANT_LIVE_A = "11111111-1111-1111-1111-111111111111"
+SUBSCRIPTION_LIVE_A = "22222222-2222-2222-2222-222222222222"
+
 
 def _sample_onboarding_event(event_id: str) -> dict[str, object]:
     return {
         "event_id": event_id,
         "event_type": "subscription_purchased",
-        "tenant_id": "tenant-live-a",
-        "subscription_id": "sub-live-a",
+        "tenant_id": TENANT_LIVE_A,
+        "subscription_id": SUBSCRIPTION_LIVE_A,
         "managed_application_id": (
-            "/subscriptions/sub-live-a/resourceGroups/rg-mappo-ma-apps-live/providers/"
+            f"/subscriptions/{SUBSCRIPTION_LIVE_A}/resourceGroups/rg-mappo-ma-apps-live/providers/"
             "Microsoft.Solutions/applications/mappo-ma-target-live-01"
         ),
         "managed_resource_group_id": (
-            "/subscriptions/sub-live-a/resourceGroups/rg-mappo-ma-mrg-live-01"
+            f"/subscriptions/{SUBSCRIPTION_LIVE_A}/resourceGroups/rg-mappo-ma-mrg-live-01"
         ),
         "container_app_resource_id": (
-            "/subscriptions/sub-live-a/resourceGroups/rg-mappo-ma-mrg-live-01/providers/"
+            f"/subscriptions/{SUBSCRIPTION_LIVE_A}/resourceGroups/rg-mappo-ma-mrg-live-01/providers/"
             "Microsoft.App/containerApps/ca-mappo-ma-target-live-01"
         ),
         "customer_name": "Contoso",
@@ -40,8 +43,8 @@ def _sample_forwarder_log(log_id: str) -> dict[str, object]:
         "event_id": "evt-001",
         "event_type": "subscription_purchased",
         "target_id": "mappo-ma-target-live-01",
-        "tenant_id": "tenant-live-a",
-        "subscription_id": "sub-live-a",
+        "tenant_id": TENANT_LIVE_A,
+        "subscription_id": SUBSCRIPTION_LIVE_A,
         "function_app_name": "fa-mappo-forwarder-demo",
         "forwarder_request_id": "request-abc-123",
         "backend_status_code": 400,
@@ -159,6 +162,7 @@ def test_admin_registration_can_be_updated(client: TestClient) -> None:
         if item["id"] == "mappo-ma-target-live-01"
     )
     assert target["health_status"] == "healthy"
+    assert target["customer_name"] == "Contoso Ltd"
     assert target["tags"]["ring"] == "prod"
     assert target["tags"]["region"] == "centralus"
 

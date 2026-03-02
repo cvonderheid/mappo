@@ -279,3 +279,9 @@ Purpose: capture recurring correction patterns and preventative guardrails.
 - Preventative rule: Default runtime deploy resources must be deterministic/reused, and environment quota fallbacks should happen before attempting new environment creation.
 - Detection signal: runtime RG accumulates many similarly prefixed registries/workspaces across consecutive retries.
 - Enforcement (test/lint/checklist): add post-deploy hygiene check that runtime RG has one active ACR and no orphan Log Analytics workspaces.
+
+- Date: 2026-03-01
+- Pattern: Fixing one duplicated metadata field in target projections (for example `customer_name`) left other duplicated fields (`tenant_id`, `subscription_id`, `managed_app_id`, `tags`) drifting between target rows and registration rows.
+- Preventative rule: When enforcing single-source-of-truth projection, audit and project all duplicated fields in one pass, and block partial field-by-field fixes.
+- Detection signal: Admin registration table and Fleet table show different values for the same target after edits.
+- Enforcement (test/lint/checklist): keep one regression test that tampers every duplicated target field and asserts list/read paths project all of them from registration data.

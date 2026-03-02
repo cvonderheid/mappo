@@ -1088,6 +1088,17 @@
       },
       "Target": {
         "properties": {
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
           "health_status": {
             "title": "Health Status",
             "type": "string"

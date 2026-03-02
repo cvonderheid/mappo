@@ -4,6 +4,8 @@ from typing import Any, cast
 from fastapi.testclient import TestClient
 
 TERMINAL_STATUSES = {"succeeded", "failed", "partial", "halted"}
+TENANT_LIVE_A = "11111111-1111-1111-1111-111111111111"
+SUBSCRIPTION_LIVE_A = "22222222-2222-2222-2222-222222222222"
 
 
 def _wait_for_terminal(
@@ -91,10 +93,10 @@ def test_successful_run_updates_registered_target_health_to_healthy(client: Test
         "/api/v1/admin/onboarding/events",
         json={
             "event_id": "evt-health-001",
-            "tenant_id": "tenant-live-a",
-            "subscription_id": "sub-live-a",
+            "tenant_id": TENANT_LIVE_A,
+            "subscription_id": SUBSCRIPTION_LIVE_A,
             "container_app_resource_id": (
-                "/subscriptions/sub-live-a/resourceGroups/rg-mappo-ma-mrg-live-01/providers/"
+                f"/subscriptions/{SUBSCRIPTION_LIVE_A}/resourceGroups/rg-mappo-ma-mrg-live-01/providers/"
                 "Microsoft.App/containerApps/ca-mappo-ma-target-live-01"
             ),
             "target_id": "mappo-ma-target-live-01",

@@ -6,14 +6,25 @@ from datetime import UTC, datetime
 
 from sqlalchemy import delete
 
-from app.db.generated.models import Releases, Runs, Targets
+from app.db.generated.models import MarketplaceEvents, Releases, Runs, TargetRegistrations, Targets
 from app.db.session import create_engine_and_session_factory
 from app.modules.control_plane import ControlPlaneStore
 from app.modules.execution import ExecutionMode
-from app.modules.schemas import CreateRunRequest, Release, RunStatus, StrategyMode, Target
+from app.modules.schemas import (
+    CreateRunRequest,
+    MarketplaceEventIngestRequest,
+    Release,
+    RunStatus,
+    StrategyMode,
+    Target,
+)
 from tests.support.sample_data import sample_releases, seed_store
 
 DEFAULT_DATABASE_URL = "postgresql+psycopg://mappo:mappo@localhost:5433/mappo"
+TENANT_LIVE_A = "11111111-1111-1111-1111-111111111111"
+SUBSCRIPTION_LIVE_A = "22222222-2222-2222-2222-222222222222"
+TENANT_TAMPERED = "33333333-3333-3333-3333-333333333333"
+SUBSCRIPTION_TAMPERED = "44444444-4444-4444-4444-444444444444"
 
 
 def _database_url() -> str:
@@ -24,6 +35,8 @@ def _reset_database(database_url: str) -> None:
     engine, session_factory = create_engine_and_session_factory(database_url)
     try:
         with session_factory() as session:
+            session.execute(delete(MarketplaceEvents))
+            session.execute(delete(TargetRegistrations))
             session.execute(delete(Runs))
             session.execute(delete(Releases))
             session.execute(delete(Targets))
@@ -127,10 +140,10 @@ def test_replace_targets_can_clear_runs() -> None:
 
         replacement_target = Target(
             id="target-live-01",
-            tenant_id="tenant-live-001",
-            subscription_id="sub-live-0001",
+            tenant_id="55555555-5555-5555-5555-555555555555",
+            subscription_id="66666666-6666-6666-6666-666666666666",
             managed_app_id=(
-                "/subscriptions/sub-live-0001/resourceGroups/rg-target-live-01/"
+                "/subscriptions/66666666-6666-6666-6666-666666666666/resourceGroups/rg-target-live-01/"
                 "providers/Microsoft.App/containerApps/target-live-01"
             ),
             tags={"ring": "canary", "region": "eastus", "tier": "gold", "environment": "demo"},
@@ -148,4 +161,124 @@ def test_replace_targets_can_clear_runs() -> None:
         assert len(runs) == 0
     finally:
         asyncio.run(store.shutdown())
+        _reset_database(database_url)
+
+
+def test_registration_metadata_derives_from_target_source() -> None:
+    database_url = _database_url()
+    _reset_database(database_url)
+
+    first_store = ControlPlaneStore(
+        database_url=database_url,
+        execution_mode=ExecutionMode.DEMO,
+        stage_delay_seconds=0.01,
+    )
+    try:
+        asyncio.run(
+            first_store.ingest_marketplace_event(
+                MarketplaceEventIngestRequest(
+                    event_id="evt-reconcile-001",
+                    tenant_id=TENANT_LIVE_A,
+                    subscription_id=SUBSCRIPTION_LIVE_A,
+                    managed_application_id=(
+                        f"/subscriptions/{SUBSCRIPTION_LIVE_A}/resourceGroups/rg-mappo-ma-apps-live/providers/"
+                        "Microsoft.Solutions/applications/mappo-ma-target-live-01"
+                    ),
+                    managed_resource_group_id=(
+                        f"/subscriptions/{SUBSCRIPTION_LIVE_A}/resourceGroups/rg-mappo-ma-mrg-live-01"
+                    ),
+                    container_app_resource_id=(
+                        f"/subscriptions/{SUBSCRIPTION_LIVE_A}/resourceGroups/rg-mappo-ma-mrg-live-01/providers/"
+                        "Microsoft.App/containerApps/ca-mappo-ma-target-live-01"
+                    ),
+                    customer_name="Contoso",
+                    target_group="canary",
+                    region="eastus",
+                    environment="prod",
+                    tier="gold",
+                )
+            )
+        )
+
+        target = asyncio.run(first_store.list_targets())[0]
+        tampered = target.model_copy(
+            update={
+                "tenant_id": TENANT_TAMPERED,
+                "subscription_id": SUBSCRIPTION_TAMPERED,
+                "managed_app_id": (
+                    f"/subscriptions/{SUBSCRIPTION_TAMPERED}/resourceGroups/rg-tampered/providers/"
+                    "Microsoft.App/containerApps/ca-tampered"
+                ),
+                "customer_name": None,
+                "tags": {"ring": "prod", "region": "westus", "environment": "dev", "tier": "basic"},
+            }
+        )
+        asyncio.run(first_store.replace_targets([tampered]))
+
+        projected_targets = asyncio.run(first_store.list_targets())
+        assert len(projected_targets) == 1
+        assert projected_targets[0].tenant_id == TENANT_TAMPERED
+        assert projected_targets[0].subscription_id == SUBSCRIPTION_TAMPERED
+        assert (
+            projected_targets[0].managed_app_id
+            == f"/subscriptions/{SUBSCRIPTION_TAMPERED}/resourceGroups/rg-tampered/providers/"
+            "Microsoft.App/containerApps/ca-tampered"
+        )
+        assert projected_targets[0].customer_name is None
+        assert projected_targets[0].tags["ring"] == "prod"
+        assert projected_targets[0].tags["region"] == "westus"
+        assert projected_targets[0].tags["environment"] == "dev"
+        assert projected_targets[0].tags["tier"] == "basic"
+        filtered_targets = asyncio.run(first_store.list_targets(tag_filters={"ring": "prod"}))
+        assert [item.id for item in filtered_targets] == ["mappo-ma-target-live-01"]
+
+        snapshot = asyncio.run(first_store.get_onboarding_snapshot())
+        assert len(snapshot.registrations) == 1
+        assert snapshot.registrations[0].tenant_id == TENANT_TAMPERED
+        assert snapshot.registrations[0].subscription_id == SUBSCRIPTION_TAMPERED
+        assert (
+            snapshot.registrations[0].container_app_resource_id
+            == f"/subscriptions/{SUBSCRIPTION_TAMPERED}/resourceGroups/rg-tampered/providers/"
+            "Microsoft.App/containerApps/ca-tampered"
+        )
+        assert snapshot.registrations[0].customer_name is None
+        assert snapshot.registrations[0].tags["ring"] == "prod"
+    finally:
+        asyncio.run(first_store.shutdown())
+
+    second_store = ControlPlaneStore(
+        database_url=database_url,
+        execution_mode=ExecutionMode.DEMO,
+        stage_delay_seconds=0.01,
+    )
+    try:
+        targets = asyncio.run(second_store.list_targets())
+        assert len(targets) == 1
+        assert targets[0].id == "mappo-ma-target-live-01"
+        assert targets[0].tenant_id == TENANT_TAMPERED
+        assert targets[0].subscription_id == SUBSCRIPTION_TAMPERED
+        assert (
+            targets[0].managed_app_id
+            == f"/subscriptions/{SUBSCRIPTION_TAMPERED}/resourceGroups/rg-tampered/providers/"
+            "Microsoft.App/containerApps/ca-tampered"
+        )
+        assert targets[0].customer_name is None
+        assert targets[0].tags["ring"] == "prod"
+        assert targets[0].tags["region"] == "westus"
+        assert targets[0].tags["environment"] == "dev"
+        assert targets[0].tags["tier"] == "basic"
+
+        snapshot = asyncio.run(second_store.get_onboarding_snapshot())
+        assert len(snapshot.registrations) == 1
+        assert snapshot.registrations[0].tenant_id == TENANT_TAMPERED
+        assert snapshot.registrations[0].subscription_id == SUBSCRIPTION_TAMPERED
+        assert (
+            snapshot.registrations[0].container_app_resource_id
+            == f"/subscriptions/{SUBSCRIPTION_TAMPERED}/resourceGroups/rg-tampered/providers/"
+            "Microsoft.App/containerApps/ca-tampered"
+        )
+        assert snapshot.registrations[0].customer_name is None
+        assert snapshot.registrations[0].tags["ring"] == "prod"
+    finally:
+        asyncio.run(second_store.shutdown())
         _reset_database(database_url)

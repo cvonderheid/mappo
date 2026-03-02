@@ -13,6 +13,7 @@ from app.modules.control_plane_helpers import (
     find_open_stage_record,
     is_guid,
     matches_tags,
+    project_registration_from_target,
 )
 from app.modules.control_plane_storage import (
     delete_all_runs,
@@ -127,11 +128,12 @@ class ControlPlaneStore:
     async def list_targets(self, tag_filters: dict[str, str] | None = None) -> list[Target]:
         filters = tag_filters or {}
         async with self._lock:
-            targets = [
-                target.model_copy(deep=True)
-                for target in self._targets.values()
-                if matches_tags(target.tags, filters)
-            ]
+            targets = []
+            for target in self._targets.values():
+                target_copy = target.model_copy(deep=True)
+                if not matches_tags(target_copy.tags, filters):
+                    continue
+                targets.append(target_copy)
         return sorted(targets, key=lambda target: target.id)
 
     async def replace_targets(
@@ -169,7 +171,7 @@ class ControlPlaneStore:
         safe_limit = max(1, event_limit)
         async with self._lock:
             registrations = [
-                item.model_copy(deep=True)
+                project_registration_from_target(item, self._targets.get(item.target_id))
                 for item in sorted(self._registrations.values(), key=lambda row: row.target_id)
             ]
             events = sorted(
@@ -192,7 +194,7 @@ class ControlPlaneStore:
 
             fields = set(request.model_fields_set)
             if not fields:
-                return registration.model_copy(deep=True)
+                return project_registration_from_target(registration, self._targets.get(target_id))
 
             now = utc_now()
             updated_registration = registration.model_copy(deep=True)
@@ -210,6 +212,7 @@ class ControlPlaneStore:
             if "customer_name" in fields:
                 customer_name = request.customer_name.strip() if request.customer_name else ""
                 updated_registration.customer_name = customer_name or None
+                updated_target.customer_name = customer_name or None
 
             if "managed_application_id" in fields:
                 managed_app_id = (
@@ -326,7 +329,7 @@ class ControlPlaneStore:
             self._targets[target_id] = updated_target
             self._save_target_locked(updated_target)
 
-            return updated_registration.model_copy(deep=True)
+            return project_registration_from_target(updated_registration, updated_target)
 
     async def delete_target_registration(self, target_id: str) -> None:
         async with self._lock:
@@ -473,7 +476,9 @@ class ControlPlaneStore:
             if not selected_ids:
                 raise StoreError("no targets matched target selection")
 
-            selected_targets = [self._targets[target_id] for target_id in selected_ids]
+            selected_targets = [
+                self._targets[target_id].model_copy(deep=True) for target_id in selected_ids
+            ]
 
         try:
             guardrail_plan = await self._target_executor.prepare_run(
@@ -486,11 +491,15 @@ class ControlPlaneStore:
         async with self._lock:
             now = utc_now()
             run_id = f"run-{uuid4().hex[:10]}"
+            projected_targets_by_id = {
+                target_id: self._targets[target_id].model_copy(deep=True)
+                for target_id in selected_ids
+            }
             target_records = {
                 target_id: TargetExecutionRecord(
                     target_id=target_id,
-                    subscription_id=self._targets[target_id].subscription_id,
-                    tenant_id=self._targets[target_id].tenant_id,
+                    subscription_id=projected_targets_by_id[target_id].subscription_id,
+                    tenant_id=projected_targets_by_id[target_id].tenant_id,
                     status=TargetStage.QUEUED,
                     attempt=0,
                     updated_at=now,
@@ -761,7 +770,10 @@ class ControlPlaneStore:
 
             grouped: dict[str, list[str]] = defaultdict(list)
             for target_id in target_ids:
-                tag_value = self._targets[target_id].tags.get(run.wave_tag, "unassigned")
+                tag_value = self._targets[target_id].tags.get(
+                    run.wave_tag,
+                    "unassigned",
+                )
                 grouped[tag_value].append(target_id)
 
             waves: list[list[str]] = []
@@ -849,7 +861,7 @@ class ControlPlaneStore:
             record.logs.append(
                 TargetLogEvent(
                     timestamp=now,
-                    level="INFO",
+                    level="info",
                     stage=stage,
                     message=message,
                     correlation_id=correlation_id,
@@ -881,7 +893,7 @@ class ControlPlaneStore:
             record.logs.append(
                 TargetLogEvent(
                     timestamp=now,
-                    level="ERROR" if error else "INFO",
+                    level="error" if error else "info",
                     stage=stage,
                     message=message,
                     correlation_id=correlation_id,
@@ -892,7 +904,7 @@ class ControlPlaneStore:
                     record.logs.append(
                         TargetLogEvent(
                             timestamp=now,
-                            level="ERROR",
+                            level="error",
                             stage=stage,
                             message=diagnostic_line,
                             correlation_id=correlation_id,
@@ -1300,9 +1312,7 @@ class ControlPlaneStore:
         if managed_application_id is None:
             return None
         parts = [part for part in managed_application_id.strip("/").split("/") if part]
-        if len(parts) != 8:
-            return None
-        return parts[7]
+        return parts[7] if len(parts) == 8 else None
 
     def _parse_container_app_resource_id_safe(
         self,
@@ -1316,11 +1326,9 @@ class ControlPlaneStore:
     @staticmethod
     def _normalize_resource_id(resource_id: str) -> str:
         trimmed = resource_id.strip()
-        if trimmed == "":
+        if not trimmed:
             raise StoreError("resource ID must not be empty")
-        if not trimmed.startswith("/"):
-            trimmed = f"/{trimmed}"
-        return trimmed
+        return trimmed if trimmed.startswith("/") else f"/{trimmed}"
 
     def _replace_targets_locked(self) -> None:
         replace_targets(

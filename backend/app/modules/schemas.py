@@ -74,6 +74,7 @@ class Target(BaseModel):
     tenant_id: str
     subscription_id: str
     managed_app_id: str
+    customer_name: str | None = None
     tags: dict[str, str]
     last_deployed_release: str
     health_status: str

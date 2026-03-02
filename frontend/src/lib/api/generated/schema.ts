@@ -605,6 +605,8 @@ export interface components {
         };
         /** Target */
         Target: {
+            /** Customer Name */
+            customer_name?: string | null;
             /** Health Status */
             health_status: string;
             /** Id */

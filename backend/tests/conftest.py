@@ -79,6 +79,12 @@ def _bootstrap_postgres() -> Generator[None, None, None]:
         env=env,
     )
     subprocess.run(
+        [str(repo_root / "backend" / "scripts" / "flyway.sh"), "clean"],
+        check=True,
+        cwd=repo_root,
+        env=env,
+    )
+    subprocess.run(
         [str(repo_root / "backend" / "scripts" / "flyway.sh"), "migrate"],
         check=True,
         cwd=repo_root,

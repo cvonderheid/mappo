@@ -5,7 +5,9 @@ from uuid import UUID
 from app.modules.schemas import (
     DeploymentRun,
     StructuredError,
+    Target,
     TargetExecutionRecord,
+    TargetRegistrationRecord,
     TargetStage,
     TargetStageRecord,
 )
@@ -117,3 +119,18 @@ def is_guid(value: str) -> bool:
     except ValueError:
         return False
     return True
+
+
+def project_registration_from_target(
+    registration: TargetRegistrationRecord,
+    target: Target | None,
+) -> TargetRegistrationRecord:
+    projected = registration.model_copy(deep=True)
+    if target is None:
+        return projected
+    projected.tenant_id = target.tenant_id
+    projected.subscription_id = target.subscription_id
+    projected.container_app_resource_id = target.managed_app_id
+    projected.customer_name = target.customer_name
+    projected.tags = dict(target.tags)
+    return projected

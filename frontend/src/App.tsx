@@ -1,6 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
-
 import AdminPanel from "@/components/AdminPanel";
 import FleetTable from "@/components/FleetTable";
 import { RunDetailPanel, RunList } from "@/components/RunPanels";
@@ -18,6 +17,7 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   adminDeleteTargetRegistration,
   adminIngestMarketplaceEvent,
@@ -44,7 +44,6 @@ import type {
   UpdateTargetRegistrationRequest,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
 type StartRunFormState = {
   strategyMode: StrategyMode;
   concurrency: number;
@@ -58,7 +57,6 @@ const DEFAULT_FORM: StartRunFormState = {
   maxFailureCount: "2",
   maxFailureRatePercent: "35",
 };
-
 export default function App() {
   return (
     <BrowserRouter>
@@ -534,16 +532,16 @@ function DeploymentsPage({
               <div className="mb-3 rounded-md border border-border/70 bg-muted/20 p-3">
                 <div className="flex items-center gap-2">
                   <Label htmlFor="target-group-filter">Target group</Label>
-                  <select
-                    id="target-group-filter"
-                    className="h-10 rounded-md border border-input bg-background/90 px-3 text-sm"
-                    value={targetGroupFilter}
-                    onChange={(event) => onTargetGroupFilterChange(event.target.value)}
-                  >
-                    <option value="all">All groups</option>
-                    <option value="canary">Canary group</option>
-                    <option value="prod">Production group</option>
-                  </select>
+                  <Select value={targetGroupFilter} onValueChange={onTargetGroupFilterChange}>
+                    <SelectTrigger id="target-group-filter" className="h-10 w-[220px] bg-background/90 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All groups</SelectItem>
+                      <SelectItem value="canary">Canary group</SelectItem>
+                      <SelectItem value="prod">Production group</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
                   Group is the deployment cohort tag stored as <code>ring</code> in target metadata.
@@ -552,37 +550,30 @@ function DeploymentsPage({
               <form className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6" onSubmit={onStartRun}>
                 <div className="space-y-1">
                   <Label htmlFor="release-version">Release version</Label>
-                  <select
-                    id="release-version"
-                    className="h-10 w-full rounded-md border border-input bg-background/90 px-3 text-sm"
-                    value={selectedReleaseId}
-                    onChange={(event) => onReleaseChange(event.target.value)}
-                    required
-                  >
-                    {releases.length === 0 ? <option value="">No releases available</option> : null}
-                    {releases.map((release) => (
-                      <option key={release.id} value={release.id}>
-                        {release.template_spec_version}
-                      </option>
-                    ))}
-                  </select>
+                  <Select value={selectedReleaseId} onValueChange={onReleaseChange} disabled={releases.length === 0} required>
+                    <SelectTrigger id="release-version" className="h-10 w-full bg-background/90 text-sm">
+                      <SelectValue placeholder="No releases available" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {releases.map((release) => (
+                        <SelectItem key={release.id} value={release.id}>
+                          {release.template_spec_version}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="strategy-mode">Strategy</Label>
-                  <select
-                    id="strategy-mode"
-                    className="h-10 w-full rounded-md border border-input bg-background/90 px-3 text-sm"
-                    value={formState.strategyMode}
-                    onChange={(event) =>
-                      onFormStateChange({
-                        ...formState,
-                        strategyMode: event.target.value as StrategyMode,
-                      })
-                    }
-                  >
-                    <option value="waves">Grouped rollout (target group order)</option>
-                    <option value="all_at_once">All-at-once</option>
-                  </select>
+                  <Select value={formState.strategyMode} onValueChange={(value) => onFormStateChange({ ...formState, strategyMode: value as StrategyMode })}>
+                    <SelectTrigger id="strategy-mode" className="h-10 w-full bg-background/90 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="waves">Grouped rollout (target group order)</SelectItem>
+                      <SelectItem value="all_at_once">All-at-once</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1">
                   <Label>Concurrency</Label>

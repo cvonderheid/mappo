@@ -413,7 +413,7 @@ def test_azure_mode_enforces_per_subscription_batching(
                 if index < 3:
                     patched_targets.append(
                         target.model_copy(
-                            update={"subscription_id": "sub-shared-001"},
+                            update={"subscription_id": "55555555-5555-5555-5555-555555555555"},
                             deep=True,
                         )
                     )

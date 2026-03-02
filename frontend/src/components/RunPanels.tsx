@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -14,6 +15,7 @@ import type { RunDetail, RunSummary, TargetExecutionRecord } from "@/lib/types";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import ColumnVisibilityMenu from "@/components/ColumnVisibilityMenu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu,
@@ -23,7 +25,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { usePersistentColumnVisibility } from "@/lib/table-visibility";
 
 type ProgressCounts = {
   total: number;
@@ -215,6 +219,8 @@ export function RunList({
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [openActionRunId, setOpenActionRunId] = useState<string | null>(null);
+  const [columnVisibility, setColumnVisibility] =
+    usePersistentColumnVisibility("deployments-runs");
 
   useEffect(() => {
     onActionsMenuOpenChange?.(openActionRunId !== null);
@@ -309,6 +315,7 @@ export function RunList({
       {
         id: "actions",
         header: "Actions",
+        enableHiding: false,
         cell: ({ row }) => {
           const run = row.original;
           const resumeEnabled = canResume(run);
@@ -378,9 +385,11 @@ export function RunList({
     state: {
       sorting,
       columnFilters,
+      columnVisibility,
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -391,6 +400,53 @@ export function RunList({
   const releaseFilter = (table.getColumn("release_id")?.getFilterValue() as string | undefined) ?? "";
   const statusFilter = (table.getColumn("status")?.getFilterValue() as string | undefined) ?? "";
   const uniqueStatuses = [...new Set(runs.map((run) => run.status))].sort();
+  const visibleColumnCount = table.getVisibleLeafColumns().length;
+
+  function renderFilterCell(columnId: string): ReactNode {
+    if (columnId === "id") {
+      return (
+        <Input
+          value={runIdFilter}
+          onChange={(event) => table.getColumn("id")?.setFilterValue(event.target.value)}
+          placeholder="Filter run"
+          className="h-8"
+        />
+      );
+    }
+    if (columnId === "release_id") {
+      return (
+        <Input
+          value={releaseFilter}
+          onChange={(event) => table.getColumn("release_id")?.setFilterValue(event.target.value)}
+          placeholder="Filter release"
+          className="h-8"
+        />
+      );
+    }
+    if (columnId === "status") {
+      return (
+        <Select
+          value={statusFilter || "all"}
+          onValueChange={(value) =>
+            table.getColumn("status")?.setFilterValue(value === "all" ? undefined : value)
+          }
+        >
+          <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {uniqueStatuses.map((status) => (
+              <SelectItem key={status} value={status}>
+                {status}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+    return null;
+  }
 
   return (
     <Card className="glass-card animate-fade-up [animation-delay:200ms] [animation-fill-mode:forwards]">
@@ -400,6 +456,7 @@ export function RunList({
           <Badge variant="outline" className="font-mono text-[11px]">
             {filteredCount}/{runs.length} runs
           </Badge>
+          <ColumnVisibilityMenu table={table} />
           <Button type="button" variant="outline" size="sm" onClick={() => table.resetColumnFilters()}>
             Clear filters
           </Button>
@@ -428,50 +485,15 @@ export function RunList({
               ))}
             </TableRow>
             <TableRow>
-              <TableHead>
-                <Input
-                  value={runIdFilter}
-                  onChange={(event) => table.getColumn("id")?.setFilterValue(event.target.value)}
-                  placeholder="Filter run"
-                  className="h-8"
-                />
-              </TableHead>
-              <TableHead>
-                <Input
-                  value={releaseFilter}
-                  onChange={(event) => table.getColumn("release_id")?.setFilterValue(event.target.value)}
-                  placeholder="Filter release"
-                  className="h-8"
-                />
-              </TableHead>
-              <TableHead>
-                <select
-                  className="h-8 w-full rounded-md border border-input bg-background/90 px-2 text-xs"
-                  value={statusFilter}
-                  onChange={(event) =>
-                    table.getColumn("status")?.setFilterValue(
-                      event.target.value === "all" ? undefined : event.target.value
-                    )
-                  }
-                >
-                  <option value="all">All statuses</option>
-                  {uniqueStatuses.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </select>
-              </TableHead>
-              <TableHead />
-              <TableHead />
-              <TableHead />
-              <TableHead />
+              {table.getVisibleLeafColumns().map((column) => (
+                <TableHead key={`filter-${column.id}`}>{renderFilterCell(column.id)}</TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-sm text-muted-foreground">
+                <TableCell colSpan={visibleColumnCount} className="text-sm text-muted-foreground">
                   No deployment runs match current filters.
                 </TableCell>
               </TableRow>

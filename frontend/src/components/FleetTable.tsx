@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -14,7 +15,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import ColumnVisibilityMenu from "@/components/ColumnVisibilityMenu";
+import { usePersistentColumnVisibility } from "@/lib/table-visibility";
 import type { Target } from "@/lib/types";
 
 type FleetTableProps = {
@@ -23,6 +27,7 @@ type FleetTableProps = {
 
 type FleetRow = {
   targetId: string;
+  customerName: string;
   tenantId: string;
   subscriptionId: string;
   targetGroup: string;
@@ -47,6 +52,7 @@ export default function FleetTable({ targets }: FleetTableProps) {
     () =>
       targets.map((target) => ({
         targetId: target.id,
+        customerName: target.customer_name ?? "unknown",
         tenantId: target.tenant_id,
         subscriptionId: target.subscription_id,
         targetGroup: target.tags.ring ?? "unassigned",
@@ -60,10 +66,13 @@ export default function FleetTable({ targets }: FleetTableProps) {
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] =
+    usePersistentColumnVisibility("fleet-targets");
 
   const columns = useMemo<ColumnDef<FleetRow>[]>(
     () => [
       { accessorKey: "targetId", header: "Target" },
+      { accessorKey: "customerName", header: "Customer" },
       { accessorKey: "tenantId", header: "Tenant" },
       { accessorKey: "subscriptionId", header: "Subscription" },
       {
@@ -122,9 +131,11 @@ export default function FleetTable({ targets }: FleetTableProps) {
     state: {
       sorting,
       columnFilters,
+      columnVisibility,
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -149,6 +160,8 @@ export default function FleetTable({ targets }: FleetTableProps) {
   );
 
   const targetIdFilter = (table.getColumn("targetId")?.getFilterValue() as string | undefined) ?? "";
+  const customerNameFilter =
+    (table.getColumn("customerName")?.getFilterValue() as string | undefined) ?? "";
   const tenantIdFilter = (table.getColumn("tenantId")?.getFilterValue() as string | undefined) ?? "";
   const subscriptionIdFilter =
     (table.getColumn("subscriptionId")?.getFilterValue() as string | undefined) ?? "";
@@ -157,6 +170,153 @@ export default function FleetTable({ targets }: FleetTableProps) {
   const tierFilter = (table.getColumn("tier")?.getFilterValue() as string | undefined) ?? "";
   const versionFilter = (table.getColumn("version")?.getFilterValue() as string | undefined) ?? "";
   const healthFilter = (table.getColumn("health")?.getFilterValue() as string | undefined) ?? "";
+  const visibleColumnCount = table.getVisibleLeafColumns().length;
+
+  function renderFilterCell(columnId: string): ReactNode {
+    if (columnId === "targetId") {
+      return (
+        <Input
+          value={targetIdFilter}
+          onChange={(event) => table.getColumn("targetId")?.setFilterValue(event.target.value)}
+          placeholder="Filter target"
+          className="h-8"
+        />
+      );
+    }
+    if (columnId === "customerName") {
+      return (
+        <Input
+          value={customerNameFilter}
+          onChange={(event) =>
+            table.getColumn("customerName")?.setFilterValue(event.target.value)
+          }
+          placeholder="Filter customer"
+          className="h-8"
+        />
+      );
+    }
+    if (columnId === "tenantId") {
+      return (
+        <Input
+          value={tenantIdFilter}
+          onChange={(event) => table.getColumn("tenantId")?.setFilterValue(event.target.value)}
+          placeholder="Filter tenant"
+          className="h-8"
+        />
+      );
+    }
+    if (columnId === "subscriptionId") {
+      return (
+        <Input
+          value={subscriptionIdFilter}
+          onChange={(event) =>
+            table.getColumn("subscriptionId")?.setFilterValue(event.target.value)
+          }
+          placeholder="Filter subscription"
+          className="h-8"
+        />
+      );
+    }
+    if (columnId === "targetGroup") {
+      return (
+        <Select
+          value={targetGroupFilter || "all"}
+          onValueChange={(value) =>
+            table.getColumn("targetGroup")?.setFilterValue(value === "all" ? undefined : value)
+          }
+        >
+          <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All groups</SelectItem>
+            {uniqueTargetGroups.map((value) => (
+              <SelectItem key={value} value={value}>
+                {value}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+    if (columnId === "region") {
+      return (
+        <Select
+          value={regionFilter || "all"}
+          onValueChange={(value) =>
+            table.getColumn("region")?.setFilterValue(value === "all" ? undefined : value)
+          }
+        >
+          <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All regions</SelectItem>
+            {uniqueRegions.map((value) => (
+              <SelectItem key={value} value={value}>
+                {value}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+    if (columnId === "tier") {
+      return (
+        <Select
+          value={tierFilter || "all"}
+          onValueChange={(value) =>
+            table.getColumn("tier")?.setFilterValue(value === "all" ? undefined : value)
+          }
+        >
+          <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All tiers</SelectItem>
+            {uniqueTiers.map((value) => (
+              <SelectItem key={value} value={value}>
+                {value}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+    if (columnId === "version") {
+      return (
+        <Input
+          value={versionFilter}
+          onChange={(event) => table.getColumn("version")?.setFilterValue(event.target.value)}
+          placeholder="Filter version"
+          className="h-8"
+        />
+      );
+    }
+    if (columnId === "health") {
+      return (
+        <Select
+          value={healthFilter || "all"}
+          onValueChange={(value) =>
+            table.getColumn("health")?.setFilterValue(value === "all" ? undefined : value)
+          }
+        >
+          <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All health</SelectItem>
+            {uniqueHealth.map((value) => (
+              <SelectItem key={value} value={value}>
+                {value}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+    return null;
+  }
 
   return (
     <Card className="glass-card animate-fade-up [animation-delay:80ms] [animation-fill-mode:forwards]">
@@ -166,6 +326,7 @@ export default function FleetTable({ targets }: FleetTableProps) {
           <Badge variant="outline" className="font-mono text-[11px]">
             {filteredCount}/{rows.length} subscriptions
           </Badge>
+          <ColumnVisibilityMenu table={table} />
           <Button
             type="button"
             variant="outline"
@@ -195,118 +356,15 @@ export default function FleetTable({ targets }: FleetTableProps) {
               ))}
             </TableRow>
             <TableRow>
-              <TableHead>
-                <Input
-                  value={targetIdFilter}
-                  onChange={(event) => table.getColumn("targetId")?.setFilterValue(event.target.value)}
-                  placeholder="Filter target"
-                  className="h-8"
-                />
-              </TableHead>
-              <TableHead>
-                <Input
-                  value={tenantIdFilter}
-                  onChange={(event) => table.getColumn("tenantId")?.setFilterValue(event.target.value)}
-                  placeholder="Filter tenant"
-                  className="h-8"
-                />
-              </TableHead>
-              <TableHead>
-                <Input
-                  value={subscriptionIdFilter}
-                  onChange={(event) =>
-                    table.getColumn("subscriptionId")?.setFilterValue(event.target.value)
-                  }
-                  placeholder="Filter subscription"
-                  className="h-8"
-                />
-              </TableHead>
-              <TableHead>
-                <select
-                  className="h-8 w-full rounded-md border border-input bg-background/90 px-2 text-xs"
-                  value={targetGroupFilter}
-                  onChange={(event) =>
-                    table.getColumn("targetGroup")?.setFilterValue(
-                      event.target.value === "all" ? undefined : event.target.value
-                    )
-                  }
-                >
-                  <option value="all">All groups</option>
-                  {uniqueTargetGroups.map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-              </TableHead>
-              <TableHead>
-                <select
-                  className="h-8 w-full rounded-md border border-input bg-background/90 px-2 text-xs"
-                  value={regionFilter}
-                  onChange={(event) =>
-                    table.getColumn("region")?.setFilterValue(
-                      event.target.value === "all" ? undefined : event.target.value
-                    )
-                  }
-                >
-                  <option value="all">All regions</option>
-                  {uniqueRegions.map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-              </TableHead>
-              <TableHead>
-                <select
-                  className="h-8 w-full rounded-md border border-input bg-background/90 px-2 text-xs"
-                  value={tierFilter}
-                  onChange={(event) =>
-                    table.getColumn("tier")?.setFilterValue(
-                      event.target.value === "all" ? undefined : event.target.value
-                    )
-                  }
-                >
-                  <option value="all">All tiers</option>
-                  {uniqueTiers.map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-              </TableHead>
-              <TableHead>
-                <Input
-                  value={versionFilter}
-                  onChange={(event) => table.getColumn("version")?.setFilterValue(event.target.value)}
-                  placeholder="Filter version"
-                  className="h-8"
-                />
-              </TableHead>
-              <TableHead>
-                <select
-                  className="h-8 w-full rounded-md border border-input bg-background/90 px-2 text-xs"
-                  value={healthFilter}
-                  onChange={(event) =>
-                    table.getColumn("health")?.setFilterValue(
-                      event.target.value === "all" ? undefined : event.target.value
-                    )
-                  }
-                >
-                  <option value="all">All health</option>
-                  {uniqueHealth.map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-              </TableHead>
+              {table.getVisibleLeafColumns().map((column) => (
+                <TableHead key={`filter-${column.id}`}>{renderFilterCell(column.id)}</TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows.length === 0 ? (
               <TableRow>
-                <TableCell className="text-sm text-muted-foreground" colSpan={8}>
+                <TableCell className="text-sm text-muted-foreground" colSpan={visibleColumnCount}>
                   No targets match current column filters.
                 </TableCell>
               </TableRow>

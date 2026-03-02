@@ -4,6 +4,19 @@ Date: 2026-02-26
 Owner: Codex
 
 ## Scope (Current Slice)
+DB schema reset (start-from-scratch V1):
+- Replace JSON payload envelope persistence with normalized relational tables.
+- Make target/registration metadata single-source-of-truth at DB level (3NF-oriented).
+- Keep API behavior stable while changing persistence internals.
+
+## Plan (Current Slice)
+- [ ] Replace Flyway SQL set with a new normalized `V1__baseline.sql` (no `payload_json` envelope columns).
+- [ ] Regenerate SQLAlchemy models from new schema.
+- [ ] Refactor `control_plane_storage.py` to read/write typed columns and relation tables.
+- [ ] Run `make db-reset`, `make models-gen`, and backend tests; fix regressions.
+- [ ] Update docs/tasks notes to reflect the new persistence baseline.
+
+## Scope (Current Slice)
 Forwarder operator visibility:
 - Persist forwarder delivery failures in control-plane storage.
 - Surface forwarder failure logs in Admin console (no Azure portal digging).

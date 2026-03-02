@@ -15,6 +15,14 @@ def utc_now() -> datetime:
     return datetime.now(tz=UTC)
 
 
+def _tenant_guid(index: int) -> str:
+    return f"00000000-0000-0000-0000-{index:012d}"
+
+
+def _subscription_guid(index: int) -> str:
+    return f"10000000-0000-0000-0000-{index:012d}"
+
+
 def sample_targets() -> list[Target]:
     now = utc_now()
     rows: list[tuple[str, str, str, str, str, str, str]] = [
@@ -32,10 +40,10 @@ def sample_targets() -> list[Target]:
     return [
         Target(
             id=target_id,
-            tenant_id=f"tenant-{index:03d}",
-            subscription_id=f"sub-{index:04d}",
+            tenant_id=_tenant_guid(index),
+            subscription_id=_subscription_guid(index),
             managed_app_id=(
-                f"/subscriptions/sub-{index:04d}/resourceGroups/rg-{target_id}"
+                f"/subscriptions/{_subscription_guid(index)}/resourceGroups/rg-{target_id}"
                 f"/providers/Microsoft.Solutions/applications/{target_id}"
             ),
             tags={
