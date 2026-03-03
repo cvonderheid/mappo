@@ -57,6 +57,25 @@ def build_error_log_lines(error: StructuredError) -> list[str]:
     if operation_id:
         lines.append(f"Azure operation id: {operation_id}")
 
+    deployment_name = to_text(details.get("deployment_name"))
+    if deployment_name:
+        lines.append(f"ARM deployment: {deployment_name}")
+
+    deployment_scope = to_text(details.get("deployment_scope"))
+    if deployment_scope:
+        lines.append(f"ARM deployment scope: {deployment_scope}")
+
+    template_spec_version_id = to_text(details.get("template_spec_version_id"))
+    if template_spec_version_id:
+        lines.append(f"Template Spec version id: {template_spec_version_id}")
+
+    deployment_summaries = details.get("azure_operation_summaries")
+    if isinstance(deployment_summaries, list):
+        for entry in deployment_summaries[:5]:
+            summary = to_text(entry)
+            if summary:
+                lines.append(summary)
+
     detail_entries = details.get("azure_error_details")
     if isinstance(detail_entries, list):
         for entry in detail_entries[:3]:

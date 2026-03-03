@@ -227,6 +227,14 @@ export interface components {
         };
         /** CreateReleaseRequest */
         CreateReleaseRequest: {
+            /** @default container_patch */
+            deployment_mode: components["schemas"]["DeploymentMode"];
+            /** Deployment Mode Settings */
+            deployment_mode_settings?: {
+                [key: string]: unknown;
+            };
+            /** @default resource_group */
+            deployment_scope: components["schemas"]["DeploymentScope"];
             /** Parameter Defaults */
             parameter_defaults?: {
                 [key: string]: string;
@@ -240,6 +248,8 @@ export interface components {
             template_spec_id: string;
             /** Template Spec Version */
             template_spec_version: string;
+            /** Template Spec Version Id */
+            template_spec_version_id?: string | null;
             /** Verification Hints */
             verification_hints?: string[];
         };
@@ -276,6 +286,16 @@ export interface components {
             /** Target Id */
             target_id: string;
         };
+        /**
+         * DeploymentMode
+         * @enum {string}
+         */
+        DeploymentMode: "container_patch" | "template_spec";
+        /**
+         * DeploymentScope
+         * @enum {string}
+         */
+        DeploymentScope: "resource_group" | "subscription";
         /** ForwarderLogIngestRequest */
         ForwarderLogIngestRequest: {
             /** Backend Status Code */
@@ -482,6 +502,14 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** @default container_patch */
+            deployment_mode: components["schemas"]["DeploymentMode"];
+            /** Deployment Mode Settings */
+            deployment_mode_settings?: {
+                [key: string]: unknown;
+            };
+            /** @default resource_group */
+            deployment_scope: components["schemas"]["DeploymentScope"];
             /** Id */
             id: string;
             /** Parameter Defaults */
@@ -494,6 +522,8 @@ export interface components {
             template_spec_id: string;
             /** Template Spec Version */
             template_spec_version: string;
+            /** Template Spec Version Id */
+            template_spec_version_id?: string | null;
             /** Verification Hints */
             verification_hints?: string[];
         };
@@ -508,6 +538,8 @@ export interface components {
             created_at: string;
             /** Ended At */
             ended_at: string | null;
+            /** @default container_patch */
+            execution_mode: components["schemas"]["DeploymentMode"];
             /** Guardrail Warnings */
             guardrail_warnings?: string[];
             /** Halt Reason */
@@ -552,6 +584,8 @@ export interface components {
             created_at: string;
             /** Ended At */
             ended_at: string | null;
+            /** @default container_patch */
+            execution_mode: components["schemas"]["DeploymentMode"];
             /** Failed Targets */
             failed_targets: number;
             /** Guardrail Warnings */

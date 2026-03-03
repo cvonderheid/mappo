@@ -56,7 +56,7 @@ export class DeploymentsPage {
   }
 
   async selectReleaseVersion(versionLabel: string): Promise<void> {
-    await this.releaseVersionDropdown.selectOption({ label: versionLabel });
+    await this.selectFromShadcnSelect(this.releaseVersionDropdown, versionLabel);
   }
 
   async openControls(): Promise<void> {
@@ -64,7 +64,12 @@ export class DeploymentsPage {
   }
 
   async selectTargetGroup(group: "all" | "canary" | "prod"): Promise<void> {
-    await this.targetGroupFilterDropdown.selectOption(group);
+    const labelByGroup = {
+      all: "All groups",
+      canary: "Canary group",
+      prod: "Production group",
+    } as const;
+    await this.selectFromShadcnSelect(this.targetGroupFilterDropdown, labelByGroup[group]);
   }
 
   async setSpecificTargetChecked(targetId: string, checked: boolean): Promise<void> {
@@ -88,5 +93,10 @@ export class DeploymentsPage {
 
   async openRunActions(runId: string): Promise<void> {
     await this.runActionsTrigger(runId).click();
+  }
+
+  private async selectFromShadcnSelect(trigger: Locator, optionLabel: string): Promise<void> {
+    await trigger.click();
+    await this.page.getByRole("option", { name: optionLabel, exact: true }).click();
   }
 }

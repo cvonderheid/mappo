@@ -16,7 +16,7 @@ test("shows release dropdown and optional specific-target list for selected grou
   await deployments.openControls();
 
   await expect(deployments.releaseVersionDropdown).toBeVisible();
-  await expect(deployments.releaseVersionDropdown).toHaveValue("rel-2026-02-25");
+  await expect(deployments.releaseVersionDropdown).toContainText("2026.02.25.3");
 
   await deployments.selectTargetGroup("canary");
   await expect(deployments.specificTargetRows).toHaveCount(2);
@@ -109,8 +109,8 @@ test("clone run opens controls and pre-populates release and targets", async ({ 
   await deployments.runActionClone("run-succeeded").click();
 
   await expect(deployments.deploymentControlsDrawer).toBeVisible();
-  await expect(deployments.releaseVersionDropdown).toHaveValue("rel-2026-02-25");
-  await expect(deployments.targetGroupFilterDropdown).toHaveValue("canary");
+  await expect(deployments.releaseVersionDropdown).toContainText("2026.02.25.3");
+  await expect(deployments.targetGroupFilterDropdown).toContainText("Canary group");
   await expect(deployments.specificTargetCheckbox("target-01")).toBeChecked();
   await expect(deployments.specificTargetCheckbox("target-02")).toBeChecked();
 });

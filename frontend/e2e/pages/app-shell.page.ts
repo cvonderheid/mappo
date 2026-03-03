@@ -16,6 +16,14 @@ export class AppShellPage {
   }
 
   async selectTargetGroup(group: "all" | "canary" | "prod"): Promise<void> {
-    await this.page.locator("#target-group-filter").selectOption(group);
+    const labelByGroup = {
+      all: "All groups",
+      canary: "Canary group",
+      prod: "Production group",
+    } as const;
+    await this.page.locator("#target-group-filter").click();
+    await this.page
+      .getByRole("option", { name: labelByGroup[group], exact: true })
+      .click();
   }
 }

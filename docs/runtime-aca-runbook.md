@@ -7,6 +7,7 @@ This runbook deploys MAPPO backend and frontend into Azure Container Apps (produ
 - Dedicated runtime resource group (outside Pulumi-managed RGs)
 - Dedicated ACA environment
 - Dedicated ACR with backend/frontend images
+- Dedicated ACA migration job (`job-mappo-db-<stack>`) running Flyway migrations
 - External ingress for:
   - backend API (`/api/v1/...`)
   - frontend UI
@@ -31,6 +32,11 @@ make runtime-easyauth-configure PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-
 source .data/mappo-runtime.env
 ```
 
+On-demand migration rerun:
+```bash
+make runtime-db-migrate-job-run PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-subscription-id>"
+```
+
 Outputs in `.data/mappo-runtime.env`:
 - `MAPPO_RUNTIME_BACKEND_URL`
 - `MAPPO_RUNTIME_FRONTEND_URL`
@@ -44,6 +50,7 @@ Outputs in `.data/mappo-easyauth.env`:
 Quota notes:
 - If your subscription allows only one ACA environment, script automatically reuses an existing environment.
 - If ACR Tasks are disabled, script automatically falls back to local `docker buildx --platform linux/amd64 --push`.
+- Runtime deploy blocks on migration job success before rolling backend/frontend revisions.
 
 ## 2) Validate Runtime
 

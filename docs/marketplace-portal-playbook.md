@@ -14,17 +14,53 @@ This playbook defines what is automated versus manual for a marketplace-accurate
 ### Automated with CLI/API scripts
 - Azure auth bootstrap (`make azure-auth-bootstrap`)
 - Optional simulation inventory export (`make iac-export-targets`)
-- MAPPO runtime deploy to ACA (`make runtime-aca-deploy`, `make runtime-easyauth-configure`, `make runtime-aca-destroy`)
+- MAPPO runtime deploy to ACA (`make runtime-aca-deploy`, `make runtime-db-migrate-job-run`, `make runtime-easyauth-configure`, `make runtime-aca-destroy`)
 - Function App forwarder package/deploy/replay (`make marketplace-forwarder-package`, `make marketplace-forwarder-deploy`, `make marketplace-forwarder-replay-inventory`)
 - Partner Center token acquisition (`make partner-center-token`)
 - Partner Center API invocation wrapper (`make partner-center-api URL=...`)
 - MAPPO onboarding ingest (`POST /api/v1/admin/onboarding/events`)
+
+### Automated in production flow after customer deploy
+- Managed app lifecycle events flow to forwarder -> MAPPO onboarding endpoint.
+- MAPPO registers/updates targets from those events.
+- MAPPO uses publisher identity authorization already attached to each managed resource group by the managed app plan.
+- No per-customer manual target import is required.
 
 ### Portal-only (manual) today
 - Partner Center UI setup tasks that are not reliably scriptable for this demo:
 - Tenant/account onboarding checks and legal/compliance acceptance
 - Offer listing text/media and certification workflow screens
 - Final publish and go-live confirmation screens
+
+## Permission Model (Real World)
+1. One-time publisher setup
+- Create publisher Entra app/service principal (multi-tenant).
+- Configure managed app plan publisher-management authorization (tenant + principal).
+
+2. Per-customer purchase/deploy
+- Customer deploys managed application from marketplace/private offer.
+- Azure creates managed app instance + managed resource group in customer subscription.
+- Azure applies publisher authorization for that instance scope.
+
+3. MAPPO run-time access
+- MAPPO authenticates as publisher service principal.
+- MAPPO resolves tenant authority per target subscription.
+- MAPPO performs deployment operations only against registered targets.
+
+4. Identity boundary
+- Publisher service principal: control-plane cross-tenant operations.
+- Managed identity inside customer workload: app runtime access to data-plane dependencies.
+- These identities solve different problems and are configured independently.
+
+## Deployment Scope Note
+Current Azure executor behavior:
+- Updates target Container App resources directly.
+
+Not covered by current executor:
+- Full managed app template redeploy (for Container Jobs or additional infra resources).
+
+Roadmap-aligned mode:
+- Add template-spec deployment path in DEPLOYING stage to apply entire release template per target managed resource group.
 
 ## End-to-End Demo Runbook
 
@@ -44,6 +80,7 @@ This playbook defines what is automated versus manual for a marketplace-accurate
 ## 2) Deploy MAPPO runtime to ACA
 - `make azure-preflight`
 - `make runtime-aca-deploy PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub>"`
+- `make runtime-db-migrate-job-run PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub>"` (optional rerun)
 - `make runtime-easyauth-configure PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub>"`
 - `source .data/mappo-runtime.env`
 - `source .data/mappo-easyauth.env`

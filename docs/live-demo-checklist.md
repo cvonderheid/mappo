@@ -26,6 +26,8 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
   - `export MAPPO_AZURE_TENANT_BY_SUBSCRIPTION='{"<sub-a>":"<tenant-a-guid>","<sub-b>":"<tenant-b-guid>"}'`
 - [ ] Onboard runtime app across target tenants/subscriptions (multi-tenant app + SP + RBAC):
   - `make azure-onboard-multitenant-runtime CLIENT_ID="$MAPPO_AZURE_CLIENT_ID" SUBSCRIPTION_IDS="<sub-a>,<sub-b>"`
+- [ ] Confirm managed app offer/plan is configured with publisher management authorization (tenant + principal) for production purchase flow.
+- [ ] Confirm onboarding source for target registration is marketplace lifecycle events (not direct target import).
 
 ## 3) IaC Provisioning (Pulumi, primary path)
 
@@ -79,6 +81,7 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
   - `MAPPO_AZURE_QUOTA_MIN_REMAINING_WARNING=2`
 - [ ] Deploy runtime to Azure Container Apps:
   - `make runtime-aca-deploy PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub>"`
+  - `make runtime-db-migrate-job-run PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub>"` (optional rerun)
   - `make runtime-easyauth-configure PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub>"`
   - `source .data/mappo-runtime.env`
   - `source .data/mappo-easyauth.env`
@@ -95,6 +98,9 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
   - `curl -s "$MAPPO_RUNTIME_BACKEND_URL/api/v1/admin/onboarding" | jq`
 - [ ] Create a single-target canary run and verify stage progression:
   - `VALIDATING -> DEPLOYING -> VERIFYING -> SUCCEEDED`
+- [ ] Validate current deployment scope expectation:
+  - Container App patch path updates workload revision/config.
+  - Full template-managed-resource upgrades (for example Container Jobs + additional infra) require template-spec deployment mode.
 - [ ] Verify per-target logs include structured error details and Azure correlation IDs.
 - [ ] Execute 10-target rollout with stop policy enabled.
 - [ ] Confirm deployment run shows guardrail warnings (if any) and effective per-subscription batching settings.

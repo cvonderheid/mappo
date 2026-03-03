@@ -8,8 +8,8 @@ This is the current script inventory across `scripts/` and `backend/scripts/`, w
 
 ## Summary
 
-- Total reviewed: 32
-- Keep / keep-wrapper: 28
+- Total reviewed: 33
+- Keep / keep-wrapper: 29
 - Delete: 2
 - Migrate-to-pulumi priority: 2
 
@@ -37,6 +37,7 @@ This is the current script inventory across `scripts/` and `backend/scripts/`, w
 - `scripts/partner_center_get_token.sh`: `keep` (Partner Center token helper; out of Pulumi scope).
 - `scripts/runtime_aca_deploy.sh`: `migrate-to-pulumi` (creates/updates ACA/ACR imperatively today).
 - `scripts/runtime_aca_destroy.sh`: `migrate-to-pulumi` (imperative teardown for runtime RG/resources).
+- `scripts/runtime_db_migrate_job_run.sh`: `keep-wrapper` (operator invocation for ACA-hosted Flyway job execution).
 - `scripts/runtime_easyauth_configure.sh`: `keep-wrapper` (Entra app registration + ACA auth wiring step).
 - `scripts/with_mappo_azure_env.sh`: `keep` (local DX helper).
 - `scripts/workflow_discipline_check.py`: `keep` (engineering quality gate).

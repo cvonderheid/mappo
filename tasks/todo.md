@@ -4,6 +4,39 @@ Date: 2026-02-26
 Owner: Codex
 
 ## Scope (Current Slice)
+Template Spec rollout execution (Phase 1 + Phase 2):
+- Add release/run execution-mode persistence and API fields.
+- Implement Azure template-spec DEPLOYING path (RG/subscription scope).
+- Keep existing run orchestration unchanged.
+- Preserve guardrail/test gates and generated contracts.
+
+## Plan (Current Slice)
+- [x] Add migration + ORM/regenerated models for release/run deployment-mode fields.
+- [x] Wire domain/repository/API schemas for release mode + run execution snapshot.
+- [x] Implement Azure template-spec deployment path and deployment-mode-driven execution.
+- [x] Add/adjust backend tests for mode selection and run snapshot behavior.
+- [x] Regenerate OpenAPI/frontend client and run full verification gate.
+
+## Verification Commands (Current Slice)
+- [x] `make db-migrate`
+- [x] `make models-gen`
+- [x] `make lint-backend`
+- [x] `make typecheck-backend`
+- [x] `make test-backend`
+- [x] `make openapi`
+- [x] `make client-gen`
+- [x] `make phase1-gate-full`
+
+## Results Log (Current Slice)
+- 2026-03-02: Added migration `backend/flyway/sql/V2__release_execution_modes.sql` for `deployment_mode`, `deployment_scope`, `template_spec_version_id`, `deployment_mode_settings`, and `runs.execution_mode`.
+- 2026-03-02: Wired release/run schema + repository/domain persistence for execution-mode fields.
+- 2026-03-02: Implemented template-spec deploy path for Azure executor with release-scoped mode dispatch and optional `verify_after_deploy` skip.
+- 2026-03-02: Added helper modules `backend/app/modules/template_spec_runtime.py` and `backend/app/modules/azure_runtime_helpers.py` to keep execution logic modular.
+- 2026-03-02: Added test coverage for template-spec mode run execution snapshot (`backend/tests/test_execution_modes.py`).
+- 2026-03-02: Verification passed: backend lint/typecheck/tests, OpenAPI/client generation, and `make phase1-gate-full`.
+- 2026-03-02: Updated temporary file-size cap for `backend/app/modules/execution.py` from `1250` to `1300` after feature expansion; follow-up split still recommended.
+
+## Scope (Current Slice)
 Domain architecture refactor cleanup:
 - Remove remaining control-plane storage shims.
 - Move business logic modules from `app/modules/control_plane*` into `app/domain/*`.
@@ -32,6 +65,25 @@ Domain architecture refactor cleanup:
 - 2026-03-01: Removed storage compatibility layer files (`backend/app/modules/control_plane_storage*.py`).
 - 2026-03-01: Fixed request-scoped admin persistence commit semantics for forwarder-log ingestion.
 - 2026-03-01: Verification passed (`make lint-backend`, `make typecheck-backend`, `make test-backend`, `make lint`, `make typecheck`, `make test`).
+
+## Scope (Current Slice)
+Template Spec deployment mode design:
+- Define executor contract for full template-spec deployments per target.
+- Define schema/API deltas needed to support execution-mode selection by release.
+- Define migration path from current `container_patch` mode to `template_spec` mode.
+
+## Plan (Current Slice)
+- [x] Draft implementation-ready design document covering architecture, contract, permissions, reliability, and migration phases.
+- [x] Link design doc from architecture docs for discoverability.
+- [x] Run docs consistency checks.
+
+## Verification Commands (Current Slice)
+- [x] `make docs-consistency-check`
+
+## Results Log (Current Slice)
+- 2026-03-02: Added `/Users/cvonderheid/workspace/mappo/docs/template-spec-executor-design.md` with detailed contract, data model/API changes, and phased rollout plan.
+- 2026-03-02: Linked design doc from `/Users/cvonderheid/workspace/mappo/docs/architecture.md`.
+- 2026-03-02: Verified docs checks pass (`make docs-consistency-check`).
 
 ## Scope (Current Slice)
 DB schema reset (start-from-scratch V1):
@@ -105,10 +157,16 @@ Deployment operations hardening:
 - Restart ACA runtime containers after migration execution so app revisions pick up schema changes cleanly.
 
 ## Plan (Next Round)
-- [ ] Add migration container job definition (IaC-managed) with Flyway execution entrypoint.
-- [ ] Add CLI script/Make target to invoke migration job and wait for completion.
-- [ ] Add deploy orchestration step to restart backend/frontend container apps after successful migration job run.
-- [ ] Update runbooks/docs with migration-job-first deployment sequence.
+- [x] Add migration container job definition (runtime-script-managed) with Flyway execution entrypoint.
+- [x] Add CLI script/Make target to invoke migration job and wait for completion.
+- [x] Add deploy orchestration step so migrations execute in ACA before backend/frontend revision rollout.
+- [x] Update runbooks/docs with migration-job-first deployment sequence.
+
+## Results Log (Next Round)
+- 2026-03-03: Added migration image definition at `/Users/cvonderheid/workspace/mappo/backend/flyway/Dockerfile` and wired `scripts/runtime_aca_deploy.sh` to create/update manual ACA job `job-mappo-db-<stack>`.
+- 2026-03-03: Added execution wait + failure log surfacing for migration job runs directly in deploy flow before app revision updates.
+- 2026-03-03: Added standalone invocation script `/Users/cvonderheid/workspace/mappo/scripts/runtime_db_migrate_job_run.sh` and Make target `runtime-db-migrate-job-run`.
+- 2026-03-03: Updated `README`, runtime runbook, marketplace playbook, architecture notes, and checklist to document migration-job-first runtime rollout.
 
 ## Plan (Current Slice)
 - [x] Add Flyway migration + generated ORM model for forwarder logs persistence.

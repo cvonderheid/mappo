@@ -82,6 +82,10 @@ class Releases(Base):
     template_spec_version: Mapped[str] = mapped_column(Text, nullable=False)
     release_notes: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("''::text"))
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(True), nullable=False, server_default=text('now()'))
+    deployment_mode: Mapped[str] = mapped_column(Enum('container_patch', 'template_spec', name='mappo_deployment_mode'), nullable=False, server_default=text("'container_patch'::mappo_deployment_mode"))
+    deployment_scope: Mapped[str] = mapped_column(Enum('resource_group', 'subscription', name='mappo_deployment_scope'), nullable=False, server_default=text("'resource_group'::mappo_deployment_scope"))
+    deployment_mode_settings: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    template_spec_version_id: Mapped[Optional[str]] = mapped_column(Text)
 
     release_parameter_defaults: Mapped[list['ReleaseParameterDefaults']] = relationship('ReleaseParameterDefaults', back_populates='release')
     release_verification_hints: Mapped[list['ReleaseVerificationHints']] = relationship('ReleaseVerificationHints', back_populates='release')
@@ -104,6 +108,7 @@ class Runs(Base):
     status: Mapped[str] = mapped_column(Enum('running', 'succeeded', 'failed', 'partial', 'halted', name='mappo_run_status'), nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(True), nullable=False)
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(True), nullable=False, server_default=text('now()'))
+    execution_mode: Mapped[str] = mapped_column(Enum('container_patch', 'template_spec', name='mappo_deployment_mode'), nullable=False, server_default=text("'container_patch'::mappo_deployment_mode"))
     stop_policy_max_failure_count: Mapped[Optional[int]] = mapped_column(Integer)
     stop_policy_max_failure_rate: Mapped[Optional[float]] = mapped_column(Double(53))
     halt_reason: Mapped[Optional[str]] = mapped_column(Text)

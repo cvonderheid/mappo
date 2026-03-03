@@ -5,7 +5,7 @@ import asyncio
 from datetime import UTC, datetime
 
 from app.core.settings import get_settings
-from app.modules.control_plane import ControlPlaneStore
+from app.domain.runtime import ControlPlaneRuntime
 from app.modules.execution import AzureExecutorSettings
 from app.modules.schemas import Release
 
@@ -69,7 +69,7 @@ async def main() -> None:
     args = parser.parse_args()
 
     settings = get_settings()
-    store = ControlPlaneStore(
+    store = ControlPlaneRuntime(
         database_url=settings.database_url,
         execution_mode=settings.execution_mode,
         azure_settings=AzureExecutorSettings(

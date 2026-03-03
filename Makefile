@@ -15,7 +15,7 @@ export PULUMI_CONFIG_PASSPHRASE
 	lint lint-backend lint-backend-file-size lint-frontend typecheck typecheck-backend typecheck-frontend \
 	test test-backend test-frontend test-frontend-e2e import-targets marketplace-ingest-events retention-prune \
 	marketplace-forwarder-package marketplace-forwarder-deploy marketplace-forwarder-replay-inventory \
-	runtime-aca-deploy runtime-aca-destroy runtime-easyauth-configure \
+	runtime-aca-deploy runtime-db-migrate-job-run runtime-aca-destroy runtime-easyauth-configure \
 	azure-auth-bootstrap azure-tenant-map azure-onboard-multitenant-runtime azure-cleanup-runtime-identity azure-cleanup-easyauth dev-backend-azure azure-preflight bootstrap-releases \
 	clean-slate-local \
 	iac-configure-marketplace-demo \
@@ -217,7 +217,18 @@ runtime-aca-deploy: ## Deploy MAPPO backend+frontend runtime to Azure Container 
 		$(if $(DB_ENV_FILE),--db-env-file "$(DB_ENV_FILE)",) \
 		$(if $(OUTPUT_ENV_FILE),--output-env-file "$(OUTPUT_ENV_FILE)",) \
 		$(if $(MIN_REPLICAS),--min-replicas "$(MIN_REPLICAS)",) \
-		$(if $(MAX_REPLICAS),--max-replicas "$(MAX_REPLICAS)",)
+		$(if $(MAX_REPLICAS),--max-replicas "$(MAX_REPLICAS)",) \
+		$(if $(MIGRATION_JOB_NAME),--migration-job-name "$(MIGRATION_JOB_NAME)",) \
+		$(if $(MIGRATION_TIMEOUT_SECONDS),--migration-timeout "$(MIGRATION_TIMEOUT_SECONDS)",) \
+		$(if $(SKIP_MIGRATIONS),--skip-migrations,)
+
+runtime-db-migrate-job-run: ## Start/wait for runtime migration Container Apps Job execution
+	./scripts/runtime_db_migrate_job_run.sh \
+		$(if $(PULUMI_STACK),--stack "$(PULUMI_STACK)",) \
+		$(if $(SUBSCRIPTION_ID),--subscription-id "$(SUBSCRIPTION_ID)",) \
+		$(if $(RESOURCE_GROUP),--resource-group "$(RESOURCE_GROUP)",) \
+		$(if $(MIGRATION_JOB_NAME),--job-name "$(MIGRATION_JOB_NAME)",) \
+		$(if $(MIGRATION_TIMEOUT_SECONDS),--timeout-seconds "$(MIGRATION_TIMEOUT_SECONDS)",)
 
 runtime-aca-destroy: ## Delete MAPPO runtime ACA resource group
 	./scripts/runtime_aca_destroy.sh \

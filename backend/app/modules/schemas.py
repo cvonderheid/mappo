@@ -29,6 +29,16 @@ class StrategyMode(StrEnum):
     WAVES = "waves"
 
 
+class DeploymentMode(StrEnum):
+    CONTAINER_PATCH = "container_patch"
+    TEMPLATE_SPEC = "template_spec"
+
+
+class DeploymentScope(StrEnum):
+    RESOURCE_GROUP = "resource_group"
+    SUBSCRIPTION = "subscription"
+
+
 class StructuredError(BaseModel):
     code: str
     message: str
@@ -86,6 +96,10 @@ class Release(BaseModel):
     id: str
     template_spec_id: str
     template_spec_version: str
+    deployment_mode: DeploymentMode = DeploymentMode.CONTAINER_PATCH
+    template_spec_version_id: str | None = None
+    deployment_scope: DeploymentScope = DeploymentScope.RESOURCE_GROUP
+    deployment_mode_settings: dict[str, Any] = Field(default_factory=dict)
     parameter_defaults: dict[str, str]
     release_notes: str
     verification_hints: list[str] = Field(default_factory=list)
@@ -95,6 +109,7 @@ class Release(BaseModel):
 class DeploymentRun(BaseModel):
     id: str
     release_id: str
+    execution_mode: DeploymentMode = DeploymentMode.CONTAINER_PATCH
     strategy_mode: StrategyMode
     wave_tag: str
     wave_order: list[str]
@@ -115,6 +130,10 @@ class DeploymentRun(BaseModel):
 class CreateReleaseRequest(BaseModel):
     template_spec_id: str
     template_spec_version: str
+    deployment_mode: DeploymentMode = DeploymentMode.CONTAINER_PATCH
+    template_spec_version_id: str | None = None
+    deployment_scope: DeploymentScope = DeploymentScope.RESOURCE_GROUP
+    deployment_mode_settings: dict[str, Any] = Field(default_factory=dict)
     parameter_defaults: dict[str, str] = Field(default_factory=dict)
     release_notes: str = ""
     verification_hints: list[str] = Field(default_factory=list)
@@ -275,6 +294,7 @@ class AdminOnboardingSnapshotResponse(BaseModel):
 class RunSummary(BaseModel):
     id: str
     release_id: str
+    execution_mode: DeploymentMode = DeploymentMode.CONTAINER_PATCH
     status: RunStatus
     strategy_mode: StrategyMode
     created_at: datetime
@@ -293,6 +313,7 @@ class RunSummary(BaseModel):
 class RunDetail(BaseModel):
     id: str
     release_id: str
+    execution_mode: DeploymentMode = DeploymentMode.CONTAINER_PATCH
     status: RunStatus
     strategy_mode: StrategyMode
     wave_tag: str

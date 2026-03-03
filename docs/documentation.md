@@ -41,6 +41,7 @@ source .data/mappo-db.env
 make bootstrap-releases
 make azure-preflight
 make runtime-aca-deploy PULUMI_STACK="<stack>" SUBSCRIPTION_ID="<provider-sub>"
+make runtime-db-migrate-job-run PULUMI_STACK="<stack>" SUBSCRIPTION_ID="<provider-sub>"
 make runtime-easyauth-configure PULUMI_STACK="<stack>" SUBSCRIPTION_ID="<provider-sub>"
 source .data/mappo-runtime.env
 make deploy PULUMI_STACK="<stack>" SUBSCRIPTION_ID="<provider-sub>"

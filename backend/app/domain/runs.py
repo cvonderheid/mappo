@@ -69,6 +69,7 @@ class RunsDomainMixin:
         async with self._lock:
             if request.release_id not in self._releases:
                 raise StoreError(f"release not found: {request.release_id}")
+            selected_release = self._releases[request.release_id].model_copy(deep=True)
 
             selected_ids = self._select_target_ids_locked(
                 target_ids=request.target_ids,
@@ -112,6 +113,7 @@ class RunsDomainMixin:
             run = DeploymentRun(
                 id=run_id,
                 release_id=request.release_id,
+                execution_mode=selected_release.deployment_mode,
                 strategy_mode=request.strategy_mode,
                 wave_tag=request.wave_tag,
                 wave_order=request.wave_order,
@@ -584,6 +586,7 @@ class RunsDomainMixin:
         return RunSummary(
             id=run.id,
             release_id=run.release_id,
+            execution_mode=run.execution_mode,
             status=run.status,
             strategy_mode=run.strategy_mode,
             created_at=run.created_at,
@@ -612,6 +615,7 @@ class RunsDomainMixin:
         return RunDetail(
             id=run.id,
             release_id=run.release_id,
+            execution_mode=run.execution_mode,
             status=run.status,
             strategy_mode=run.strategy_mode,
             wave_tag=run.wave_tag,

@@ -12,6 +12,7 @@ source .data/mappo-runtime.env
 
 `make deploy` orchestrates:
 - runtime ACA deploy (build + push backend/frontend images)
+- runtime migration Container Apps Job deploy + execution (Flyway in-cluster)
 - runtime frontend EasyAuth configure (Entra app registration + ACA auth)
 - Function App package build
 - Function App deploy (marketplace forwarder)
@@ -74,7 +75,11 @@ make runtime-aca-deploy PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub-id>"
 make runtime-easyauth-configure PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub-id>"
 source .data/mappo-runtime.env
 ```
-   - Runtime deploy builds/pushes backend + frontend images to ACR and writes runtime URLs into `.data/mappo-runtime.env`.
+   - Runtime deploy builds/pushes backend + frontend images to ACR, creates/updates migration job `job-mappo-db-<stack>`, executes Flyway migrations in ACA, and writes runtime URLs into `.data/mappo-runtime.env`.
+   - Re-run migrations on demand without redeploying apps:
+```bash
+make runtime-db-migrate-job-run PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub-id>"
+```
    - EasyAuth configure creates/updates an Entra app registration and enables frontend sign-in redirect via Container App auth.
 7. Deploy the Function App lifecycle forwarder (marketplace webhook path):
 ```bash
@@ -105,6 +110,7 @@ make marketplace-forwarder-replay-inventory FORWARDER_URL="<webhook_url>"
 - `make iac-export-db-env [PULUMI_STACK=<name>]`
 - `make iac-destroy [PULUMI_STACK=<name>]`
 - `make runtime-aca-deploy [PULUMI_STACK=<name>] [SUBSCRIPTION_ID=<provider-sub>]`
+- `make runtime-db-migrate-job-run [PULUMI_STACK=<name>] [SUBSCRIPTION_ID=<provider-sub>]`
 - `make runtime-easyauth-configure [PULUMI_STACK=<name>] [SUBSCRIPTION_ID=<provider-sub>] [EASYAUTH_SIGN_IN_AUDIENCE=AzureADMyOrg|AzureADMultipleOrgs]`
 - `make deploy [PULUMI_STACK=<name>] [SUBSCRIPTION_ID=<provider-sub>] [FUNCTION_APP_NAME=<name>] [FORWARDER_RESOURCE_GROUP=<rg>] [FORWARDER_LOCATION=<region>]`
 - `make runtime-aca-destroy [RESOURCE_GROUP=<rg>] [SUBSCRIPTION_ID=<provider-sub>]`

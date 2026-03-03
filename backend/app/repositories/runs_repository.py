@@ -15,6 +15,7 @@ from app.db.generated.models import (
     TargetStageRecords,
 )
 from app.modules.schemas import (
+    DeploymentMode,
     DeploymentRun,
     StopPolicy,
     StructuredError,
@@ -202,6 +203,11 @@ class RunsRepository:
             run = DeploymentRun(
                 id=row.id,
                 release_id=row.release_id,
+                execution_mode=(
+                    row.execution_mode
+                    if isinstance(row.execution_mode, DeploymentMode)
+                    else DeploymentMode(row.execution_mode)
+                ),
                 strategy_mode=row.strategy_mode,
                 wave_tag=row.wave_tag,
                 wave_order=wave_order_by_run.get(row.id, []),
@@ -232,6 +238,7 @@ class RunsRepository:
                     Runs(
                         id=run.id,
                         release_id=run.release_id,
+                        execution_mode=run.execution_mode.value,
                         strategy_mode=run.strategy_mode.value,
                         wave_tag=run.wave_tag,
                         concurrency=run.concurrency,
@@ -248,6 +255,7 @@ class RunsRepository:
                 )
             else:
                 row.release_id = run.release_id
+                row.execution_mode = run.execution_mode.value
                 row.strategy_mode = run.strategy_mode.value
                 row.wave_tag = run.wave_tag
                 row.concurrency = run.concurrency

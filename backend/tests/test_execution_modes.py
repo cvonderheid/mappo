@@ -20,8 +20,17 @@ from app.modules.execution import (
     ContainerAppResourceRef,
     ExecutionMode,
 )
-from app.modules.schemas import CreateRunRequest, Release, RunStatus, Target, TargetStage
-from tests.support.sample_data import sample_releases, seed_store
+from app.modules.schemas import (
+    CreateRunRequest,
+    DeploymentMode,
+    DeploymentRun,
+    DeploymentScope,
+    Release,
+    RunStatus,
+    Target,
+    TargetStage,
+)
+from tests.support.sample_data import sample_releases, sample_targets, seed_store
 
 DEFAULT_DATABASE_URL = "postgresql+psycopg://mappo:mappo@localhost:5433/mappo"
 TERMINAL_STATUSES = {RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.PARTIAL, RunStatus.HALTED}
@@ -79,11 +88,15 @@ class _SuccessRuntime:
     def deploy_release(
         self,
         *,
+        run: DeploymentRun,
         target: Target,
         release: Release,
         snapshot: execution_module.AzureContainerAppSnapshot,
+        attempt: int,
     ) -> AzureDeployResult:
+        del run
         del release
+        del attempt
         updated_snapshot = execution_module.AzureContainerAppSnapshot(
             resource_ref=snapshot.resource_ref,
             current_image="ghcr.io/example/mappo:1.5.0",
@@ -119,12 +132,16 @@ class _DeployFailureRuntime(_SuccessRuntime):
     def deploy_release(
         self,
         *,
+        run: DeploymentRun,
         target: Target,
         release: Release,
         snapshot: execution_module.AzureContainerAppSnapshot,
+        attempt: int,
     ) -> AzureDeployResult:
+        del run
         del release
         del snapshot
+        del attempt
         raise AzureExecutionError(
             code="azure_deploy_failed",
             message="Azure Container App update failed.",
@@ -164,9 +181,11 @@ class _ConcurrencyTrackingRuntime(_SuccessRuntime):
     def deploy_release(
         self,
         *,
+        run: DeploymentRun,
         target: Target,
         release: Release,
         snapshot: execution_module.AzureContainerAppSnapshot,
+        attempt: int,
     ) -> AzureDeployResult:
         cls = type(self)
         with cls._lock:
@@ -176,13 +195,56 @@ class _ConcurrencyTrackingRuntime(_SuccessRuntime):
         try:
             time.sleep(0.06)
             return super().deploy_release(
+                run=run,
                 target=target,
                 release=release,
                 snapshot=snapshot,
+                attempt=attempt,
             )
         finally:
             with cls._lock:
                 cls._active -= 1
+
+
+class _TemplateSpecRuntime(_SuccessRuntime):
+    def __init__(self) -> None:
+        self.call_count = 0
+        self.last_deployment_name: str | None = None
+
+    def deploy_release(
+        self,
+        *,
+        run: DeploymentRun,
+        target: Target,
+        release: Release,
+        snapshot: execution_module.AzureContainerAppSnapshot,
+        attempt: int,
+    ) -> AzureDeployResult:
+        self.call_count += 1
+        assert release.deployment_mode == DeploymentMode.TEMPLATE_SPEC
+        assert run.execution_mode == DeploymentMode.TEMPLATE_SPEC
+        assert attempt == 1
+        result = super().deploy_release(
+            run=run,
+            target=target,
+            release=release,
+            snapshot=snapshot,
+            attempt=attempt,
+        )
+        self.last_deployment_name = "mappo-template-spec-test"
+        return AzureDeployResult(
+            snapshot=result.snapshot,
+            desired_image=result.desired_image,
+            changed=result.changed,
+            metadata={
+                "deployment_name": self.last_deployment_name,
+                "deployment_scope": DeploymentScope.RESOURCE_GROUP.value,
+                "template_spec_version_id": (
+                    "/subscriptions/provider-sub/resourceGroups/mappo-rg/providers/"
+                    "Microsoft.Resources/templateSpecs/mappo-managed-app/versions/2026.02.25.3"
+                ),
+            },
+        )
 
 
 def test_azure_mode_fails_without_credentials() -> None:
@@ -264,6 +326,73 @@ def test_azure_mode_succeeds_with_runtime_stub(monkeypatch: pytest.MonkeyPatch) 
             )
             assert target_record.status == TargetStage.SUCCEEDED
             assert all(stage.error is None for stage in target_record.stages)
+        finally:
+            await store.shutdown()
+
+    try:
+        asyncio.run(_scenario())
+    finally:
+        _reset_database(database_url)
+
+
+def test_azure_template_spec_mode_uses_release_execution_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database_url = _database_url()
+    _reset_database(database_url)
+    runtime_stub = _TemplateSpecRuntime()
+    monkeypatch.setattr(
+        execution_module,
+        "create_azure_runtime",
+        lambda _settings: runtime_stub,
+    )
+
+    async def _scenario() -> None:
+        store = ControlPlaneRuntime(
+            database_url=database_url,
+            execution_mode=ExecutionMode.AZURE,
+            azure_settings=AzureExecutorSettings(
+                tenant_id="tenant-live",
+                client_id="client-live",
+                client_secret="secret-live",
+                enable_quota_preflight=False,
+            ),
+            stage_delay_seconds=0.0,
+        )
+        try:
+            releases = sample_releases()
+            template_release = releases[1].model_copy(
+                update={
+                    "deployment_mode": DeploymentMode.TEMPLATE_SPEC,
+                    "deployment_scope": DeploymentScope.RESOURCE_GROUP,
+                    "template_spec_version_id": (
+                        "/subscriptions/provider-sub/resourceGroups/mappo-rg/providers/"
+                        "Microsoft.Resources/templateSpecs/mappo-managed-app/versions/2026.02.25.3"
+                    ),
+                },
+                deep=True,
+            )
+            await store.replace_targets([sample_targets()[0]], clear_runs=True)
+            await store.replace_releases([template_release])
+
+            run = await store.create_run(
+                CreateRunRequest(
+                    release_id=template_release.id,
+                    target_ids=["target-01"],
+                    concurrency=1,
+                )
+            )
+            status = await _wait_for_terminal(store, run.id)
+            assert status == RunStatus.SUCCEEDED
+
+            run_detail = await store.get_run(run.id)
+            assert run_detail.execution_mode == DeploymentMode.TEMPLATE_SPEC
+            target_record = run_detail.target_records[0]
+            deploy_stage = next(
+                stage for stage in target_record.stages if stage.stage == TargetStage.DEPLOYING
+            )
+            assert "Template Spec deployment completed" in deploy_stage.message
+            assert runtime_stub.call_count == 1
         finally:
             await store.shutdown()
 

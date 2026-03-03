@@ -21,6 +21,9 @@ FRONTEND_CPU="0.5"
 FRONTEND_MEMORY="1.0Gi"
 MIN_REPLICAS="1"
 MAX_REPLICAS="2"
+MIGRATION_JOB_NAME=""
+MIGRATION_TIMEOUT_SECONDS="900"
+RUN_MIGRATIONS="true"
 
 usage() {
   cat <<EOF
@@ -43,6 +46,9 @@ Options:
   --output-env-file <path>     Output env file with deployed URLs (default: .data/mappo-runtime.env)
   --min-replicas <int>         Min replicas per app (default: 1)
   --max-replicas <int>         Max replicas per app (default: 2)
+  --migration-job-name <name>  Migration Container App Job name (default: job-mappo-db-<stack>)
+  --migration-timeout <sec>    Migration job timeout/replica-timeout seconds (default: 900)
+  --skip-migrations            Deploy apps but do not execute migration job
   -h, --help                   Show help
 EOF
 }
@@ -105,6 +111,18 @@ while [[ $# -gt 0 ]]; do
       MAX_REPLICAS="${2:-}"
       shift 2
       ;;
+    --migration-job-name)
+      MIGRATION_JOB_NAME="${2:-}"
+      shift 2
+      ;;
+    --migration-timeout)
+      MIGRATION_TIMEOUT_SECONDS="${2:-}"
+      shift 2
+      ;;
+    --skip-migrations)
+      RUN_MIGRATIONS="false"
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -141,6 +159,11 @@ set +a
 
 required_vars=(
   MAPPO_DATABASE_URL
+  MAPPO_DB_HOST
+  MAPPO_DB_PORT
+  MAPPO_DB_NAME
+  MAPPO_DB_USER
+  MAPPO_DB_PASSWORD
   MAPPO_AZURE_TENANT_ID
   MAPPO_AZURE_CLIENT_ID
   MAPPO_AZURE_CLIENT_SECRET
@@ -184,6 +207,18 @@ fi
 if [[ -z "${FRONTEND_APP_NAME}" ]]; then
   FRONTEND_APP_NAME="ca-mappo-ui-${stack_token}"
 fi
+if [[ -z "${MIGRATION_JOB_NAME}" ]]; then
+  MIGRATION_JOB_NAME="$(printf "job-mappo-db-%s" "${stack_token}" | cut -c1-32 | sed -E 's/-+$//')"
+fi
+MIGRATION_JOB_NAME="$(printf "%s" "${MIGRATION_JOB_NAME}" | tr "[:upper:]" "[:lower:]")"
+if ! [[ "${MIGRATION_TIMEOUT_SECONDS}" =~ ^[0-9]+$ ]] || (( MIGRATION_TIMEOUT_SECONDS < 60 )); then
+  echo "runtime-aca-deploy: --migration-timeout must be an integer >= 60." >&2
+  exit 2
+fi
+if ! [[ "${MIGRATION_JOB_NAME}" =~ ^[a-z][a-z0-9-]{0,30}[a-z0-9]$ ]]; then
+  echo "runtime-aca-deploy: invalid migration job name '${MIGRATION_JOB_NAME}' (must match ^[a-z][a-z0-9-]{0,30}[a-z0-9]$)." >&2
+  exit 2
+fi
 if [[ -n "${ACR_NAME}" ]]; then
   ACR_NAME="$(printf "%s" "${ACR_NAME}" | tr "[:upper:]" "[:lower:]")"
 fi
@@ -194,12 +229,14 @@ echo "runtime-aca-deploy: location=${LOCATION}"
 echo "runtime-aca-deploy: environment=${CONTAINER_ENV_NAME}"
 echo "runtime-aca-deploy: backend_app=${BACKEND_APP_NAME}"
 echo "runtime-aca-deploy: frontend_app=${FRONTEND_APP_NAME}"
+echo "runtime-aca-deploy: migration_job=${MIGRATION_JOB_NAME}"
 if [[ -n "${ACR_NAME}" ]]; then
   echo "runtime-aca-deploy: acr=${ACR_NAME}"
 else
   echo "runtime-aca-deploy: acr=<auto>"
 fi
 echo "runtime-aca-deploy: image_tag=${IMAGE_TAG}"
+echo "runtime-aca-deploy: run_migrations=${RUN_MIGRATIONS}"
 
 az provider register --namespace Microsoft.App --wait --only-show-errors >/dev/null
 az provider register --namespace Microsoft.ContainerRegistry --wait --only-show-errors >/dev/null
@@ -430,6 +467,143 @@ build_image() {
 echo "runtime-aca-deploy: building backend image ${backend_image}"
 build_image "mappo-backend" "${ROOT_DIR}/backend/Dockerfile"
 
+flyway_image="${acr_login_server}/mappo-flyway:${IMAGE_TAG}"
+echo "runtime-aca-deploy: building migration image ${flyway_image}"
+build_image "mappo-flyway" "${ROOT_DIR}/backend/flyway/Dockerfile"
+
+flyway_jdbc_url="jdbc:postgresql://${MAPPO_DB_HOST}:${MAPPO_DB_PORT}/${MAPPO_DB_NAME}"
+if [[ -n "${MAPPO_DB_SSLMODE:-}" ]]; then
+  flyway_jdbc_url="${flyway_jdbc_url}?sslmode=${MAPPO_DB_SSLMODE}"
+fi
+
+migration_env_vars=(
+  "FLYWAY_URL=${flyway_jdbc_url}"
+  "FLYWAY_USER=${MAPPO_DB_USER}"
+  "FLYWAY_PASSWORD=secretref:flyway-password"
+  "FLYWAY_CONNECT_RETRIES=10"
+)
+migration_secrets=(
+  "flyway-password=${MAPPO_DB_PASSWORD}"
+)
+
+migration_job_exists="$(az containerapp job show --name "${MIGRATION_JOB_NAME}" --resource-group "${RESOURCE_GROUP}" --query name -o tsv --only-show-errors 2>/dev/null || true)"
+if [[ -n "${migration_job_exists}" ]]; then
+  echo "runtime-aca-deploy: updating migration job ${MIGRATION_JOB_NAME}"
+  az containerapp job secret set \
+    --name "${MIGRATION_JOB_NAME}" \
+    --resource-group "${RESOURCE_GROUP}" \
+    --secrets "${migration_secrets[@]}" \
+    --only-show-errors \
+    >/dev/null
+  az containerapp job registry set \
+    --name "${MIGRATION_JOB_NAME}" \
+    --resource-group "${RESOURCE_GROUP}" \
+    --server "${acr_login_server}" \
+    --username "${acr_username}" \
+    --password "${acr_password}" \
+    --only-show-errors \
+    >/dev/null
+  az containerapp job update \
+    --name "${MIGRATION_JOB_NAME}" \
+    --resource-group "${RESOURCE_GROUP}" \
+    --container-name flyway \
+    --image "${flyway_image}" \
+    --set-env-vars "${migration_env_vars[@]}" \
+    --cpu "0.5" \
+    --memory "1.0Gi" \
+    --replica-timeout "${MIGRATION_TIMEOUT_SECONDS}" \
+    --replica-retry-limit 0 \
+    --parallelism 1 \
+    --replica-completion-count 1 \
+    --only-show-errors \
+    >/dev/null
+else
+  echo "runtime-aca-deploy: creating migration job ${MIGRATION_JOB_NAME}"
+  az containerapp job create \
+    --name "${MIGRATION_JOB_NAME}" \
+    --resource-group "${RESOURCE_GROUP}" \
+    --environment "${CONTAINER_ENV_ID}" \
+    --trigger-type Manual \
+    --container-name flyway \
+    --image "${flyway_image}" \
+    --registry-server "${acr_login_server}" \
+    --registry-username "${acr_username}" \
+    --registry-password "${acr_password}" \
+    --secrets "${migration_secrets[@]}" \
+    --env-vars "${migration_env_vars[@]}" \
+    --cpu "0.5" \
+    --memory "1.0Gi" \
+    --replica-timeout "${MIGRATION_TIMEOUT_SECONDS}" \
+    --replica-retry-limit 0 \
+    --parallelism 1 \
+    --replica-completion-count 1 \
+    --only-show-errors \
+    >/dev/null
+fi
+
+if [[ ! "${RUN_MIGRATIONS}" =~ ^(0|false|no|off)$ ]]; then
+  echo "runtime-aca-deploy: starting migration job execution for ${MIGRATION_JOB_NAME}"
+  migration_start_json="$(
+    az containerapp job start \
+      --name "${MIGRATION_JOB_NAME}" \
+      --resource-group "${RESOURCE_GROUP}" \
+      --only-show-errors \
+      -o json
+  )"
+  migration_execution_name="$(python3 - <<'PY' "${migration_start_json}"
+import json
+import sys
+
+payload = json.loads(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].strip() else {}
+name = str(payload.get("name") or "").strip()
+if name:
+    print(name)
+    raise SystemExit(0)
+raw_id = str(payload.get("id") or "").strip().rstrip("/")
+if raw_id:
+    print(raw_id.split("/")[-1])
+    raise SystemExit(0)
+print("")
+PY
+)"
+  if [[ -z "${migration_execution_name}" ]]; then
+    migration_execution_name="$(az containerapp job execution list --name "${MIGRATION_JOB_NAME}" --resource-group "${RESOURCE_GROUP}" --query "sort_by(@, &properties.startTime)[-1].name" -o tsv --only-show-errors 2>/dev/null || true)"
+  fi
+  if [[ -z "${migration_execution_name}" ]]; then
+    echo "runtime-aca-deploy: unable to resolve migration execution name for ${MIGRATION_JOB_NAME}" >&2
+    exit 1
+  fi
+
+  migration_deadline_epoch="$(( $(date +%s) + MIGRATION_TIMEOUT_SECONDS ))"
+  while true; do
+    migration_status="$(az containerapp job execution show --name "${MIGRATION_JOB_NAME}" --resource-group "${RESOURCE_GROUP}" --job-execution-name "${migration_execution_name}" --query "properties.status" -o tsv --only-show-errors 2>/dev/null || true)"
+    if [[ "${migration_status}" == "Succeeded" ]]; then
+      echo "runtime-aca-deploy: migration job execution succeeded (${migration_execution_name})."
+      break
+    fi
+    if [[ "${migration_status}" =~ ^(Failed|Canceled|Cancelled)$ ]]; then
+      echo "runtime-aca-deploy: migration job execution failed (${migration_execution_name}) status=${migration_status}" >&2
+      az containerapp job logs show \
+        --name "${MIGRATION_JOB_NAME}" \
+        --resource-group "${RESOURCE_GROUP}" \
+        --execution "${migration_execution_name}" \
+        --container flyway \
+        --tail 100 \
+        --format text \
+        --only-show-errors \
+        || true
+      exit 1
+    fi
+    if (( $(date +%s) >= migration_deadline_epoch )); then
+      echo "runtime-aca-deploy: migration job execution timed out after ${MIGRATION_TIMEOUT_SECONDS}s (${migration_execution_name})." >&2
+      exit 1
+    fi
+    sleep 5
+  done
+else
+  echo "runtime-aca-deploy: skipping migration job execution by request."
+fi
+
 backend_env_vars=(
   "MAPPO_DATABASE_URL=secretref:database-url"
   "MAPPO_EXECUTION_MODE=azure"
@@ -599,6 +773,7 @@ export MAPPO_RUNTIME_ACR_NAME='${ACR_NAME}'
 export MAPPO_RUNTIME_IMAGE_TAG='${IMAGE_TAG}'
 export MAPPO_RUNTIME_BACKEND_APP='${BACKEND_APP_NAME}'
 export MAPPO_RUNTIME_FRONTEND_APP='${FRONTEND_APP_NAME}'
+export MAPPO_RUNTIME_MIGRATION_JOB='${MIGRATION_JOB_NAME}'
 export MAPPO_RUNTIME_BACKEND_URL='${backend_base_url}'
 export MAPPO_RUNTIME_FRONTEND_URL='${frontend_base_url}'
 export MAPPO_API_BASE_URL='${backend_base_url}'

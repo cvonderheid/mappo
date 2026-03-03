@@ -1,30 +1,32 @@
 from __future__ import annotations
 
 import asyncio
-import copy
 import time
-import urllib.error
-import urllib.request
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Literal, Protocol
 
+from app.modules.azure_runtime_helpers import (
+    build_container_app_update_payload,
+    parse_container_app_resource_id_parts,
+    probe_health_url,
+    translate_azure_exception,
+)
+from app.modules.azure_runtime_helpers import (
+    build_health_url as build_health_url_from_helpers,
+)
 from app.modules.execution_utils import (
     build_correlation_id,
     compute_retry_delay_seconds,
     dedupe_strings_in_order,
-    extract_http_response_error_details,
-    format_azure_error_summary,
     is_retryable_exception,
     normalize_location,
     parse_usage_item,
     read_container_env_value,
     resolve_desired_feature_flag,
     resolve_desired_image,
-    set_container_env_value,
     stringify_exception,
-    to_non_empty_string,
 )
 from app.modules.execution_utils import (
     normalize_tenant_hint as normalize_tenant_hint,
@@ -33,11 +35,17 @@ from app.modules.execution_utils import (
     resolve_tenant_for_subscription as resolve_tenant_for_subscription,
 )
 from app.modules.schemas import (
+    DeploymentMode,
     DeploymentRun,
     Release,
     StructuredError,
     Target,
     TargetStage,
+)
+from app.modules.template_spec_runtime import (
+    build_deploy_completion_message,
+    deploy_template_spec_release,
+    should_verify_after_deploy,
 )
 
 
@@ -101,6 +109,7 @@ class AzureDeployResult:
     snapshot: AzureContainerAppSnapshot
     desired_image: str
     changed: bool
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -172,9 +181,11 @@ class AzureRuntime(Protocol):
     def deploy_release(
         self,
         *,
+        run: DeploymentRun,
         target: Target,
         release: Release,
         snapshot: AzureContainerAppSnapshot,
+        attempt: int,
     ) -> AzureDeployResult:
         ...
 
@@ -442,9 +453,11 @@ class AzureTargetExecutor:
         try:
             deploy_result = await asyncio.to_thread(
                 runtime.deploy_release,
+                run=run,
                 target=target,
                 release=release,
                 snapshot=snapshot,
+                attempt=attempt,
             )
         except AzureExecutionError as error:
             yield self._failed_event(
@@ -454,10 +467,11 @@ class AzureTargetExecutor:
             )
             return
 
-        deployment_message = (
-            f"Deployment completed; image now {deploy_result.desired_image}."
-            if deploy_result.changed
-            else f"No image change requested; keeping {deploy_result.desired_image}."
+        deployment_message = build_deploy_completion_message(
+            deployment_mode=release.deployment_mode,
+            desired_image=deploy_result.desired_image,
+            changed=deploy_result.changed,
+            metadata=deploy_result.metadata,
         )
         yield TargetExecutionEvent(
             event_type="completed",
@@ -465,6 +479,46 @@ class AzureTargetExecutor:
             correlation_id=deploying_correlation,
             message=deployment_message,
         )
+
+        if not should_verify_after_deploy(release=release):
+            skipped_verify_correlation = build_correlation_id(
+                run.id,
+                target.id,
+                attempt,
+                TargetStage.VERIFYING,
+            )
+            yield TargetExecutionEvent(
+                event_type="started",
+                stage=TargetStage.VERIFYING,
+                correlation_id=skipped_verify_correlation,
+                message="Verifying started.",
+            )
+            yield TargetExecutionEvent(
+                event_type="completed",
+                stage=TargetStage.VERIFYING,
+                correlation_id=skipped_verify_correlation,
+                message="Verification skipped by release settings.",
+            )
+            success_correlation = build_correlation_id(
+                run.id,
+                target.id,
+                attempt,
+                TargetStage.SUCCEEDED,
+            )
+            yield TargetExecutionEvent(
+                event_type="started",
+                stage=TargetStage.SUCCEEDED,
+                correlation_id=success_correlation,
+                message="Finalizing success state.",
+            )
+            yield TargetExecutionEvent(
+                event_type="completed",
+                stage=TargetStage.SUCCEEDED,
+                correlation_id=success_correlation,
+                message="Target deployment succeeded.",
+                terminal_state=TargetStage.SUCCEEDED,
+            )
+            return
 
         verifying_correlation = build_correlation_id(
             run.id,
@@ -564,12 +618,13 @@ class AzureSdkRuntime:
             from azure.identity import ClientSecretCredential
             from azure.mgmt.appcontainers import ContainerAppsAPIClient
             from azure.mgmt.appcontainers.models import ContainerApp
+            from azure.mgmt.resource import ResourceManagementClient
         except Exception as error:  # pragma: no cover - exercised by integration only
             raise AzureExecutionError(
                 code="azure_sdk_not_available",
                 message=(
                     "Azure SDK dependencies are unavailable. Install azure-identity and "
-                    "azure-mgmt-appcontainers."
+                    "azure-mgmt-appcontainers plus azure-mgmt-resource."
                 ),
                 details={"error": str(error)},
             ) from error
@@ -586,6 +641,7 @@ class AzureSdkRuntime:
         }
         self._container_apps_client_type = ContainerAppsAPIClient
         self._container_app_model_type = ContainerApp
+        self._resource_client_type = ResourceManagementClient
         self._credentials_by_tenant: dict[str, Any] = {}
         self._clients_by_subscription: dict[str, Any] = {}
         self._tenant_by_client_subscription: dict[str, str] = {}
@@ -730,7 +786,7 @@ class AzureSdkRuntime:
                 },
             )
         app = self._get_container_app(ref=ref, target=target)
-        snapshot = self._snapshot_from_app(ref=ref, app=app, target=target)
+        snapshot = self._snapshot_from_app(ref=ref, app=app, target_id=target.id)
         if not snapshot.current_image:
             raise AzureExecutionError(
                 code="azure_container_image_missing",
@@ -744,6 +800,29 @@ class AzureSdkRuntime:
         return snapshot
 
     def deploy_release(
+        self,
+        *,
+        run: DeploymentRun,
+        target: Target,
+        release: Release,
+        snapshot: AzureContainerAppSnapshot,
+        attempt: int,
+    ) -> AzureDeployResult:
+        if release.deployment_mode == DeploymentMode.TEMPLATE_SPEC:
+            return self._deploy_release_template_spec(
+                run=run,
+                target=target,
+                release=release,
+                snapshot=snapshot,
+                attempt=attempt,
+            )
+        return self._deploy_release_container_patch(
+            target=target,
+            release=release,
+            snapshot=snapshot,
+        )
+
+    def _deploy_release_container_patch(
         self,
         *,
         target: Target,
@@ -811,12 +890,102 @@ class AzureSdkRuntime:
         updated_snapshot = self._snapshot_from_app(
             ref=snapshot.resource_ref,
             app=updated,
-            target=target,
+            target_id=target.id,
         )
         return AzureDeployResult(
             snapshot=updated_snapshot,
             desired_image=desired_image,
             changed=True,
+        )
+
+    def _deploy_release_template_spec(
+        self,
+        *,
+        run: DeploymentRun,
+        target: Target,
+        release: Release,
+        snapshot: AzureContainerAppSnapshot,
+        attempt: int,
+    ) -> AzureDeployResult:
+        def _create_resource_client(subscription_id: str, tenant_hint: str | None) -> Any:
+            tenant_id = resolve_tenant_for_subscription(
+                subscription_id=subscription_id,
+                target_tenant_hint=tenant_hint,
+                default_tenant_id=self._default_tenant_id,
+                tenant_by_subscription=self._tenant_by_subscription,
+            )
+            if tenant_id is None:
+                raise AzureExecutionError(
+                    code="azure_tenant_unresolved",
+                    message=(
+                        "No tenant authority found for subscription. "
+                        "Set MAPPO_AZURE_TENANT_BY_SUBSCRIPTION or provide valid target tenant IDs."
+                    ),
+                    details={"subscription_id": subscription_id},
+                )
+            credential = self._credential_for_tenant(tenant_id=tenant_id)
+            return self._resource_client_type(
+                credential=credential,
+                subscription_id=subscription_id,
+            )
+
+        def _get_container_app_for_template_spec(
+            ref: ContainerAppResourceRef,
+            tenant_hint: str,
+        ) -> Any:
+            return self._get_container_app(
+                ref=ref,
+                tenant_hint=tenant_hint,
+                target_id="template-spec-target",
+            )
+
+        def _snapshot_from_app_for_template_spec(
+            ref: ContainerAppResourceRef,
+            app: Any,
+            target_id: str,
+        ) -> AzureContainerAppSnapshot:
+            return self._snapshot_from_app(ref=ref, app=app, target_id=target_id)
+
+        try:
+            (
+                updated_snapshot,
+                desired_image,
+                changed,
+                metadata,
+            ) = deploy_template_spec_release(
+                run_id=run.id,
+                target_id=target.id,
+                target_tenant_id=target.tenant_id,
+                release=release,
+                snapshot=snapshot,
+                attempt=attempt,
+                verify_timeout_seconds=self._verify_timeout_seconds,
+                create_resource_client=_create_resource_client,
+                with_retries=self._with_retries,
+                translate_exception=self._translate_exception,
+                get_container_app=_get_container_app_for_template_spec,
+                snapshot_from_app=_snapshot_from_app_for_template_spec,
+                azure_error_code="azure_template_spec_deploy_failed",
+                azure_error_message="Template Spec deployment failed.",
+            )
+        except ValueError as error:
+            raise AzureExecutionError(
+                code="template_spec_reference_invalid",
+                message=str(error),
+                details={"target_id": target.id, "release_id": release.id},
+            ) from error
+        except RuntimeError as error:
+            raise AzureExecutionError(
+                code="azure_template_spec_deploy_failed",
+                message=str(error),
+                details={"target_id": target.id, "release_id": release.id},
+            ) from error
+
+        return AzureDeployResult(
+            snapshot=updated_snapshot,
+            desired_image=desired_image,
+            changed=changed,
+            metadata=metadata,
         )
 
     def verify_target(
@@ -833,7 +1002,7 @@ class AzureSdkRuntime:
             last_snapshot = self._snapshot_from_app(
                 ref=snapshot.resource_ref,
                 app=app,
-                target=target,
+                target_id=target.id,
             )
             ready_revision = last_snapshot.latest_ready_revision_name
             latest_revision = last_snapshot.latest_revision_name
@@ -930,11 +1099,21 @@ class AzureSdkRuntime:
         self,
         *,
         ref: ContainerAppResourceRef,
-        target: Target,
+        target: Target | None = None,
+        tenant_hint: str | None = None,
+        target_id: str | None = None,
     ) -> Any:
+        resolved_tenant_hint = tenant_hint
+        if resolved_tenant_hint is None and target is not None:
+            resolved_tenant_hint = target.tenant_id
+        resolved_target_id = target_id
+        if resolved_target_id is None and target is not None:
+            resolved_target_id = target.id
+        if resolved_target_id is None:
+            resolved_target_id = "unknown-target"
         client = self._client(
             subscription_id=ref.subscription_id,
-            tenant_hint=target.tenant_id,
+            tenant_hint=resolved_tenant_hint,
         )
         try:
             return self._with_retries(
@@ -950,7 +1129,7 @@ class AzureSdkRuntime:
                 code="azure_validation_failed",
                 message="Unable to read Azure Container App state.",
                 details={
-                    "target_id": target.id,
+                    "target_id": resolved_target_id,
                     "resource_group_name": ref.resource_group_name,
                     "container_app_name": ref.container_app_name,
                 },
@@ -961,7 +1140,7 @@ class AzureSdkRuntime:
         *,
         ref: ContainerAppResourceRef,
         app: Any,
-        target: Target,
+        target_id: str,
     ) -> AzureContainerAppSnapshot:
         template = getattr(app, "template", None)
         containers = list(getattr(template, "containers", []) or [])
@@ -970,7 +1149,7 @@ class AzureSdkRuntime:
                 code="azure_container_template_missing",
                 message="Container App template has no containers configured.",
                 details={
-                    "target_id": target.id,
+                    "target_id": target_id,
                     "resource_group_name": ref.resource_group_name,
                     "container_app_name": ref.container_app_name,
                 },
@@ -992,71 +1171,28 @@ class AzureSdkRuntime:
         desired_image: str,
         desired_feature_flag: str | None = None,
     ) -> Any:
-        location = getattr(app, "location", None)
-        if not isinstance(location, str) or location.strip() == "":
-            raise AzureExecutionError(
-                code="azure_update_payload_invalid",
-                message="Container App update payload is missing a valid location.",
-            )
-
-        template = copy.deepcopy(getattr(app, "template", None))
-        containers = list(getattr(template, "containers", []) or [])
-        if not containers:
-            raise AzureExecutionError(
-                code="azure_update_payload_invalid",
-                message="Container App update payload has no containers.",
-            )
-        containers[0].image = desired_image
-        if desired_feature_flag is not None:
-            set_container_env_value(
-                container=containers[0],
-                env_name="MAPPO_FEATURE_FLAG",
-                env_value=desired_feature_flag,
-            )
-
-        return self._container_app_model_type(
-            location=location,
-            tags=getattr(app, "tags", None),
-            extended_location=getattr(app, "extended_location", None),
-            identity=getattr(app, "identity", None),
-            managed_by=getattr(app, "managed_by", None),
-            kind=getattr(app, "kind", None),
-            managed_environment_id=getattr(app, "managed_environment_id", None),
-            environment_id=getattr(app, "environment_id", None),
-            workload_profile_name=getattr(app, "workload_profile_name", None),
-            configuration=getattr(app, "configuration", None),
-            template=template,
+        return build_container_app_update_payload(
+            app=app,
+            desired_image=desired_image,
+            desired_feature_flag=desired_feature_flag,
+            container_app_model_type=self._container_app_model_type,
+            error_factory=lambda code, message, details: AzureExecutionError(
+                code=code,
+                message=message,
+                details=details,
+            ),
         )
 
     def _probe_health(self, *, health_url: str) -> int:
-        request = urllib.request.Request(
-            url=health_url,
-            method="GET",
-            headers={"User-Agent": "mappo-health-check/1.0"},
+        return probe_health_url(
+            health_url=health_url,
+            timeout_seconds=self._health_timeout_seconds,
+            error_factory=lambda code, message, details: AzureExecutionError(
+                code=code,
+                message=message,
+                details=details,
+            ),
         )
-        try:
-            with urllib.request.urlopen(request, timeout=self._health_timeout_seconds) as response:
-                status_code = int(getattr(response, "status", response.getcode()))
-        except urllib.error.HTTPError as error:
-            raise AzureExecutionError(
-                code="azure_health_check_failed",
-                message=f"Health check failed with HTTP {error.code}.",
-                details={"health_url": health_url, "status_code": error.code},
-            ) from error
-        except urllib.error.URLError as error:
-            raise AzureExecutionError(
-                code="azure_health_check_failed",
-                message="Health check request failed to reach the target.",
-                details={"health_url": health_url, "reason": str(error.reason)},
-            ) from error
-
-        if status_code < 200 or status_code >= 400:
-            raise AzureExecutionError(
-                code="azure_health_check_failed",
-                message=f"Health check returned unexpected status {status_code}.",
-                details={"health_url": health_url, "status_code": status_code},
-            )
-        return status_code
 
     def _with_retries(
         self,
@@ -1096,60 +1232,25 @@ class AzureSdkRuntime:
         message: str,
         details: dict[str, Any] | None = None,
     ) -> AzureExecutionError:
-        from azure.core.exceptions import (
-            ClientAuthenticationError,
-            HttpResponseError,
-            ResourceNotFoundError,
-            ServiceRequestError,
-        )
-
         if isinstance(error, AzureExecutionError):
             return error
-        if isinstance(error, ClientAuthenticationError):
-            return AzureExecutionError(
-                code="azure_authentication_failed",
-                message="Azure authentication failed for the configured service principal.",
-                details={**(details or {}), "error": str(error)},
-            )
-        if isinstance(error, ResourceNotFoundError):
-            return AzureExecutionError(
-                code="azure_target_not_found",
-                message="Azure target Container App was not found.",
-                details={**(details or {}), "error": str(error)},
-            )
-        if isinstance(error, ServiceRequestError):
-            return AzureExecutionError(
-                code=code,
-                message="Azure API request failed due to transport/network issues.",
-                details={**(details or {}), "error": str(error)},
-            )
-        if isinstance(error, HttpResponseError):
-            http_error_details = extract_http_response_error_details(error)
-            azure_summary = format_azure_error_summary(
-                azure_error_code=to_non_empty_string(
-                    http_error_details.get("azure_error_code")
-                ),
-                azure_error_message=to_non_empty_string(
-                    http_error_details.get("azure_error_message")
-                ),
-            )
-            translated_message = message
-            if azure_summary and azure_summary not in translated_message:
-                translated_message = f"{translated_message} {azure_summary}"
-            return AzureExecutionError(
-                code=code,
-                message=translated_message,
-                details={
-                    **(details or {}),
-                    "error": str(error),
-                    **http_error_details,
-                    "status_code": getattr(error, "status_code", None),
-                },
-            )
-        return AzureExecutionError(
+        translated = translate_azure_exception(
+            error=error,
             code=code,
             message=message,
-            details={**(details or {}), "error": str(error)},
+            details=details,
+            error_factory=lambda error_code, error_message, error_details: AzureExecutionError(
+                code=error_code,
+                message=error_message,
+                details=error_details,
+            ),
+        )
+        if isinstance(translated, AzureExecutionError):
+            return translated
+        return AzureExecutionError(
+            code=code,
+            message=str(translated),
+            details=details,
         )
 
 
@@ -1158,37 +1259,20 @@ def create_azure_runtime(settings: AzureExecutorSettings) -> AzureRuntime:
 
 
 def parse_container_app_resource_id(managed_app_id: str) -> ContainerAppResourceRef:
-    parts = [part for part in managed_app_id.strip("/").split("/") if part]
-    if len(parts) != 8:
+    try:
+        subscription_id, resource_group_name, container_app_name = (
+            parse_container_app_resource_id_parts(managed_app_id)
+        )
+    except ValueError as error:
         raise AzureExecutionError(
             code="azure_managed_app_id_invalid",
-            message="Managed app resource ID is not a valid Container App resource path.",
+            message=str(error),
             details={"managed_app_id": managed_app_id},
-        )
-
-    if parts[0].lower() != "subscriptions" or parts[2].lower() != "resourcegroups":
-        raise AzureExecutionError(
-            code="azure_managed_app_id_invalid",
-            message="Managed app resource ID is missing subscription/resource-group segments.",
-            details={"managed_app_id": managed_app_id},
-        )
-    if parts[4].lower() != "providers" or parts[5].lower() != "microsoft.app":
-        raise AzureExecutionError(
-            code="azure_managed_app_id_invalid",
-            message="Managed app resource ID provider must be Microsoft.App.",
-            details={"managed_app_id": managed_app_id},
-        )
-    if parts[6].lower() != "containerapps":
-        raise AzureExecutionError(
-            code="azure_managed_app_id_invalid",
-            message="Managed app resource ID type must be containerApps.",
-            details={"managed_app_id": managed_app_id},
-        )
-
+        ) from error
     return ContainerAppResourceRef(
-        subscription_id=parts[1],
-        resource_group_name=parts[3],
-        container_app_name=parts[7],
+        subscription_id=subscription_id,
+        resource_group_name=resource_group_name,
+        container_app_name=container_app_name,
     )
 
 
@@ -1197,26 +1281,19 @@ def build_health_url(
     last_snapshot: AzureContainerAppSnapshot,
     release: Release,
 ) -> str:
-    health_path = (
-        release.parameter_defaults.get("healthUrl")
-        or release.parameter_defaults.get("health_url")
-        or release.parameter_defaults.get("healthPath")
-        or release.parameter_defaults.get("health_path")
-        or "/"
-    )
-    normalized = health_path.strip()
-    if normalized.startswith("http://") or normalized.startswith("https://"):
-        return normalized
-
-    fqdn = (last_snapshot.latest_revision_fqdn or "").strip()
-    if not fqdn:
+    try:
+        return build_health_url_from_helpers(
+            latest_revision_fqdn=last_snapshot.latest_revision_fqdn,
+            parameter_defaults=release.parameter_defaults,
+            resource_group_name=last_snapshot.resource_ref.resource_group_name,
+            container_app_name=last_snapshot.resource_ref.container_app_name,
+        )
+    except ValueError as error:
         raise AzureExecutionError(
             code="azure_fqdn_missing",
-            message="Container App revision FQDN is unavailable for health verification.",
+            message=str(error),
             details={
                 "resource_group_name": last_snapshot.resource_ref.resource_group_name,
                 "container_app_name": last_snapshot.resource_ref.container_app_name,
             },
-        )
-    path = normalized if normalized.startswith("/") else f"/{normalized}"
-    return f"https://{fqdn}{path}"
+        ) from error

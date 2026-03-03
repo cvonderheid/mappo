@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core.settings import get_settings
-from app.modules.control_plane import ControlPlaneStore, StoreError
+from app.domain.runtime import ControlPlaneRuntime, StoreError
 from app.modules.execution import AzureExecutorSettings
 from app.modules.schemas import Target
 
@@ -48,7 +48,7 @@ async def main() -> None:
         raise SystemExit("import-targets: expected top-level JSON array")
 
     settings = get_settings()
-    store = ControlPlaneStore(
+    store = ControlPlaneRuntime(
         database_url=settings.database_url,
         execution_mode=settings.execution_mode,
         azure_settings=AzureExecutorSettings(

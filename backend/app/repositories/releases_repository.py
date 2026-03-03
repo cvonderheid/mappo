@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy import delete, select
 
 from app.db.generated.models import ReleaseParameterDefaults, Releases, ReleaseVerificationHints
-from app.modules.schemas import Release
+from app.modules.schemas import DeploymentMode, DeploymentScope, Release
 
 
 class ReleasesRepository:
@@ -60,6 +60,18 @@ class ReleasesRepository:
                 id=row.id,
                 template_spec_id=row.template_spec_id,
                 template_spec_version=row.template_spec_version,
+                deployment_mode=(
+                    row.deployment_mode
+                    if isinstance(row.deployment_mode, DeploymentMode)
+                    else DeploymentMode(row.deployment_mode)
+                ),
+                template_spec_version_id=row.template_spec_version_id,
+                deployment_scope=(
+                    row.deployment_scope
+                    if isinstance(row.deployment_scope, DeploymentScope)
+                    else DeploymentScope(row.deployment_scope)
+                ),
+                deployment_mode_settings=row.deployment_mode_settings or {},
                 parameter_defaults=params_by_release.get(row.id, {}),
                 release_notes=row.release_notes,
                 verification_hints=hints_by_release.get(row.id, []),
@@ -77,6 +89,10 @@ class ReleasesRepository:
                         id=release.id,
                         template_spec_id=release.template_spec_id,
                         template_spec_version=release.template_spec_version,
+                        deployment_mode=release.deployment_mode.value,
+                        template_spec_version_id=release.template_spec_version_id,
+                        deployment_scope=release.deployment_scope.value,
+                        deployment_mode_settings=release.deployment_mode_settings,
                         release_notes=release.release_notes,
                         created_at=release.created_at,
                     )
@@ -108,6 +124,10 @@ class ReleasesRepository:
                         id=release.id,
                         template_spec_id=release.template_spec_id,
                         template_spec_version=release.template_spec_version,
+                        deployment_mode=release.deployment_mode.value,
+                        template_spec_version_id=release.template_spec_version_id,
+                        deployment_scope=release.deployment_scope.value,
+                        deployment_mode_settings=release.deployment_mode_settings,
                         release_notes=release.release_notes,
                         created_at=release.created_at,
                     )
@@ -115,6 +135,10 @@ class ReleasesRepository:
             else:
                 row.template_spec_id = release.template_spec_id
                 row.template_spec_version = release.template_spec_version
+                row.deployment_mode = release.deployment_mode.value
+                row.template_spec_version_id = release.template_spec_version_id
+                row.deployment_scope = release.deployment_scope.value
+                row.deployment_mode_settings = release.deployment_mode_settings
                 row.release_notes = release.release_notes
                 row.created_at = release.created_at
             session.execute(
