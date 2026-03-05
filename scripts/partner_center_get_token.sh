@@ -79,8 +79,8 @@ fi
 if [[ -n "${env_file}" ]]; then
   mkdir -p "$(dirname "${env_file}")"
   cat > "${env_file}" <<EOF
-MAPPO_PARTNER_CENTER_ACCESS_TOKEN=${token}
-MAPPO_PARTNER_CENTER_TOKEN_EXPIRES_ON=${expires_on}
+MAPPO_PARTNER_CENTER_ACCESS_TOKEN='${token}'
+MAPPO_PARTNER_CENTER_TOKEN_EXPIRES_ON='${expires_on}'
 EOF
   echo "partner-center-get-token: wrote token env file: ${env_file}"
 fi

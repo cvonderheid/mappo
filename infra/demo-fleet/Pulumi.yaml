@@ -1,0 +1,7 @@
+name: mappo-demo-fleet
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+description: Demo target fleet infrastructure (separate from MAPPO control-plane stack)
+

@@ -3,8 +3,11 @@ SHELL := /bin/bash
 RETENTION_DAYS ?= 90
 COMPOSE_FILE := infra/docker-compose.yml
 IAC_DIR := infra/pulumi
+DEMO_FLEET_IAC_DIR := infra/demo-fleet
 PULUMI_STACK ?= dev
+DEMO_FLEET_STACK ?= demo-fleet
 IAC_TARGET_EXPORT ?= .data/mappo-target-inventory.json
+DEMO_FLEET_TARGET_EXPORT ?= .data/demo-fleet-target-inventory.json
 IAC_DB_ENV_EXPORT ?= .data/mappo-db.env
 PULUMI_CONFIG_PASSPHRASE ?= mappo-local-dev
 export PULUMI_CONFIG_PASSPHRASE
@@ -14,6 +17,7 @@ export PULUMI_CONFIG_PASSPHRASE
 	dev dev-up dev-down dev-logs dev-backend dev-frontend build build-backend build-frontend \
 	lint lint-backend lint-backend-file-size lint-frontend typecheck typecheck-backend typecheck-frontend \
 	test test-backend test-frontend test-frontend-e2e import-targets marketplace-ingest-events retention-prune \
+	release-ingest-from-repo \
 	marketplace-forwarder-package marketplace-forwarder-deploy marketplace-forwarder-replay-inventory \
 	runtime-aca-deploy runtime-db-migrate-job-run runtime-aca-destroy runtime-easyauth-configure \
 	azure-auth-bootstrap azure-tenant-map azure-onboard-multitenant-runtime azure-cleanup-runtime-identity azure-cleanup-easyauth dev-backend-azure azure-preflight bootstrap-releases \
@@ -22,6 +26,7 @@ export PULUMI_CONFIG_PASSPHRASE
 	partner-center-token partner-center-api \
 	db-migrate db-validate db-info db-clean db-reset models-gen openapi client-gen \
 	iac-install iac-stack-init iac-preview iac-up iac-destroy iac-export-targets iac-export-db-env \
+	demo-fleet-install demo-fleet-stack-init demo-fleet-preview demo-fleet-up-pulumi demo-fleet-destroy demo-fleet-export-targets demo-fleet-configure demo-fleet-up demo-fleet-down \
 	workflow-discipline-check docs-consistency-check golden-principles-check check-no-demo-leak \
 	phase1-gate-fast phase1-gate-full
 
@@ -164,6 +169,25 @@ marketplace-ingest-events: ## Register targets via onboarding events (webhook si
 		$(if $(INGEST_TOKEN),--ingest-token "$(INGEST_TOKEN)",) \
 		$(if $(EVENT_ID_PREFIX),--event-id-prefix "$(EVENT_ID_PREFIX)",) \
 		$(if $(SOURCE_LABEL),--source-label "$(SOURCE_LABEL)",) \
+		$(if $(DRY_RUN),--dry-run,)
+
+release-ingest-from-repo: ## Register releases from repo/file manifest via API (/api/v1/releases)
+	./scripts/release_ingest_from_repo.sh \
+		$(if $(API_BASE_URL),--api-base-url "$(API_BASE_URL)",) \
+		$(if $(API_BEARER_TOKEN),--api-bearer-token "$(API_BEARER_TOKEN)",) \
+		$(if $(MANIFEST_FILE),--manifest-file "$(MANIFEST_FILE)",) \
+		$(if $(MANIFEST_URL),--manifest-url "$(MANIFEST_URL)",) \
+		$(if $(GITHUB_REPO),--github-repo "$(GITHUB_REPO)",) \
+		$(if $(GITHUB_PATH),--github-path "$(GITHUB_PATH)",) \
+		$(if $(GITHUB_REF),--github-ref "$(GITHUB_REF)",) \
+		$(if $(GITHUB_TOKEN),--github-token "$(GITHUB_TOKEN)",) \
+		$(if $(ADO_ORG),--ado-org "$(ADO_ORG)",) \
+		$(if $(ADO_PROJECT),--ado-project "$(ADO_PROJECT)",) \
+		$(if $(ADO_REPOSITORY),--ado-repository "$(ADO_REPOSITORY)",) \
+		$(if $(ADO_PATH),--ado-path "$(ADO_PATH)",) \
+		$(if $(ADO_REF),--ado-ref "$(ADO_REF)",) \
+		$(if $(ADO_TOKEN),--ado-token "$(ADO_TOKEN)",) \
+		$(if $(ALLOW_DUPLICATES),--allow-duplicates,) \
 		$(if $(DRY_RUN),--dry-run,)
 
 marketplace-forwarder-package: ## Package Azure Function marketplace forwarder zip artifact
@@ -393,6 +417,58 @@ iac-export-targets: iac-stack-init ## Export MAPPO target inventory from Pulumi 
 iac-export-db-env: iac-stack-init ## Export managed Postgres env file from Pulumi stack outputs
 	./scripts/iac_export_db_env.sh --stack $(PULUMI_STACK) --env-file $(abspath $(IAC_DB_ENV_EXPORT))
 	@echo "wrote $(abspath $(IAC_DB_ENV_EXPORT))"
+
+demo-fleet-install: ## Install demo-fleet Pulumi dependencies
+	cd $(DEMO_FLEET_IAC_DIR) && npm install
+
+demo-fleet-stack-init: ## Select or initialize demo-fleet stack
+	cd $(DEMO_FLEET_IAC_DIR) && pulumi login --local
+	cd $(DEMO_FLEET_IAC_DIR) && (pulumi stack select $(DEMO_FLEET_STACK) || pulumi stack init $(DEMO_FLEET_STACK))
+
+demo-fleet-preview: demo-fleet-install demo-fleet-stack-init ## Preview demo-fleet target IaC changes
+	cd $(DEMO_FLEET_IAC_DIR) && npm run build && pulumi preview --stack $(DEMO_FLEET_STACK) --non-interactive
+
+demo-fleet-up-pulumi: demo-fleet-install demo-fleet-stack-init ## Deploy demo-fleet target IaC changes
+	cd $(DEMO_FLEET_IAC_DIR) && npm run build && pulumi up --stack $(DEMO_FLEET_STACK) --yes
+
+demo-fleet-destroy: demo-fleet-install demo-fleet-stack-init ## Destroy demo-fleet target IaC resources
+	cd $(DEMO_FLEET_IAC_DIR) && npm run build && pulumi destroy --stack $(DEMO_FLEET_STACK) --yes
+
+demo-fleet-export-targets: demo-fleet-stack-init ## Export demo-fleet target inventory
+	@mkdir -p $(dir $(DEMO_FLEET_TARGET_EXPORT))
+	cd $(DEMO_FLEET_IAC_DIR) && pulumi stack output mappoTargetInventory --stack $(DEMO_FLEET_STACK) --json > $(abspath $(DEMO_FLEET_TARGET_EXPORT))
+	@echo "wrote $(abspath $(DEMO_FLEET_TARGET_EXPORT))"
+
+demo-fleet-configure: ## Configure demo-fleet stack with two targets across subscriptions
+	@if [ -z "$(PROVIDER_SUBSCRIPTION_ID)" ] || [ -z "$(CUSTOMER_SUBSCRIPTION_ID)" ]; then \
+		echo "usage: make demo-fleet-configure PROVIDER_SUBSCRIPTION_ID=<id> CUSTOMER_SUBSCRIPTION_ID=<id> [DEMO_FLEET_STACK=demo-fleet] [LOCATION=eastus] [PROVIDER_TENANT_ID=<id>] [CUSTOMER_TENANT_ID=<id>]"; \
+		exit 2; \
+	fi
+	./scripts/demo_fleet_configure.sh \
+		--stack "$(DEMO_FLEET_STACK)" \
+		--provider-subscription-id "$(PROVIDER_SUBSCRIPTION_ID)" \
+		--customer-subscription-id "$(CUSTOMER_SUBSCRIPTION_ID)" \
+		$(if $(LOCATION),--location "$(LOCATION)",) \
+		$(if $(PROVIDER_TENANT_ID),--provider-tenant-id "$(PROVIDER_TENANT_ID)",) \
+		$(if $(CUSTOMER_TENANT_ID),--customer-tenant-id "$(CUSTOMER_TENANT_ID)",)
+
+demo-fleet-up: ## Deploy demo-fleet and emit simulated subscription_purchased events
+	./scripts/demo_fleet_up.sh \
+		--stack "$(DEMO_FLEET_STACK)" \
+		--inventory-file "$(abspath $(DEMO_FLEET_TARGET_EXPORT))" \
+		$(if $(API_BASE_URL),--api-base-url "$(API_BASE_URL)",) \
+		$(if $(INGEST_TOKEN),--ingest-token "$(INGEST_TOKEN)",) \
+		$(if $(EVENT_TYPE),--event-type "$(EVENT_TYPE)",) \
+		$(if $(SKIP_EVENTS),--skip-events,)
+
+demo-fleet-down: ## Emit simulated subscription_deleted events and destroy demo-fleet
+	./scripts/demo_fleet_down.sh \
+		--stack "$(DEMO_FLEET_STACK)" \
+		--inventory-file "$(abspath $(DEMO_FLEET_TARGET_EXPORT))" \
+		$(if $(API_BASE_URL),--api-base-url "$(API_BASE_URL)",) \
+		$(if $(INGEST_TOKEN),--ingest-token "$(INGEST_TOKEN)",) \
+		$(if $(EVENT_TYPE),--event-type "$(EVENT_TYPE)",) \
+		$(if $(SKIP_EVENTS),--skip-events,)
 
 workflow-discipline-check: ## Validate required planning artifacts and structure
 	python3 scripts/workflow_discipline_check.py

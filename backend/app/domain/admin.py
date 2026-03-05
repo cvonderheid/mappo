@@ -21,6 +21,23 @@ from app.modules.schemas import (
     UpdateTargetRegistrationRequest,
 )
 
+REGISTER_EVENT_TYPES = {
+    "subscription_purchased",
+    "subscription_updated",
+    "subscription_renewed",
+    "subscription_reactivated",
+}
+SUSPEND_EVENT_TYPES = {
+    "subscription_suspended",
+    "subscription_pending_cancellation",
+}
+DELETE_EVENT_TYPES = {
+    "subscription_deleted",
+    "subscription_unsubscribed",
+    "subscription_cancelled",
+    "subscription_canceled",
+}
+
 
 class AdminDomainMixin:
     _lock: asyncio.Lock
@@ -226,20 +243,22 @@ class AdminDomainMixin:
                 )
 
             now = utc_now()
+            normalized_event_type = request.event_type.strip().lower()
+            event_kind = self._classify_marketplace_event_type(normalized_event_type)
             try:
-                target, registration = self._build_registration_locked(request=request, now=now)
+                if event_kind == "register":
+                    event = self._apply_register_event_locked(request=request, now=now)
+                elif event_kind == "suspend":
+                    event = self._apply_suspend_event_locked(request=request, now=now)
+                else:
+                    event = self._apply_delete_event_locked(request=request, now=now)
             except StoreError as error:
-                event = MarketplaceEventRecord(
-                    event_id=request.event_id,
-                    event_type=request.event_type,
+                event = self._build_marketplace_event_record(
+                    request=request,
                     status=MarketplaceEventStatus.REJECTED,
                     message=error.message,
                     target_id=None,
-                    tenant_id=request.tenant_id.strip(),
-                    subscription_id=request.subscription_id.strip(),
-                    payload=request.model_dump(mode="json"),
-                    created_at=now,
-                    processed_at=now,
+                    now=now,
                 )
                 self._marketplace_events[event.event_id] = event
                 self._save_marketplace_event_locked(event)
@@ -250,26 +269,6 @@ class AdminDomainMixin:
                     target_id=event.target_id,
                 )
 
-            self._targets[target.id] = target
-            self._save_target_locked(target)
-            self._registrations[registration.target_id] = registration
-            self._save_target_registration_locked(registration)
-
-            event = MarketplaceEventRecord(
-                event_id=request.event_id,
-                event_type=request.event_type,
-                status=MarketplaceEventStatus.APPLIED,
-                message=(
-                    f"Registered target {target.id} for subscription "
-                    f"{target.subscription_id}."
-                ),
-                target_id=target.id,
-                tenant_id=target.tenant_id,
-                subscription_id=target.subscription_id,
-                payload=request.model_dump(mode="json"),
-                created_at=now,
-                processed_at=now,
-            )
             self._marketplace_events[event.event_id] = event
             self._save_marketplace_event_locked(event)
 
@@ -279,6 +278,220 @@ class AdminDomainMixin:
                 message=event.message,
                 target_id=event.target_id,
             )
+
+    def _classify_marketplace_event_type(self, event_type: str) -> str:
+        normalized = event_type.strip().lower()
+        if normalized in DELETE_EVENT_TYPES:
+            return "delete"
+        if normalized in SUSPEND_EVENT_TYPES:
+            return "suspend"
+        if normalized in REGISTER_EVENT_TYPES or normalized == "":
+            return "register"
+        return "register"
+
+    def _apply_register_event_locked(
+        self,
+        *,
+        request: MarketplaceEventIngestRequest,
+        now: datetime,
+    ) -> MarketplaceEventRecord:
+        target, registration = self._build_registration_locked(request=request, now=now)
+        self._targets[target.id] = target
+        self._save_target_locked(target)
+        self._registrations[registration.target_id] = registration
+        self._save_target_registration_locked(registration)
+        return self._build_marketplace_event_record(
+            request=request,
+            status=MarketplaceEventStatus.APPLIED,
+            message=(
+                f"Registered target {target.id} for subscription "
+                f"{target.subscription_id}."
+            ),
+            target_id=target.id,
+            now=now,
+            tenant_id=target.tenant_id,
+            subscription_id=target.subscription_id,
+        )
+
+    def _apply_suspend_event_locked(
+        self,
+        *,
+        request: MarketplaceEventIngestRequest,
+        now: datetime,
+    ) -> MarketplaceEventRecord:
+        target = self._resolve_existing_target_for_lifecycle_event_locked(request=request)
+        if target is None:
+            raise StoreError(
+                "Cannot apply suspension event because target was not found in current "
+                "registration state."
+            )
+
+        target.health_status = "degraded"
+        target.last_check_in_at = request.event_time or now
+        self._targets[target.id] = target
+        self._save_target_locked(target)
+
+        registration = self._registrations.get(target.id)
+        if registration is not None:
+            registration.last_event_id = request.event_id
+            registration.updated_at = now
+            self._registrations[target.id] = registration
+            self._save_target_registration_locked(registration)
+
+        return self._build_marketplace_event_record(
+            request=request,
+            status=MarketplaceEventStatus.APPLIED,
+            message=(
+                f"Marked target {target.id} as degraded for subscription "
+                f"{target.subscription_id}."
+            ),
+            target_id=target.id,
+            now=now,
+            tenant_id=target.tenant_id,
+            subscription_id=target.subscription_id,
+        )
+
+    def _apply_delete_event_locked(
+        self,
+        *,
+        request: MarketplaceEventIngestRequest,
+        now: datetime,
+    ) -> MarketplaceEventRecord:
+        target = self._resolve_existing_target_for_lifecycle_event_locked(request=request)
+        candidate_target_id = self._resolve_event_target_id_hint(request=request)
+        if target is None:
+            return self._build_marketplace_event_record(
+                request=request,
+                status=MarketplaceEventStatus.APPLIED,
+                message=(
+                    "Target already absent from registration state; treated deletion "
+                    "event as idempotent."
+                ),
+                target_id=candidate_target_id,
+                now=now,
+            )
+
+        if target.id in self._registrations:
+            del self._registrations[target.id]
+            self._delete_target_registration_locked(target.id)
+        if target.id in self._targets:
+            del self._targets[target.id]
+            self._delete_target_locked(target.id)
+
+        return self._build_marketplace_event_record(
+            request=request,
+            status=MarketplaceEventStatus.APPLIED,
+            message=(
+                f"Deregistered target {target.id} for subscription "
+                f"{target.subscription_id}."
+            ),
+            target_id=target.id,
+            now=now,
+            tenant_id=target.tenant_id,
+            subscription_id=target.subscription_id,
+        )
+
+    def _build_marketplace_event_record(
+        self,
+        *,
+        request: MarketplaceEventIngestRequest,
+        status: MarketplaceEventStatus,
+        message: str,
+        target_id: str | None,
+        now: datetime,
+        tenant_id: str | None = None,
+        subscription_id: str | None = None,
+    ) -> MarketplaceEventRecord:
+        resolved_tenant_id = (
+            tenant_id.strip() if tenant_id is not None else request.tenant_id.strip()
+        )
+        resolved_subscription_id = (
+            subscription_id.strip()
+            if subscription_id is not None
+            else request.subscription_id.strip()
+        )
+        return MarketplaceEventRecord(
+            event_id=request.event_id,
+            event_type=request.event_type,
+            status=status,
+            message=message,
+            target_id=target_id,
+            tenant_id=resolved_tenant_id,
+            subscription_id=resolved_subscription_id,
+            payload=request.model_dump(mode="json"),
+            created_at=now,
+            processed_at=now,
+        )
+
+    def _resolve_existing_target_for_lifecycle_event_locked(
+        self,
+        *,
+        request: MarketplaceEventIngestRequest,
+    ) -> Target | None:
+        expected_subscription_id = request.subscription_id.strip()
+        expected_tenant_id = request.tenant_id.strip()
+        if expected_subscription_id == "":
+            raise StoreError("subscription_id is required")
+        if expected_tenant_id == "":
+            raise StoreError("tenant_id is required")
+
+        by_container_id: Target | None = None
+        container_resource_id = request.container_app_resource_id
+        if container_resource_id is not None and container_resource_id.strip() != "":
+            normalized_container_id = self._normalize_resource_id(container_resource_id)
+            for target in self._targets.values():
+                if target.managed_app_id == normalized_container_id:
+                    by_container_id = target
+                    break
+
+        candidate_target_id = self._resolve_event_target_id_hint(request=request)
+        by_target_id = self._targets.get(candidate_target_id) if candidate_target_id else None
+
+        resolved = by_container_id or by_target_id
+        if resolved is None:
+            return None
+
+        if resolved.subscription_id != expected_subscription_id:
+            raise StoreError(
+                "Event subscription_id does not match registered target subscription."
+            )
+        if resolved.tenant_id != expected_tenant_id:
+            raise StoreError("Event tenant_id does not match registered target tenant.")
+        return resolved
+
+    def _resolve_event_target_id_hint(
+        self,
+        *,
+        request: MarketplaceEventIngestRequest,
+    ) -> str | None:
+        explicit_target_id = request.target_id.strip() if request.target_id else ""
+        if explicit_target_id != "":
+            return explicit_target_id
+
+        if (
+            request.managed_application_id is not None
+            and request.managed_application_id.strip() != ""
+        ):
+            normalized_managed_app_id = self._normalize_resource_id(
+                request.managed_application_id
+            )
+            managed_app_name = self._extract_managed_app_name(normalized_managed_app_id)
+            if managed_app_name is not None:
+                return managed_app_name
+
+        if (
+            request.container_app_resource_id is not None
+            and request.container_app_resource_id.strip() != ""
+        ):
+            normalized_container_id = self._normalize_resource_id(
+                request.container_app_resource_id
+            )
+            container_ref = self._parse_container_app_resource_id_safe(normalized_container_id)
+            return container_ref.container_app_name
+
+        if request.container_app_name is not None and request.container_app_name.strip() != "":
+            return request.container_app_name.strip()
+        return None
 
     def _build_registration_locked(
         self,

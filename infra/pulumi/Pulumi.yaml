@@ -26,7 +26,11 @@ config:
   mappo:targetProfile:
     value: empty
   mappo:defaultImage:
-    value: mcr.microsoft.com/azuredocs/containerapps-helloworld:latest
+    value: docker.io/library/python:3.11-alpine
+  mappo:defaultSoftwareVersion:
+    value: "2026.02.20.1"
+  mappo:defaultDataModelVersion:
+    value: "1"
   mappo:defaultCpu:
     value: 0.25
   mappo:defaultMemory:

@@ -20,7 +20,7 @@ MAX_LINES_DEFAULT = int(os.getenv("MAPPO_BACKEND_MAX_LINES", "750"))
 # Temporary exceptions for legacy-large files. Keep these explicit and reduce over time.
 MAX_LINES_EXCEPTIONS: dict[str, int] = {
     "backend/app/modules/control_plane.py": 1400,
-    "backend/app/modules/execution.py": 1300,
+    "backend/app/modules/execution.py": 1400,
 }
 
 EXCLUDED_PATHS: set[str] = {

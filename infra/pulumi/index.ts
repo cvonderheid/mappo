@@ -54,9 +54,36 @@ const CONTRIBUTOR_ROLE_DEFINITION_ID = "b24988ac-6180-42a0-ab88-20f7382dd24c";
 const config = new pulumi.Config("mappo");
 const defaultLocation = config.get("defaultLocation") ?? "eastus";
 const defaultImage =
-  config.get("defaultImage") ?? "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest";
+  config.get("defaultImage") ?? "docker.io/library/python:3.11-alpine";
+const defaultSoftwareVersion = config.get("defaultSoftwareVersion") ?? "2026.02.20.1";
+const defaultDataModelVersion = config.get("defaultDataModelVersion") ?? "1";
 const defaultCpu = config.getNumber("defaultCpu") ?? 0.25;
 const defaultMemory = config.get("defaultMemory") ?? "0.5Gi";
+const targetDemoServerScript = [
+  "import json",
+  "import os",
+  "from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer",
+  "",
+  "class Handler(BaseHTTPRequestHandler):",
+  "    def do_GET(self):",
+  "        payload = {",
+  "            'service': 'mappo-target-demo',",
+  "            'softwareVersion': os.getenv('MAPPO_SOFTWARE_VERSION', 'unknown'),",
+  "            'dataModelVersion': os.getenv('MAPPO_DATA_MODEL_VERSION', os.getenv('MAPPO_FEATURE_FLAG', 'unknown')),",
+  "        }",
+  "        body = json.dumps(payload).encode('utf-8')",
+  "        self.send_response(200)",
+  "        self.send_header('Content-Type', 'application/json')",
+  "        self.send_header('Content-Length', str(len(body)))",
+  "        self.end_headers()",
+  "        self.wfile.write(body)",
+  "",
+  "    def log_message(self, _fmt: str, *_args: object) -> None:",
+  "        return",
+  "",
+  "port = int(os.getenv('PORT', '8080'))",
+  "ThreadingHTTPServer(('0.0.0.0', port), Handler).serve_forever()",
+].join("\\n");
 
 const definitionNamePrefix = config.get("definitionNamePrefix") ?? "mappo-ma-def";
 const definitionResourceGroupPrefix =
@@ -256,6 +283,8 @@ const targetDeployments = targets.map((target, index) => {
         managedEnvironmentName: { value: managedEnvironmentName },
         containerAppName: { value: containerAppName },
         containerImage: { value: defaultImage },
+        softwareVersion: { value: defaultSoftwareVersion },
+        dataModelVersion: { value: defaultDataModelVersion },
         targetGroup: { value: targetGroup },
         tenantId: { value: tenantId },
         targetId: { value: target.id },
@@ -674,6 +703,8 @@ function buildManagedAppMainTemplate(
       managedEnvironmentName: { type: "string" },
       containerAppName: { type: "string" },
       containerImage: { type: "string" },
+      softwareVersion: { type: "string" },
+      dataModelVersion: { type: "string" },
       targetGroup: { type: "string" },
       tenantId: { type: "string" },
       targetId: { type: "string" },
@@ -717,7 +748,7 @@ function buildManagedAppMainTemplate(
           configuration: {
             ingress: {
               external: true,
-              targetPort: 80,
+              targetPort: 8080,
               transport: "Auto",
             },
           },
@@ -726,6 +757,22 @@ function buildManagedAppMainTemplate(
               {
                 name: "app",
                 image: "[parameters('containerImage')]",
+                command: ["python"],
+                args: ["-c", targetDemoServerScript],
+                env: [
+                  {
+                    name: "MAPPO_SOFTWARE_VERSION",
+                    value: "[parameters('softwareVersion')]",
+                  },
+                  {
+                    name: "MAPPO_DATA_MODEL_VERSION",
+                    value: "[parameters('dataModelVersion')]",
+                  },
+                  {
+                    name: "MAPPO_FEATURE_FLAG",
+                    value: "[parameters('dataModelVersion')]",
+                  },
+                ],
                 resources: {
                   cpu: defaultContainerCpu,
                   memory: defaultContainerMemory,

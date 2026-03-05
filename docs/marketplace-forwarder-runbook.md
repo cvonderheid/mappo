@@ -44,6 +44,12 @@ Script prints:
 
 Use `webhook_url` in Partner Center technical configuration.
 
+Important:
+- For Managed Application notifications, Azure calls the webhook with `/resource` appended.
+- MAPPO forwarder accepts both:
+  - `/api/marketplace/events`
+  - `/api/marketplace/events/resource`
+
 ## 3) Test Through Real Webhook Path
 
 Replay inventory through Function App (instead of calling MAPPO backend directly):

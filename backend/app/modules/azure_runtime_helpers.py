@@ -159,6 +159,8 @@ def build_container_app_update_payload(
     app: Any,
     desired_image: str,
     desired_feature_flag: str | None,
+    desired_data_model_version: str | None,
+    desired_software_version: str | None,
     container_app_model_type: type[Any],
     error_factory: Callable[[str, str, dict[str, Any] | None], Exception],
 ) -> Any:
@@ -184,6 +186,18 @@ def build_container_app_update_payload(
             container=containers[0],
             env_name="MAPPO_FEATURE_FLAG",
             env_value=desired_feature_flag,
+        )
+    if desired_data_model_version is not None:
+        set_container_env_value(
+            container=containers[0],
+            env_name="MAPPO_DATA_MODEL_VERSION",
+            env_value=desired_data_model_version,
+        )
+    if desired_software_version is not None:
+        set_container_env_value(
+            container=containers[0],
+            env_name="MAPPO_SOFTWARE_VERSION",
+            env_value=desired_software_version,
         )
 
     return container_app_model_type(

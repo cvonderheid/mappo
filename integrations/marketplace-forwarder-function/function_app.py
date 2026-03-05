@@ -204,8 +204,7 @@ def _emit_forwarder_log(
         logger.exception("Unable to emit forwarder log to MAPPO backend.")
 
 
-@app.route(route="marketplace/events", methods=["POST"])
-def marketplace_events(req: func.HttpRequest) -> func.HttpResponse:
+def _handle_marketplace_events(req: func.HttpRequest) -> func.HttpResponse:
     request_id = req.headers.get("x-ms-request-id") or req.headers.get("x-request-id")
     normalized_event: dict[str, Any] | None = None
     try:
@@ -286,3 +285,13 @@ def marketplace_events(req: func.HttpRequest) -> func.HttpResponse:
         status_code=status_code,
         mimetype="application/json",
     )
+
+
+@app.route(route="marketplace/events", methods=["POST"])
+def marketplace_events(req: func.HttpRequest) -> func.HttpResponse:
+    return _handle_marketplace_events(req)
+
+
+@app.route(route="marketplace/events/resource", methods=["POST"])
+def marketplace_events_resource(req: func.HttpRequest) -> func.HttpResponse:
+    return _handle_marketplace_events(req)

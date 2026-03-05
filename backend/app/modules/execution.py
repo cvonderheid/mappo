@@ -24,8 +24,10 @@ from app.modules.execution_utils import (
     normalize_location,
     parse_usage_item,
     read_container_env_value,
+    resolve_desired_data_model_version,
     resolve_desired_feature_flag,
     resolve_desired_image,
+    resolve_desired_software_version,
     stringify_exception,
 )
 from app.modules.execution_utils import (
@@ -834,15 +836,45 @@ class AzureSdkRuntime:
             parameter_defaults=release.parameter_defaults,
         )
         desired_feature_flag = resolve_desired_feature_flag(release.parameter_defaults)
+        desired_data_model_version = resolve_desired_data_model_version(
+            release.parameter_defaults
+        )
+        desired_software_version = resolve_desired_software_version(
+            parameter_defaults=release.parameter_defaults,
+            fallback_version=release.template_spec_version,
+        )
         current_feature_flag = read_container_env_value(
             app=snapshot.raw_app,
             env_name="MAPPO_FEATURE_FLAG",
         )
+        current_data_model_version = read_container_env_value(
+            app=snapshot.raw_app,
+            env_name="MAPPO_DATA_MODEL_VERSION",
+        )
+        if current_data_model_version is None:
+            current_data_model_version = current_feature_flag
+        current_software_version = read_container_env_value(
+            app=snapshot.raw_app,
+            env_name="MAPPO_SOFTWARE_VERSION",
+        )
         feature_flag_changed = (
             desired_feature_flag is not None and desired_feature_flag != current_feature_flag
         )
+        data_model_changed = (
+            desired_data_model_version is not None
+            and desired_data_model_version != current_data_model_version
+        )
+        software_version_changed = (
+            desired_software_version is not None
+            and desired_software_version != current_software_version
+        )
 
-        if desired_image == snapshot.current_image and not feature_flag_changed:
+        if (
+            desired_image == snapshot.current_image
+            and not feature_flag_changed
+            and not data_model_changed
+            and not software_version_changed
+        ):
             return AzureDeployResult(
                 snapshot=snapshot,
                 desired_image=desired_image,
@@ -853,6 +885,8 @@ class AzureSdkRuntime:
             snapshot.raw_app,
             desired_image=desired_image,
             desired_feature_flag=desired_feature_flag,
+            desired_data_model_version=desired_data_model_version,
+            desired_software_version=desired_software_version,
         )
         client = self._client(
             subscription_id=snapshot.resource_ref.subscription_id,
@@ -884,6 +918,8 @@ class AzureSdkRuntime:
                     "container_app_name": snapshot.resource_ref.container_app_name,
                     "desired_image": desired_image,
                     "desired_feature_flag": desired_feature_flag,
+                    "desired_data_model_version": desired_data_model_version,
+                    "desired_software_version": desired_software_version,
                 },
             ) from error
 
@@ -1170,11 +1206,15 @@ class AzureSdkRuntime:
         *,
         desired_image: str,
         desired_feature_flag: str | None = None,
+        desired_data_model_version: str | None = None,
+        desired_software_version: str | None = None,
     ) -> Any:
         return build_container_app_update_payload(
             app=app,
             desired_image=desired_image,
             desired_feature_flag=desired_feature_flag,
+            desired_data_model_version=desired_data_model_version,
+            desired_software_version=desired_software_version,
             container_app_model_type=self._container_app_model_type,
             error_factory=lambda code, message, details: AzureExecutionError(
                 code=code,

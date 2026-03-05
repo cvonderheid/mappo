@@ -55,7 +55,15 @@ Simulation-only helpers:
 ```bash
 make iac-export-targets
 make marketplace-forwarder-replay-inventory FORWARDER_URL="<https://.../api/marketplace/events?code=...>"
+make release-ingest-from-repo API_BASE_URL="$MAPPO_API_BASE_URL" MANIFEST_FILE="/abs/path/releases.manifest.json"
+
+# separate demo-fleet target stack (no Partner Center required)
+make demo-fleet-configure PROVIDER_SUBSCRIPTION_ID="<sub1>" CUSTOMER_SUBSCRIPTION_ID="<sub2>" [DEMO_FLEET_STACK=demo-fleet]
+make demo-fleet-up DEMO_FLEET_STACK=demo-fleet API_BASE_URL="$MAPPO_API_BASE_URL" INGEST_TOKEN="$MAPPO_MARKETPLACE_INGEST_TOKEN"
+make demo-fleet-down DEMO_FLEET_STACK=demo-fleet API_BASE_URL="$MAPPO_API_BASE_URL" INGEST_TOKEN="$MAPPO_MARKETPLACE_INGEST_TOKEN"
 ```
+
+See `/Users/cvonderheid/workspace/mappo/docs/demo-fleet-runbook.md` for step-by-step flow.
 
 ### Partner Center API helpers
 ```bash

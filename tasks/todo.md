@@ -4,6 +4,44 @@ Date: 2026-02-26
 Owner: Codex
 
 ## Scope (Current Slice)
+Demo-fleet realism pivot:
+- Split target infrastructure into a dedicated `demo-fleet` Pulumi project (separate from control plane stack).
+- Add lifecycle simulation semantics for onboarding events (`subscription_purchased`, `subscription_suspended`, `subscription_deleted`).
+- Add dedicated UI `Demo` panel for marketplace-event simulation.
+- Automate demo-fleet up/down flow to emit lifecycle events around stack apply/destroy.
+
+## Plan (Current Slice)
+- [x] Create independent Pulumi project under `infra/demo-fleet` for target RG/ACA fleet and inventory outputs.
+- [x] Add Make targets and scripts for `demo-fleet-configure`, `demo-fleet-up`, and `demo-fleet-down`.
+- [x] Extend backend onboarding domain to support suspend/delete lifecycle behavior.
+- [x] Move simulation UI from Admin into a dedicated Demo route/panel.
+- [x] Add release-ingest-from-repo automation (GitHub/ADO artifact registration path).
+- [x] Refresh runbooks/docs with step-by-step demo-fleet lifecycle commands.
+
+## Verification Commands (Current Slice)
+- [x] `bash -n scripts/demo_fleet_configure.sh scripts/demo_fleet_up.sh scripts/demo_fleet_down.sh`
+- [x] `npm --prefix infra/demo-fleet install`
+- [x] `npm --prefix infra/demo-fleet run build`
+- [x] `make demo-fleet-preview DEMO_FLEET_STACK=dev`
+- [x] `uv --directory backend run --package mappo-backend -- ruff check app/domain/admin.py tests/test_admin.py`
+- [x] `uv --directory backend run --package mappo-backend -- pytest -q tests/test_admin.py`
+- [x] `uv --directory backend run --package mappo-backend -- pytest -q`
+- [x] `cd frontend && npm run typecheck`
+- [x] `cd frontend && npm run lint`
+- [x] `cd frontend && npm run test -- App.test.tsx`
+- [x] `bash -n scripts/release_ingest_from_repo.sh`
+- [x] `./scripts/release_ingest_from_repo.sh --manifest-file /tmp/mappo-release-manifest.json --dry-run`
+
+## Results Log (Current Slice)
+- 2026-03-04: Added new Pulumi project `infra/demo-fleet` for target-only demo fleet provisioning with inventory outputs (`mappoTargetInventory`).
+- 2026-03-04: Added lifecycle orchestration scripts `scripts/demo_fleet_configure.sh`, `scripts/demo_fleet_up.sh`, and `scripts/demo_fleet_down.sh`.
+- 2026-03-04: Added Make targets for demo-fleet provisioning/export and lifecycle event simulation.
+- 2026-03-04: Extended backend admin domain to support suspension and deletion lifecycle semantics.
+- 2026-03-04: Added dedicated `Demo` route and `DemoPanel` UI for simulated marketplace lifecycle events; removed simulation trigger from Admin panel.
+- 2026-03-04: Added `scripts/release_ingest_from_repo.sh` + `make release-ingest-from-repo` to ingest release manifests from file/URL/GitHub/ADO into `POST /api/v1/releases`.
+- 2026-03-04: Updated runbook/docs with release-manifest workflow tied to demo-fleet lifecycle.
+
+## Scope (Current Slice)
 Template Spec rollout execution (Phase 1 + Phase 2):
 - Add release/run execution-mode persistence and API fields.
 - Implement Azure template-spec DEPLOYING path (RG/subscription scope).
@@ -35,6 +73,7 @@ Template Spec rollout execution (Phase 1 + Phase 2):
 - 2026-03-02: Added test coverage for template-spec mode run execution snapshot (`backend/tests/test_execution_modes.py`).
 - 2026-03-02: Verification passed: backend lint/typecheck/tests, OpenAPI/client generation, and `make phase1-gate-full`.
 - 2026-03-02: Updated temporary file-size cap for `backend/app/modules/execution.py` from `1250` to `1300` after feature expansion; follow-up split still recommended.
+- 2026-03-03: Raised temporary cap for `backend/app/modules/execution.py` from `1300` to `1400` to unblock target demo version/data-model rollout; follow-up extraction still required.
 
 ## Scope (Current Slice)
 Domain architecture refactor cleanup:

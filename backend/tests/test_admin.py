@@ -195,6 +195,72 @@ def test_admin_registration_can_be_deleted(client: TestClient) -> None:
     assert "mappo-ma-target-live-01" not in registration_ids
 
 
+def test_admin_suspension_event_marks_target_degraded(client: TestClient) -> None:
+    create_response = client.post(
+        "/api/v1/admin/onboarding/events",
+        json=_sample_onboarding_event("evt-007"),
+    )
+    assert create_response.status_code == 200
+    assert create_response.json()["status"] == "applied"
+
+    suspend_payload = _sample_onboarding_event("evt-008")
+    suspend_payload["event_type"] = "subscription_suspended"
+    suspend_response = client.post("/api/v1/admin/onboarding/events", json=suspend_payload)
+    assert suspend_response.status_code == 200
+    suspend_body = suspend_response.json()
+    assert suspend_body["status"] == "applied"
+    assert suspend_body["target_id"] == "mappo-ma-target-live-01"
+
+    targets_response = client.get("/api/v1/targets")
+    assert targets_response.status_code == 200
+    target = next(
+        item
+        for item in targets_response.json()
+        if item["id"] == "mappo-ma-target-live-01"
+    )
+    assert target["health_status"] == "degraded"
+
+
+def test_admin_deleted_event_deregisters_target(client: TestClient) -> None:
+    create_response = client.post(
+        "/api/v1/admin/onboarding/events",
+        json=_sample_onboarding_event("evt-009"),
+    )
+    assert create_response.status_code == 200
+    assert create_response.json()["status"] == "applied"
+
+    delete_payload = _sample_onboarding_event("evt-010")
+    delete_payload["event_type"] = "subscription_deleted"
+    delete_response = client.post("/api/v1/admin/onboarding/events", json=delete_payload)
+    assert delete_response.status_code == 200
+    delete_body = delete_response.json()
+    assert delete_body["status"] == "applied"
+    assert delete_body["target_id"] == "mappo-ma-target-live-01"
+
+    targets_response = client.get("/api/v1/targets")
+    assert targets_response.status_code == 200
+    target_ids = {item["id"] for item in targets_response.json()}
+    assert "mappo-ma-target-live-01" not in target_ids
+
+    snapshot_response = client.get("/api/v1/admin/onboarding")
+    assert snapshot_response.status_code == 200
+    snapshot = snapshot_response.json()
+    registration_ids = {item["target_id"] for item in snapshot["registrations"]}
+    assert "mappo-ma-target-live-01" not in registration_ids
+    assert snapshot["events"][0]["event_id"] == "evt-010"
+    assert snapshot["events"][0]["status"] == "applied"
+
+
+def test_admin_deleted_event_is_idempotent_when_target_absent(client: TestClient) -> None:
+    payload = _sample_onboarding_event("evt-011")
+    payload["event_type"] = "subscription_deleted"
+    response = client.post("/api/v1/admin/onboarding/events", json=payload)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "applied"
+    assert body["target_id"] == "mappo-ma-target-live-01"
+
+
 def test_admin_forwarder_log_ingest_and_snapshot(client: TestClient) -> None:
     create_response = client.post(
         "/api/v1/admin/onboarding/forwarder-logs",

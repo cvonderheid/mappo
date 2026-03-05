@@ -31,7 +31,9 @@ Required when `mappo:controlPlanePostgresEnabled=true`:
 
 Optional:
 - `mappo:defaultLocation` (default: `eastus`)
-- `mappo:defaultImage` (default: `mcr.microsoft.com/azuredocs/containerapps-helloworld:latest`)
+- `mappo:defaultImage` (default: `docker.io/library/python:3.11-alpine`)
+- `mappo:defaultSoftwareVersion` (default: `2026.02.20.1`)
+- `mappo:defaultDataModelVersion` (default: `1`)
 - `mappo:defaultCpu` (default: `0.25`)
 - `mappo:defaultMemory` (default: `0.5Gi`)
 - `mappo:targetProfile` (default: `empty`, supported: `demo10`, `empty`)

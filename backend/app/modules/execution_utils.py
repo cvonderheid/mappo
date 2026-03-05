@@ -427,6 +427,40 @@ def resolve_desired_feature_flag(parameter_defaults: dict[str, str]) -> str | No
     return None
 
 
+def resolve_desired_data_model_version(parameter_defaults: dict[str, str]) -> str | None:
+    for key in (
+        "dataModelVersion",
+        "data_model_version",
+        "flywayVersion",
+        "flyway_version",
+    ):
+        value = parameter_defaults.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return resolve_desired_feature_flag(parameter_defaults)
+
+
+def resolve_desired_software_version(
+    *,
+    parameter_defaults: dict[str, str],
+    fallback_version: str | None = None,
+) -> str | None:
+    for key in (
+        "softwareVersion",
+        "software_version",
+        "appVersion",
+        "app_version",
+        "releaseVersion",
+        "release_version",
+    ):
+        value = parameter_defaults.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    if isinstance(fallback_version, str) and fallback_version.strip():
+        return fallback_version.strip()
+    return None
+
+
 def replace_image_tag(*, current_image: str, image_tag: str) -> str:
     if current_image.strip() == "":
         return image_tag

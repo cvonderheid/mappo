@@ -80,11 +80,15 @@ def sample_releases(
             template_spec_id=template_spec_id,
             template_spec_version="2026.02.20.1",
             parameter_defaults={
-                "containerImage": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest",
-                "featureFlag": "off",
+                "containerImage": "docker.io/library/python:3.11-alpine",
+                "softwareVersion": "2026.02.20.1",
+                "dataModelVersion": "1",
             },
-            release_notes="Stable baseline release.",
-            verification_hints=["Health endpoint returns 200", "Container revision ready"],
+            release_notes="Stable baseline release with data model v1.",
+            verification_hints=[
+                "Target app endpoint returns JSON payload",
+                "softwareVersion and dataModelVersion match release",
+            ],
             created_at=now,
         ),
         Release(
@@ -92,11 +96,15 @@ def sample_releases(
             template_spec_id=template_spec_id,
             template_spec_version="2026.02.25.3",
             parameter_defaults={
-                "containerImage": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest",
-                "featureFlag": "on",
+                "containerImage": "docker.io/library/python:3.11-alpine",
+                "softwareVersion": "2026.02.25.3",
+                "dataModelVersion": "2",
             },
-            release_notes="Canary-first rollout with feature flag enabled.",
-            verification_hints=["App startup under 60s", "Dependency probe healthy"],
+            release_notes="Canary-first rollout with data model v2.",
+            verification_hints=[
+                "Target app endpoint reflects software version 2026.02.25.3",
+                "Target app endpoint reflects data model version 2",
+            ],
             created_at=now,
         ),
     ]
