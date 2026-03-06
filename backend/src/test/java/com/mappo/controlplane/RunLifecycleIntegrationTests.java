@@ -23,7 +23,14 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+    "mappo.azure-tenant-id=",
+    "mappo.azure-client-id=",
+    "mappo.azure-client-secret=",
+    "MAPPO_AZURE_TENANT_ID=",
+    "MAPPO_AZURE_CLIENT_ID=",
+    "MAPPO_AZURE_CLIENT_SECRET="
+})
 class RunLifecycleIntegrationTests extends PostgresIntegrationTestBase {
 
     @Autowired

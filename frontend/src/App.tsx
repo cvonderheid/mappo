@@ -34,9 +34,15 @@ import type {
   UpdateTargetRegistrationRequest,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+const ROUTER_FUTURE_FLAGS = {
+  v7_relativeSplatPath: true,
+  v7_startTransition: true,
+} as const;
+
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={ROUTER_FUTURE_FLAGS}>
       <AppShell />
     </BrowserRouter>
   );

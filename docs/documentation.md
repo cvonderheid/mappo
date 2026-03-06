@@ -32,7 +32,7 @@
 
 ### Environment
 - `MAPPO_JDBC_DATABASE_URL` (preferred)
-- `MAPPO_DATABASE_URL` (auto-converted from SQLAlchemy-style)
+- `MAPPO_DATABASE_URL` (legacy compatibility alias)
 - `MAPPO_DB_USER`
 - `MAPPO_DB_PASSWORD`
 - `MAPPO_MARKETPLACE_INGEST_TOKEN`

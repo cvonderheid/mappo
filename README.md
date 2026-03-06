@@ -82,7 +82,7 @@ Flyway migrations are in:
 
 Environment variables:
 - `MAPPO_JDBC_DATABASE_URL` (preferred)
-- `MAPPO_DATABASE_URL` (SQLAlchemy-style URL supported via auto-conversion)
+- `MAPPO_DATABASE_URL` (legacy compatibility alias)
 - `MAPPO_DB_USER`
 - `MAPPO_DB_PASSWORD`
 - `MAPPO_MARKETPLACE_INGEST_TOKEN`

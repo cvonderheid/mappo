@@ -88,8 +88,8 @@
 - Scope: list/filter targets, register releases, start and monitor runs.
 - Verify: frontend unit/e2e flow coverage.
 
-### Milestone 6: ACA/Lighthouse integration boundary hardening
-- Scope: delegated execution adapters, correlation/log capture, health checks.
+### Milestone 6: Managed App execution boundary hardening
+- Scope: Azure execution adapters, correlation/log capture, health checks.
 - Verify: adapter contract tests and failure handling tests.
 
 ### Milestone 7: Operational hardening

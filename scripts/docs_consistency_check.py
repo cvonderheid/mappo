@@ -31,6 +31,13 @@ NO_MAKE_REFERENCE_FILES = [
     "docs/runtime-aca-runbook.md",
 ]
 
+FORBIDDEN_ACTIVE_DOC_MARKERS = [
+    "backend-java",
+    "FastAPI",
+    "uv run",
+    "SQLAlchemy-style",
+]
+
 CONTENT_RULES = {
     "plans.md": ["## Status", "## Milestone Plan", "## Review Checklist Before Coding"],
     "plans-next.md": ["## Verification Checklist", "## Status Snapshot", "## Phase"],
@@ -69,6 +76,9 @@ def main() -> int:
         text = path.read_text(encoding="utf-8")
         if "make " in text or "`make" in text:
             failures.append(f"{relative} still references removed Makefile workflow")
+        for marker in FORBIDDEN_ACTIVE_DOC_MARKERS:
+            if marker in text:
+                failures.append(f"{relative} still references removed Python-era marker: {marker}")
 
     if failures:
         print("docs-consistency-check: FAIL")

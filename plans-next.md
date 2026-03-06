@@ -1,124 +1,89 @@
-# MAPPO Phase 4-5 Plan (`plans-next.md`)
+# MAPPO Next Plan (`plans-next.md`)
 
-Date: 2026-02-26
+Date: 2026-03-06
 
 ## Theme
-Postgres-first persistence baseline:
-- move control-plane storage from SQLite to Postgres,
-- enforce schema lifecycle with Flyway,
-- generate ORM classes from live schema using jOOQ codegen.
+Java-first completion and production-like Azure runtime:
+- finish the real Azure execution paths,
+- keep build/package workflows Maven-native,
+- keep runtime operations explicit through scripts and Pulumi,
+- rebuild the cloud demo from the cleaned Java baseline.
 
-## Verification Checklist (must stay accurate)
-- [x] Flyway baseline migration applies cleanly to local Postgres.
-- [x] Generated ORM model file exists and is in sync with migration schema.
-- [x] Targets/releases/runs persist and reload from Postgres on startup.
-- [x] In-flight runs reconcile safely on restart (`running` -> `halted`).
-- [x] Deterministic 10-target seed/reset still works.
-- [x] Retention prune command still works with configurable day window.
-- [x] Current backend/frontend verification workflow remains green.
+## Verification Checklist
+- [x] `./mvnw clean install` passes from repo root.
+- [x] Active docs use Maven + direct scripts/Pulumi, not removed Make or UV workflows.
+- [x] Frontend client generation is driven from the Java backend OpenAPI artifact.
+- [x] Legacy backend files and UV workspace metadata are removed from the active runtime path.
+- [x] Real `template_spec` resource-group execution exists behind a testable strategy seam.
 
-## Status Snapshot (2026-02-26)
-- [x] Milestone 01 completed
-- [x] Milestone 02 completed
-- [x] Milestone 03 completed
-- [x] Milestone 04 completed
-- [x] Milestone 05 completed
-- [x] Milestone 06 completed
+## Status Snapshot (2026-03-06)
+- [x] Java backend cutover completed.
+- [x] Frontend Maven lifecycle wiring completed.
+- [x] Active docs/runbook command surface cleaned.
+- [ ] `template_spec` subscription-scope execution
+- [ ] `deployment_stack` execution
+- [ ] `bicep` execution
+- [ ] Pulumi-managed runtime/forwarder lifecycle
+- [ ] Clean Azure demo rebuild from current baseline
 
-## Phase 4 — Milestone 01: DB Workflow Alignment
+## Phase A: Execution Completeness
 **Scope**
-- Add TXero-style DB targets and scripts (`db-migrate`, `db-validate`, `db-info`, `db-clean`, `db-reset`, `models-gen`).
+- Implement real `template_spec` execution for subscription scope.
+- Implement real `deployment_stack` execution.
+- Implement real `bicep` execution.
+- Keep run orchestration, retries, and halt/resume semantics consistent across strategies.
 
 **Acceptance criteria**
-- Local commands can create/migrate/reset schema and generate models deterministically.
+- Unsupported source/scope combinations are reduced to only intentionally deferred cases.
+- Each strategy records normalized stage logs, deployment metadata, and Azure identifiers.
+- Orchestration-level tests cover every strategy branch through interfaces/stubs where live Azure is not required.
 
 **Verification commands**
 - `./mvnw -pl backend test`
 - `./mvnw -pl backend verify`
 
-## Phase 4 — Milestone 02: Store Migration
+## Phase B: Runtime and Deploy Model Alignment
 **Scope**
-- Refactor control-plane store persistence from SQLite to Postgres using jOOQ-backed repositories.
+- Move ACA runtime resource lifecycle and marketplace forwarder infrastructure under Pulumi where appropriate.
+- Keep scripts for auth/bootstrap, validation, packaging, and manual operator actions.
+- Preserve the split between artifact publish and infrastructure rollout.
 
 **Acceptance criteria**
-- Existing API contract remains stable while data persists in Postgres JSONB tables.
+- Resource creation/update/destroy for steady-state cloud runtime is Pulumi-managed.
+- Script surface is reduced to non-IaC concerns.
+- Docs describe one authoritative deploy/update path.
 
 **Verification commands**
-- `./mvnw -pl backend test`
+- `./mvnw -pl infra/pulumi -DskipTests compile`
+- `cd infra/pulumi && pulumi preview --stack <stack>`
 
-## Phase 4 — Milestone 03: Runtime/Script Wiring
+## Phase C: Demo Rebuild From Clean Baseline
 **Scope**
-- Replace SQLite settings and operational scripts with Postgres configuration defaults.
+- Recreate the provider runtime and two-target demo environment from the cleaned Java repo.
+- Use webhook-style onboarding and demo-fleet event simulation as the default validation path.
+- Keep DB/runtime state empty until onboarding events or explicit release registration occur.
 
 **Acceptance criteria**
-- App startup, `demo-reset`, and `retention-prune` all work against Postgres.
+- Local and cloud demos start from a clean slate with no hidden seed data.
+- Demo runbooks are executable end-to-end without referencing removed Python or Make workflows.
+- Fleet state is populated only through onboarding/registration flows.
 
 **Verification commands**
-- backend retention/reset utilities remain runnable under current backend workflow
+- `python3 scripts/docs_consistency_check.py`
+- `python3 scripts/check_no_demo_leak.py`
+- `./mvnw clean install`
 
-## Phase 4 — Milestone 04: Verification + Gate Closure
+## Phase D: Marketplace Validation Readiness
 **Scope**
-- Update tests and docs for Phase 4 and close quality gates.
+- Keep the private-offer/Partner Center path documented and scriptable where Microsoft allows.
+- Preserve simulated webhook ingress until publisher account prerequisites are available.
+- Ensure the current demo mirrors the production auth and onboarding model as closely as possible.
 
 **Acceptance criteria**
-- Lint/typecheck/test and phase gate commands all pass.
+- Forwarder path remains the primary onboarding ingress.
+- Portal-only steps are isolated to the playbook.
+- No target registration path depends on direct inventory import as the default flow.
 
 **Verification commands**
-- `./mvnw -pl backend verify`
-- `./mvnw -pl frontend compile`
-- `./mvnw -pl frontend test`
-
-## Phase 4 — Milestone 05: OpenAPI + Client Generation
-**Scope**
-- Add deterministic OpenAPI generation from Spring Boot and frontend generated client types.
-
-**Acceptance criteria**
-- `/Users/cvonderheid/workspace/mappo/backend/target/openapi/openapi.json` is generated from backend app contract.
-- Frontend API layer uses generated schema/client types instead of handwritten shape definitions.
-
-**Verification commands**
-- `./mvnw -pl backend verify`
-- `./mvnw -pl frontend generate-sources`
-- `./mvnw -pl frontend compile`
-
-## Phase 4 — Milestone 06: Docker Compose Dev Stack
-**Scope**
-- Add local compose stack for DB + migration + backend + frontend with non-conflicting default ports.
-
-**Acceptance criteria**
-- Stack can be started with one command.
-- Host ports do not conflict with TXero defaults.
-
-**Verification commands**
-- local runtime workflow commands remain runnable and documented
-
-## Phase 5 — Milestone 01: Execution Adapter Boundary
-**Scope**
-- Introduce execution-mode adapter boundary (`demo` + `azure`) while preserving existing orchestration/data contracts.
-- Keep deterministic demo behavior as default mode for local development and tests.
-
-**Acceptance criteria**
-- Control-plane execution path delegates per-target stage events via adapter interface.
-- Runtime mode is configurable through settings (`MAPPO_EXECUTION_MODE`).
-- Azure mode surfaces explicit configuration/implementation errors without breaking run state handling.
-- Existing API contract remains stable.
-
-**Verification commands**
-- `./mvnw -pl backend verify`
-- `./mvnw -pl frontend generate-sources`
-- `./mvnw -pl frontend compile`
-- `./mvnw -pl frontend test`
-
-## Phase 5 — Milestone 02: Pulumi Demo Target Provisioning
-**Scope**
-- Add a Pulumi IaC baseline for demo target provisioning (resource group + ACA environment + ACA app per target).
-- Provide a 10-target stack config template compatible with MAPPO target inventory concepts.
-- Integrate IaC commands into Make workflow.
-
-**Acceptance criteria**
-- `infra/pulumi` contains a runnable Pulumi project with typed target config.
-- Stack outputs include target inventory payload (`mappoTargetInventory`) for MAPPO ingestion.
-- Make targets exist for install/preview/up/destroy/export.
-
-**Verification commands**
-- IaC preview/install workflow remains runnable under current Pulumi/Maven flow
+- Run the live demo checklist against a fresh environment.
+- Validate forwarder replay and one canary deployment end-to-end.

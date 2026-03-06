@@ -43,10 +43,10 @@ This is the current script inventory across `scripts/`, with disposition:
 - `scripts/with_mappo_azure_env.sh`: `keep` (local DX helper).
 - `scripts/workflow_discipline_check.py`: `keep` (engineering quality gate).
 
-### Legacy backend scripts
+### Removed backend scripts
 
-- Legacy `backend/scripts/` utilities belonged to the removed Python backend.
-- Any remaining operator automation should live under top-level `scripts/` or as Maven lifecycle steps in the owning module.
+- The old `backend/scripts/` utilities belonged to the retired backend implementation and are no longer part of the supported workflow surface.
+- Operator automation should live under top-level `scripts/` or as Maven lifecycle steps in the owning module.
 
 ## Pulumi Migration Priority
 

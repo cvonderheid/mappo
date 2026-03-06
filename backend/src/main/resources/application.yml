@@ -21,9 +21,14 @@ spring:
 
 springdoc:
   api-docs:
+    enabled: true
     path: ${mappo.api-prefix}/openapi.json
   swagger-ui:
     enabled: false
+
+logging:
+  level:
+    org.jooq.impl.DefaultExecuteContext.logVersionSupport: ERROR
 
 server:
   port: ${MAPPO_BACKEND_PORT:8010}
