@@ -4,6 +4,29 @@ Date: 2026-02-26
 Owner: Codex
 
 ## Scope (Current Slice)
+Maven dependency and plugin centralization:
+- Add a dedicated BOM module at `dependencies/pom.xml` for shared dependency version management.
+- Move plugin version management to root `pom.xml` `pluginManagement`.
+- Remove duplicated dependency/plugin version definitions from module POMs.
+
+## Plan (Current Slice)
+- [x] Add `dependencies` Maven module with managed versions for shared libraries.
+- [x] Import `mappo-dependencies` BOM from root parent POM.
+- [x] Add root `pluginManagement` for shared plugin versions.
+- [x] Refactor `backend-java`, `infra/pulumi`, and `infra/demo-fleet` POMs to inherit parent/BOM/pluginManagement.
+- [x] Run Maven verification (`compile`, `test`, `verify`) and update docs if command surfaces change.
+
+## Verification Commands (Current Slice)
+- [x] `./mvnw verify`
+
+## Results Log (Current Slice)
+- 2026-03-05: Added dedicated BOM module at `/Users/cvonderheid/workspace/mappo/dependencies/pom.xml` with Spring Boot BOM import and shared version-managed dependencies.
+- 2026-03-05: Updated root `/Users/cvonderheid/workspace/mappo/pom.xml` to import `mappo-dependencies`, add `dependencies` to reactor modules, and define centralized `pluginManagement`.
+- 2026-03-05: Refactored `/Users/cvonderheid/workspace/mappo/backend-java/pom.xml` to inherit from root parent and remove duplicated dependency/plugin versions.
+- 2026-03-05: Refactored `/Users/cvonderheid/workspace/mappo/infra/pulumi/pom.xml` and `/Users/cvonderheid/workspace/mappo/infra/demo-fleet/pom.xml` to inherit from root parent and consume managed versions/plugins.
+- 2026-03-05: Verified full reactor build/test/package flow with `./mvnw verify`.
+
+## Scope (Current Slice)
 Pulumi Java IaC conversion:
 - Convert Pulumi projects from TypeScript runtime to Java runtime.
 - Use Pulumi Java SDK (`com.pulumi:pulumi`) + Azure Native Java provider.
