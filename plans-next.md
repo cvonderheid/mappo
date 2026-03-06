@@ -69,8 +69,8 @@ Java-first completion and production-like Azure runtime:
 - Fleet state is populated only through onboarding/registration flows.
 
 **Verification commands**
-- `python3 scripts/docs_consistency_check.py`
-- `python3 scripts/check_no_demo_leak.py`
+- `./mvnw -pl tooling exec:java@docs-consistency-check`
+- `./mvnw -pl tooling exec:java@check-no-demo-leak`
 - `./mvnw clean install`
 
 ## Phase D: Marketplace Validation Readiness

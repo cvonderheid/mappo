@@ -20,6 +20,7 @@
     <frontend.maven.plugin.version>1.15.1</frontend.maven.plugin.version>
     <maven.compiler.plugin.version>3.14.1</maven.compiler.plugin.version>
     <spring.boot.maven.plugin.version>${spring.boot.version}</spring.boot.maven.plugin.version>
+    <azure.functions.maven.plugin.version>1.40.0</azure.functions.maven.plugin.version>
     <testcontainers.jooq.codegen.maven.plugin.version>0.0.4</testcontainers.jooq.codegen.maven.plugin.version>
     <docker.maven.plugin.version>0.45.0</docker.maven.plugin.version>
     <pulumi.stack>dev</pulumi.stack>
@@ -41,8 +42,10 @@
 
   <modules>
     <module>dependencies</module>
+    <module>tooling</module>
     <module>backend</module>
     <module>frontend</module>
+    <module>integrations/marketplace-forwarder-function</module>
     <module>infra/pulumi</module>
     <module>infra/demo-fleet</module>
   </modules>
@@ -73,6 +76,11 @@
           <groupId>org.springframework.boot</groupId>
           <artifactId>spring-boot-maven-plugin</artifactId>
           <version>${spring.boot.maven.plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>com.microsoft.azure</groupId>
+          <artifactId>azure-functions-maven-plugin</artifactId>
+          <version>${azure.functions.maven.plugin.version}</version>
         </plugin>
         <plugin>
           <groupId>org.testcontainers</groupId>

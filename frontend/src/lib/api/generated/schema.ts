@@ -4,102 +4,6 @@
  */
 
 export interface paths {
-    "/api/v1/admin/onboarding": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["onboardingSnapshot"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/onboarding/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["ingestMarketplaceEvent"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/onboarding/forwarder-logs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["listForwarderLogs"];
-        put?: never;
-        post: operations["ingestForwarderLog"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/onboarding/registrations/{targetId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["deleteRegistration"];
-        options?: never;
-        head?: never;
-        patch: operations["updateRegistration"];
-        trace?: never;
-    };
-    "/api/v1/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["health"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/releases": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["listReleases"];
-        put?: never;
-        post: operations["createRelease"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/runs": {
         parameters: {
             query?: never;
@@ -110,38 +14,6 @@ export interface paths {
         get: operations["listRuns"];
         put?: never;
         post: operations["createRun"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/runs/{runId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["getRun"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/runs/{runId}/resume": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["resumeRun"];
         delete?: never;
         options?: never;
         head?: never;
@@ -164,20 +36,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/targets": {
+    "/api/v1/runs/{runId}/resume": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["listTargets"];
+        get?: never;
         put?: never;
-        post?: never;
+        post: operations["resumeRun"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listReleases"];
+        put?: never;
+        post: operations["createRelease"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/onboarding/forwarder-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listForwarderLogs"];
+        put?: never;
+        post: operations["ingestForwarderLog"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/onboarding/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ingestMarketplaceEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/onboarding/registrations/{targetId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteRegistration"];
+        options?: never;
+        head?: never;
+        patch: operations["updateRegistration"];
         trace?: never;
     };
     "/healthz": {
@@ -196,240 +132,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listTargets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{runId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["health"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/onboarding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["onboardingSnapshot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        DeleteRegistrationResultRecord: {
-            deleted?: boolean;
-            targetId?: string;
-        };
-        EventIngestResultRecord: {
-            eventId?: string;
-            message?: string;
-            /** @enum {string} */
-            status?: "applied" | "duplicate" | "rejected";
-            targetId?: string;
-        };
-        ForwarderLogDetailsRecord: {
-            backendResponse?: string;
-            detail?: string;
-        };
-        ForwarderLogDetailsRequest: {
-            backendResponse?: string;
-            detail?: string;
-        };
-        ForwarderLogIngestRequest: {
-            /** Format: int32 */
-            backendStatusCode?: number;
-            details?: components["schemas"]["ForwarderLogDetailsRequest"];
-            eventId?: string;
-            /** @enum {string} */
-            eventType?: "subscription_purchased" | "subscription_suspended" | "subscription_deleted" | "unknown";
-            forwarderRequestId?: string;
-            functionAppName?: string;
-            /** @enum {string} */
-            level?: "info" | "warning" | "error";
-            logId: string;
-            message: string;
-            /** Format: date-time */
-            occurredAt?: string;
-            /** Format: uuid */
-            subscriptionId?: string;
-            targetId?: string;
-            /** Format: uuid */
-            tenantId?: string;
-        };
-        ForwarderLogIngestResultRecord: {
-            logId?: string;
-            message?: string;
-            /** @enum {string} */
-            status?: "applied" | "duplicate" | "rejected";
-        };
-        ForwarderLogRecord: {
-            /** Format: int32 */
-            backendStatusCode?: number;
-            /** Format: date-time */
-            createdAt?: string;
-            details?: components["schemas"]["ForwarderLogDetailsRecord"];
-            eventId?: string;
-            /** @enum {string} */
-            eventType?: "subscription_purchased" | "subscription_suspended" | "subscription_deleted" | "unknown";
-            forwarderRequestId?: string;
-            functionAppName?: string;
-            /** @enum {string} */
-            level?: "info" | "warning" | "error";
-            logId?: string;
-            message?: string;
-            /** Format: uuid */
-            subscriptionId?: string;
-            targetId?: string;
-            /** Format: uuid */
-            tenantId?: string;
-        };
-        MarketplaceEventPayloadRecord: {
-            containerAppName?: string;
-            containerAppResourceId?: string;
-            customerName?: string;
-            displayName?: string;
-            environment?: string;
-            /** @enum {string} */
-            healthStatus?: "registered" | "healthy" | "degraded";
-            lastDeployedRelease?: string;
-            managedApplicationId?: string;
-            managedResourceGroupId?: string;
-            marketplacePayloadId?: string;
-            region?: string;
-            registrationSource?: string;
-            targetGroup?: string;
-            tier?: string;
-        };
-        MarketplaceEventRecord: {
-            /** Format: date-time */
-            createdAt?: string;
-            eventId?: string;
-            /** @enum {string} */
-            eventType?: "subscription_purchased" | "subscription_suspended" | "subscription_deleted" | "unknown";
-            message?: string;
-            payload?: components["schemas"]["MarketplaceEventPayloadRecord"];
-            /** Format: date-time */
-            processedAt?: string;
-            /** @enum {string} */
-            status?: "applied" | "duplicate" | "rejected";
-            /** Format: uuid */
-            subscriptionId?: string;
-            targetId?: string;
-            /** Format: uuid */
-            tenantId?: string;
-        };
-        OnboardingEventMetadataRequest: {
-            marketplacePayloadId?: string;
-            source?: string;
-        };
-        OnboardingEventRequest: {
-            containerAppName?: string;
-            containerAppResourceId?: string;
-            customerName?: string;
-            displayName?: string;
-            environment?: string;
-            eventId: string;
-            /** @enum {string} */
-            eventType?: "subscription_purchased" | "subscription_suspended" | "subscription_deleted" | "unknown";
-            /** @enum {string} */
-            healthStatus?: "registered" | "healthy" | "degraded";
-            lastDeployedRelease?: string;
-            managedApplicationId?: string;
-            managedResourceGroupId?: string;
-            metadata?: components["schemas"]["OnboardingEventMetadataRequest"];
-            region?: string;
-            /** Format: uuid */
-            subscriptionId: string;
-            tags?: {
-                [key: string]: string;
-            };
-            targetGroup?: string;
-            targetId?: string;
-            /** Format: uuid */
-            tenantId: string;
-            tier?: string;
-        };
-        OnboardingSnapshotRecord: {
-            events?: components["schemas"]["MarketplaceEventRecord"][];
-            forwarderLogs?: components["schemas"]["ForwarderLogRecord"][];
-            registrations?: components["schemas"]["TargetRegistrationRecord"][];
-        };
-        ReleaseCreateRequest: {
-            /** @enum {string} */
-            deploymentScope?: "resource_group" | "subscription";
-            executionSettings?: components["schemas"]["ReleaseExecutionSettingsRequest"];
-            parameterDefaults?: {
-                [key: string]: string;
-            };
-            releaseNotes?: string;
-            sourceRef: string;
-            /** @enum {string} */
-            sourceType?: "template_spec" | "bicep" | "deployment_stack";
-            sourceVersion: string;
-            sourceVersionRef?: string;
-            verificationHints?: string[];
-        };
-        ReleaseExecutionSettingsRecord: {
-            /** @enum {string} */
-            armMode?: "incremental" | "complete";
-            verifyAfterDeploy?: boolean;
-            whatIfOnCanary?: boolean;
-        };
-        ReleaseExecutionSettingsRequest: {
-            /** @enum {string} */
-            armMode?: "incremental" | "complete";
-            verifyAfterDeploy?: boolean;
-            whatIfOnCanary?: boolean;
-        };
-        ReleaseRecord: {
-            /** Format: date-time */
-            createdAt?: string;
-            /** @enum {string} */
-            deploymentScope?: "resource_group" | "subscription";
-            executionSettings?: components["schemas"]["ReleaseExecutionSettingsRecord"];
-            id?: string;
-            parameterDefaults?: {
-                [key: string]: string;
-            };
-            releaseNotes?: string;
-            sourceRef?: string;
-            /** @enum {string} */
-            sourceType?: "template_spec" | "bicep" | "deployment_stack";
-            sourceVersion?: string;
-            sourceVersionRef?: string;
-            verificationHints?: string[];
-        };
         RunCreateRequest: {
-            /** Format: int32 */
-            concurrency?: number;
             releaseId: string;
-            stopPolicy?: components["schemas"]["RunStopPolicyRequest"];
-            /** @enum {string} */
-            strategyMode?: "all_at_once" | "waves";
             targetIds?: string[];
             targetTags?: {
                 [key: string]: string;
             };
-            waveOrder?: string[];
-            waveTag?: string;
-        };
-        RunDetailRecord: {
-            /** Format: int32 */
-            concurrency?: number;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: date-time */
-            endedAt?: string;
-            /** @enum {string} */
-            executionSourceType?: "template_spec" | "bicep" | "deployment_stack";
-            guardrailWarnings?: string[];
-            haltReason?: string;
-            id?: string;
-            releaseId?: string;
-            /** Format: date-time */
-            startedAt?: string;
-            /** @enum {string} */
-            status?: "running" | "succeeded" | "failed" | "partial" | "halted";
-            stopPolicy?: components["schemas"]["RunStopPolicyRecord"];
             /** @enum {string} */
             strategyMode?: "all_at_once" | "waves";
-            /** Format: int32 */
-            subscriptionConcurrency?: number;
-            targetRecords?: components["schemas"]["RunTargetRecord"][];
-            /** Format: date-time */
-            updatedAt?: string;
-            waveOrder?: string[];
             waveTag?: string;
-        };
-        RunStopPolicyRecord: {
+            waveOrder?: string[];
             /** Format: int32 */
-            maxFailureCount?: number;
-            /** Format: double */
-            maxFailureRate?: number;
+            concurrency?: number;
+            stopPolicy?: components["schemas"]["RunStopPolicyRequest"];
         };
         RunStopPolicyRequest: {
             /** Format: int32 */
@@ -437,156 +220,373 @@ export interface components {
             /** Format: double */
             maxFailureRate?: number;
         };
-        RunSummaryRecord: {
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: date-time */
-            endedAt?: string;
+        RunDetailRecord: {
+            id?: string;
+            releaseId?: string;
             /** @enum {string} */
             executionSourceType?: "template_spec" | "bicep" | "deployment_stack";
-            /** Format: int32 */
-            failedTargets?: number;
-            guardrailWarnings?: string[];
-            haltReason?: string;
-            id?: string;
-            /** Format: int32 */
-            inProgressTargets?: number;
-            /** Format: int32 */
-            queuedTargets?: number;
-            releaseId?: string;
-            /** Format: date-time */
-            startedAt?: string;
             /** @enum {string} */
             status?: "running" | "succeeded" | "failed" | "partial" | "halted";
             /** @enum {string} */
             strategyMode?: "all_at_once" | "waves";
+            waveTag?: string;
+            waveOrder?: string[];
+            /** Format: int32 */
+            concurrency?: number;
             /** Format: int32 */
             subscriptionConcurrency?: number;
-            /** Format: int32 */
-            succeededTargets?: number;
-            /** Format: int32 */
-            totalTargets?: number;
-        };
-        RunTargetRecord: {
-            /** Format: int32 */
-            attempt?: number;
-            logs?: components["schemas"]["TargetLogEventRecord"][];
-            stages?: components["schemas"]["TargetStageRecord"][];
-            /** @enum {string} */
-            status?: "QUEUED" | "VALIDATING" | "DEPLOYING" | "VERIFYING" | "SUCCEEDED" | "FAILED";
-            /** Format: uuid */
-            subscriptionId?: string;
-            targetId?: string;
-            /** Format: uuid */
-            tenantId?: string;
+            stopPolicy?: components["schemas"]["RunStopPolicyRecord"];
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            endedAt?: string;
             /** Format: date-time */
             updatedAt?: string;
+            haltReason?: string;
+            guardrailWarnings?: string[];
+            targetRecords?: components["schemas"]["RunTargetRecord"][];
+        };
+        RunStopPolicyRecord: {
+            /** Format: int32 */
+            maxFailureCount?: number;
+            /** Format: double */
+            maxFailureRate?: number;
+        };
+        RunTargetRecord: {
+            targetId?: string;
+            /** Format: uuid */
+            subscriptionId?: string;
+            /** Format: uuid */
+            tenantId?: string;
+            /** @enum {string} */
+            status?: "QUEUED" | "VALIDATING" | "DEPLOYING" | "VERIFYING" | "SUCCEEDED" | "FAILED";
+            /** Format: int32 */
+            attempt?: number;
+            /** Format: date-time */
+            updatedAt?: string;
+            stages?: components["schemas"]["TargetStageRecord"][];
+            logs?: components["schemas"]["TargetLogEventRecord"][];
         };
         StageErrorDetailsRecord: {
+            /** Format: int32 */
+            statusCode?: number;
+            error?: string;
+            desiredImage?: string;
+            azureErrorCode?: string;
+            azureErrorMessage?: string;
+            azureRequestId?: string;
             azureArmServiceRequestId?: string;
             azureCorrelationId?: string;
             azureDeploymentName?: string;
-            azureErrorCode?: string;
-            azureErrorMessage?: string;
             azureOperationId?: string;
-            azureRequestId?: string;
             azureResourceId?: string;
-            desiredImage?: string;
-            error?: string;
-            /** Format: int32 */
-            statusCode?: number;
         };
         StageErrorRecord: {
             code?: string;
-            details?: components["schemas"]["StageErrorDetailsRecord"];
             message?: string;
+            details?: components["schemas"]["StageErrorDetailsRecord"];
         };
         TargetLogEventRecord: {
-            correlationId?: string;
+            /** Format: date-time */
+            timestamp?: string;
             /** @enum {string} */
             level?: "info" | "warning" | "error";
+            /** @enum {string} */
+            stage?: "QUEUED" | "VALIDATING" | "DEPLOYING" | "VERIFYING" | "SUCCEEDED" | "FAILED";
             message?: string;
+            correlationId?: string;
+        };
+        TargetStageRecord: {
             /** @enum {string} */
             stage?: "QUEUED" | "VALIDATING" | "DEPLOYING" | "VERIFYING" | "SUCCEEDED" | "FAILED";
             /** Format: date-time */
-            timestamp?: string;
-        };
-        TargetRecord: {
-            customerName?: string;
-            /** @enum {string} */
-            healthStatus?: "registered" | "healthy" | "degraded";
-            id?: string;
+            startedAt?: string;
             /** Format: date-time */
-            lastCheckInAt?: string;
-            lastDeployedRelease?: string;
-            managedAppId?: string;
+            endedAt?: string;
+            message?: string;
+            error?: components["schemas"]["StageErrorRecord"];
+            correlationId?: string;
+            portalLink?: string;
+        };
+        ReleaseCreateRequest: {
+            sourceRef: string;
+            sourceVersion: string;
             /** @enum {string} */
-            simulatedFailureMode?: "none" | "validate_once" | "deploy_once" | "verify_once";
+            sourceType?: "template_spec" | "bicep" | "deployment_stack";
+            sourceVersionRef?: string;
+            /** @enum {string} */
+            deploymentScope?: "resource_group" | "subscription";
+            executionSettings?: components["schemas"]["ReleaseExecutionSettingsRequest"];
+            parameterDefaults?: {
+                [key: string]: string;
+            };
+            releaseNotes?: string;
+            verificationHints?: string[];
+        };
+        ReleaseExecutionSettingsRequest: {
+            /** @enum {string} */
+            armMode?: "incremental" | "complete";
+            whatIfOnCanary?: boolean;
+            verifyAfterDeploy?: boolean;
+        };
+        ReleaseExecutionSettingsRecord: {
+            /** @enum {string} */
+            armMode?: "incremental" | "complete";
+            whatIfOnCanary?: boolean;
+            verifyAfterDeploy?: boolean;
+        };
+        ReleaseRecord: {
+            id?: string;
+            sourceRef?: string;
+            sourceVersion?: string;
+            /** @enum {string} */
+            sourceType?: "template_spec" | "bicep" | "deployment_stack";
+            sourceVersionRef?: string;
+            /** @enum {string} */
+            deploymentScope?: "resource_group" | "subscription";
+            executionSettings?: components["schemas"]["ReleaseExecutionSettingsRecord"];
+            parameterDefaults?: {
+                [key: string]: string;
+            };
+            releaseNotes?: string;
+            verificationHints?: string[];
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        ForwarderLogDetailsRequest: {
+            detail?: string;
+            backendResponse?: string;
+        };
+        ForwarderLogIngestRequest: {
+            logId: string;
+            /** @enum {string} */
+            level?: "info" | "warning" | "error";
+            message: string;
+            eventId?: string;
+            /** @enum {string} */
+            eventType?: "subscription_purchased" | "subscription_suspended" | "subscription_deleted" | "unknown";
+            targetId?: string;
+            /** Format: uuid */
+            tenantId?: string;
             /** Format: uuid */
             subscriptionId?: string;
+            functionAppName?: string;
+            forwarderRequestId?: string;
+            /** Format: int32 */
+            backendStatusCode?: number;
+            details?: components["schemas"]["ForwarderLogDetailsRequest"];
+            /** Format: date-time */
+            occurredAt?: string;
+        };
+        ForwarderLogIngestResultRecord: {
+            logId?: string;
+            /** @enum {string} */
+            status?: "applied" | "duplicate" | "rejected";
+            message?: string;
+        };
+        OnboardingEventMetadataRequest: {
+            source?: string;
+            marketplacePayloadId?: string;
+        };
+        OnboardingEventRequest: {
+            eventId: string;
+            /** @enum {string} */
+            eventType?: "subscription_purchased" | "subscription_suspended" | "subscription_deleted" | "unknown";
+            /** Format: uuid */
+            tenantId: string;
+            /** Format: uuid */
+            subscriptionId: string;
+            targetId?: string;
+            displayName?: string;
+            managedApplicationId?: string;
+            managedResourceGroupId?: string;
+            containerAppResourceId?: string;
+            containerAppName?: string;
+            customerName?: string;
             tags?: {
                 [key: string]: string;
             };
-            /** Format: uuid */
-            tenantId?: string;
+            metadata?: components["schemas"]["OnboardingEventMetadataRequest"];
+            targetGroup?: string;
+            region?: string;
+            environment?: string;
+            tier?: string;
+            lastDeployedRelease?: string;
+            /** @enum {string} */
+            healthStatus?: "registered" | "healthy" | "degraded";
         };
-        TargetRegistrationMetadataRecord: {
-            containerAppName?: string;
-            source?: string;
+        EventIngestResultRecord: {
+            eventId?: string;
+            /** @enum {string} */
+            status?: "applied" | "duplicate" | "rejected";
+            message?: string;
+            targetId?: string;
         };
         TargetRegistrationMetadataRequest: {
             containerAppName?: string;
             source?: string;
         };
         TargetRegistrationPatchRequest: {
-            containerAppResourceId?: string;
-            customerName?: string;
             displayName?: string;
-            /** @enum {string} */
-            healthStatus?: "registered" | "healthy" | "degraded";
-            lastDeployedRelease?: string;
             managedApplicationId?: string;
             managedResourceGroupId?: string;
-            metadata?: components["schemas"]["TargetRegistrationMetadataRequest"];
+            customerName?: string;
+            lastDeployedRelease?: string;
+            /** @enum {string} */
+            healthStatus?: "registered" | "healthy" | "degraded";
+            containerAppResourceId?: string;
             tags?: {
                 [key: string]: string;
             };
+            metadata?: components["schemas"]["TargetRegistrationMetadataRequest"];
+        };
+        TargetRegistrationMetadataRecord: {
+            containerAppName?: string;
+            source?: string;
         };
         TargetRegistrationRecord: {
-            containerAppResourceId?: string;
-            /** Format: date-time */
-            createdAt?: string;
-            customerName?: string;
-            displayName?: string;
-            /** @enum {string} */
-            healthStatus?: "registered" | "healthy" | "degraded";
-            lastDeployedRelease?: string;
-            lastEventId?: string;
-            managedApplicationId?: string;
-            managedResourceGroupId?: string;
-            metadata?: components["schemas"]["TargetRegistrationMetadataRecord"];
-            /** Format: uuid */
-            subscriptionId?: string;
-            tags?: {
-                [key: string]: string;
-            };
             targetId?: string;
             /** Format: uuid */
             tenantId?: string;
+            /** Format: uuid */
+            subscriptionId?: string;
+            managedApplicationId?: string;
+            managedResourceGroupId?: string;
+            containerAppResourceId?: string;
+            displayName?: string;
+            customerName?: string;
+            tags?: {
+                [key: string]: string;
+            };
+            metadata?: components["schemas"]["TargetRegistrationMetadataRecord"];
+            lastEventId?: string;
+            lastDeployedRelease?: string;
+            /** @enum {string} */
+            healthStatus?: "registered" | "healthy" | "degraded";
+            /** Format: date-time */
+            createdAt?: string;
             /** Format: date-time */
             updatedAt?: string;
         };
-        TargetStageRecord: {
-            correlationId?: string;
-            /** Format: date-time */
-            endedAt?: string;
-            error?: components["schemas"]["StageErrorRecord"];
-            message?: string;
-            portalLink?: string;
+        TargetRecord: {
+            id?: string;
+            /** Format: uuid */
+            tenantId?: string;
+            /** Format: uuid */
+            subscriptionId?: string;
+            managedAppId?: string;
+            customerName?: string;
+            tags?: {
+                [key: string]: string;
+            };
+            lastDeployedRelease?: string;
             /** @enum {string} */
-            stage?: "QUEUED" | "VALIDATING" | "DEPLOYING" | "VERIFYING" | "SUCCEEDED" | "FAILED";
+            healthStatus?: "registered" | "healthy" | "degraded";
+            /** Format: date-time */
+            lastCheckInAt?: string;
+            /** @enum {string} */
+            simulatedFailureMode?: "none" | "validate_once" | "deploy_once" | "verify_once";
+        };
+        RunSummaryRecord: {
+            id?: string;
+            releaseId?: string;
+            /** @enum {string} */
+            executionSourceType?: "template_spec" | "bicep" | "deployment_stack";
+            /** @enum {string} */
+            status?: "running" | "succeeded" | "failed" | "partial" | "halted";
+            /** @enum {string} */
+            strategyMode?: "all_at_once" | "waves";
+            /** Format: date-time */
+            createdAt?: string;
             /** Format: date-time */
             startedAt?: string;
+            /** Format: date-time */
+            endedAt?: string;
+            /** Format: int32 */
+            subscriptionConcurrency?: number;
+            /** Format: int32 */
+            totalTargets?: number;
+            /** Format: int32 */
+            succeededTargets?: number;
+            /** Format: int32 */
+            failedTargets?: number;
+            /** Format: int32 */
+            inProgressTargets?: number;
+            /** Format: int32 */
+            queuedTargets?: number;
+            haltReason?: string;
+            guardrailWarnings?: string[];
+        };
+        ForwarderLogDetailsRecord: {
+            detail?: string;
+            backendResponse?: string;
+        };
+        ForwarderLogRecord: {
+            logId?: string;
+            /** @enum {string} */
+            level?: "info" | "warning" | "error";
+            message?: string;
+            eventId?: string;
+            /** @enum {string} */
+            eventType?: "subscription_purchased" | "subscription_suspended" | "subscription_deleted" | "unknown";
+            targetId?: string;
+            /** Format: uuid */
+            tenantId?: string;
+            /** Format: uuid */
+            subscriptionId?: string;
+            functionAppName?: string;
+            forwarderRequestId?: string;
+            /** Format: int32 */
+            backendStatusCode?: number;
+            details?: components["schemas"]["ForwarderLogDetailsRecord"];
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        MarketplaceEventPayloadRecord: {
+            displayName?: string;
+            customerName?: string;
+            managedApplicationId?: string;
+            managedResourceGroupId?: string;
+            containerAppResourceId?: string;
+            containerAppName?: string;
+            targetGroup?: string;
+            region?: string;
+            environment?: string;
+            tier?: string;
+            lastDeployedRelease?: string;
+            /** @enum {string} */
+            healthStatus?: "registered" | "healthy" | "degraded";
+            registrationSource?: string;
+            marketplacePayloadId?: string;
+        };
+        MarketplaceEventRecord: {
+            eventId?: string;
+            /** @enum {string} */
+            eventType?: "subscription_purchased" | "subscription_suspended" | "subscription_deleted" | "unknown";
+            /** @enum {string} */
+            status?: "applied" | "duplicate" | "rejected";
+            message?: string;
+            targetId?: string;
+            /** Format: uuid */
+            tenantId?: string;
+            /** Format: uuid */
+            subscriptionId?: string;
+            payload?: components["schemas"]["MarketplaceEventPayloadRecord"];
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            processedAt?: string;
+        };
+        OnboardingSnapshotRecord: {
+            registrations?: components["schemas"]["TargetRegistrationRecord"][];
+            events?: components["schemas"]["MarketplaceEventRecord"][];
+            forwarderLogs?: components["schemas"]["ForwarderLogRecord"][];
+        };
+        DeleteRegistrationResultRecord: {
+            targetId?: string;
+            deleted?: boolean;
         };
     };
     responses: never;
@@ -597,11 +597,9 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    onboardingSnapshot: {
+    listRuns: {
         parameters: {
-            query?: {
-                event_limit?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -614,25 +612,45 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["OnboardingSnapshotRecord"];
+                    "*/*": components["schemas"]["RunSummaryRecord"][];
                 };
             };
         };
     };
-    ingestMarketplaceEvent: {
+    createRun: {
         parameters: {
             query?: never;
-            header?: {
-                "x-mappo-ingest-token"?: string;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["OnboardingEventRequest"];
+                "application/json": components["schemas"]["RunCreateRequest"];
             };
         };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RunDetailRecord"];
+                };
+            };
+        };
+    };
+    retryFailed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {
@@ -640,7 +658,73 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["EventIngestResultRecord"];
+                    "*/*": components["schemas"]["RunDetailRecord"];
+                };
+            };
+        };
+    };
+    resumeRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RunDetailRecord"];
+                };
+            };
+        };
+    };
+    listReleases: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReleaseRecord"][];
+                };
+            };
+        };
+    };
+    createRelease: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReleaseRecord"];
                 };
             };
         };
@@ -693,6 +777,32 @@ export interface operations {
             };
         };
     };
+    ingestMarketplaceEvent: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-mappo-ingest-token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingEventRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["EventIngestResultRecord"];
+                };
+            };
+        };
+    };
     deleteRegistration: {
         parameters: {
             query?: never;
@@ -741,7 +851,7 @@ export interface operations {
             };
         };
     };
-    health: {
+    healthz: {
         parameters: {
             query?: never;
             header?: never;
@@ -759,160 +869,6 @@ export interface operations {
                     "*/*": {
                         [key: string]: string;
                     };
-                };
-            };
-        };
-    };
-    listReleases: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ReleaseRecord"][];
-                };
-            };
-        };
-    };
-    createRelease: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReleaseCreateRequest"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ReleaseRecord"];
-                };
-            };
-        };
-    };
-    listRuns: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["RunSummaryRecord"][];
-                };
-            };
-        };
-    };
-    createRun: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RunCreateRequest"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["RunDetailRecord"];
-                };
-            };
-        };
-    };
-    getRun: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                runId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["RunDetailRecord"];
-                };
-            };
-        };
-    };
-    resumeRun: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                runId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["RunDetailRecord"];
-                };
-            };
-        };
-    };
-    retryFailed: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                runId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["RunDetailRecord"];
                 };
             };
         };
@@ -942,7 +898,29 @@ export interface operations {
             };
         };
     };
-    healthz: {
+    getRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RunDetailRecord"];
+                };
+            };
+        };
+    };
+    health: {
         parameters: {
             query?: never;
             header?: never;
@@ -960,6 +938,28 @@ export interface operations {
                     "*/*": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    onboardingSnapshot: {
+        parameters: {
+            query?: {
+                event_limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["OnboardingSnapshotRecord"];
                 };
             };
         };

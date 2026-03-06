@@ -14,7 +14,7 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Pattern: Command-surface cutovers regress when active docs keep referencing removed workflows after the underlying build/deploy model changes.
 - Preventative rule: When replacing a primary workflow surface, rewrite the active README/runbooks/checklists in the same slice and add a negative docs check for the retired command form.
 - Detection signal: active docs mention removed command forms such as `make ...` or deleted backend paths.
-- Enforcement (test/lint/checklist): `python3 scripts/docs_consistency_check.py` must fail if active docs reference removed workflow surfaces.
+- Enforcement (test/lint/checklist): `./mvnw -pl tooling exec:java@docs-consistency-check` must fail if active docs reference removed workflow surfaces.
 
 - Date: 2026-03-06
 - Pattern: Contract changes can look complete in backend code while downstream generated clients and frontend types are still stale.
@@ -47,6 +47,12 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Enforcement (test/lint/checklist): after enabling a new framework or tool, run one representative test/build command and trim any warning that is purely configuration noise.
 
 - Date: 2026-03-06
+- Pattern: Failure-path unit tests that intentionally trigger logged exceptions can leave green builds looking broken.
+- Preventative rule: If a test is validating a handled error path, mute the test logger unless the log output itself is the assertion target.
+- Detection signal: green unit tests still print `SEVERE` stack traces for expected failures.
+- Enforcement (test/lint/checklist): after adding negative-path tests, run the module test task once and trim expected-error log noise.
+
+- Date: 2026-03-06
 - Pattern: Tests that assert full environment-sensitive warning strings fail on one machine and pass on another.
 - Preventative rule: Assert stable contract fragments unless the test explicitly controls every input that shapes the full message.
 - Detection signal: warning/error assertions fail only when runtime feature flags or env differ.
@@ -69,6 +75,12 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Preventative rule: Maven-installed toolchains and generated caches should live under module `target/` directories unless there is a strong reason otherwise.
 - Detection signal: `git status --short` shows new toolchain directories after a green build.
 - Enforcement (test/lint/checklist): after adding a new plugin-managed toolchain, verify the build leaves no untracked toolchain directories outside `target/`.
+
+- Date: 2026-03-06
+- Pattern: Shell wrappers around Maven `exec:java` fail when they invoke the goal from the reactor root instead of the owning module.
+- Preventative rule: Wrapper scripts that call Java tooling commands should target the owning module with `-f <module>/pom.xml`, not rely on the root aggregator to resolve the runtime classpath.
+- Detection signal: `exec-maven-plugin` reports it cannot execute the Java main class even though the module compiles.
+- Enforcement (test/lint/checklist): whenever a shell wrapper delegates into a Maven module, run the wrapper once with `--help` or `--dry-run`.
 
 - Date: 2026-03-06
 - Pattern: Persistence fixes that only address one duplicated field leave the real single-source-of-truth problem unresolved.

@@ -19,9 +19,9 @@ These principles are enforced by scripts and gate targets, not convention only.
 - Operators must be able to explain what happened, why it failed, and what to retry.
 
 ## Local Commands
-- `python3 scripts/workflow_discipline_check.py`
-- `python3 scripts/docs_consistency_check.py`
-- `python3 scripts/golden_principles_check.py`
-- `python3 scripts/check_no_demo_leak.py`
+- `./mvnw -pl tooling exec:java@workflow-discipline-check`
+- `./mvnw -pl tooling exec:java@docs-consistency-check`
+- `./mvnw -pl tooling exec:java@golden-principles-check`
+- `./mvnw -pl tooling exec:java@check-no-demo-leak`
 - `./mvnw -pl backend test`
 - `./mvnw -pl frontend compile`

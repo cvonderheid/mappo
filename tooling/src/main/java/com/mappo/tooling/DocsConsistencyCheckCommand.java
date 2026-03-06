@@ -1,0 +1,118 @@
+package com.mappo.tooling;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+final class DocsConsistencyCheckCommand {
+
+    private static final List<String> REQUIRED_FILES = List.of(
+        "README.md",
+        "plans.md",
+        "plans-next.md",
+        "docs/architecture.md",
+        "docs/documentation.md",
+        "docs/engineering-playbook.md",
+        "docs/golden-principles.md",
+        "docs/implement.md",
+        "docs/plans.md"
+    );
+
+    private static final List<String> NO_MAKE_REFERENCE_FILES = List.of(
+        "README.md",
+        "plans.md",
+        "plans-next.md",
+        "docs/architecture.md",
+        "docs/documentation.md",
+        "docs/engineering-playbook.md",
+        "docs/golden-principles.md",
+        "docs/implement.md",
+        "docs/live-demo-checklist.md",
+        "docs/marketplace-forwarder-runbook.md",
+        "docs/marketplace-portal-playbook.md",
+        "docs/runtime-aca-runbook.md"
+    );
+
+    private static final List<String> FORBIDDEN_ACTIVE_DOC_MARKERS = List.of(
+        "backend-java",
+        "FastAPI",
+        "uv run",
+        "SQLAlchemy-style"
+    );
+
+    private static final Map<String, List<String>> CONTENT_RULES = new LinkedHashMap<>();
+
+    static {
+        CONTENT_RULES.put("plans.md", List.of("## Status", "## Milestone Plan", "## Review Checklist Before Coding"));
+        CONTENT_RULES.put("plans-next.md", List.of("## Verification Checklist", "## Status Snapshot", "## Phase"));
+        CONTENT_RULES.put("docs/documentation.md", List.of("## Engineering workflow discipline (before implementation)"));
+        CONTENT_RULES.put("pom.xml", List.of("<module>backend</module>", "<module>frontend</module>"));
+        CONTENT_RULES.put(
+            "README.md",
+            List.of(
+                "./mvnw -pl backend verify",
+                "./mvnw -pl frontend package",
+                "/Users/cvonderheid/workspace/mappo/backend/target/openapi/openapi.json"
+            )
+        );
+    }
+
+    int run(List<String> rawArgs) {
+        for (String arg : rawArgs) {
+            if (Arguments.isHelpFlag(arg)) {
+                System.out.println("usage: docs-consistency-check");
+                return 0;
+            }
+            throw new ToolingException("docs-consistency-check: unknown argument: " + arg, 2);
+        }
+
+        Path repo = FileSupport.repoRoot();
+        List<String> failures = new ArrayList<>();
+
+        for (String relative : REQUIRED_FILES) {
+            if (!java.nio.file.Files.exists(repo.resolve(relative))) {
+                failures.add("missing required documentation file: " + relative);
+            }
+        }
+
+        CONTENT_RULES.forEach((relative, markers) -> {
+            Path path = repo.resolve(relative);
+            if (!java.nio.file.Files.exists(path)) {
+                return;
+            }
+            String text = FileSupport.readText(path);
+            for (String marker : markers) {
+                if (!text.contains(marker)) {
+                    failures.add(relative + " missing marker: " + marker);
+                }
+            }
+        });
+
+        for (String relative : NO_MAKE_REFERENCE_FILES) {
+            Path path = repo.resolve(relative);
+            if (!java.nio.file.Files.exists(path)) {
+                continue;
+            }
+            String text = FileSupport.readText(path);
+            if (text.contains("make ") || text.contains("`make")) {
+                failures.add(relative + " still references removed Makefile workflow");
+            }
+            for (String marker : FORBIDDEN_ACTIVE_DOC_MARKERS) {
+                if (text.contains(marker)) {
+                    failures.add(relative + " still references removed Python-era marker: " + marker);
+                }
+            }
+        }
+
+        if (!failures.isEmpty()) {
+            System.out.println("docs-consistency-check: FAIL");
+            failures.forEach(failure -> System.out.println(" - " + failure));
+            return 1;
+        }
+
+        System.out.println("docs-consistency-check: PASS");
+        return 0;
+    }
+}

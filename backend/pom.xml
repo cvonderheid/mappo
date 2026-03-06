@@ -77,6 +77,12 @@
       <artifactId>lombok</artifactId>
       <optional>true</optional>
     </dependency>
+    <dependency>
+      <groupId>com.mappo</groupId>
+      <artifactId>tooling</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -122,13 +128,13 @@
             <id>backend-file-size-check</id>
             <phase>validate</phase>
             <goals>
-              <goal>exec</goal>
+              <goal>java</goal>
             </goals>
             <configuration>
-              <executable>python3</executable>
-              <workingDirectory>${project.basedir}/..</workingDirectory>
+              <mainClass>com.mappo.tooling.ToolingApplication</mainClass>
+              <classpathScope>test</classpathScope>
               <arguments>
-                <argument>scripts/backend_file_size_check.py</argument>
+                <argument>backend-file-size-check</argument>
                 <argument>--root</argument>
                 <argument>backend/src/main/java</argument>
               </arguments>
@@ -138,13 +144,13 @@
             <id>export-openapi-artifact</id>
             <phase>integration-test</phase>
             <goals>
-              <goal>exec</goal>
+              <goal>java</goal>
             </goals>
             <configuration>
-              <executable>python3</executable>
-              <workingDirectory>${project.basedir}/..</workingDirectory>
+              <mainClass>com.mappo.tooling.ToolingApplication</mainClass>
+              <classpathScope>test</classpathScope>
               <arguments>
-                <argument>scripts/export_backend_openapi.py</argument>
+                <argument>export-backend-openapi</argument>
                 <argument>--url</argument>
                 <argument>http://127.0.0.1:18010/api/v1/openapi.json</argument>
                 <argument>--output</argument>

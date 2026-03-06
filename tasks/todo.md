@@ -23,8 +23,8 @@ Repository cleanup after Java cutover:
 - [x] Run verification checks after the cleanup and capture results.
 
 ## Verification Commands (Current Slice)
-- [x] `python3 scripts/docs_consistency_check.py`
-- [x] `python3 scripts/check_no_demo_leak.py`
+- [x] `./mvnw -pl tooling exec:java@docs-consistency-check`
+- [x] `./mvnw -pl tooling exec:java@check-no-demo-leak`
 - [x] `./mvnw -q -DskipTests clean install`
 
 ## Results Log (Current Slice)
@@ -37,6 +37,8 @@ Repository cleanup after Java cutover:
 - 2026-03-06: Pinned `RunLifecycleIntegrationTests` to simulator mode so ambient `MAPPO_AZURE_*` shell variables cannot flip it into the real Azure execution path and cause nondeterministic `500` failures.
 - 2026-03-06: Verified the simulator-path test and the Azure-enabled template-spec execution test both pass under forced fake Azure credentials.
 - 2026-03-06: Removed two noisy backend warnings from normal test/build output by explicitly enabling SpringDoc API docs and suppressing jOOQ's version-support logger for the generic OSS `POSTGRES` dialect.
+- 2026-03-06: Replaced the Python marketplace forwarder with a Java Azure Functions module, switched forwarder packaging to Maven-generated artifacts, and removed the last tracked `.py` runtime file from the repo.
+- 2026-03-06: Moved `marketplace_ingest_events.sh`, `marketplace_forwarder_replay_inventory.sh`, and `release_ingest_from_repo.sh` off embedded Python and onto Java tooling commands behind the `tooling` module.
 
 ## Active Backlog
 
@@ -50,6 +52,7 @@ Repository cleanup after Java cutover:
 - Move steady-state runtime and forwarder infrastructure under Pulumi where feasible.
 - Keep scripts for auth/bootstrap, validation, packaging, and explicit operator actions.
 - Preserve the split between artifact publish and infrastructure rollout.
+- Remove the remaining embedded Python from the lower-level Azure bootstrap/deploy helpers (`azure_preflight`, `runtime_aca_deploy`, `iac_configure_marketplace_demo`, `runtime_easyauth_configure`, and related scripts).
 
 ### 3. Demo rebuild from clean baseline
 - Recreate the Azure demo environment from the cleaned Java repo.

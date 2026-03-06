@@ -59,5 +59,5 @@ Codify how MAPPO work is planned, executed, verified, and learned from so qualit
 5. Relevant phase gate is green (`phaseX-gate-fast` minimum).
 
 ## Enforcement
-- Use `python3 scripts/workflow_discipline_check.py` to validate required playbook artifacts.
+- Use `./mvnw -pl tooling exec:java@workflow-discipline-check` to validate required playbook artifacts.
 - Include discipline checks in phase gates.

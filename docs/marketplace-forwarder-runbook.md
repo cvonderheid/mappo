@@ -13,11 +13,16 @@ Marketplace lifecycle webhook -> Azure Function App forwarder -> MAPPO onboardin
 ## 1) Package Function Code
 
 ```bash
-./scripts/marketplace_forwarder_package.sh
+./scripts/marketplace_forwarder_package.sh \
+  --function-app-name "fa-mappo-marketplace-forwarder-<suffix>"
 ```
 
 Output:
 - `.data/marketplace-forwarder-function.zip`
+
+Notes:
+- Packaging is Maven-driven from `/Users/cvonderheid/workspace/mappo/integrations/marketplace-forwarder-function`.
+- The script runs the Azure Functions Maven packaging goal, then zips the staged artifact for `config-zip` deployment.
 
 ## 2) Deploy Function App
 
@@ -68,20 +73,20 @@ Expected:
 
 The forwarder supports:
 
-1. Direct MAPPO onboarding payload shape (already normalized).
-2. Marketplace wrapper payload with explicit MAPPO target block:
+1. Direct MAPPO onboarding payload shape (already normalized, camelCase).
+2. Marketplace wrapper payload with explicit MAPPO target block. The forwarder accepts both camelCase and legacy snake_case field names, then emits camelCase to MAPPO:
 
 ```json
 {
   "id": "evt-123",
-  "event_type": "subscription_purchased",
-  "mappo_target": {
-    "tenant_id": "<tenant-guid>",
-    "subscription_id": "<subscription-guid>",
-    "container_app_resource_id": "/subscriptions/.../providers/Microsoft.App/containerApps/...",
-    "managed_application_id": "/subscriptions/.../providers/Microsoft.Solutions/applications/...",
-    "managed_resource_group_id": "/subscriptions/.../resourceGroups/...",
-    "target_group": "prod",
+  "eventType": "subscription_purchased",
+  "mappoTarget": {
+    "tenantId": "<tenant-guid>",
+    "subscriptionId": "<subscription-guid>",
+    "containerAppResourceId": "/subscriptions/.../providers/Microsoft.App/containerApps/...",
+    "managedApplicationId": "/subscriptions/.../providers/Microsoft.Solutions/applications/...",
+    "managedResourceGroupId": "/subscriptions/.../resourceGroups/...",
+    "targetGroup": "prod",
     "region": "eastus",
     "environment": "prod",
     "tier": "standard"

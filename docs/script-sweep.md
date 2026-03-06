@@ -23,11 +23,7 @@ This is the current script inventory across `scripts/`, with disposition:
 - `scripts/azure_onboard_multitenant_runtime.sh`: `keep-wrapper` (cross-tenant onboarding steps that involve Entra/SP propagation).
 - `scripts/azure_preflight.sh`: `keep` (readiness validation).
 - `scripts/azure_tenant_map.sh`: `keep` (tenant mapping utility).
-- `scripts/backend_file_size_check.py`: `keep` (engineering quality gate).
-- `scripts/check_no_demo_leak.py`: `keep` (engineering quality gate).
-- `scripts/docs_consistency_check.py`: `keep` (engineering quality gate).
-- `scripts/export_backend_openapi.py`: `keep-wrapper` (Springdoc contract export used by Maven verify).
-- `scripts/golden_principles_check.py`: `keep` (engineering quality gate).
+- `tooling` Maven module: `keep` (engineering quality gates + Springdoc contract export).
 - `scripts/iac_configure_marketplace_demo.sh`: `keep-wrapper` (Pulumi stack config normalization).
 - `scripts/iac_export_db_env.sh`: `keep-wrapper` (exports Pulumi stack outputs into env file).
 - `scripts/marketplace_forwarder_deploy.sh`: `migrate-to-pulumi` (creates/updates Function resources imperatively today).
@@ -41,7 +37,7 @@ This is the current script inventory across `scripts/`, with disposition:
 - `scripts/runtime_db_migrate_job_run.sh`: `keep-wrapper` (operator invocation for ACA-hosted Flyway job execution).
 - `scripts/runtime_easyauth_configure.sh`: `keep-wrapper` (Entra app registration + ACA auth wiring step).
 - `scripts/with_mappo_azure_env.sh`: `keep` (local DX helper).
-- `scripts/workflow_discipline_check.py`: `keep` (engineering quality gate).
+- `tooling` Maven module `workflow-discipline-check`: `keep` (engineering quality gate).
 
 ### Removed backend scripts
 

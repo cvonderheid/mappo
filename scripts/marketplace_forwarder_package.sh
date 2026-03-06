@@ -4,16 +4,18 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC_DIR="${ROOT_DIR}/integrations/marketplace-forwarder-function"
 OUTPUT_ZIP="${ROOT_DIR}/.data/marketplace-forwarder-function.zip"
+FUNCTION_APP_NAME="mappo-marketplace-forwarder"
 
 usage() {
   cat <<EOF
 Usage: $(basename "$0") [options]
 
-Package the Azure Function marketplace forwarder source for zip deployment.
+Package the Java Azure Function marketplace forwarder for zip deployment.
 
 Options:
-  --src-dir <path>      Source directory (default: integrations/marketplace-forwarder-function)
-  --output-zip <path>   Output zip path (default: .data/marketplace-forwarder-function.zip)
+  --src-dir <path>            Module directory (default: integrations/marketplace-forwarder-function)
+  --output-zip <path>         Output zip path (default: .data/marketplace-forwarder-function.zip)
+  --function-app-name <name>  Function app name used for staging directory (default: mappo-marketplace-forwarder)
   -h, --help            Show help
 EOF
 }
@@ -26,6 +28,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --output-zip)
       OUTPUT_ZIP="${2:-}"
+      shift 2
+      ;;
+    --function-app-name)
+      FUNCTION_APP_NAME="${2:-}"
       shift 2
       ;;
     -h|--help)
@@ -45,36 +51,28 @@ if [[ ! -d "${SRC_DIR}" ]]; then
   exit 1
 fi
 
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "marketplace-forwarder-package: python3 is required." >&2
+if ! command -v zip >/dev/null 2>&1; then
+  echo "marketplace-forwarder-package: zip is required." >&2
   exit 1
 fi
 
 mkdir -p "$(dirname "${OUTPUT_ZIP}")"
 
-python3 - <<'PY' "${SRC_DIR}" "${OUTPUT_ZIP}"
-from pathlib import Path
-import sys
-import zipfile
+./mvnw -q -pl integrations/marketplace-forwarder-function -am \
+  -DskipTests \
+  -Dfunction.app.name="${FUNCTION_APP_NAME}" \
+  package
 
-src_dir = Path(sys.argv[1]).resolve()
-output_zip = Path(sys.argv[2]).resolve()
+STAGING_DIR="${SRC_DIR}/target/azure-functions/${FUNCTION_APP_NAME}"
+if [[ ! -d "${STAGING_DIR}" ]]; then
+  echo "marketplace-forwarder-package: expected staging directory not found: ${STAGING_DIR}" >&2
+  exit 1
+fi
 
-if output_zip.exists():
-    output_zip.unlink()
+rm -f "${OUTPUT_ZIP}"
+(
+  cd "${STAGING_DIR}"
+  zip -rq "${OUTPUT_ZIP}" .
+)
 
-ignored_suffixes = {".pyc", ".pyo"}
-ignored_dir_names = {"__pycache__", ".pytest_cache", ".venv", ".git"}
-
-with zipfile.ZipFile(output_zip, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-    for path in src_dir.rglob("*"):
-        if path.is_dir():
-            continue
-        if any(part in ignored_dir_names for part in path.parts):
-            continue
-        if path.suffix in ignored_suffixes:
-            continue
-        archive.write(path, path.relative_to(src_dir))
-
-print(f"marketplace-forwarder-package: wrote {output_zip}")
-PY
+echo "marketplace-forwarder-package: wrote ${OUTPUT_ZIP}"

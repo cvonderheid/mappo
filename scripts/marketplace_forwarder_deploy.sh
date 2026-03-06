@@ -6,8 +6,7 @@ RESOURCE_GROUP=""
 LOCATION="eastus"
 FUNCTION_APP_NAME=""
 STORAGE_ACCOUNT_NAME=""
-RUNTIME="python"
-RUNTIME_VERSION="3.11"
+RUNTIME="java"
 FUNCTIONS_VERSION="4"
 SUBSCRIPTION_ID=""
 PACKAGE_ZIP="${ROOT_DIR}/.data/marketplace-forwarder-function.zip"
@@ -29,7 +28,7 @@ Options:
   --function-app-name <name>    Function App name (required, globally unique)
   --storage-account <name>      Storage account name (default: auto-derived)
   --subscription-id <id>        Optional subscription context override
-  --package-zip <path>          Function zip artifact (default: .data/marketplace-forwarder-function.zip)
+  --package-zip <path>          Function zip artifact (default: .data/marketplace-forwarder-function.zip; auto-built if missing)
   --mappo-ingest-endpoint <url> Full MAPPO ingest endpoint (/api/v1/admin/onboarding/events)
   --mappo-api-base-url <url>    MAPPO API base URL (used when endpoint is omitted)
   --mappo-ingest-token <token>  x-mappo-ingest-token forwarded to MAPPO
@@ -111,9 +110,10 @@ if [[ -z "${RESOURCE_GROUP}" || -z "${FUNCTION_APP_NAME}" ]]; then
 fi
 
 if [[ ! -f "${PACKAGE_ZIP}" ]]; then
-  echo "marketplace-forwarder-deploy: package zip not found: ${PACKAGE_ZIP}" >&2
-  echo "Run: ./scripts/marketplace_forwarder_package.sh" >&2
-  exit 1
+  echo "marketplace-forwarder-deploy: package zip not found, building it now."
+  "${ROOT_DIR}/scripts/marketplace_forwarder_package.sh" \
+    --function-app-name "${FUNCTION_APP_NAME}" \
+    --output-zip "${PACKAGE_ZIP}"
 fi
 
 if [[ -z "${MAPPO_INGEST_ENDPOINT}" && -z "${MAPPO_API_BASE_URL}" ]]; then
@@ -131,6 +131,11 @@ if ! az account show --only-show-errors >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v tr >/dev/null 2>&1; then
+  echo "marketplace-forwarder-deploy: tr is required." >&2
+  exit 1
+fi
+
 if [[ -n "${SUBSCRIPTION_ID}" ]]; then
   az account set --subscription "${SUBSCRIPTION_ID}"
 fi
@@ -139,12 +144,7 @@ az provider register --namespace Microsoft.Storage --wait --only-show-errors >/d
 az provider register --namespace Microsoft.Web --wait --only-show-errors >/dev/null
 
 if [[ -z "${STORAGE_ACCOUNT_NAME}" ]]; then
-  suffix="$(python3 - <<'PY'
-import random
-import string
-print("".join(random.choice(string.ascii_lowercase + string.digits) for _ in range(6)))
-PY
-)"
+  suffix="$(LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c 6 || true)"
   STORAGE_ACCOUNT_NAME="$(printf '%s' "st${FUNCTION_APP_NAME//-/}${suffix}" | tr '[:upper:]' '[:lower:]' | cut -c1-24)"
 fi
 
@@ -178,7 +178,7 @@ if ! az functionapp show --name "${FUNCTION_APP_NAME}" --resource-group "${RESOU
     --storage-account "${STORAGE_ACCOUNT_NAME}" \
     --functions-version "${FUNCTIONS_VERSION}" \
     --runtime "${RUNTIME}" \
-    --runtime-version "${RUNTIME_VERSION}" \
+    --runtime-version 21 \
     --os-type Linux \
     --only-show-errors \
     >/dev/null
