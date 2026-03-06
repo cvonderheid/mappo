@@ -156,8 +156,7 @@ public class RunRepository {
         String runId,
         CreateRunCommand request,
         List<TargetRecord> targets,
-        MappoReleaseSourceType executionSourceType,
-        boolean immediateSuccess
+        MappoReleaseSourceType executionSourceType
     ) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         RunStopPolicyCommand stopPolicy = request.stopPolicy();
@@ -175,11 +174,11 @@ public class RunRepository {
             .set(RUNS.SUBSCRIPTION_CONCURRENCY, 1)
             .set(RUNS.STOP_POLICY_MAX_FAILURE_COUNT, stopPolicy == null ? null : stopPolicy.maxFailureCount())
             .set(RUNS.STOP_POLICY_MAX_FAILURE_RATE, stopPolicy == null ? null : stopPolicy.maxFailureRate())
-            .set(RUNS.STATUS, immediateSuccess ? MappoRunStatus.succeeded : MappoRunStatus.running)
+            .set(RUNS.STATUS, MappoRunStatus.running)
             .set(RUNS.HALT_REASON, (String) null)
             .set(RUNS.CREATED_AT, now)
             .set(RUNS.STARTED_AT, now)
-            .set(RUNS.ENDED_AT, immediateSuccess ? now : null)
+            .set(RUNS.ENDED_AT, (OffsetDateTime) null)
             .set(RUNS.UPDATED_AT, now)
             .execute();
 
@@ -207,7 +206,7 @@ public class RunRepository {
                 .set(RUN_TARGETS.TARGET_ID, targetId)
                 .execute();
 
-            MappoTargetStage stage = immediateSuccess ? MappoTargetStage.SUCCEEDED : MappoTargetStage.QUEUED;
+            MappoTargetStage stage = MappoTargetStage.QUEUED;
 
             dsl.insertInto(TARGET_EXECUTION_RECORDS)
                 .set(TARGET_EXECUTION_RECORDS.RUN_ID, runId)
@@ -231,8 +230,8 @@ public class RunRepository {
                 .set(TARGET_STAGE_RECORDS.POSITION, 0)
                 .set(TARGET_STAGE_RECORDS.STAGE, stage)
                 .set(TARGET_STAGE_RECORDS.STARTED_AT, now)
-                .set(TARGET_STAGE_RECORDS.ENDED_AT, immediateSuccess ? now : null)
-                .set(TARGET_STAGE_RECORDS.MESSAGE, immediateSuccess ? "Succeeded." : "Queued.")
+                .set(TARGET_STAGE_RECORDS.ENDED_AT, now)
+                .set(TARGET_STAGE_RECORDS.MESSAGE, "Queued.")
                 .set(TARGET_STAGE_RECORDS.ERROR_CODE, (String) null)
                 .set(TARGET_STAGE_RECORDS.ERROR_MESSAGE, (String) null)
                 .set(TARGET_STAGE_RECORDS.ERROR_STATUS_CODE, (Integer) null)
@@ -257,10 +256,78 @@ public class RunRepository {
                 .set(TARGET_LOG_EVENTS.EVENT_TIMESTAMP, now)
                 .set(TARGET_LOG_EVENTS.LEVEL, MappoForwarderLogLevel.info)
                 .set(TARGET_LOG_EVENTS.STAGE, stage)
-                .set(TARGET_LOG_EVENTS.MESSAGE, immediateSuccess ? "Deploy succeeded." : "Queued.")
+                .set(TARGET_LOG_EVENTS.MESSAGE, "Queued.")
                 .set(TARGET_LOG_EVENTS.CORRELATION_ID, "corr-" + runId)
                 .execute();
         }
+    }
+
+    public void updateTargetExecutionStatus(String runId, String targetId, MappoTargetStage status) {
+        dsl.update(TARGET_EXECUTION_RECORDS)
+            .set(TARGET_EXECUTION_RECORDS.STATUS, enumOrDefault(status, MappoTargetStage.QUEUED))
+            .set(TARGET_EXECUTION_RECORDS.UPDATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
+            .where(TARGET_EXECUTION_RECORDS.RUN_ID.eq(runId))
+            .and(TARGET_EXECUTION_RECORDS.TARGET_ID.eq(targetId))
+            .execute();
+    }
+
+    public void appendTargetStage(
+        String runId,
+        String targetId,
+        MappoTargetStage stage,
+        OffsetDateTime startedAt,
+        OffsetDateTime endedAt,
+        String message,
+        StageErrorRecord error,
+        String correlationId,
+        String portalLink
+    ) {
+        StageErrorDetailsRecord details = error == null ? null : error.details();
+        dsl.insertInto(TARGET_STAGE_RECORDS)
+            .set(TARGET_STAGE_RECORDS.RUN_ID, runId)
+            .set(TARGET_STAGE_RECORDS.TARGET_ID, targetId)
+            .set(TARGET_STAGE_RECORDS.POSITION, nextStagePosition(runId, targetId))
+            .set(TARGET_STAGE_RECORDS.STAGE, stage)
+            .set(TARGET_STAGE_RECORDS.STARTED_AT, startedAt)
+            .set(TARGET_STAGE_RECORDS.ENDED_AT, endedAt)
+            .set(TARGET_STAGE_RECORDS.MESSAGE, nullableText(message) == null ? "" : message)
+            .set(TARGET_STAGE_RECORDS.ERROR_CODE, error == null ? null : error.code())
+            .set(TARGET_STAGE_RECORDS.ERROR_MESSAGE, error == null ? null : error.message())
+            .set(TARGET_STAGE_RECORDS.ERROR_STATUS_CODE, details == null ? null : details.statusCode())
+            .set(TARGET_STAGE_RECORDS.ERROR_DETAIL_TEXT, details == null ? null : details.error())
+            .set(TARGET_STAGE_RECORDS.ERROR_DESIRED_IMAGE, details == null ? null : details.desiredImage())
+            .set(TARGET_STAGE_RECORDS.AZURE_ERROR_CODE, details == null ? null : details.azureErrorCode())
+            .set(TARGET_STAGE_RECORDS.AZURE_ERROR_MESSAGE, details == null ? null : details.azureErrorMessage())
+            .set(TARGET_STAGE_RECORDS.AZURE_REQUEST_ID, details == null ? null : details.azureRequestId())
+            .set(TARGET_STAGE_RECORDS.AZURE_ARM_SERVICE_REQUEST_ID, details == null ? null : details.azureArmServiceRequestId())
+            .set(TARGET_STAGE_RECORDS.AZURE_CORRELATION_ID, details == null ? null : details.azureCorrelationId())
+            .set(TARGET_STAGE_RECORDS.AZURE_DEPLOYMENT_NAME, details == null ? null : details.azureDeploymentName())
+            .set(TARGET_STAGE_RECORDS.AZURE_OPERATION_ID, details == null ? null : details.azureOperationId())
+            .set(TARGET_STAGE_RECORDS.AZURE_RESOURCE_ID, details == null ? null : details.azureResourceId())
+            .set(TARGET_STAGE_RECORDS.CORRELATION_ID, normalize(correlationId))
+            .set(TARGET_STAGE_RECORDS.PORTAL_LINK, normalize(portalLink))
+            .execute();
+    }
+
+    public void appendTargetLog(
+        String runId,
+        String targetId,
+        MappoForwarderLogLevel level,
+        MappoTargetStage stage,
+        OffsetDateTime timestamp,
+        String message,
+        String correlationId
+    ) {
+        dsl.insertInto(TARGET_LOG_EVENTS)
+            .set(TARGET_LOG_EVENTS.RUN_ID, runId)
+            .set(TARGET_LOG_EVENTS.TARGET_ID, targetId)
+            .set(TARGET_LOG_EVENTS.POSITION, nextLogPosition(runId, targetId))
+            .set(TARGET_LOG_EVENTS.EVENT_TIMESTAMP, timestamp)
+            .set(TARGET_LOG_EVENTS.LEVEL, enumOrDefault(level, MappoForwarderLogLevel.info))
+            .set(TARGET_LOG_EVENTS.STAGE, enumOrDefault(stage, MappoTargetStage.QUEUED))
+            .set(TARGET_LOG_EVENTS.MESSAGE, nullableText(message) == null ? "" : message)
+            .set(TARGET_LOG_EVENTS.CORRELATION_ID, normalize(correlationId))
+            .execute();
     }
 
     public void markRunComplete(String runId, MappoRunStatus status, String haltReason) {
@@ -286,6 +353,24 @@ public class RunRepository {
             .set(RUN_GUARDRAIL_WARNINGS.POSITION, position)
             .set(RUN_GUARDRAIL_WARNINGS.WARNING, warning)
             .execute();
+    }
+
+    private int nextStagePosition(String runId, String targetId) {
+        Integer current = dsl.select(DSL.max(TARGET_STAGE_RECORDS.POSITION))
+            .from(TARGET_STAGE_RECORDS)
+            .where(TARGET_STAGE_RECORDS.RUN_ID.eq(runId))
+            .and(TARGET_STAGE_RECORDS.TARGET_ID.eq(targetId))
+            .fetchOne(0, Integer.class);
+        return current == null ? 0 : current + 1;
+    }
+
+    private int nextLogPosition(String runId, String targetId) {
+        Integer current = dsl.select(DSL.max(TARGET_LOG_EVENTS.POSITION))
+            .from(TARGET_LOG_EVENTS)
+            .where(TARGET_LOG_EVENTS.RUN_ID.eq(runId))
+            .and(TARGET_LOG_EVENTS.TARGET_ID.eq(targetId))
+            .fetchOne(0, Integer.class);
+        return current == null ? 0 : current + 1;
     }
 
     private List<String> loadWaveOrder(String runId) {

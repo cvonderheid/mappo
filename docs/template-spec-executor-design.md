@@ -223,4 +223,4 @@ Live smoke:
 
 ## Recommendation
 - Implement `template_spec` mode now as the default path for real customer rollouts.
-- Keep `container_patch` mode for dev/demo simplicity and emergency compatibility.
+- As of 2026-03-06, the Java backend executes `template_spec` releases at resource-group scope for real and keeps `bicep`, `deployment_stack`, and `template_spec` subscription-scope runs on simulator fallback with explicit guardrail warnings.

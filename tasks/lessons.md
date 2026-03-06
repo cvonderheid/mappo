@@ -351,3 +351,9 @@ Purpose: capture recurring correction patterns and preventative guardrails.
 - Preventative rule: For environment-sensitive messages, assert the invariant contract fragments or explicitly pin the feature flag in test configuration; do not assert full strings unless the test controls every input that shapes them.
 - Detection signal: the same test flips between two semantically valid warning messages depending on local env or app config.
 - Enforcement (test/lint/checklist): when a response includes warnings derived from runtime config, either override that config in the test class or assert only stable substrings that define the contract.
+
+- Date: 2026-03-06
+- Pattern: Wiring live Azure SDK execution directly into run orchestration makes the real execution branch effectively untestable in CI and encourages simulator-only coverage.
+- Preventative rule: Keep cloud execution behind a narrow interface (`TemplateSpecExecutor`, similar strategy seams) so integration tests can exercise orchestration, state transitions, and persistence with a stubbed executor.
+- Detection signal: a new execution branch can only be tested with live Azure credentials or is skipped entirely in automated tests.
+- Enforcement (test/lint/checklist): every new cloud execution mode must ship with one orchestration-level test using a primary stub bean and one lower-level unit/integration test for the strategy-specific logic where feasible.

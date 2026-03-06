@@ -6,6 +6,7 @@ import static com.mappo.controlplane.jooq.Tables.TARGET_TAGS;
 
 import com.mappo.controlplane.jooq.enums.MappoHealthStatus;
 import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
+import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import com.mappo.controlplane.model.command.TargetUpsertCommand;
 import com.mappo.controlplane.model.TargetRecord;
 import java.time.OffsetDateTime;
@@ -142,6 +143,43 @@ public class TargetRepository {
 
     public List<TargetRecord> getTargetsByTagFilters(Map<String, String> filters) {
         return listTargets(filters == null ? Map.of() : filters);
+    }
+
+    public List<TargetExecutionContextRecord> getExecutionContextsByIds(List<String> targetIds) {
+        if (targetIds == null || targetIds.isEmpty()) {
+            return List.of();
+        }
+
+        var rows = dsl.select(
+                TARGETS.ID,
+                TARGETS.SUBSCRIPTION_ID,
+                TARGETS.TENANT_ID,
+                TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID,
+                TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID,
+                TARGETS.SIMULATED_FAILURE_MODE
+            )
+            .from(TARGETS)
+            .join(TARGET_REGISTRATIONS)
+            .on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
+            .where(TARGETS.ID.in(targetIds))
+            .orderBy(TARGETS.ID.asc())
+            .fetch();
+
+        Map<String, Map<String, String>> tagsByTarget = loadTags(targetIds);
+        List<TargetExecutionContextRecord> contexts = new ArrayList<>(rows.size());
+        for (Record row : rows) {
+            String targetId = row.get(TARGETS.ID);
+            contexts.add(new TargetExecutionContextRecord(
+                targetId,
+                row.get(TARGETS.SUBSCRIPTION_ID),
+                row.get(TARGETS.TENANT_ID),
+                row.get(TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID),
+                row.get(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID),
+                tagsByTarget.getOrDefault(targetId, Map.of()),
+                row.get(TARGETS.SIMULATED_FAILURE_MODE)
+            ));
+        }
+        return contexts;
     }
 
     public void upsertTarget(TargetUpsertCommand target) {

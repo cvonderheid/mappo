@@ -102,6 +102,10 @@ Azure execution is modeled around release source types:
 - `deployment_stack`: deployment stack-driven rollout source.
 
 Behavior:
+- Current implementation:
+  - `template_spec` + `resource_group`: executed for real through the Azure Java SDK by wrapping the Template Spec version ID in a nested ARM deployment.
+  - `template_spec` + `subscription`: not implemented yet; MAPPO falls back to simulator mode and records a guardrail warning.
+  - `bicep` / `deployment_stack`: not implemented yet; MAPPO falls back to simulator mode and records a guardrail warning.
 - Run orchestration, waves, retries/resume, and stop policies are unchanged.
 - `DeploymentRun.execution_source_type` snapshots the selected release source type for immutable history.
 - Execution settings remain release-scoped (`deployment_scope`, ARM mode, what-if on canary, verify-after-deploy).

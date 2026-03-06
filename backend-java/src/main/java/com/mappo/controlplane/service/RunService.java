@@ -13,6 +13,7 @@ import com.mappo.controlplane.model.RunSummaryRecord;
 import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.repository.RunRepository;
 import com.mappo.controlplane.repository.TargetRepository;
+import com.mappo.controlplane.service.run.RunExecutionService;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -28,6 +29,7 @@ public class RunService {
     private final TargetRepository targetRepository;
     private final ReleaseService releaseService;
     private final AzureExecutorClient azureExecutorClient;
+    private final RunExecutionService runExecutionService;
 
     public List<RunSummaryRecord> listRuns() {
         return runRepository.listRunSummaries();
@@ -56,16 +58,14 @@ public class RunService {
 
         String runId = "run-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
         MappoReleaseSourceType executionSourceType = release.sourceType();
-        boolean immediateSuccess = true;
-
-        runRepository.createRun(runId, command, targets, executionSourceType, immediateSuccess);
-
-        runRepository.addRunWarning(runId, 0, simulatorWarning(executionSourceType));
-
-        String releaseVersion = release.sourceVersion();
-        for (TargetRecord target : targets) {
-            targetRepository.updateLastDeployedRelease(target.id(), releaseVersion);
-        }
+        runRepository.createRun(runId, command, targets, executionSourceType);
+        runExecutionService.executeRun(
+            runId,
+            release,
+            targets,
+            azureExecutorClient.isConfigured(),
+            getRun(runId).stopPolicy()
+        );
 
         return getRun(runId);
     }
@@ -101,13 +101,5 @@ public class RunService {
         }
 
         return targetRepository.listTargets(Map.of());
-    }
-
-    private String simulatorWarning(MappoReleaseSourceType executionSourceType) {
-        String sourceType = executionSourceType == null ? "template_spec" : executionSourceType.getLiteral();
-        if (!azureExecutorClient.isConfigured()) {
-            return "Azure execution is not configured; run completed in simulator mode for source type " + sourceType + ".";
-        }
-        return "Azure execution for source type " + sourceType + " is not implemented yet; run completed in simulator mode.";
     }
 }
