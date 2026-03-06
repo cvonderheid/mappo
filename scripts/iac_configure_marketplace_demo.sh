@@ -183,7 +183,7 @@ ensure_runtime_app_is_multitenant() {
   az account set --subscription "${HOME_SUBSCRIPTION_ID}" >/dev/null
   if ! az ad app show --id "${RUNTIME_CLIENT_ID}" --query id -o tsv >/dev/null 2>&1; then
     echo "iac-configure-marketplace-demo: runtime app ${RUNTIME_CLIENT_ID} not found in home tenant/subscription context (${HOME_SUBSCRIPTION_ID})." >&2
-    echo "Use the clientId from make azure-auth-bootstrap, or pass --home-subscription-id for the app's tenant." >&2
+    echo "Use the clientId from ./scripts/azure_auth_bootstrap.sh, or pass --home-subscription-id for the app's tenant." >&2
     exit 1
   fi
   az ad app update --id "${RUNTIME_CLIENT_ID}" --sign-in-audience AzureADMultipleOrgs >/dev/null
@@ -312,4 +312,4 @@ if [[ "${ENABLE_MANAGED_POSTGRES,,}" == "true" ]]; then
   fi
 fi
 echo "next:"
-echo "  make iac-up PULUMI_STACK=${STACK}"
+echo "  cd infra/pulumi && pulumi up --stack ${STACK} --yes"

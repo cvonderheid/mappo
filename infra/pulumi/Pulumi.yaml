@@ -1,8 +1,5 @@
 name: mappo-marketplace-demo
-runtime:
-  name: nodejs
-  options:
-    typescript: true
+runtime: java
 description: MAPPO marketplace-accurate managed application demo provisioning
 config:
   mappo:defaultLocation:

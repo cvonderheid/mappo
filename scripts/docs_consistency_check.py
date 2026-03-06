@@ -20,7 +20,7 @@ CONTENT_RULES = {
     "plans.md": ["## Status", "## Milestone Plan", "## Review Checklist Before Coding"],
     "plans-next.md": ["## Verification Checklist", "## Status Snapshot", "## Phase"],
     "docs/documentation.md": ["## Engineering workflow discipline (before implementation)"],
-    "Makefile": ["phase1-gate-fast", "phase1-gate-full"],
+    "pom.xml": ["<module>backend-java</module>"],
     "README.md": ["phase1-gate-fast", "phase1-gate-full"],
 }
 

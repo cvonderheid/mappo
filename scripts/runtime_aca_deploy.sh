@@ -465,7 +465,7 @@ build_image() {
 }
 
 echo "runtime-aca-deploy: building backend image ${backend_image}"
-build_image "mappo-backend" "${ROOT_DIR}/backend/Dockerfile"
+build_image "mappo-backend" "${ROOT_DIR}/backend-java/Dockerfile"
 
 flyway_image="${acr_login_server}/mappo-flyway:${IMAGE_TAG}"
 echo "runtime-aca-deploy: building migration image ${flyway_image}"

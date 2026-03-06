@@ -350,7 +350,7 @@ PY
   fi
 else
   if [[ "${strict_inventory_checks}" == "true" ]]; then
-    fail "Missing target inventory file at ${INVENTORY_PATH}. Run 'make iac-export-targets'."
+    fail "Missing target inventory file at ${INVENTORY_PATH}. Export with 'cd infra/pulumi && pulumi stack output --stack <stack> mappoTargetInventory --json > ${INVENTORY_PATH}'."
   else
     pass "No inventory file found at ${INVENTORY_PATH}; marketplace mode expects webhook/event-driven target registration."
   fi

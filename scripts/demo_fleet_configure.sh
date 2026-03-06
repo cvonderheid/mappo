@@ -142,5 +142,4 @@ popd >/dev/null
 
 echo "demo-fleet-configure: stack configured."
 echo "next:"
-echo "  make demo-fleet-up DEMO_FLEET_STACK=${STACK}"
-
+echo "  ./scripts/demo_fleet_up.sh --stack ${STACK} --api-base-url <MAPPO_API_BASE_URL>"

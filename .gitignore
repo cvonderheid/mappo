@@ -18,6 +18,8 @@ frontend/node_modules/
 # Build outputs
 dist/
 build/
+target/
+backend-java/target/
 coverage/
 playwright-report/
 test-results/

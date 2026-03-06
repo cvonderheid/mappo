@@ -4,6 +4,61 @@ Date: 2026-02-26
 Owner: Codex
 
 ## Scope (Current Slice)
+Pulumi Java IaC conversion:
+- Convert Pulumi projects from TypeScript runtime to Java runtime.
+- Use Pulumi Java SDK (`com.pulumi:pulumi`) + Azure Native Java provider.
+- Preserve existing stack config/outputs contract used by scripts.
+
+## Plan (Current Slice)
+- [x] Convert `infra/pulumi` runtime to Java (`Pulumi.yaml`, `pom.xml`, Java entrypoint).
+- [x] Convert `infra/demo-fleet` runtime to Java (`Pulumi.yaml`, `pom.xml`, Java entrypoint).
+- [x] Keep output keys compatible (`mappoTargetInventory`, `mappoTargetInventoryJson`, control-plane DB outputs).
+- [x] Remove obsolete TypeScript Pulumi source/package files from both IaC projects.
+- [x] Validate with Maven compile + Pulumi preview smoke runs.
+
+## Verification Commands (Current Slice)
+- [x] `./mvnw -q -pl infra/pulumi -DskipTests compile`
+- [x] `./mvnw -q -pl infra/demo-fleet -DskipTests compile`
+- [x] `cd infra/pulumi && PULUMI_CONFIG_PASSPHRASE=codex-smoke pulumi preview --stack codex-java-smoke --non-interactive`
+- [x] `cd infra/demo-fleet && PULUMI_CONFIG_PASSPHRASE=codex-smoke pulumi preview --stack codex-java-smoke --non-interactive`
+
+## Results Log (Current Slice)
+- 2026-03-05: Added Java Pulumi module at `/Users/cvonderheid/workspace/mappo/infra/pulumi` and switched runtime to `java`.
+- 2026-03-05: Added Java Pulumi module at `/Users/cvonderheid/workspace/mappo/infra/demo-fleet` and switched runtime to `java`.
+- 2026-03-05: Removed TypeScript Pulumi program/package files from both stacks.
+- 2026-03-05: Verified both stacks with Java compile and Pulumi preview smoke runs.
+
+## Scope (Current Slice)
+Java backend migration:
+- Replace Python FastAPI backend with Java Spring Boot backend.
+- Replace Makefile workflow entrypoints with Maven workflow entrypoints.
+- Replace SQLAlchemy ORM/repository usage with jOOQ.
+- Replace Python Azure SDK backend execution path with Azure Java SDK.
+
+## Plan (Current Slice)
+- [x] Add Maven root build + module structure and retire Makefile as primary workflow runner.
+- [x] Scaffold Spring Boot app with Flyway, jOOQ, PostgreSQL, and Azure Java SDK dependencies.
+- [x] Port API routes (`health`, `targets`, `releases`, `runs`, `admin`) to Java controllers.
+- [x] Port persistence/service logic to jOOQ repositories and Spring services.
+- [x] Replace backend Azure execution integration with Java SDK abstractions.
+- [x] Update docs for Maven-first commands and run verification (`mvn test`, `mvn verify`).
+
+## Verification Commands (Current Slice)
+- [x] `./mvnw -v`
+- [x] `./mvnw -q -DskipTests compile`
+- [x] `./mvnw -q test`
+- [x] `./mvnw -q verify`
+
+## Results Log (Current Slice)
+- 2026-03-05: Started Java migration slice planning and implementation.
+- 2026-03-05: Added Maven root build (`pom.xml`) and Maven wrapper (`mvnw`, `.mvn/wrapper/*`), and removed root Makefile.
+- 2026-03-05: Added Spring Boot backend module at `/Users/cvonderheid/workspace/mappo/backend-java` with Flyway + jOOQ + PostgreSQL + Azure Java SDK dependencies.
+- 2026-03-05: Ported core REST routes to Java controllers/services/repositories (`health`, `targets`, `releases`, `runs`, `admin`) using jOOQ-backed SQL persistence.
+- 2026-03-05: Added Azure Java SDK integration entrypoint (`AzureExecutorClient`) and wired env-based credentials.
+- 2026-03-05: Updated compose/docs for Java backend startup path and verified Maven compile/test/verify workflow.
+- 2026-03-05: Updated `scripts/runtime_aca_deploy.sh` backend image build path from Python Dockerfile to Java Dockerfile (`backend-java/Dockerfile`).
+
+## Scope (Current Slice)
 Demo-fleet realism pivot:
 - Split target infrastructure into a dedicated `demo-fleet` Pulumi project (separate from control plane stack).
 - Add lifecycle simulation semantics for onboarding events (`subscription_purchased`, `subscription_suspended`, `subscription_deleted`).

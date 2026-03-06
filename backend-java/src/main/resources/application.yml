@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: mappo-control-plane
+  datasource:
+    url: ${MAPPO_JDBC_DATABASE_URL:jdbc:postgresql://localhost:5433/mappo}
+    username: ${MAPPO_DB_USER:mappo}
+    password: ${MAPPO_DB_PASSWORD:mappo}
+    hikari:
+      maximum-pool-size: 8
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+  jooq:
+    sql-dialect: POSTGRES
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+
+server:
+  port: ${MAPPO_BACKEND_PORT:8010}
+
+mappo:
+  app-version: ${MAPPO_APP_VERSION:0.1.0-java}
+  api-prefix: /api/v1
+  marketplace-ingest-token: ${MAPPO_MARKETPLACE_INGEST_TOKEN:}
+  cors-origins: ${MAPPO_CORS_ORIGINS:http://localhost:5174,http://127.0.0.1:5174}
+  azure-tenant-id: ${MAPPO_AZURE_TENANT_ID:}
+  azure-client-id: ${MAPPO_AZURE_CLIENT_ID:}
+  azure-client-secret: ${MAPPO_AZURE_CLIENT_SECRET:}

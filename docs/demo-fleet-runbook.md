@@ -16,22 +16,22 @@ MAPPO discovers/manages targets through simulated lifecycle events:
 ## 1) Configure demo-fleet stack
 
 ```bash
-make demo-fleet-configure \
-  DEMO_FLEET_STACK=demo-fleet \
-  PROVIDER_SUBSCRIPTION_ID="<provider-subscription-guid>" \
-  CUSTOMER_SUBSCRIPTION_ID="<customer-subscription-guid>" \
-  LOCATION="eastus"
+./scripts/demo_fleet_configure.sh \
+  --stack demo-fleet \
+  --provider-subscription-id "<provider-subscription-guid>" \
+  --customer-subscription-id "<customer-subscription-guid>" \
+  --location eastus
 ```
 
 Optional tenant overrides:
 
 ```bash
-make demo-fleet-configure \
-  DEMO_FLEET_STACK=demo-fleet \
-  PROVIDER_SUBSCRIPTION_ID="<provider-subscription-guid>" \
-  CUSTOMER_SUBSCRIPTION_ID="<customer-subscription-guid>" \
-  PROVIDER_TENANT_ID="<provider-tenant-guid>" \
-  CUSTOMER_TENANT_ID="<customer-tenant-guid>"
+./scripts/demo_fleet_configure.sh \
+  --stack demo-fleet \
+  --provider-subscription-id "<provider-subscription-guid>" \
+  --customer-subscription-id "<customer-subscription-guid>" \
+  --provider-tenant-id "<provider-tenant-guid>" \
+  --customer-tenant-id "<customer-tenant-guid>"
 ```
 
 ## 2) Bring fleet up and register targets
@@ -39,10 +39,10 @@ make demo-fleet-configure \
 ```bash
 source .data/mappo-runtime.env
 source .data/mappo-azure.env
-make demo-fleet-up \
-  DEMO_FLEET_STACK=demo-fleet \
-  API_BASE_URL="$MAPPO_API_BASE_URL" \
-  INGEST_TOKEN="$MAPPO_MARKETPLACE_INGEST_TOKEN"
+./scripts/demo_fleet_up.sh \
+  --stack demo-fleet \
+  --api-base-url "$MAPPO_API_BASE_URL" \
+  --ingest-token "$MAPPO_MARKETPLACE_INGEST_TOKEN"
 ```
 
 What this does:
@@ -57,12 +57,12 @@ Suspend:
 ```bash
 source .data/mappo-runtime.env
 source .data/mappo-azure.env
-make marketplace-ingest-events \
-  INVENTORY_FILE=".data/demo-fleet-target-inventory.json" \
-  API_BASE_URL="$MAPPO_API_BASE_URL" \
-  INGEST_TOKEN="$MAPPO_MARKETPLACE_INGEST_TOKEN" \
-  EVENT_TYPE="subscription_suspended" \
-  EVENT_ID_PREFIX="evt-demo-suspend"
+./scripts/marketplace_ingest_events.sh \
+  --inventory-file ".data/demo-fleet-target-inventory.json" \
+  --api-base-url "$MAPPO_API_BASE_URL" \
+  --ingest-token "$MAPPO_MARKETPLACE_INGEST_TOKEN" \
+  --event-type "subscription_suspended" \
+  --event-id-prefix "evt-demo-suspend"
 ```
 
 Delete/offboard + destroy:
@@ -70,10 +70,10 @@ Delete/offboard + destroy:
 ```bash
 source .data/mappo-runtime.env
 source .data/mappo-azure.env
-make demo-fleet-down \
-  DEMO_FLEET_STACK=demo-fleet \
-  API_BASE_URL="$MAPPO_API_BASE_URL" \
-  INGEST_TOKEN="$MAPPO_MARKETPLACE_INGEST_TOKEN"
+./scripts/demo_fleet_down.sh \
+  --stack demo-fleet \
+  --api-base-url "$MAPPO_API_BASE_URL" \
+  --ingest-token "$MAPPO_MARKETPLACE_INGEST_TOKEN"
 ```
 
 What `demo-fleet-down` does:
@@ -97,33 +97,33 @@ Local manifest file:
 
 ```bash
 source .data/mappo-runtime.env
-make release-ingest-from-repo \
-  API_BASE_URL="$MAPPO_API_BASE_URL" \
-  MANIFEST_FILE="/absolute/path/releases.manifest.json"
+./scripts/release_ingest_from_repo.sh \
+  --api-base-url "$MAPPO_API_BASE_URL" \
+  --manifest-file "/absolute/path/releases.manifest.json"
 ```
 
 GitHub manifest:
 
 ```bash
 source .data/mappo-runtime.env
-make release-ingest-from-repo \
-  API_BASE_URL="$MAPPO_API_BASE_URL" \
-  GITHUB_REPO="<owner>/<repo>" \
-  GITHUB_PATH="releases/releases.manifest.json" \
-  GITHUB_REF="main"
+./scripts/release_ingest_from_repo.sh \
+  --api-base-url "$MAPPO_API_BASE_URL" \
+  --github-repo "<owner>/<repo>" \
+  --github-path "releases/releases.manifest.json" \
+  --github-ref "main"
 ```
 
 Azure DevOps manifest:
 
 ```bash
 source .data/mappo-runtime.env
-make release-ingest-from-repo \
-  API_BASE_URL="$MAPPO_API_BASE_URL" \
-  ADO_ORG="<org>" \
-  ADO_PROJECT="<project>" \
-  ADO_REPOSITORY="<repo>" \
-  ADO_PATH="/releases/releases.manifest.json" \
-  ADO_REF="main"
+./scripts/release_ingest_from_repo.sh \
+  --api-base-url "$MAPPO_API_BASE_URL" \
+  --ado-org "<org>" \
+  --ado-project "<project>" \
+  --ado-repository "<repo>" \
+  --ado-path "/releases/releases.manifest.json" \
+  --ado-ref "main"
 ```
 
 Supported manifest shape:
