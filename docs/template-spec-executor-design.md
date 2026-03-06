@@ -25,18 +25,21 @@ This design adds a second deployment mode where MAPPO deploys a full Template Sp
 - MAPPO: orchestrates which version goes to which targets and when.
 - Azure ARM deployment engine: performs actual resource-level state reconciliation.
 
-## Proposed Execution Modes
-- `container_patch` (existing behavior): patch Container App directly.
-- `template_spec` (new): deploy Template Spec version via ARM deployment at RG scope.
+## Proposed Release Source Types
+- `template_spec`: deploy Template Spec version via ARM deployment at RG or subscription scope.
+- `bicep`: deploy from a Bicep source reference.
+- `deployment_stack`: deploy from a deployment stack source reference.
 
 ## Data Model Changes
 
 ## Release
 Add fields to `Release`:
-- `deployment_mode`: enum `container_patch | template_spec` (default `container_patch` for backward compatibility).
-- `template_spec_version_id`: optional full version resource ID; if null, derive from `(template_spec_id, template_spec_version)`.
+- `source_type`: enum `template_spec | bicep | deployment_stack` (default `template_spec`).
+- `source_ref`: canonical source reference (for example a Template Spec ID).
+- `source_version`: canonical source version string.
+- `source_version_ref`: optional fully qualified version reference; if null, derive it from source-specific metadata when possible.
 - `deployment_scope`: enum `resource_group | subscription` (default `resource_group`).
-- `deployment_mode_settings`: JSON object for mode-specific settings:
+- `execution_settings`: object for execution settings:
   - `arm_mode`: `Incremental` default.
   - `what_if_on_canary`: bool default false.
   - `verify_after_deploy`: bool default true.
@@ -47,7 +50,7 @@ Rationale:
 
 ## DeploymentRun
 Add field:
-- `execution_mode`: copy of release `deployment_mode` at run creation (immutable run snapshot).
+- `execution_source_type`: copy of release `source_type` at run creation (immutable run snapshot).
 
 Rationale:
 - Historical runs remain interpretable even if release defaults change later.
@@ -56,12 +59,12 @@ Rationale:
 
 ## Create Release
 Extend `CreateReleaseRequest` with optional:
-- `deployment_mode`
-- `template_spec_version_id`
+- `source_type`
+- `source_version_ref`
 - `deployment_scope`
-- `deployment_mode_settings`
+- `execution_settings`
 
-Defaults preserve current behavior.
+Defaults preserve Template Spec behavior.
 
 ## Read APIs
 `GET /releases`, `GET /runs`, `GET /runs/{id}` include the above fields.
@@ -89,11 +92,12 @@ class TargetExecutor(Protocol):
 
 Implementation:
 - Existing `AzureTargetExecutor` remains.
-- It dispatches DEPLOYING behavior by `release.deployment_mode`.
+- It dispatches DEPLOYING behavior by `release.source_type`.
 
 Internal strategy split:
-- `AzureContainerPatchStrategy` (existing flow).
-- `AzureTemplateSpecStrategy` (new flow).
+- `AzureTemplateSpecStrategy`
+- `AzureBicepStrategy`
+- `AzureDeploymentStackStrategy`
 
 ## AzureTemplateSpecStrategy Flow (per target)
 1. VALIDATING
@@ -173,7 +177,7 @@ Notes:
 
 Phase 1: Schema/API prep
 - Add release/run fields and migrations.
-- Keep default `deployment_mode=container_patch`.
+- Set default `source_type=template_spec`.
 - Regenerate ORM/OpenAPI/client.
 - Status: complete.
 
@@ -189,11 +193,11 @@ Phase 3: Logging enrichment
 Phase 4: Controlled rollout
 - Create canary release with `template_spec` mode.
 - Validate on 1-2 targets, then waves.
-- Keep fallback release in `container_patch` mode.
+- Keep simulator fallback outside release source typing.
 
 Phase 5: Promote default
 - After stable runs, set release creation default to `template_spec`.
-- Keep `container_patch` as compatibility mode for simple workloads.
+- Keep release-source typing production-only; do not reintroduce container patch as a release type.
 
 ## Testing Strategy
 

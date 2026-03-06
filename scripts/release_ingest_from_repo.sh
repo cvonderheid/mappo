@@ -42,24 +42,31 @@ Manifest JSON can be either:
   2) object with a "releases" array
 
 Release object fields (required):
-  - template_spec_id
-  - template_spec_version
+  - source_ref
+  - source_version
 
 Optional fields:
-  - deployment_mode (default: template_spec)
-  - template_spec_version_id
+  - source_type (default: template_spec)
+  - source_version_ref
   - deployment_scope (default: resource_group)
-  - deployment_mode_settings
+  - execution_settings
   - parameter_defaults
   - release_notes
   - verification_hints
+
+Compatibility aliases still accepted for template-spec manifests:
+  - template_spec_id -> source_ref
+  - template_spec_version -> source_version
+  - deployment_mode -> source_type
+  - template_spec_version_id -> source_version_ref
+  - deployment_mode_settings -> execution_settings
 
 Options:
   --api-base-url <url>                 MAPPO API base URL (default: http://localhost:8010)
   --api-bearer-token <token>           Optional bearer token for API auth
   --github-token <token>               Optional GitHub token (or GITHUB_TOKEN env)
   --ado-token <token>                  Azure DevOps PAT (or AZURE_DEVOPS_EXT_PAT env)
-  --allow-duplicates                   Create even when same template_spec_id+version exists
+  --allow-duplicates                   Create even when same source_ref+source_version exists
   --dry-run                            Validate/print actions without API writes
   -h, --help                           Show help
 EOF
@@ -229,23 +236,27 @@ def parse_manifest(raw_payload: str) -> list[dict[str, Any]]:
         if not isinstance(item, dict):
             fail(f"release row #{index} is not an object")
 
-        template_spec_id = str(item.get("template_spec_id") or "").strip()
-        template_spec_version = str(item.get("template_spec_version") or "").strip()
-        if template_spec_id == "" or template_spec_version == "":
+        source_ref = str(item.get("source_ref") or item.get("template_spec_id") or "").strip()
+        source_version = str(item.get("source_version") or item.get("template_spec_version") or "").strip()
+        if source_ref == "" or source_version == "":
             fail(
                 f"release row #{index} missing required fields: "
-                "template_spec_id and template_spec_version"
+                "source_ref and source_version"
             )
 
-        deployment_mode = str(item.get("deployment_mode") or "template_spec").strip()
+        source_type = str(item.get("source_type") or item.get("deployment_mode") or "template_spec").strip()
         deployment_scope = str(item.get("deployment_scope") or "resource_group").strip()
-        template_spec_version_id = item.get("template_spec_version_id")
-        deployment_mode_settings = item.get("deployment_mode_settings") or {}
+        source_version_ref = item.get("source_version_ref")
+        if source_version_ref is None:
+            source_version_ref = item.get("template_spec_version_id")
+        execution_settings = item.get("execution_settings")
+        if execution_settings is None:
+            execution_settings = item.get("deployment_mode_settings") or {}
         parameter_defaults = item.get("parameter_defaults") or {}
         verification_hints = item.get("verification_hints") or []
 
-        if not isinstance(deployment_mode_settings, dict):
-            fail(f"release row #{index} has non-object deployment_mode_settings")
+        if not isinstance(execution_settings, dict):
+            fail(f"release row #{index} has non-object execution_settings")
         if not isinstance(parameter_defaults, dict):
             fail(f"release row #{index} has non-object parameter_defaults")
         if not isinstance(verification_hints, list):
@@ -253,21 +264,21 @@ def parse_manifest(raw_payload: str) -> list[dict[str, Any]]:
 
         normalized.append(
             {
-                "template_spec_id": template_spec_id,
-                "template_spec_version": template_spec_version,
-                "deployment_mode": deployment_mode,
-                "template_spec_version_id": (
-                    str(template_spec_version_id).strip() if template_spec_version_id else None
+                "sourceRef": source_ref,
+                "sourceVersion": source_version,
+                "sourceType": source_type,
+                "sourceVersionRef": (
+                    str(source_version_ref).strip() if source_version_ref else None
                 ),
-                "deployment_scope": deployment_scope,
-                "deployment_mode_settings": deployment_mode_settings,
-                "parameter_defaults": {
+                "deploymentScope": deployment_scope,
+                "executionSettings": execution_settings,
+                "parameterDefaults": {
                     str(key): str(value)
                     for key, value in parameter_defaults.items()
                     if str(key).strip() != ""
                 },
-                "release_notes": str(item.get("release_notes") or "").strip(),
-                "verification_hints": [
+                "releaseNotes": str(item.get("release_notes") or "").strip(),
+                "verificationHints": [
                     str(hint).strip()
                     for hint in verification_hints
                     if str(hint).strip() != ""
@@ -408,8 +419,8 @@ if not dry_run:
     for item in existing_payload:
         if isinstance(item, dict):
             key = (
-                str(item.get("template_spec_id") or "").strip(),
-                str(item.get("template_spec_version") or "").strip(),
+                str(item.get("sourceRef") or item.get("template_spec_id") or "").strip(),
+                str(item.get("sourceVersion") or item.get("template_spec_version") or "").strip(),
             )
             if key[0] and key[1]:
                 existing_keys.add(key)
@@ -419,12 +430,12 @@ skipped = 0
 failed = 0
 
 for index, payload in enumerate(release_requests, start=1):
-    key = (payload["template_spec_id"], payload["template_spec_version"])
+    key = (payload["sourceRef"], payload["sourceVersion"])
     if (not allow_duplicates) and key in existing_keys:
         skipped += 1
         print(
             "release-ingest-from-repo: skipped existing "
-            f"{payload['template_spec_version']} ({payload['template_spec_id']})"
+            f"{payload['sourceVersion']} ({payload['sourceRef']})"
         )
         continue
 
@@ -432,7 +443,7 @@ for index, payload in enumerate(release_requests, start=1):
         created += 1
         print(
             "release-ingest-from-repo: dry-run create "
-            f"#{index} {payload['template_spec_version']} ({payload['template_spec_id']})"
+            f"#{index} {payload['sourceVersion']} ({payload['sourceRef']})"
         )
         existing_keys.add(key)
         continue
@@ -446,7 +457,7 @@ for index, payload in enumerate(release_requests, start=1):
         existing_keys.add(key)
         print(
             "release-ingest-from-repo: created "
-            f"{release_id or '(unknown-id)'} :: {payload['template_spec_version']}"
+            f"{release_id or '(unknown-id)'} :: {payload['sourceVersion']}"
         )
     except SystemExit as error:
         failed += 1

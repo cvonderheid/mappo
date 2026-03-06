@@ -61,8 +61,8 @@ export async function listRuns(): Promise<RunSummary[]> {
 }
 
 export async function getRun(runId: string): Promise<RunDetail> {
-  const { data, error, response } = await apiClient.GET("/api/v1/runs/{run_id}", {
-    params: { path: { run_id: runId } },
+  const { data, error, response } = await apiClient.GET("/api/v1/runs/{runId}", {
+    params: { path: { runId } },
   });
   return requireData("getRun", { data, error, response });
 }
@@ -75,15 +75,15 @@ export async function createRun(request: CreateRunRequest): Promise<RunDetail> {
 }
 
 export async function resumeRun(runId: string): Promise<RunDetail> {
-  const { data, error, response } = await apiClient.POST("/api/v1/runs/{run_id}/resume", {
-    params: { path: { run_id: runId } },
+  const { data, error, response } = await apiClient.POST("/api/v1/runs/{runId}/resume", {
+    params: { path: { runId } },
   });
   return requireData("resumeRun", { data, error, response });
 }
 
 export async function retryFailed(runId: string): Promise<RunDetail> {
-  const { data, error, response } = await apiClient.POST("/api/v1/runs/{run_id}/retry-failed", {
-    params: { path: { run_id: runId } },
+  const { data, error, response } = await apiClient.POST("/api/v1/runs/{runId}/retry-failed", {
+    params: { path: { runId } },
   });
   return requireData("retryFailed", { data, error, response });
 }
@@ -116,9 +116,9 @@ export async function adminUpdateTargetRegistration(
   request: UpdateTargetRegistrationRequest
 ): Promise<TargetRegistrationRecord> {
   const { data, error, response } = await apiClient.PATCH(
-    "/api/v1/admin/onboarding/registrations/{target_id}",
+    "/api/v1/admin/onboarding/registrations/{targetId}",
     {
-      params: { path: { target_id: targetId } },
+      params: { path: { targetId } },
       body: request,
     }
   );
@@ -129,9 +129,9 @@ export async function adminDeleteTargetRegistration(
   targetId: string
 ): Promise<DeleteTargetRegistrationResponse> {
   const { data, error, response } = await apiClient.DELETE(
-    "/api/v1/admin/onboarding/registrations/{target_id}",
+    "/api/v1/admin/onboarding/registrations/{targetId}",
     {
-      params: { path: { target_id: targetId } },
+      params: { path: { targetId } },
     }
   );
   return requireData("adminDeleteTargetRegistration", { data, error, response });

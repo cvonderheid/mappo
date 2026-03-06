@@ -5,8 +5,9 @@ import static com.mappo.controlplane.jooq.Tables.RELEASE_PARAMETER_DEFAULTS;
 import static com.mappo.controlplane.jooq.Tables.RELEASE_VERIFICATION_HINTS;
 
 import com.mappo.controlplane.jooq.enums.MappoArmDeploymentMode;
-import com.mappo.controlplane.jooq.enums.MappoDeploymentMode;
 import com.mappo.controlplane.jooq.enums.MappoDeploymentScope;
+import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
+import com.mappo.controlplane.model.ReleaseExecutionSettingsRecord;
 import com.mappo.controlplane.model.command.CreateReleaseCommand;
 import com.mappo.controlplane.model.ReleaseRecord;
 import java.time.OffsetDateTime;
@@ -31,10 +32,10 @@ public class ReleaseRepository {
     public List<ReleaseRecord> listReleases() {
         var rows = dsl.select(
                 RELEASES.ID,
-                RELEASES.TEMPLATE_SPEC_ID,
-                RELEASES.TEMPLATE_SPEC_VERSION,
-                RELEASES.DEPLOYMENT_MODE,
-                RELEASES.TEMPLATE_SPEC_VERSION_ID,
+                RELEASES.SOURCE_REF,
+                RELEASES.SOURCE_VERSION,
+                RELEASES.SOURCE_TYPE,
+                RELEASES.SOURCE_VERSION_REF,
                 RELEASES.DEPLOYMENT_SCOPE,
                 RELEASES.ARM_DEPLOYMENT_MODE,
                 RELEASES.WHAT_IF_ON_CANARY,
@@ -61,10 +62,10 @@ public class ReleaseRepository {
     public Optional<ReleaseRecord> getRelease(String releaseId) {
         Record row = dsl.select(
                 RELEASES.ID,
-                RELEASES.TEMPLATE_SPEC_ID,
-                RELEASES.TEMPLATE_SPEC_VERSION,
-                RELEASES.DEPLOYMENT_MODE,
-                RELEASES.TEMPLATE_SPEC_VERSION_ID,
+                RELEASES.SOURCE_REF,
+                RELEASES.SOURCE_VERSION,
+                RELEASES.SOURCE_TYPE,
+                RELEASES.SOURCE_VERSION_REF,
                 RELEASES.DEPLOYMENT_SCOPE,
                 RELEASES.ARM_DEPLOYMENT_MODE,
                 RELEASES.WHAT_IF_ON_CANARY,
@@ -89,9 +90,9 @@ public class ReleaseRepository {
         String releaseId = "rel-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
-        MappoDeploymentMode deploymentMode = enumOrDefault(
-            request.deploymentMode(),
-            MappoDeploymentMode.container_patch
+        MappoReleaseSourceType sourceType = enumOrDefault(
+            request.sourceType(),
+            MappoReleaseSourceType.template_spec
         );
         MappoDeploymentScope deploymentScope = enumOrDefault(
             request.deploymentScope(),
@@ -100,10 +101,10 @@ public class ReleaseRepository {
 
         dsl.insertInto(RELEASES)
             .set(RELEASES.ID, releaseId)
-            .set(RELEASES.TEMPLATE_SPEC_ID, normalize(request.templateSpecId()))
-            .set(RELEASES.TEMPLATE_SPEC_VERSION, normalize(request.templateSpecVersion()))
-            .set(RELEASES.DEPLOYMENT_MODE, deploymentMode)
-            .set(RELEASES.TEMPLATE_SPEC_VERSION_ID, nullableText(request.templateSpecVersionId()))
+            .set(RELEASES.SOURCE_REF, normalize(request.sourceRef()))
+            .set(RELEASES.SOURCE_VERSION, normalize(request.sourceVersion()))
+            .set(RELEASES.SOURCE_TYPE, sourceType)
+            .set(RELEASES.SOURCE_VERSION_REF, nullableText(request.sourceVersionRef()))
             .set(RELEASES.DEPLOYMENT_SCOPE, deploymentScope)
             .set(
                 RELEASES.ARM_DEPLOYMENT_MODE,
@@ -203,12 +204,12 @@ public class ReleaseRepository {
     private ReleaseRecord toReleaseRecord(Record row, Map<String, String> defaults, List<String> hints) {
         return new ReleaseRecord(
             row.get(RELEASES.ID),
-            row.get(RELEASES.TEMPLATE_SPEC_ID),
-            row.get(RELEASES.TEMPLATE_SPEC_VERSION),
-            row.get(RELEASES.DEPLOYMENT_MODE),
-            row.get(RELEASES.TEMPLATE_SPEC_VERSION_ID),
+            row.get(RELEASES.SOURCE_REF),
+            row.get(RELEASES.SOURCE_VERSION),
+            row.get(RELEASES.SOURCE_TYPE),
+            row.get(RELEASES.SOURCE_VERSION_REF),
             row.get(RELEASES.DEPLOYMENT_SCOPE),
-            deploymentModeSettings(row),
+            executionSettings(row),
             defaults,
             row.get(RELEASES.RELEASE_NOTES),
             hints,
@@ -216,15 +217,12 @@ public class ReleaseRepository {
         );
     }
 
-    private Map<String, Object> deploymentModeSettings(Record row) {
-        Map<String, Object> settings = new LinkedHashMap<>();
-        settings.put(
-            "arm_mode",
-            enumOrDefault(row.get(RELEASES.ARM_DEPLOYMENT_MODE), MappoArmDeploymentMode.incremental).getLiteral()
+    private ReleaseExecutionSettingsRecord executionSettings(Record row) {
+        return new ReleaseExecutionSettingsRecord(
+            enumOrDefault(row.get(RELEASES.ARM_DEPLOYMENT_MODE), MappoArmDeploymentMode.incremental),
+            Boolean.TRUE.equals(row.get(RELEASES.WHAT_IF_ON_CANARY)),
+            !Boolean.FALSE.equals(row.get(RELEASES.VERIFY_AFTER_DEPLOY))
         );
-        settings.put("what_if_on_canary", Boolean.TRUE.equals(row.get(RELEASES.WHAT_IF_ON_CANARY)));
-        settings.put("verify_after_deploy", !Boolean.FALSE.equals(row.get(RELEASES.VERIFY_AFTER_DEPLOY)));
-        return settings;
     }
 
     private String nullableText(Object value) {

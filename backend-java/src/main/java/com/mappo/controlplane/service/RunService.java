@@ -3,8 +3,8 @@ package com.mappo.controlplane.service;
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.RunCreateRequest;
 import com.mappo.controlplane.azure.AzureExecutorClient;
-import com.mappo.controlplane.jooq.enums.MappoDeploymentMode;
 import com.mappo.controlplane.jooq.enums.MappoRunStatus;
+import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.jooq.enums.MappoTargetStage;
 import com.mappo.controlplane.model.command.CreateRunCommand;
 import com.mappo.controlplane.model.ReleaseRecord;
@@ -45,7 +45,7 @@ public class RunService {
         CreateRunCommand command = request.toCommand();
         String releaseId = command.releaseId();
         if (releaseId.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "release_id is required");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "releaseId is required");
         }
 
         ReleaseRecord release = releaseService.getRelease(releaseId);
@@ -55,18 +55,14 @@ public class RunService {
         }
 
         String runId = "run-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
-        MappoDeploymentMode executionMode = release.deploymentMode();
+        MappoReleaseSourceType executionSourceType = release.sourceType();
         boolean immediateSuccess = true;
 
-        runRepository.createRun(runId, command, targets, executionMode, immediateSuccess);
+        runRepository.createRun(runId, command, targets, executionSourceType, immediateSuccess);
 
-        if (executionMode != MappoDeploymentMode.template_spec) {
-            runRepository.addRunWarning(runId, 0, "execution mode is not template_spec; run completed in simulator mode");
-        } else if (!azureExecutorClient.isConfigured()) {
-            runRepository.addRunWarning(runId, 0, "azure sdk credentials are not configured; run completed in simulator mode");
-        }
+        runRepository.addRunWarning(runId, 0, simulatorWarning(executionSourceType));
 
-        String releaseVersion = release.templateSpecVersion();
+        String releaseVersion = release.sourceVersion();
         for (TargetRecord target : targets) {
             targetRepository.updateLastDeployedRelease(target.id(), releaseVersion);
         }
@@ -105,5 +101,13 @@ public class RunService {
         }
 
         return targetRepository.listTargets(Map.of());
+    }
+
+    private String simulatorWarning(MappoReleaseSourceType executionSourceType) {
+        String sourceType = executionSourceType == null ? "template_spec" : executionSourceType.getLiteral();
+        if (!azureExecutorClient.isConfigured()) {
+            return "Azure execution is not configured; run completed in simulator mode for source type " + sourceType + ".";
+        }
+        return "Azure execution for source type " + sourceType + " is not implemented yet; run completed in simulator mode.";
     }
 }

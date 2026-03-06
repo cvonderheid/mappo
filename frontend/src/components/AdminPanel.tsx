@@ -67,7 +67,7 @@ export default function AdminPanel({
 
   const registrations = adminSnapshot?.registrations ?? [];
   const events = adminSnapshot?.events ?? [];
-  const forwarderLogs = adminSnapshot?.forwarder_logs ?? [];
+  const forwarderLogs = adminSnapshot?.forwarderLogs ?? [];
 
   const canSubmitEdit =
     editingTargetId.trim() !== "" &&
@@ -75,12 +75,12 @@ export default function AdminPanel({
     editContainerAppResourceId.trim() !== "";
 
   function openEditDrawer(registration: TargetRegistrationRecord): void {
-    setEditingTargetId(registration.target_id);
-    setEditDisplayName(registration.display_name);
-    setEditCustomerName(registration.customer_name ?? "");
-    setEditManagedApplicationId(registration.managed_application_id ?? "");
-    setEditManagedResourceGroupId(registration.managed_resource_group_id ?? "");
-    setEditContainerAppResourceId(registration.container_app_resource_id);
+    setEditingTargetId(registration.targetId ?? "");
+    setEditDisplayName(registration.displayName ?? "");
+    setEditCustomerName(registration.customerName ?? "");
+    setEditManagedApplicationId(registration.managedApplicationId ?? "");
+    setEditManagedResourceGroupId(registration.managedResourceGroupId ?? "");
+    setEditContainerAppResourceId(registration.containerAppResourceId ?? "");
     setEditTargetGroup(normalizeTagValue(registration.tags?.ring, "prod"));
     setEditRegion(normalizeTagValue(registration.tags?.region, "unknown"));
     setEditEnvironment(normalizeTagValue(registration.tags?.environment, "prod"));
@@ -94,16 +94,16 @@ export default function AdminPanel({
     registration: TargetRegistrationRecord
   ): Promise<void> {
     const confirmed = window.confirm(
-      `Delete registered target ${registration.target_id}? This removes it from fleet and admin registration state.`
+      `Delete registered target ${registration.targetId}? This removes it from fleet and admin registration state.`
     );
     if (!confirmed) {
       return;
     }
 
-    setDeletingTargetId(registration.target_id);
+    setDeletingTargetId(registration.targetId ?? "");
     try {
-      await onDeleteTargetRegistration(registration.target_id);
-      setRegistrationResultMessage(`Deleted target ${registration.target_id}.`);
+      await onDeleteTargetRegistration(registration.targetId ?? "");
+      setRegistrationResultMessage(`Deleted target ${registration.targetId}.`);
       setRegistrationErrorMessage("");
     } catch (error) {
       setRegistrationErrorMessage((error as Error).message);
@@ -119,17 +119,19 @@ export default function AdminPanel({
     }
 
     const request: UpdateTargetRegistrationRequest = {
-      display_name: editDisplayName.trim(),
-      customer_name: editCustomerName.trim() || null,
-      managed_application_id: editManagedApplicationId.trim() || null,
-      container_app_resource_id: editContainerAppResourceId.trim(),
-      target_group: editTargetGroup.trim() || "prod",
-      region: editRegion.trim() || "unknown",
-      environment: editEnvironment.trim() || "prod",
-      tier: editTier.trim() || "standard",
+      displayName: editDisplayName.trim(),
+      customerName: editCustomerName.trim() || undefined,
+      managedApplicationId: editManagedApplicationId.trim() || undefined,
+      containerAppResourceId: editContainerAppResourceId.trim(),
+      tags: {
+        ring: editTargetGroup.trim() || "prod",
+        region: editRegion.trim() || "unknown",
+        environment: editEnvironment.trim() || "prod",
+        tier: editTier.trim() || "standard",
+      },
     };
     if (editManagedResourceGroupId.trim() !== "") {
-      request.managed_resource_group_id = editManagedResourceGroupId.trim();
+      request.managedResourceGroupId = editManagedResourceGroupId.trim();
     }
 
     setEditIsSubmitting(true);
@@ -334,4 +336,3 @@ export default function AdminPanel({
     </div>
   );
 }
-

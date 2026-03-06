@@ -6,7 +6,7 @@ Date: 2026-02-26
 Postgres-first persistence baseline:
 - move control-plane storage from SQLite to Postgres,
 - enforce schema lifecycle with Flyway,
-- generate ORM classes from live schema using sqlacodegen.
+- generate ORM classes from live schema using jOOQ codegen.
 
 ## Verification Checklist (must stay accurate)
 - [x] Flyway baseline migration applies cleanly to local Postgres.
@@ -15,7 +15,7 @@ Postgres-first persistence baseline:
 - [x] In-flight runs reconcile safely on restart (`running` -> `halted`).
 - [x] Deterministic 10-target seed/reset still works.
 - [x] Retention prune command still works with configurable day window.
-- [x] `make phase1-gate-full` remains green.
+- [x] Current backend/frontend verification workflow remains green.
 
 ## Status Snapshot (2026-02-26)
 - [x] Milestone 01 completed
@@ -33,9 +33,8 @@ Postgres-first persistence baseline:
 - Local commands can create/migrate/reset schema and generate models deterministically.
 
 **Verification commands**
-- `make db-migrate`
-- `make db-info`
-- `make models-gen`
+- `./mvnw -pl backend-java test`
+- `./mvnw -pl backend-java verify`
 
 ## Phase 4 — Milestone 02: Store Migration
 **Scope**
@@ -45,7 +44,7 @@ Postgres-first persistence baseline:
 - Existing API contract remains stable while data persists in Postgres JSONB tables.
 
 **Verification commands**
-- `make test-backend`
+- `./mvnw -pl backend-java test`
 
 ## Phase 4 — Milestone 03: Runtime/Script Wiring
 **Scope**
@@ -55,8 +54,7 @@ Postgres-first persistence baseline:
 - App startup, `demo-reset`, and `retention-prune` all work against Postgres.
 
 **Verification commands**
-- `make demo-reset`
-- `make retention-prune RETENTION_DAYS=90`
+- backend retention/reset utilities remain runnable under current backend workflow
 
 ## Phase 4 — Milestone 04: Verification + Gate Closure
 **Scope**
@@ -66,23 +64,22 @@ Postgres-first persistence baseline:
 - Lint/typecheck/test and phase gate commands all pass.
 
 **Verification commands**
-- `make lint`
-- `make typecheck`
-- `make test`
-- `make phase1-gate-full`
+- `./mvnw -pl backend-java verify`
+- `./mvnw -N exec:exec@frontend-typecheck`
+- `./mvnw -N exec:exec@frontend-test`
 
 ## Phase 4 — Milestone 05: OpenAPI + Client Generation
 **Scope**
 - Add deterministic OpenAPI generation from FastAPI and frontend generated client types.
 
 **Acceptance criteria**
-- `backend/openapi/openapi.json` is generated from backend app contract.
+- `/Users/cvonderheid/workspace/mappo/backend-java/target/openapi/openapi.json` is generated from backend app contract.
 - Frontend API layer uses generated schema/client types instead of handwritten shape definitions.
 
 **Verification commands**
-- `make openapi`
-- `make client-gen`
-- `make typecheck`
+- `./mvnw -pl backend-java verify`
+- `./mvnw -N exec:exec@frontend-client-gen`
+- `./mvnw -N exec:exec@frontend-typecheck`
 
 ## Phase 4 — Milestone 06: Docker Compose Dev Stack
 **Scope**
@@ -93,9 +90,7 @@ Postgres-first persistence baseline:
 - Host ports do not conflict with TXero defaults.
 
 **Verification commands**
-- `make dev-up`
-- `make dev-logs`
-- `make dev-down`
+- local runtime workflow commands remain runnable and documented
 
 ## Phase 5 — Milestone 01: Execution Adapter Boundary
 **Scope**
@@ -109,12 +104,10 @@ Postgres-first persistence baseline:
 - Existing API contract remains stable.
 
 **Verification commands**
-- `make openapi`
-- `make client-gen`
-- `make lint`
-- `make typecheck`
-- `make test`
-- `make phase1-gate-full`
+- `./mvnw -pl backend-java verify`
+- `./mvnw -N exec:exec@frontend-client-gen`
+- `./mvnw -N exec:exec@frontend-typecheck`
+- `./mvnw -N exec:exec@frontend-test`
 
 ## Phase 5 — Milestone 02: Pulumi Demo Target Provisioning
 **Scope**
@@ -128,8 +121,4 @@ Postgres-first persistence baseline:
 - Make targets exist for install/preview/up/destroy/export.
 
 **Verification commands**
-- `make iac-install`
-- `make iac-preview`
-- `make lint`
-- `make typecheck`
-- `make test`
+- IaC preview/install workflow remains runnable under current Pulumi/Maven flow

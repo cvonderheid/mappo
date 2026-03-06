@@ -1,16 +1,16 @@
 package com.mappo.controlplane.model.command;
 
 import com.mappo.controlplane.jooq.enums.MappoArmDeploymentMode;
-import com.mappo.controlplane.jooq.enums.MappoDeploymentMode;
 import com.mappo.controlplane.jooq.enums.MappoDeploymentScope;
+import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import java.util.List;
 import java.util.Map;
 
 public record CreateReleaseCommand(
-    String templateSpecId,
-    String templateSpecVersion,
-    MappoDeploymentMode deploymentMode,
-    String templateSpecVersionId,
+    String sourceRef,
+    String sourceVersion,
+    MappoReleaseSourceType sourceType,
+    String sourceVersionRef,
     MappoDeploymentScope deploymentScope,
     MappoArmDeploymentMode armDeploymentMode,
     boolean whatIfOnCanary,

@@ -19,13 +19,17 @@
 4. Add operator-facing messages and troubleshooting links.
 
 ## Add a New Execution Adapter
-1. Implement `TargetExecutor` in `backend/app/modules/execution.py`.
+1. Implement the execution adapter in the Java orchestration/service layer under `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane`.
 2. Keep emitted stage events deterministic (`started`/`completed`) with explicit correlation IDs.
-3. Wire adapter selection through `MAPPO_EXECUTION_MODE` settings (do not fork orchestration logic).
-4. Add adapter behavior tests and run full phase gate.
+3. Wire adapter selection through the backend settings/config path (do not fork orchestration logic).
+4. Add adapter behavior tests and run backend verify plus frontend contract checks.
 
 ## Quality Gate
 Run before merging non-trivial changes:
 ```bash
-make phase1-gate-full
+./mvnw -pl backend-java verify
+./mvnw -N exec:exec@frontend-client-gen
+./mvnw -N exec:exec@frontend-typecheck
+./mvnw -N exec:exec@frontend-test
+./mvnw -N exec:exec@frontend-build
 ```

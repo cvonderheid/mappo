@@ -18,8 +18,12 @@ spring:
     baseline-on-migrate: false
   jooq:
     sql-dialect: POSTGRES
-  jackson:
-    property-naming-strategy: SNAKE_CASE
+
+springdoc:
+  api-docs:
+    path: ${mappo.api-prefix}/openapi.json
+  swagger-ui:
+    enabled: false
 
 server:
   port: ${MAPPO_BACKEND_PORT:8010}

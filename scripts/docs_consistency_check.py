@@ -21,7 +21,11 @@ CONTENT_RULES = {
     "plans-next.md": ["## Verification Checklist", "## Status Snapshot", "## Phase"],
     "docs/documentation.md": ["## Engineering workflow discipline (before implementation)"],
     "pom.xml": ["<module>backend-java</module>"],
-    "README.md": ["phase1-gate-fast", "phase1-gate-full"],
+    "README.md": [
+        "./mvnw -pl backend-java verify",
+        "./mvnw -N exec:exec@frontend-client-gen",
+        "/Users/cvonderheid/workspace/mappo/backend-java/target/openapi/openapi.json",
+    ],
 }
 
 

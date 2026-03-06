@@ -56,7 +56,7 @@ public class AdminService {
         UUID subscriptionId = request.subscriptionId();
 
         if (eventId.isBlank() || tenantId == null || subscriptionId == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "event_id, tenant_id, and subscription_id are required");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "eventId, tenantId, and subscriptionId are required");
         }
 
         if (adminRepository.marketplaceEventExists(eventId)) {

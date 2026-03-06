@@ -96,14 +96,16 @@ MAPPO production auth is based on managed-application publisher authorization, n
   - Final publish and go-live confirmation steps.
 
 ## Deployment Scope
-Azure execution now supports two release-scoped deployment modes:
-- `container_patch`: updates the target Container App resource directly (image/env path).
-- `template_spec`: runs an ARM deployment from a Template Spec version per target (resource-group scope by default, subscription scope supported).
+Azure execution is modeled around release source types:
+- `template_spec`: ARM deployment from a Template Spec version per target.
+- `bicep`: direct Bicep-based deployment source.
+- `deployment_stack`: deployment stack-driven rollout source.
 
 Behavior:
 - Run orchestration, waves, retries/resume, and stop policies are unchanged.
-- `DeploymentRun.execution_mode` snapshots the selected release mode for immutable history.
-- Template-spec mode records deployment metadata (deployment name/scope/template-spec version id) and surfaces normalized operation/error details in target logs.
+- `DeploymentRun.execution_source_type` snapshots the selected release source type for immutable history.
+- Execution settings remain release-scoped (`deployment_scope`, ARM mode, what-if on canary, verify-after-deploy).
+- Template-spec execution records deployment metadata (deployment name/scope/template-spec version id) and surfaces normalized operation/error details in target logs.
 
 ## Determinism + Legibility Contract
 - Stage transitions are append-only and timestamped.

@@ -8,9 +8,9 @@ This is the current script inventory across `scripts/` and `backend/scripts/`, w
 
 ## Summary
 
-- Total reviewed: 33
+- Total reviewed: 34
 - Keep / keep-wrapper: 29
-- Delete: 2
+- Delete: 3
 - Migrate-to-pulumi priority: 2
 
 ## Inventory
@@ -26,6 +26,7 @@ This is the current script inventory across `scripts/` and `backend/scripts/`, w
 - `scripts/backend_file_size_check.py`: `keep` (engineering quality gate).
 - `scripts/check_no_demo_leak.py`: `keep` (engineering quality gate).
 - `scripts/docs_consistency_check.py`: `keep` (engineering quality gate).
+- `scripts/export_backend_java_openapi.py`: `keep-wrapper` (Springdoc contract export used by Maven verify).
 - `scripts/golden_principles_check.py`: `keep` (engineering quality gate).
 - `scripts/iac_configure_marketplace_demo.sh`: `keep-wrapper` (Pulumi stack config normalization).
 - `scripts/iac_export_db_env.sh`: `keep-wrapper` (exports Pulumi stack outputs into env file).
@@ -48,7 +49,7 @@ This is the current script inventory across `scripts/` and `backend/scripts/`, w
 - `backend/scripts/ensure_db.sh`: `keep` (local/dev DB bootstrap guard).
 - `backend/scripts/flyway.sh`: `keep` (migration command wrapper).
 - `backend/scripts/gen_models.sh`: `keep` (ORM generation workflow).
-- `backend/scripts/generate_openapi.py`: `keep` (contract generation).
+- `backend/scripts/generate_openapi.py`: `delete` (legacy Python OpenAPI path superseded by Java Springdoc export).
 - `backend/scripts/import_targets.py`: `keep` (legacy/manual import path; explicitly non-primary).
 - `backend/scripts/prune_retention.py`: `keep` (maintenance task).
 - `backend/scripts/demo_reset.py`: `delete` (legacy demo seeding path; removed).

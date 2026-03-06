@@ -48,6 +48,12 @@ type RunListProps = {
   onActionsMenuOpenChange?: (open: boolean) => void;
 };
 
+type StageErrorDetails = NonNullable<
+  NonNullable<
+    NonNullable<TargetExecutionRecord["stages"]>[number]["error"]
+  >["details"]
+>;
+
 function statusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
   if (status === "succeeded" || status === "SUCCEEDED") {
     return "default";
@@ -65,14 +71,14 @@ function canResume(run: RunSummary): boolean {
   if (run.status === "running" || run.status === "succeeded") {
     return false;
   }
-  return run.failed_targets > 0 || run.queued_targets > 0;
+  return (run.failedTargets ?? 0) > 0 || (run.queuedTargets ?? 0) > 0;
 }
 
 function canRetryFailed(run: RunSummary): boolean {
   if (run.status === "running") {
     return false;
   }
-  return run.failed_targets > 0;
+  return (run.failedTargets ?? 0) > 0;
 }
 
 function formatStrategyLabel(strategyMode: string): string {
@@ -137,15 +143,20 @@ function progressSegments(progress: ProgressCounts): ProgressSegment[] {
 }
 
 function progressFromSummary(run: RunSummary): ProgressCounts {
-  const completed = run.succeeded_targets + run.failed_targets;
+  const succeeded = run.succeededTargets ?? 0;
+  const failed = run.failedTargets ?? 0;
+  const total = run.totalTargets ?? 0;
+  const queued = run.queuedTargets ?? 0;
+  const inProgress = run.inProgressTargets ?? 0;
+  const completed = succeeded + failed;
   return {
-    total: run.total_targets,
-    queued: run.queued_targets,
-    inProgress: run.in_progress_targets,
-    succeeded: run.succeeded_targets,
-    failed: run.failed_targets,
+    total,
+    queued,
+    inProgress,
+    succeeded,
+    failed,
     completed,
-    percentComplete: percentComplete(completed, run.total_targets),
+    percentComplete: percentComplete(completed, total),
   };
 }
 
@@ -234,24 +245,29 @@ export function RunList({
         header: "Run",
         cell: ({ row }) => {
           const run = row.original;
+          const runId = run.id ?? "unknown";
           return (
             <button
               type="button"
-              data-testid={`select-run-${run.id}`}
+              data-testid={`select-run-${runId}`}
               className="font-mono text-xs text-left hover:underline"
-              onClick={() => onOpenRun(run.id)}
+              onClick={() => {
+                if (run.id) {
+                  onOpenRun(run.id);
+                }
+              }}
             >
-              {run.id}
+              {runId}
             </button>
           );
         },
       },
       {
-        accessorKey: "release_id",
+        accessorKey: "releaseId",
         header: "Release",
         cell: ({ row }) => (
           <span className="font-mono text-xs">
-            {row.original.release_id}
+            {row.original.releaseId}
           </span>
         ),
       },
@@ -265,8 +281,8 @@ export function RunList({
           return row.getValue<string>(id) === value;
         },
         cell: ({ row }) => (
-          <Badge variant={statusVariant(row.original.status)} className="uppercase">
-            {row.original.status}
+          <Badge variant={statusVariant(row.original.status ?? "unknown")} className="uppercase">
+            {row.original.status ?? "unknown"}
           </Badge>
         ),
       },
@@ -289,10 +305,10 @@ export function RunList({
         },
       },
       {
-        accessorKey: "guardrail_warnings",
+        accessorKey: "guardrailWarnings",
         header: "Guardrails",
         cell: ({ row }) => {
-          const warningCount = row.original.guardrail_warnings?.length ?? 0;
+          const warningCount = row.original.guardrailWarnings?.length ?? 0;
           if (warningCount <= 0) {
             return <span className="text-xs text-muted-foreground">None</span>;
           }
@@ -304,11 +320,11 @@ export function RunList({
         },
       },
       {
-        accessorKey: "created_at",
+        accessorKey: "createdAt",
         header: "Created",
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
-            {new Date(row.original.created_at).toLocaleString()}
+            {row.original.createdAt ? new Date(row.original.createdAt).toLocaleString() : "unknown"}
           </span>
         ),
       },
@@ -325,7 +341,7 @@ export function RunList({
             <DropdownMenu
               open={openActionRunId === run.id}
               onOpenChange={(open) => {
-                setOpenActionRunId(open ? run.id : null);
+                setOpenActionRunId(open ? (run.id ?? null) : null);
               }}
             >
               <DropdownMenuTrigger asChild>
@@ -334,38 +350,54 @@ export function RunList({
                   variant="outline"
                   size="sm"
                   className="h-7 w-7 p-0 font-mono"
-                  data-testid={`run-actions-trigger-${run.id}`}
-                  aria-label={`Actions for ${run.id}`}
+                  data-testid={`run-actions-trigger-${run.id ?? "unknown"}`}
+                  aria-label={`Actions for ${run.id ?? "unknown"}`}
                 >
                   ...
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
-                  data-testid={`run-action-view-${run.id}`}
-                  onSelect={() => onOpenRun(run.id)}
+                  data-testid={`run-action-view-${run.id ?? "unknown"}`}
+                  onSelect={() => {
+                    if (run.id) {
+                      onOpenRun(run.id);
+                    }
+                  }}
                 >
                   View Run Details
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  data-testid={`run-action-clone-${run.id}`}
-                  onSelect={() => onCloneRun(run.id)}
+                  data-testid={`run-action-clone-${run.id ?? "unknown"}`}
+                  onSelect={() => {
+                    if (run.id) {
+                      onCloneRun(run.id);
+                    }
+                  }}
                 >
                   Clone Run
                 </DropdownMenuItem>
                 {resumeEnabled || retryEnabled ? <DropdownMenuSeparator /> : null}
                 {resumeEnabled ? (
                   <DropdownMenuItem
-                    data-testid={`run-action-resume-${run.id}`}
-                    onSelect={() => onResumeRun(run.id)}
+                    data-testid={`run-action-resume-${run.id ?? "unknown"}`}
+                    onSelect={() => {
+                      if (run.id) {
+                        onResumeRun(run.id);
+                      }
+                    }}
                   >
                     Resume
                   </DropdownMenuItem>
                 ) : null}
                 {retryEnabled ? (
                   <DropdownMenuItem
-                    data-testid={`run-action-retry-failed-${run.id}`}
-                    onSelect={() => onRetryFailed(run.id)}
+                    data-testid={`run-action-retry-failed-${run.id ?? "unknown"}`}
+                    onSelect={() => {
+                      if (run.id) {
+                        onRetryFailed(run.id);
+                      }
+                    }}
                   >
                     Retry Failed
                   </DropdownMenuItem>
@@ -397,9 +429,15 @@ export function RunList({
 
   const filteredCount = table.getFilteredRowModel().rows.length;
   const runIdFilter = (table.getColumn("id")?.getFilterValue() as string | undefined) ?? "";
-  const releaseFilter = (table.getColumn("release_id")?.getFilterValue() as string | undefined) ?? "";
+  const releaseFilter = (table.getColumn("releaseId")?.getFilterValue() as string | undefined) ?? "";
   const statusFilter = (table.getColumn("status")?.getFilterValue() as string | undefined) ?? "";
-  const uniqueStatuses = [...new Set(runs.map((run) => run.status))].sort();
+  const uniqueStatuses = [
+    ...new Set(
+      runs
+        .map((run) => run.status)
+        .filter((status): status is NonNullable<RunSummary["status"]> => Boolean(status))
+    ),
+  ].sort();
   const visibleColumnCount = table.getVisibleLeafColumns().length;
 
   function renderFilterCell(columnId: string): ReactNode {
@@ -413,11 +451,11 @@ export function RunList({
         />
       );
     }
-    if (columnId === "release_id") {
+    if (columnId === "releaseId") {
       return (
         <Input
           value={releaseFilter}
-          onChange={(event) => table.getColumn("release_id")?.setFilterValue(event.target.value)}
+          onChange={(event) => table.getColumn("releaseId")?.setFilterValue(event.target.value)}
           placeholder="Filter release"
           className="h-8"
         />
@@ -501,7 +539,7 @@ export function RunList({
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  data-testid={`run-row-${row.original.id}`}
+                  data-testid={`run-row-${row.original.id ?? "unknown"}`}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
@@ -536,22 +574,23 @@ export function RunDetailPanel({ run }: RunDetailProps) {
     );
   }
 
-  const progress = progressFromRecords(run.target_records);
+  const targetRecords = run.targetRecords ?? [];
+  const progress = progressFromRecords(targetRecords);
 
   return (
     <Card className="glass-card animate-fade-up [animation-delay:240ms] [animation-fill-mode:forwards]">
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>Run Detail</CardTitle>
-        <Badge variant={statusVariant(run.status)} className="uppercase">
-          {run.status}
+        <Badge variant={statusVariant(run.status ?? "unknown")} className="uppercase">
+          {run.status ?? "unknown"}
         </Badge>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-          <span>release: {run.release_id}</span>
-          <span>strategy: {formatStrategyLabel(run.strategy_mode)}</span>
-          <span>concurrency: {run.concurrency}</span>
-          <span>per-subscription: {run.subscription_concurrency}</span>
+          <span>release: {run.releaseId}</span>
+          <span>strategy: {formatStrategyLabel(run.strategyMode ?? "waves")}</span>
+          <span>concurrency: {run.concurrency ?? 0}</span>
+          <span>per-subscription: {run.subscriptionConcurrency ?? 0}</span>
         </div>
         <div className="rounded-md border border-border/70 bg-card/70 p-3">
           <div className="mb-2 flex items-center justify-between text-xs">
@@ -568,17 +607,17 @@ export function RunDetailPanel({ run }: RunDetailProps) {
             <span>queued: {progress.queued}</span>
           </div>
         </div>
-        {run.halt_reason ? (
+        {run.haltReason ? (
           <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive-foreground">
-            {run.halt_reason}
+            {run.haltReason}
           </div>
         ) : null}
-        {(run.guardrail_warnings ?? []).length > 0 ? (
-          <GuardrailWarnings runId={`detail-${run.id}`} warnings={run.guardrail_warnings ?? []} />
+        {(run.guardrailWarnings ?? []).length > 0 ? (
+          <GuardrailWarnings runId={`detail-${run.id ?? "unknown"}`} warnings={run.guardrailWarnings ?? []} />
         ) : null}
         <div className="space-y-2">
-          {run.target_records.map((record) => (
-            <TargetRecordCard key={record.target_id} record={record} />
+          {targetRecords.map((record: TargetExecutionRecord) => (
+            <TargetRecordCard key={record.targetId ?? "unknown"} record={record} />
           ))}
         </div>
       </CardContent>
@@ -595,33 +634,33 @@ function TargetRecordCard({ record }: { record: TargetExecutionRecord }) {
     <article className="rounded-md border border-border/70 bg-card/70 p-3">
       <header className="mb-2 flex items-center justify-between gap-2">
         <div>
-          <p className="font-semibold">{record.target_id}</p>
-          <p className="font-mono text-[11px] text-muted-foreground">{record.subscription_id}</p>
+          <p className="font-semibold">{record.targetId}</p>
+          <p className="font-mono text-[11px] text-muted-foreground">{record.subscriptionId}</p>
         </div>
-        <Badge variant={statusVariant(record.status)} className="uppercase">
-          {record.status}
+        <Badge variant={statusVariant(record.status ?? "unknown")} className="uppercase">
+          {record.status ?? "unknown"}
         </Badge>
       </header>
       <div className="mb-2 flex flex-wrap gap-2">
         {stages.map((stage) => (
           <div
-            key={`${stage.stage}-${stage.started_at}`}
+            key={`${stage.stage}-${stage.startedAt}`}
             className="min-w-[220px] flex-1 rounded-md border border-border/60 bg-muted/30 px-2 py-1"
           >
             <div className="mb-1 flex items-start justify-between gap-2">
               <p className="text-[11px] font-semibold">{stage.stage}</p>
               <p className="font-mono text-[10px] text-muted-foreground">
-                {new Date(stage.started_at).toLocaleTimeString()}
-                {stage.ended_at ? ` -> ${new Date(stage.ended_at).toLocaleTimeString()}` : ""}
+                {stage.startedAt ? new Date(stage.startedAt).toLocaleTimeString() : "unknown"}
+                {stage.endedAt ? ` -> ${new Date(stage.endedAt).toLocaleTimeString()}` : ""}
               </p>
             </div>
             <p className="text-[11px]">{stage.message}</p>
             <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
-              <span className="font-mono">correlation-id: {stage.correlation_id}</span>
+              <span className="font-mono">correlation-id: {stage.correlationId}</span>
             </div>
             {stage.error ? (
               <div className="mt-2 rounded-md border border-destructive/60 bg-destructive/10 p-2 text-[11px]">
-                <p data-testid={`stage-error-code-${record.target_id}-${stage.stage}`} className="font-semibold">
+                <p data-testid={`stage-error-code-${record.targetId}-${stage.stage}`} className="font-semibold">
                   Error code: {stage.error.code}
                 </p>
                 <p className="mt-1">{stage.error.message}</p>
@@ -651,13 +690,13 @@ function TargetRecordCard({ record }: { record: TargetExecutionRecord }) {
           <div className="mt-2 space-y-1">
             {visibleLogs.map((log, index) => (
               <div
-                key={`${log.correlation_id}-${log.timestamp}-${index}`}
+                key={`${log.correlationId}-${log.timestamp}-${index}`}
                 className="grid gap-1 rounded-sm border-t border-border/40 pt-1 text-[11px] sm:grid-cols-[80px_60px_90px_1fr]"
               >
                 <span className="font-mono text-muted-foreground">
-                  {new Date(log.timestamp).toLocaleTimeString()}
+                  {log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : "unknown"}
                 </span>
-                <span className={log.level === "ERROR" ? "font-semibold text-destructive" : "text-muted-foreground"}>
+                <span className={log.level === "error" ? "font-semibold text-destructive" : "text-muted-foreground"}>
                   {log.level}
                 </span>
                 <span>{log.stage}</span>
@@ -671,12 +710,16 @@ function TargetRecordCard({ record }: { record: TargetExecutionRecord }) {
   );
 }
 
-function AzureErrorSummary({ details }: { details: Record<string, unknown> }) {
-  const azureCode = asNonEmptyString(details.azure_error_code);
-  const azureMessage = asNonEmptyString(details.azure_error_message);
+function AzureErrorSummary({
+  details,
+}: {
+  details: StageErrorDetails;
+}) {
+  const azureCode = asNonEmptyString(details.azureErrorCode);
+  const azureMessage = asNonEmptyString(details.azureErrorMessage);
   const requestId =
-    asNonEmptyString(details.azure_request_id) ?? asNonEmptyString(details.azure_arm_service_request_id);
-  const correlationId = asNonEmptyString(details.azure_correlation_id);
+    asNonEmptyString(details.azureRequestId) ?? asNonEmptyString(details.azureArmServiceRequestId);
+  const correlationId = asNonEmptyString(details.azureCorrelationId);
 
   if (!azureCode && !azureMessage && !requestId && !correlationId) {
     return null;

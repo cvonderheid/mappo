@@ -11,8 +11,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Onboarding Snapshot */
-        get: operations["get_onboarding_snapshot_api_v1_admin_onboarding_get"];
+        get: operations["onboardingSnapshot"];
         put?: never;
         post?: never;
         delete?: never;
@@ -30,8 +29,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Ingest Marketplace Event */
-        post: operations["ingest_marketplace_event_api_v1_admin_onboarding_events_post"];
+        post: operations["ingestMarketplaceEvent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -45,18 +43,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Forwarder Logs */
-        get: operations["get_forwarder_logs_api_v1_admin_onboarding_forwarder_logs_get"];
+        get: operations["listForwarderLogs"];
         put?: never;
-        /** Ingest Forwarder Log */
-        post: operations["ingest_forwarder_log_api_v1_admin_onboarding_forwarder_logs_post"];
+        post: operations["ingestForwarderLog"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/onboarding/registrations/{target_id}": {
+    "/api/v1/admin/onboarding/registrations/{targetId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -66,12 +62,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete Target Registration */
-        delete: operations["delete_target_registration_api_v1_admin_onboarding_registrations__target_id__delete"];
+        delete: operations["deleteRegistration"];
         options?: never;
         head?: never;
-        /** Update Target Registration */
-        patch: operations["update_target_registration_api_v1_admin_onboarding_registrations__target_id__patch"];
+        patch: operations["updateRegistration"];
         trace?: never;
     };
     "/api/v1/health": {
@@ -81,8 +75,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Health */
-        get: operations["health_api_v1_health_get"];
+        get: operations["health"];
         put?: never;
         post?: never;
         delete?: never;
@@ -98,11 +91,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Releases */
-        get: operations["list_releases_api_v1_releases_get"];
+        get: operations["listReleases"];
         put?: never;
-        /** Create Release */
-        post: operations["create_release_api_v1_releases_post"];
+        post: operations["createRelease"];
         delete?: never;
         options?: never;
         head?: never;
@@ -116,26 +107,23 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Runs */
-        get: operations["list_runs_api_v1_runs_get"];
+        get: operations["listRuns"];
         put?: never;
-        /** Create Run */
-        post: operations["create_run_api_v1_runs_post"];
+        post: operations["createRun"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/runs/{run_id}": {
+    "/api/v1/runs/{runId}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get Run */
-        get: operations["get_run_api_v1_runs__run_id__get"];
+        get: operations["getRun"];
         put?: never;
         post?: never;
         delete?: never;
@@ -144,7 +132,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/runs/{run_id}/resume": {
+    "/api/v1/runs/{runId}/resume": {
         parameters: {
             query?: never;
             header?: never;
@@ -153,15 +141,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Resume Run */
-        post: operations["resume_run_api_v1_runs__run_id__resume_post"];
+        post: operations["resumeRun"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/runs/{run_id}/retry-failed": {
+    "/api/v1/runs/{runId}/retry-failed": {
         parameters: {
             query?: never;
             header?: never;
@@ -170,8 +157,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Retry Failed */
-        post: operations["retry_failed_api_v1_runs__run_id__retry_failed_post"];
+        post: operations["retryFailed"];
         delete?: never;
         options?: never;
         head?: never;
@@ -185,8 +171,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Targets */
-        get: operations["list_targets_api_v1_targets_get"];
+        get: operations["listTargets"];
         put?: never;
         post?: never;
         delete?: never;
@@ -202,8 +187,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Healthz */
-        get: operations["healthz_healthz_get"];
+        get: operations["healthz"];
         put?: never;
         post?: never;
         delete?: never;
@@ -216,608 +200,393 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AdminOnboardingSnapshotResponse */
-        AdminOnboardingSnapshotResponse: {
-            /** Events */
+        DeleteRegistrationResultRecord: {
+            deleted?: boolean;
+            targetId?: string;
+        };
+        EventIngestResultRecord: {
+            eventId?: string;
+            message?: string;
+            /** @enum {string} */
+            status?: "applied" | "duplicate" | "rejected";
+            targetId?: string;
+        };
+        ForwarderLogDetailsRecord: {
+            backendResponse?: string;
+            detail?: string;
+        };
+        ForwarderLogDetailsRequest: {
+            backendResponse?: string;
+            detail?: string;
+        };
+        ForwarderLogIngestRequest: {
+            /** Format: int32 */
+            backendStatusCode?: number;
+            details?: components["schemas"]["ForwarderLogDetailsRequest"];
+            eventId?: string;
+            /** @enum {string} */
+            eventType?: "subscription_purchased" | "subscription_suspended" | "subscription_deleted" | "unknown";
+            forwarderRequestId?: string;
+            functionAppName?: string;
+            /** @enum {string} */
+            level?: "info" | "warning" | "error";
+            logId: string;
+            message: string;
+            /** Format: date-time */
+            occurredAt?: string;
+            /** Format: uuid */
+            subscriptionId?: string;
+            targetId?: string;
+            /** Format: uuid */
+            tenantId?: string;
+        };
+        ForwarderLogIngestResultRecord: {
+            logId?: string;
+            message?: string;
+            /** @enum {string} */
+            status?: "applied" | "duplicate" | "rejected";
+        };
+        ForwarderLogRecord: {
+            /** Format: int32 */
+            backendStatusCode?: number;
+            /** Format: date-time */
+            createdAt?: string;
+            details?: components["schemas"]["ForwarderLogDetailsRecord"];
+            eventId?: string;
+            /** @enum {string} */
+            eventType?: "subscription_purchased" | "subscription_suspended" | "subscription_deleted" | "unknown";
+            forwarderRequestId?: string;
+            functionAppName?: string;
+            /** @enum {string} */
+            level?: "info" | "warning" | "error";
+            logId?: string;
+            message?: string;
+            /** Format: uuid */
+            subscriptionId?: string;
+            targetId?: string;
+            /** Format: uuid */
+            tenantId?: string;
+        };
+        MarketplaceEventPayloadRecord: {
+            containerAppName?: string;
+            containerAppResourceId?: string;
+            customerName?: string;
+            displayName?: string;
+            environment?: string;
+            /** @enum {string} */
+            healthStatus?: "registered" | "healthy" | "degraded";
+            lastDeployedRelease?: string;
+            managedApplicationId?: string;
+            managedResourceGroupId?: string;
+            marketplacePayloadId?: string;
+            region?: string;
+            registrationSource?: string;
+            targetGroup?: string;
+            tier?: string;
+        };
+        MarketplaceEventRecord: {
+            /** Format: date-time */
+            createdAt?: string;
+            eventId?: string;
+            /** @enum {string} */
+            eventType?: "subscription_purchased" | "subscription_suspended" | "subscription_deleted" | "unknown";
+            message?: string;
+            payload?: components["schemas"]["MarketplaceEventPayloadRecord"];
+            /** Format: date-time */
+            processedAt?: string;
+            /** @enum {string} */
+            status?: "applied" | "duplicate" | "rejected";
+            /** Format: uuid */
+            subscriptionId?: string;
+            targetId?: string;
+            /** Format: uuid */
+            tenantId?: string;
+        };
+        OnboardingEventMetadataRequest: {
+            marketplacePayloadId?: string;
+            source?: string;
+        };
+        OnboardingEventRequest: {
+            containerAppName?: string;
+            containerAppResourceId?: string;
+            customerName?: string;
+            displayName?: string;
+            environment?: string;
+            eventId: string;
+            /** @enum {string} */
+            eventType?: "subscription_purchased" | "subscription_suspended" | "subscription_deleted" | "unknown";
+            /** @enum {string} */
+            healthStatus?: "registered" | "healthy" | "degraded";
+            lastDeployedRelease?: string;
+            managedApplicationId?: string;
+            managedResourceGroupId?: string;
+            metadata?: components["schemas"]["OnboardingEventMetadataRequest"];
+            region?: string;
+            /** Format: uuid */
+            subscriptionId: string;
+            tags?: {
+                [key: string]: string;
+            };
+            targetGroup?: string;
+            targetId?: string;
+            /** Format: uuid */
+            tenantId: string;
+            tier?: string;
+        };
+        OnboardingSnapshotRecord: {
             events?: components["schemas"]["MarketplaceEventRecord"][];
-            /** Forwarder Logs */
-            forwarder_logs?: components["schemas"]["ForwarderLogRecord"][];
-            /** Registrations */
+            forwarderLogs?: components["schemas"]["ForwarderLogRecord"][];
             registrations?: components["schemas"]["TargetRegistrationRecord"][];
         };
-        /** CreateReleaseRequest */
-        CreateReleaseRequest: {
-            /** @default container_patch */
-            deployment_mode: components["schemas"]["DeploymentMode"];
-            /** Deployment Mode Settings */
-            deployment_mode_settings?: {
-                [key: string]: unknown;
-            };
-            /** @default resource_group */
-            deployment_scope: components["schemas"]["DeploymentScope"];
-            /** Parameter Defaults */
-            parameter_defaults?: {
+        ReleaseCreateRequest: {
+            /** @enum {string} */
+            deploymentScope?: "resource_group" | "subscription";
+            executionSettings?: components["schemas"]["ReleaseExecutionSettingsRequest"];
+            parameterDefaults?: {
                 [key: string]: string;
             };
-            /**
-             * Release Notes
-             * @default
-             */
-            release_notes: string;
-            /** Template Spec Id */
-            template_spec_id: string;
-            /** Template Spec Version */
-            template_spec_version: string;
-            /** Template Spec Version Id */
-            template_spec_version_id?: string | null;
-            /** Verification Hints */
-            verification_hints?: string[];
+            releaseNotes?: string;
+            sourceRef: string;
+            /** @enum {string} */
+            sourceType?: "template_spec" | "bicep" | "deployment_stack";
+            sourceVersion: string;
+            sourceVersionRef?: string;
+            verificationHints?: string[];
         };
-        /** CreateRunRequest */
-        CreateRunRequest: {
-            /**
-             * Concurrency
-             * @default 3
-             */
-            concurrency: number;
-            /** Release Id */
-            release_id: string;
-            stop_policy?: components["schemas"]["StopPolicy"];
-            /** @default all_at_once */
-            strategy_mode: components["schemas"]["StrategyMode"];
-            /** Target Ids */
-            target_ids?: string[] | null;
-            /** Target Tags */
-            target_tags?: {
+        ReleaseExecutionSettingsRecord: {
+            /** @enum {string} */
+            armMode?: "incremental" | "complete";
+            verifyAfterDeploy?: boolean;
+            whatIfOnCanary?: boolean;
+        };
+        ReleaseExecutionSettingsRequest: {
+            /** @enum {string} */
+            armMode?: "incremental" | "complete";
+            verifyAfterDeploy?: boolean;
+            whatIfOnCanary?: boolean;
+        };
+        ReleaseRecord: {
+            /** Format: date-time */
+            createdAt?: string;
+            /** @enum {string} */
+            deploymentScope?: "resource_group" | "subscription";
+            executionSettings?: components["schemas"]["ReleaseExecutionSettingsRecord"];
+            id?: string;
+            parameterDefaults?: {
                 [key: string]: string;
             };
-            /** Wave Order */
-            wave_order?: string[];
-            /**
-             * Wave Tag
-             * @default ring
-             */
-            wave_tag: string;
+            releaseNotes?: string;
+            sourceRef?: string;
+            /** @enum {string} */
+            sourceType?: "template_spec" | "bicep" | "deployment_stack";
+            sourceVersion?: string;
+            sourceVersionRef?: string;
+            verificationHints?: string[];
         };
-        /** DeleteTargetRegistrationResponse */
-        DeleteTargetRegistrationResponse: {
-            /** Deleted */
-            deleted: boolean;
-            /** Target Id */
-            target_id: string;
-        };
-        /**
-         * DeploymentMode
-         * @enum {string}
-         */
-        DeploymentMode: "container_patch" | "template_spec";
-        /**
-         * DeploymentScope
-         * @enum {string}
-         */
-        DeploymentScope: "resource_group" | "subscription";
-        /** ForwarderLogIngestRequest */
-        ForwarderLogIngestRequest: {
-            /** Backend Status Code */
-            backend_status_code?: number | null;
-            /** Details */
-            details?: {
-                [key: string]: unknown;
-            };
-            /** Event Id */
-            event_id?: string | null;
-            /** Event Type */
-            event_type?: string | null;
-            /** Forwarder Request Id */
-            forwarder_request_id?: string | null;
-            /** Function App Name */
-            function_app_name?: string | null;
-            /** @default error */
-            level: components["schemas"]["ForwarderLogLevel"];
-            /** Log Id */
-            log_id: string;
-            /** Message */
-            message: string;
-            /** Occurred At */
-            occurred_at?: string | null;
-            /** Subscription Id */
-            subscription_id?: string | null;
-            /** Target Id */
-            target_id?: string | null;
-            /** Tenant Id */
-            tenant_id?: string | null;
-        };
-        /** ForwarderLogIngestResponse */
-        ForwarderLogIngestResponse: {
-            /** Log Id */
-            log_id: string;
-            /** Message */
-            message: string;
-            status: components["schemas"]["ForwarderLogIngestStatus"];
-        };
-        /**
-         * ForwarderLogIngestStatus
-         * @enum {string}
-         */
-        ForwarderLogIngestStatus: "applied" | "duplicate";
-        /**
-         * ForwarderLogLevel
-         * @enum {string}
-         */
-        ForwarderLogLevel: "info" | "warning" | "error";
-        /** ForwarderLogRecord */
-        ForwarderLogRecord: {
-            /** Backend Status Code */
-            backend_status_code?: number | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Details */
-            details?: {
-                [key: string]: unknown;
-            };
-            /** Event Id */
-            event_id?: string | null;
-            /** Event Type */
-            event_type?: string | null;
-            /** Forwarder Request Id */
-            forwarder_request_id?: string | null;
-            /** Function App Name */
-            function_app_name?: string | null;
-            level: components["schemas"]["ForwarderLogLevel"];
-            /** Log Id */
-            log_id: string;
-            /** Message */
-            message: string;
-            /** Subscription Id */
-            subscription_id?: string | null;
-            /** Target Id */
-            target_id?: string | null;
-            /** Tenant Id */
-            tenant_id?: string | null;
-        };
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
-        };
-        /** HealthResponse */
-        HealthResponse: {
-            /** Status */
-            status: string;
-        };
-        /** MarketplaceEventIngestRequest */
-        MarketplaceEventIngestRequest: {
-            /** Container App Name */
-            container_app_name?: string | null;
-            /** Container App Resource Id */
-            container_app_resource_id?: string | null;
-            /** Customer Name */
-            customer_name?: string | null;
-            /** Display Name */
-            display_name?: string | null;
-            /**
-             * Environment
-             * @default prod
-             */
-            environment: string;
-            /** Event Id */
-            event_id: string;
-            /** Event Time */
-            event_time?: string | null;
-            /**
-             * Event Type
-             * @default subscription_purchased
-             */
-            event_type: string;
-            /**
-             * Health Status
-             * @default registered
-             */
-            health_status: string;
-            /**
-             * Last Deployed Release
-             * @default unknown
-             */
-            last_deployed_release: string;
-            /** Managed Application Id */
-            managed_application_id?: string | null;
-            /** Managed Resource Group Id */
-            managed_resource_group_id?: string | null;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
-            /** Region */
-            region?: string | null;
-            /** Subscription Id */
-            subscription_id: string;
-            /** Tags */
-            tags?: {
+        RunCreateRequest: {
+            /** Format: int32 */
+            concurrency?: number;
+            releaseId: string;
+            stopPolicy?: components["schemas"]["RunStopPolicyRequest"];
+            /** @enum {string} */
+            strategyMode?: "all_at_once" | "waves";
+            targetIds?: string[];
+            targetTags?: {
                 [key: string]: string;
             };
-            /**
-             * Target Group
-             * @default prod
-             */
-            target_group: string;
-            /** Target Id */
-            target_id?: string | null;
-            /** Tenant Id */
-            tenant_id: string;
-            /**
-             * Tier
-             * @default standard
-             */
-            tier: string;
+            waveOrder?: string[];
+            waveTag?: string;
         };
-        /** MarketplaceEventIngestResponse */
-        MarketplaceEventIngestResponse: {
-            /** Event Id */
-            event_id: string;
-            /** Message */
-            message: string;
-            status: components["schemas"]["MarketplaceEventStatus"];
-            /** Target Id */
-            target_id?: string | null;
+        RunDetailRecord: {
+            /** Format: int32 */
+            concurrency?: number;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            endedAt?: string;
+            /** @enum {string} */
+            executionSourceType?: "template_spec" | "bicep" | "deployment_stack";
+            guardrailWarnings?: string[];
+            haltReason?: string;
+            id?: string;
+            releaseId?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** @enum {string} */
+            status?: "running" | "succeeded" | "failed" | "partial" | "halted";
+            stopPolicy?: components["schemas"]["RunStopPolicyRecord"];
+            /** @enum {string} */
+            strategyMode?: "all_at_once" | "waves";
+            /** Format: int32 */
+            subscriptionConcurrency?: number;
+            targetRecords?: components["schemas"]["RunTargetRecord"][];
+            /** Format: date-time */
+            updatedAt?: string;
+            waveOrder?: string[];
+            waveTag?: string;
         };
-        /** MarketplaceEventRecord */
-        MarketplaceEventRecord: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Event Id */
-            event_id: string;
-            /** Event Type */
-            event_type: string;
-            /** Message */
-            message: string;
-            /** Payload */
-            payload?: {
-                [key: string]: unknown;
-            };
-            /** Processed At */
-            processed_at?: string | null;
-            status: components["schemas"]["MarketplaceEventStatus"];
-            /** Subscription Id */
-            subscription_id: string;
-            /** Target Id */
-            target_id?: string | null;
-            /** Tenant Id */
-            tenant_id: string;
+        RunStopPolicyRecord: {
+            /** Format: int32 */
+            maxFailureCount?: number;
+            /** Format: double */
+            maxFailureRate?: number;
         };
-        /**
-         * MarketplaceEventStatus
-         * @enum {string}
-         */
-        MarketplaceEventStatus: "applied" | "duplicate" | "rejected";
-        /** Release */
-        Release: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** @default container_patch */
-            deployment_mode: components["schemas"]["DeploymentMode"];
-            /** Deployment Mode Settings */
-            deployment_mode_settings?: {
-                [key: string]: unknown;
-            };
-            /** @default resource_group */
-            deployment_scope: components["schemas"]["DeploymentScope"];
-            /** Id */
-            id: string;
-            /** Parameter Defaults */
-            parameter_defaults: {
-                [key: string]: string;
-            };
-            /** Release Notes */
-            release_notes: string;
-            /** Template Spec Id */
-            template_spec_id: string;
-            /** Template Spec Version */
-            template_spec_version: string;
-            /** Template Spec Version Id */
-            template_spec_version_id?: string | null;
-            /** Verification Hints */
-            verification_hints?: string[];
+        RunStopPolicyRequest: {
+            /** Format: int32 */
+            maxFailureCount?: number;
+            /** Format: double */
+            maxFailureRate?: number;
         };
-        /** RunDetail */
-        RunDetail: {
-            /** Concurrency */
-            concurrency: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Ended At */
-            ended_at: string | null;
-            /** @default container_patch */
-            execution_mode: components["schemas"]["DeploymentMode"];
-            /** Guardrail Warnings */
-            guardrail_warnings?: string[];
-            /** Halt Reason */
-            halt_reason?: string | null;
-            /** Id */
-            id: string;
-            /** Release Id */
-            release_id: string;
-            /** Started At */
-            started_at: string | null;
-            status: components["schemas"]["RunStatus"];
-            stop_policy: components["schemas"]["StopPolicy"];
-            strategy_mode: components["schemas"]["StrategyMode"];
-            /**
-             * Subscription Concurrency
-             * @default 1
-             */
-            subscription_concurrency: number;
-            /** Target Records */
-            target_records: components["schemas"]["TargetExecutionRecord"][];
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /** Wave Order */
-            wave_order: string[];
-            /** Wave Tag */
-            wave_tag: string;
+        RunSummaryRecord: {
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            endedAt?: string;
+            /** @enum {string} */
+            executionSourceType?: "template_spec" | "bicep" | "deployment_stack";
+            /** Format: int32 */
+            failedTargets?: number;
+            guardrailWarnings?: string[];
+            haltReason?: string;
+            id?: string;
+            /** Format: int32 */
+            inProgressTargets?: number;
+            /** Format: int32 */
+            queuedTargets?: number;
+            releaseId?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** @enum {string} */
+            status?: "running" | "succeeded" | "failed" | "partial" | "halted";
+            /** @enum {string} */
+            strategyMode?: "all_at_once" | "waves";
+            /** Format: int32 */
+            subscriptionConcurrency?: number;
+            /** Format: int32 */
+            succeededTargets?: number;
+            /** Format: int32 */
+            totalTargets?: number;
         };
-        /**
-         * RunStatus
-         * @enum {string}
-         */
-        RunStatus: "running" | "succeeded" | "failed" | "partial" | "halted";
-        /** RunSummary */
-        RunSummary: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Ended At */
-            ended_at: string | null;
-            /** @default container_patch */
-            execution_mode: components["schemas"]["DeploymentMode"];
-            /** Failed Targets */
-            failed_targets: number;
-            /** Guardrail Warnings */
-            guardrail_warnings?: string[];
-            /** Halt Reason */
-            halt_reason?: string | null;
-            /** Id */
-            id: string;
-            /** In Progress Targets */
-            in_progress_targets: number;
-            /** Queued Targets */
-            queued_targets: number;
-            /** Release Id */
-            release_id: string;
-            /** Started At */
-            started_at: string | null;
-            status: components["schemas"]["RunStatus"];
-            strategy_mode: components["schemas"]["StrategyMode"];
-            /**
-             * Subscription Concurrency
-             * @default 1
-             */
-            subscription_concurrency: number;
-            /** Succeeded Targets */
-            succeeded_targets: number;
-            /** Total Targets */
-            total_targets: number;
-        };
-        /** StopPolicy */
-        StopPolicy: {
-            /** Max Failure Count */
-            max_failure_count?: number | null;
-            /** Max Failure Rate */
-            max_failure_rate?: number | null;
-        };
-        /**
-         * StrategyMode
-         * @enum {string}
-         */
-        StrategyMode: "all_at_once" | "waves";
-        /** StructuredError */
-        StructuredError: {
-            /** Code */
-            code: string;
-            /** Details */
-            details?: {
-                [key: string]: unknown;
-            } | null;
-            /** Message */
-            message: string;
-        };
-        /** Target */
-        Target: {
-            /** Customer Name */
-            customer_name?: string | null;
-            /** Health Status */
-            health_status: string;
-            /** Id */
-            id: string;
-            /**
-             * Last Check In At
-             * Format: date-time
-             */
-            last_check_in_at: string;
-            /** Last Deployed Release */
-            last_deployed_release: string;
-            /** Managed App Id */
-            managed_app_id: string;
-            /**
-             * Simulated Failure Mode
-             * @default none
-             */
-            simulated_failure_mode: string;
-            /** Subscription Id */
-            subscription_id: string;
-            /** Tags */
-            tags: {
-                [key: string]: string;
-            };
-            /** Tenant Id */
-            tenant_id: string;
-        };
-        /** TargetExecutionRecord */
-        TargetExecutionRecord: {
-            /**
-             * Attempt
-             * @default 0
-             */
-            attempt: number;
-            /** Logs */
-            logs?: components["schemas"]["TargetLogEvent"][];
-            /** Stages */
+        RunTargetRecord: {
+            /** Format: int32 */
+            attempt?: number;
+            logs?: components["schemas"]["TargetLogEventRecord"][];
             stages?: components["schemas"]["TargetStageRecord"][];
-            /** @default QUEUED */
-            status: components["schemas"]["TargetStage"];
-            /** Subscription Id */
-            subscription_id: string;
-            /** Target Id */
-            target_id: string;
-            /** Tenant Id */
-            tenant_id: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
+            /** @enum {string} */
+            status?: "QUEUED" | "VALIDATING" | "DEPLOYING" | "VERIFYING" | "SUCCEEDED" | "FAILED";
+            /** Format: uuid */
+            subscriptionId?: string;
+            targetId?: string;
+            /** Format: uuid */
+            tenantId?: string;
+            /** Format: date-time */
+            updatedAt?: string;
         };
-        /** TargetLogEvent */
-        TargetLogEvent: {
-            /** Correlation Id */
-            correlation_id: string;
-            /** Level */
-            level: string;
-            /** Message */
-            message: string;
-            stage: components["schemas"]["TargetStage"];
-            /**
-             * Timestamp
-             * Format: date-time
-             */
-            timestamp: string;
+        StageErrorDetailsRecord: {
+            azureArmServiceRequestId?: string;
+            azureCorrelationId?: string;
+            azureDeploymentName?: string;
+            azureErrorCode?: string;
+            azureErrorMessage?: string;
+            azureOperationId?: string;
+            azureRequestId?: string;
+            azureResourceId?: string;
+            desiredImage?: string;
+            error?: string;
+            /** Format: int32 */
+            statusCode?: number;
         };
-        /** TargetRegistrationRecord */
+        StageErrorRecord: {
+            code?: string;
+            details?: components["schemas"]["StageErrorDetailsRecord"];
+            message?: string;
+        };
+        TargetLogEventRecord: {
+            correlationId?: string;
+            /** @enum {string} */
+            level?: "info" | "warning" | "error";
+            message?: string;
+            /** @enum {string} */
+            stage?: "QUEUED" | "VALIDATING" | "DEPLOYING" | "VERIFYING" | "SUCCEEDED" | "FAILED";
+            /** Format: date-time */
+            timestamp?: string;
+        };
+        TargetRecord: {
+            customerName?: string;
+            /** @enum {string} */
+            healthStatus?: "registered" | "healthy" | "degraded";
+            id?: string;
+            /** Format: date-time */
+            lastCheckInAt?: string;
+            lastDeployedRelease?: string;
+            managedAppId?: string;
+            /** @enum {string} */
+            simulatedFailureMode?: "none" | "validate_once" | "deploy_once" | "verify_once";
+            /** Format: uuid */
+            subscriptionId?: string;
+            tags?: {
+                [key: string]: string;
+            };
+            /** Format: uuid */
+            tenantId?: string;
+        };
+        TargetRegistrationMetadataRecord: {
+            containerAppName?: string;
+            source?: string;
+        };
+        TargetRegistrationMetadataRequest: {
+            containerAppName?: string;
+            source?: string;
+        };
+        TargetRegistrationPatchRequest: {
+            containerAppResourceId?: string;
+            customerName?: string;
+            displayName?: string;
+            /** @enum {string} */
+            healthStatus?: "registered" | "healthy" | "degraded";
+            lastDeployedRelease?: string;
+            managedApplicationId?: string;
+            managedResourceGroupId?: string;
+            metadata?: components["schemas"]["TargetRegistrationMetadataRequest"];
+            tags?: {
+                [key: string]: string;
+            };
+        };
         TargetRegistrationRecord: {
-            /** Container App Resource Id */
-            container_app_resource_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Customer Name */
-            customer_name?: string | null;
-            /** Display Name */
-            display_name: string;
-            /** Last Event Id */
-            last_event_id?: string | null;
-            /** Managed Application Id */
-            managed_application_id?: string | null;
-            /** Managed Resource Group Id */
-            managed_resource_group_id: string;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
-            /** Subscription Id */
-            subscription_id: string;
-            /** Tags */
+            containerAppResourceId?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            customerName?: string;
+            displayName?: string;
+            /** @enum {string} */
+            healthStatus?: "registered" | "healthy" | "degraded";
+            lastDeployedRelease?: string;
+            lastEventId?: string;
+            managedApplicationId?: string;
+            managedResourceGroupId?: string;
+            metadata?: components["schemas"]["TargetRegistrationMetadataRecord"];
+            /** Format: uuid */
+            subscriptionId?: string;
             tags?: {
                 [key: string]: string;
             };
-            /** Target Id */
-            target_id: string;
-            /** Tenant Id */
-            tenant_id: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
+            targetId?: string;
+            /** Format: uuid */
+            tenantId?: string;
+            /** Format: date-time */
+            updatedAt?: string;
         };
-        /**
-         * TargetStage
-         * @enum {string}
-         */
-        TargetStage: "QUEUED" | "VALIDATING" | "DEPLOYING" | "VERIFYING" | "SUCCEEDED" | "FAILED";
-        /** TargetStageRecord */
         TargetStageRecord: {
-            /** Correlation Id */
-            correlation_id: string;
-            /** Ended At */
-            ended_at?: string | null;
-            error?: components["schemas"]["StructuredError"] | null;
-            /**
-             * Message
-             * @default
-             */
-            message: string;
-            /** Portal Link */
-            portal_link: string;
-            stage: components["schemas"]["TargetStage"];
-            /**
-             * Started At
-             * Format: date-time
-             */
-            started_at: string;
-        };
-        /** UpdateTargetRegistrationRequest */
-        UpdateTargetRegistrationRequest: {
-            /** Container App Resource Id */
-            container_app_resource_id?: string | null;
-            /** Customer Name */
-            customer_name?: string | null;
-            /** Display Name */
-            display_name?: string | null;
-            /** Environment */
-            environment?: string | null;
-            /** Health Status */
-            health_status?: string | null;
-            /** Last Deployed Release */
-            last_deployed_release?: string | null;
-            /** Managed Application Id */
-            managed_application_id?: string | null;
-            /** Managed Resource Group Id */
-            managed_resource_group_id?: string | null;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            } | null;
-            /** Region */
-            region?: string | null;
-            /** Tags */
-            tags?: {
-                [key: string]: string;
-            } | null;
-            /** Target Group */
-            target_group?: string | null;
-            /** Tier */
-            tier?: string | null;
-        };
-        /** ValidationError */
-        ValidationError: {
-            /** Context */
-            ctx?: Record<string, never>;
-            /** Input */
-            input?: unknown;
-            /** Location */
-            loc: (string | number)[];
-            /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
+            correlationId?: string;
+            /** Format: date-time */
+            endedAt?: string;
+            error?: components["schemas"]["StageErrorRecord"];
+            message?: string;
+            portalLink?: string;
+            /** @enum {string} */
+            stage?: "QUEUED" | "VALIDATING" | "DEPLOYING" | "VERIFYING" | "SUCCEEDED" | "FAILED";
+            /** Format: date-time */
+            startedAt?: string;
         };
     };
     responses: never;
@@ -828,7 +597,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    get_onboarding_snapshot_api_v1_admin_onboarding_get: {
+    onboardingSnapshot: {
         parameters: {
             query?: {
                 event_limit?: number;
@@ -839,62 +608,44 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminOnboardingSnapshotResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "*/*": components["schemas"]["OnboardingSnapshotRecord"];
                 };
             };
         };
     };
-    ingest_marketplace_event_api_v1_admin_onboarding_events_post: {
+    ingestMarketplaceEvent: {
         parameters: {
             query?: never;
             header?: {
-                "x-mappo-ingest-token"?: string | null;
+                "x-mappo-ingest-token"?: string;
             };
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["MarketplaceEventIngestRequest"];
+                "application/json": components["schemas"]["OnboardingEventRequest"];
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MarketplaceEventIngestResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "*/*": components["schemas"]["EventIngestResultRecord"];
                 };
             };
         };
     };
-    get_forwarder_logs_api_v1_admin_onboarding_forwarder_logs_get: {
+    listForwarderLogs: {
         parameters: {
             query?: {
                 limit?: number;
@@ -905,31 +656,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ForwarderLogRecord"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "*/*": components["schemas"]["ForwarderLogRecord"][];
                 };
             };
         };
     };
-    ingest_forwarder_log_api_v1_admin_onboarding_forwarder_logs_post: {
+    ingestForwarderLog: {
         parameters: {
             query?: never;
             header?: {
-                "x-mappo-ingest-token"?: string | null;
+                "x-mappo-ingest-token"?: string;
             };
             path?: never;
             cookie?: never;
@@ -940,93 +682,66 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ForwarderLogIngestResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "*/*": components["schemas"]["ForwarderLogIngestResultRecord"];
                 };
             };
         };
     };
-    delete_target_registration_api_v1_admin_onboarding_registrations__target_id__delete: {
+    deleteRegistration: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                target_id: string;
+                targetId: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DeleteTargetRegistrationResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "*/*": components["schemas"]["DeleteRegistrationResultRecord"];
                 };
             };
         };
     };
-    update_target_registration_api_v1_admin_onboarding_registrations__target_id__patch: {
+    updateRegistration: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                target_id: string;
+                targetId: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UpdateTargetRegistrationRequest"];
+                "application/json": components["schemas"]["TargetRegistrationPatchRequest"];
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TargetRegistrationRecord"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "*/*": components["schemas"]["TargetRegistrationRecord"];
                 };
             };
         };
     };
-    health_api_v1_health_get: {
+    health: {
         parameters: {
             query?: never;
             header?: never;
@@ -1035,18 +750,20 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HealthResponse"];
+                    "*/*": {
+                        [key: string]: string;
+                    };
                 };
             };
         };
     };
-    list_releases_api_v1_releases_get: {
+    listReleases: {
         parameters: {
             query?: never;
             header?: never;
@@ -1055,18 +772,18 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Release"][];
+                    "*/*": components["schemas"]["ReleaseRecord"][];
                 };
             };
         };
     };
-    create_release_api_v1_releases_post: {
+    createRelease: {
         parameters: {
             query?: never;
             header?: never;
@@ -1075,31 +792,22 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateReleaseRequest"];
+                "application/json": components["schemas"]["ReleaseCreateRequest"];
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Created */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Release"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "*/*": components["schemas"]["ReleaseRecord"];
                 };
             };
         };
     };
-    list_runs_api_v1_runs_get: {
+    listRuns: {
         parameters: {
             query?: never;
             header?: never;
@@ -1108,18 +816,18 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RunSummary"][];
+                    "*/*": components["schemas"]["RunSummaryRecord"][];
                 };
             };
         };
     };
-    create_run_api_v1_runs_post: {
+    createRun: {
         parameters: {
             query?: never;
             header?: never;
@@ -1128,130 +836,94 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateRunRequest"];
+                "application/json": components["schemas"]["RunCreateRequest"];
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Created */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RunDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "*/*": components["schemas"]["RunDetailRecord"];
                 };
             };
         };
     };
-    get_run_api_v1_runs__run_id__get: {
+    getRun: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                run_id: string;
+                runId: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RunDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "*/*": components["schemas"]["RunDetailRecord"];
                 };
             };
         };
     };
-    resume_run_api_v1_runs__run_id__resume_post: {
+    resumeRun: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                run_id: string;
+                runId: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RunDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "*/*": components["schemas"]["RunDetailRecord"];
                 };
             };
         };
     };
-    retry_failed_api_v1_runs__run_id__retry_failed_post: {
+    retryFailed: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                run_id: string;
+                runId: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RunDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "*/*": components["schemas"]["RunDetailRecord"];
                 };
             };
         };
     };
-    list_targets_api_v1_targets_get: {
+    listTargets: {
         parameters: {
             query?: {
-                ring?: string | null;
-                region?: string | null;
-                tier?: string | null;
-                environment?: string | null;
+                ring?: string;
+                region?: string;
+                tier?: string;
+                environment?: string;
             };
             header?: never;
             path?: never;
@@ -1259,27 +931,18 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Target"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "*/*": components["schemas"]["TargetRecord"][];
                 };
             };
         };
     };
-    healthz_healthz_get: {
+    healthz: {
         parameters: {
             query?: never;
             header?: never;
@@ -1288,13 +951,15 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HealthResponse"];
+                    "*/*": {
+                        [key: string]: string;
+                    };
                 };
             };
         };

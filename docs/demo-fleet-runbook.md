@@ -90,7 +90,7 @@ What `demo-fleet-down` does:
 
 ## 5) Register releases from repo artifact manifest
 
-Release registration is API-driven and idempotent on `(template_spec_id, template_spec_version)`
+Release registration is API-driven and idempotent on `(source_ref, source_version)`
 unless you explicitly pass `ALLOW_DUPLICATES=1`.
 
 Local manifest file:
@@ -132,11 +132,11 @@ Supported manifest shape:
 {
   "releases": [
     {
-      "template_spec_id": "/subscriptions/<provider-sub>/resourceGroups/<rg>/providers/Microsoft.Resources/templateSpecs/<name>",
-      "template_spec_version": "2026.03.04.1",
-      "deployment_mode": "template_spec",
+      "source_ref": "/subscriptions/<provider-sub>/resourceGroups/<rg>/providers/Microsoft.Resources/templateSpecs/<name>",
+      "source_version": "2026.03.04.1",
+      "source_type": "template_spec",
       "deployment_scope": "resource_group",
-      "template_spec_version_id": "/subscriptions/<provider-sub>/resourceGroups/<rg>/providers/Microsoft.Resources/templateSpecs/<name>/versions/2026.03.04.1",
+      "source_version_ref": "/subscriptions/<provider-sub>/resourceGroups/<rg>/providers/Microsoft.Resources/templateSpecs/<name>/versions/2026.03.04.1",
       "parameter_defaults": {
         "softwareVersion": "2026.03.04.1",
         "dataModelVersion": "3"

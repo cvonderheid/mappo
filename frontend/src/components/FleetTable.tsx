@@ -51,15 +51,15 @@ export default function FleetTable({ targets }: FleetTableProps) {
   const rows = useMemo<FleetRow[]>(
     () =>
       targets.map((target) => ({
-        targetId: target.id,
-        customerName: target.customer_name ?? "unknown",
-        tenantId: target.tenant_id,
-        subscriptionId: target.subscription_id,
-        targetGroup: target.tags.ring ?? "unassigned",
-        region: target.tags.region ?? "unknown",
-        tier: target.tags.tier ?? "unknown",
-        version: target.last_deployed_release,
-        health: target.health_status,
+        targetId: target.id ?? "unknown",
+        customerName: target.customerName ?? "unknown",
+        tenantId: target.tenantId ?? "unknown",
+        subscriptionId: target.subscriptionId ?? "unknown",
+        targetGroup: target.tags?.ring ?? "unassigned",
+        region: target.tags?.region ?? "unknown",
+        tier: target.tags?.tier ?? "unknown",
+        version: target.lastDeployedRelease ?? "unknown",
+        health: target.healthStatus ?? "registered",
       })),
     [targets]
   );

@@ -114,12 +114,14 @@ export default function DeploymentsPage({
                     <SelectTrigger id="release-version" className="h-10 w-full bg-background/90 text-sm">
                       <SelectValue placeholder="No releases available" />
                     </SelectTrigger>
-                    <SelectContent>
-                      {releases.map((release) => (
-                        <SelectItem key={release.id} value={release.id}>
-                          {release.template_spec_version}
-                        </SelectItem>
-                      ))}
+                      <SelectContent>
+                      {releases
+                        .filter((release): release is Release & { id: string } => Boolean(release.id))
+                        .map((release) => (
+                          <SelectItem key={release.id} value={release.id}>
+                            {release.sourceVersion}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -204,7 +206,11 @@ export default function DeploymentsPage({
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => onSelectedTargetIdsChange(targets.map((target) => target.id))}
+                      onClick={() =>
+                        onSelectedTargetIdsChange(
+                          targets.flatMap((target) => (target.id ? [target.id] : []))
+                        )
+                      }
                     >
                       Select all visible
                     </Button>
@@ -215,29 +221,30 @@ export default function DeploymentsPage({
                 </div>
                 <div className="grid max-h-44 grid-cols-1 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-4">
                   {targets.map((target) => {
-                    const checked = selectedTargetIds.includes(target.id);
+                    const targetId = target.id ?? "";
+                    const checked = selectedTargetIds.includes(targetId);
                     return (
                       <label
-                        key={target.id}
-                        data-testid={`specific-target-row-${target.id}`}
+                        key={targetId}
+                        data-testid={`specific-target-row-${targetId}`}
                         className="flex cursor-pointer items-center gap-2 rounded-md border border-border/70 bg-card/70 px-2 py-1.5 text-xs"
                       >
                         <input
-                          data-testid={`specific-target-checkbox-${target.id}`}
+                          data-testid={`specific-target-checkbox-${targetId}`}
                           type="checkbox"
                           checked={checked}
                           onChange={() =>
                             onSelectedTargetIdsChange(
                               checked
-                                ? selectedTargetIds.filter((id) => id !== target.id)
-                                : [...selectedTargetIds, target.id]
+                                ? selectedTargetIds.filter((id) => id !== targetId)
+                                : [...selectedTargetIds, targetId]
                             )
                           }
                           className="h-3.5 w-3.5 accent-primary"
                         />
-                        <span className="font-mono">{target.id}</span>
+                        <span className="font-mono">{targetId}</span>
                         <span className="text-muted-foreground">
-                          {target.tags.ring}/{target.tags.region}
+                          {target.tags?.ring ?? "unassigned"}/{target.tags?.region ?? "unknown"}
                         </span>
                       </label>
                     );

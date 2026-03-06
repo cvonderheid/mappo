@@ -14,9 +14,9 @@
 
 ## Confirmed Product Decisions
 - UI + backend from day one.
-- Runtime stack: Python backend + TypeScript frontend.
+- Runtime stack: Java backend + TypeScript frontend.
 - Hosting direction: Azure Container Apps.
-- Target inventory source: manual registration + Lighthouse discovery.
+- Target inventory source: marketplace/onboarding registration with admin correction paths.
 - Rollout strategy v1: tag-based waves.
 - Stop policies: threshold by percent or absolute failure count.
 - Verify stage: health checks (CodeDeploy-like).
@@ -40,17 +40,19 @@
 
 ## Global Milestone Definition of Done
 - Acceptance criteria met.
-- `make phase1-gate-fast` passes.
+- `./mvnw -pl backend-java verify` passes.
+- Frontend contract commands (`client-gen`, `typecheck`, `test`, `build`) pass via Maven wrappers.
 - Relevant module tests pass.
 - Docs/plans updated for behavior changes.
 - Determinism and legibility invariants preserved.
 
 ## Proposed Repo Shape (target)
-- `backend/`
-  - `app/main.py`
-  - `app/api/routers/*`
-  - `app/modules/{targets,releases,runs,deployments}/*`
-  - `tests/*`
+- `backend-java/`
+  - `src/main/java/com/mappo/controlplane/api/*`
+  - `src/main/java/com/mappo/controlplane/service/*`
+  - `src/main/java/com/mappo/controlplane/repository/*`
+  - `src/main/resources/db/migration/*`
+  - `src/test/*`
 - `frontend/`
   - `src/main.tsx`
   - `src/App.tsx`
@@ -68,11 +70,11 @@
 ## Milestone Plan
 ### Milestone 1: Governance + gate baseline
 - Scope: process artifacts, check scripts, and phase gate targets.
-- Verify: `make phase1-gate-full`.
+- Verify: backend verify plus frontend Maven wrapper checks.
 
 ### Milestone 2: Backend skeleton + API contract baseline
-- Scope: FastAPI app, health/router/error model, OpenAPI generation.
-- Verify: `make lint`, `make typecheck`, `make test` (backend subset), OpenAPI generation.
+- Scope: Spring Boot app, health/router/error model, OpenAPI generation.
+- Verify: `./mvnw -pl backend-java test`, `./mvnw -pl backend-java verify`.
 
 ### Milestone 3: Domain model + storage for targets/releases/runs
 - Scope: persistence models, repositories, service contracts.
@@ -95,7 +97,7 @@
 - Verify: gate + regression intake checks.
 
 ## Ongoing Decision Log
-- Decision 001: Python/TypeScript stack chosen for parity with inherited TXero standards.
+- Decision 001: Java/TypeScript stack chosen for the current control plane implementation.
 - Decision 002: Phase gates are mandatory before implementation work is accepted as complete.
 - Decision 003: Resume-from-failed semantics are first-class in v1 rollout orchestration.
 

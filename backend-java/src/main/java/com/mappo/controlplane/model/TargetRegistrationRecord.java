@@ -15,7 +15,7 @@ public record TargetRegistrationRecord(
     String displayName,
     String customerName,
     Map<String, String> tags,
-    Map<String, Object> metadata,
+    TargetRegistrationMetadataRecord metadata,
     String lastEventId,
     String lastDeployedRelease,
     MappoHealthStatus healthStatus,

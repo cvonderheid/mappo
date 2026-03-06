@@ -37,38 +37,62 @@ class AdminOnboardingIntegrationTests extends PostgresIntegrationTestBase {
     @Test
     void registrationPatchUpdatesFleetSourceOfTruth() throws Exception {
         Map<String, Object> event = new LinkedHashMap<>();
-        event.put("event_id", "evt-admin-001");
-        event.put("event_type", "subscription_purchased");
-        event.put("tenant_id", "11111111-1111-1111-1111-111111111111");
-        event.put("subscription_id", "22222222-2222-2222-2222-222222222222");
-        event.put("target_id", "target-admin-01");
-        event.put("display_name", "Target Admin 01");
-        event.put("container_app_resource_id", "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-demo/providers/Microsoft.App/containerApps/ca-target-admin-01");
-        event.put("managed_resource_group_id", "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-demo");
-        event.put("customer_name", "Acme Original");
+        event.put("eventId", "evt-admin-001");
+        event.put("eventType", "subscription_purchased");
+        event.put("tenantId", "11111111-1111-1111-1111-111111111111");
+        event.put("subscriptionId", "22222222-2222-2222-2222-222222222222");
+        event.put("targetId", "target-admin-01");
+        event.put("displayName", "Target Admin 01");
+        event.put("containerAppResourceId", "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-demo/providers/Microsoft.App/containerApps/ca-target-admin-01");
+        event.put("managedResourceGroupId", "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-demo");
+        event.put("containerAppName", "ca-target-admin-01");
+        event.put("customerName", "Acme Original");
         event.put("tags", Map.of("ring", "canary", "region", "eastus", "tier", "gold", "environment", "prod"));
+        event.put("metadata", Map.of("source", "marketplace-forwarder", "marketplacePayloadId", "mp-evt-001"));
 
         mockMvc.perform(post("/api/v1/admin/onboarding/events")
                 .contentType(APPLICATION_JSON)
                 .content(objectMapper.writeValueAsBytes(event)))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.event_id").value("evt-admin-001"))
+            .andExpect(jsonPath("$.eventId").value("evt-admin-001"))
             .andExpect(jsonPath("$.status").value("applied"));
 
         mockMvc.perform(get("/api/v1/targets"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].id").value("target-admin-01"))
-            .andExpect(jsonPath("$[0].customer_name").value("Acme Original"));
+            .andExpect(jsonPath("$[0].customerName").value("Acme Original"));
 
         mockMvc.perform(patch("/api/v1/admin/onboarding/registrations/target-admin-01")
                 .contentType(APPLICATION_JSON)
-                .content("{\"customer_name\":\"Acme Updated\"}"))
+                .content("{\"customerName\":\"Acme Updated\"}"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.target_id").value("target-admin-01"))
-            .andExpect(jsonPath("$.customer_name").value("Acme Updated"));
+            .andExpect(jsonPath("$.targetId").value("target-admin-01"))
+            .andExpect(jsonPath("$.customerName").value("Acme Updated"));
 
         mockMvc.perform(get("/api/v1/targets"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].customer_name").value("Acme Updated"));
+            .andExpect(jsonPath("$[0].customerName").value("Acme Updated"));
+
+        Map<String, Object> forwarderLog = new LinkedHashMap<>();
+        forwarderLog.put("logId", "log-admin-001");
+        forwarderLog.put("message", "forwarder rejected event");
+        forwarderLog.put("eventId", "evt-admin-001");
+        forwarderLog.put("eventType", "subscription_purchased");
+        forwarderLog.put("details", Map.of("detail", "customer mapping missing", "backendResponse", "{\"detail\":\"bad request\"}"));
+
+        mockMvc.perform(post("/api/v1/admin/onboarding/forwarder-logs")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(forwarderLog)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("applied"));
+
+        mockMvc.perform(get("/api/v1/admin/onboarding"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.registrations[0].metadata.containerAppName").value("ca-target-admin-01"))
+            .andExpect(jsonPath("$.registrations[0].metadata.source").value("marketplace-forwarder"))
+            .andExpect(jsonPath("$.events[0].payload.registrationSource").value("marketplace-forwarder"))
+            .andExpect(jsonPath("$.events[0].payload.marketplacePayloadId").value("mp-evt-001"))
+            .andExpect(jsonPath("$.forwarderLogs[0].details.detail").value("customer mapping missing"))
+            .andExpect(jsonPath("$.forwarderLogs[0].details.backendResponse").value("{\"detail\":\"bad request\"}"));
     }
 }

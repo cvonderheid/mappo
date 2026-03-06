@@ -4,6 +4,29 @@ Date: 2026-02-26
 Owner: Codex
 
 ## Scope (Current Slice)
+Java backend response contract typing:
+- Replace remaining map-shaped response/request envelopes with typed nested DTOs.
+- Preserve current snake_case JSON field names so the UI contract stays stable.
+- Add integration coverage for nested release/admin payloads after the type conversion.
+
+## Plan (Current Slice)
+- [x] Add typed nested records for release settings, registration metadata, marketplace payloads, forwarder details, and stage error details.
+- [x] Refactor repositories and request mappers to populate typed DTOs instead of `Map<String, Object>`.
+- [x] Add integration assertions for the nested JSON payloads and run compile/test/verify.
+
+## Verification Commands (Current Slice)
+- [x] `./mvnw -pl backend-java -DskipTests compile`
+- [x] `./mvnw -pl backend-java test`
+- [x] `./mvnw verify`
+
+## Results Log (Current Slice)
+- 2026-03-06: Added typed nested DTOs under `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/model` for release deployment settings, marketplace event payloads, forwarder log details, target registration metadata, and stage error details.
+- 2026-03-06: Added typed nested request DTOs under `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/api/request` for `deployment_mode_settings`, onboarding metadata, registration metadata, and forwarder log details.
+- 2026-03-06: Refactored `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/repository/ReleaseRepository.java`, `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/repository/AdminRepository.java`, and `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/repository/RunRepository.java` so repository projections return typed records instead of compatibility maps.
+- 2026-03-06: Extended `/Users/cvonderheid/workspace/mappo/backend-java/src/test/java/com/mappo/controlplane/RunLifecycleIntegrationTests.java` and `/Users/cvonderheid/workspace/mappo/backend-java/src/test/java/com/mappo/controlplane/AdminOnboardingIntegrationTests.java` to assert nested JSON fields for deployment settings, onboarding metadata, marketplace event payloads, and forwarder log details.
+- 2026-03-06: Verified backend compile/test and full reactor `verify` are green after the response contract typing pass.
+
+## Scope (Current Slice)
 Java backend persistence normalization (`V1` baseline):
 - Replace JSON/blob persistence with normalized relational columns in Flyway baseline.
 - Keep one source of truth for registration-owned fields by moving customer/app metadata to `target_registrations`.
@@ -2255,3 +2278,13 @@ Java backend persistence hardening:
 - 2026-03-05: Replaced raw SQL string-based persistence in all Java repositories (`targets`, `admin`, `releases`, `runs`) with generated jOOQ table/enum DSL queries.
 - 2026-03-05: Added Lombok constructor/getter/setter annotations to reduce boilerplate across controllers/services/config/util.
 - 2026-03-05: Fixed Spring Boot 4 Jackson package mismatch in `JsonUtil` (`tools.jackson.*`), restoring `mvn verify` pass.
+- 2026-03-06: Added Springdoc-backed OpenAPI export under `/api/v1/openapi.json` and a Maven-driven artifact export at `/Users/cvonderheid/workspace/mappo/backend-java/target/openapi/openapi.json`.
+- 2026-03-06: Switched frontend client generation to the Java OpenAPI artifact and aligned frontend API/types/components/tests to the generated schema names and field casing.
+- 2026-03-06: Verified `npm --prefix frontend run typecheck`, `npm --prefix frontend run test -- --run`, `npm --prefix frontend run build`, `./mvnw -pl backend-java test`, and `./mvnw -pl backend-java verify`.
+- 2026-03-06: Added root-only Maven frontend contract commands (`./mvnw -N exec:exec@frontend-client-gen`, `frontend-typecheck`, `frontend-test`, `frontend-build`), updated README/script inventory to the Java/Springdoc path, and removed the legacy Python OpenAPI generator.
+- 2026-03-06: Verified the new Maven wrapper commands and current docs gate: `./mvnw -N exec:exec@frontend-client-gen`, `./mvnw -N exec:exec@frontend-typecheck`, `./mvnw -N exec:exec@frontend-test`, `./mvnw -N exec:exec@frontend-build`, and `python3 scripts/docs_consistency_check.py`.
+- 2026-03-06: Replaced simulator-contaminated release/run contract fields with production-oriented source semantics in `/Users/cvonderheid/workspace/mappo/backend-java/src/main/resources/db/migration/V1__baseline.sql`, `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/api/request/ReleaseCreateRequest.java`, `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/model/ReleaseRecord.java`, `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/model/RunSummaryRecord.java`, `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/model/RunDetailRecord.java`, `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/repository/ReleaseRepository.java`, and `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/repository/RunRepository.java`.
+- 2026-03-06: Removed backend snake_case JSON serialization in `/Users/cvonderheid/workspace/mappo/backend-java/src/main/resources/application.yml`, updated integration tests to camelCase request/response assertions, and aligned release-ingest/E2E helpers in `/Users/cvonderheid/workspace/mappo/scripts/release_ingest_from_repo.sh` and `/Users/cvonderheid/workspace/mappo/frontend/e2e/support/mock-api.ts`.
+- 2026-03-06: Verified the source-type contract slice with `./mvnw -pl backend-java -DskipTests compile`, `./mvnw -pl backend-java test`, `./mvnw -pl backend-java verify`, `./mvnw -N exec:exec@frontend-client-gen`, `./mvnw -N exec:exec@frontend-typecheck`, `./mvnw -N exec:exec@frontend-test`, and `./mvnw -N exec:exec@frontend-build`.
+- 2026-03-06: Hardened Java integration tests against ambient shell env by overriding `MAPPO_MARKETPLACE_INGEST_TOKEN` to blank in `/Users/cvonderheid/workspace/mappo/backend-java/src/test/java/com/mappo/controlplane/PostgresIntegrationTestBase.java`, preventing local ingest-token config from causing `401` failures in `clean install`.
+- 2026-03-06: Stabilized `RunLifecycleIntegrationTests` against local Azure config by asserting invariant simulator-warning fragments (`run completed in simulator mode`, `template_spec`) instead of the environment-dependent full warning text.

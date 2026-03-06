@@ -2,8 +2,8 @@ package com.mappo.controlplane.api.request;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.mappo.controlplane.jooq.enums.MappoArmDeploymentMode;
-import com.mappo.controlplane.jooq.enums.MappoDeploymentMode;
 import com.mappo.controlplane.jooq.enums.MappoDeploymentScope;
+import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.model.command.CreateReleaseCommand;
 import jakarta.validation.constraints.NotBlank;
 import java.util.ArrayList;
@@ -13,12 +13,12 @@ import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ReleaseCreateRequest(
-    @NotBlank String templateSpecId,
-    @NotBlank String templateSpecVersion,
-    MappoDeploymentMode deploymentMode,
-    String templateSpecVersionId,
+    @NotBlank String sourceRef,
+    @NotBlank String sourceVersion,
+    MappoReleaseSourceType sourceType,
+    String sourceVersionRef,
     MappoDeploymentScope deploymentScope,
-    Map<String, Object> deploymentModeSettings,
+    ReleaseExecutionSettingsRequest executionSettings,
     Map<String, String> parameterDefaults,
     String releaseNotes,
     List<String> verificationHints
@@ -26,14 +26,14 @@ public record ReleaseCreateRequest(
 
     public CreateReleaseCommand toCommand() {
         return new CreateReleaseCommand(
-            normalize(templateSpecId),
-            normalize(templateSpecVersion),
-            deploymentMode == null ? MappoDeploymentMode.container_patch : deploymentMode,
-            nullable(templateSpecVersionId),
+            normalize(sourceRef),
+            normalize(sourceVersion),
+            sourceType == null ? MappoReleaseSourceType.template_spec : sourceType,
+            nullable(sourceVersionRef),
             deploymentScope == null ? MappoDeploymentScope.resource_group : deploymentScope,
-            deploymentSettingMode(deploymentModeSettings),
-            deploymentSettingBoolean(deploymentModeSettings, "what_if_on_canary", false),
-            deploymentSettingBoolean(deploymentModeSettings, "verify_after_deploy", true),
+            deploymentSettingMode(executionSettings),
+            deploymentSettingBoolean(executionSettings == null ? null : executionSettings.whatIfOnCanary(), false),
+            deploymentSettingBoolean(executionSettings == null ? null : executionSettings.verifyAfterDeploy(), true),
             sanitizeStringMap(parameterDefaults),
             normalize(releaseNotes),
             sanitizeList(verificationHints)
@@ -53,10 +53,6 @@ public record ReleaseCreateRequest(
             out.put(key, normalize(entry.getValue()));
         }
         return out;
-    }
-
-    private static Map<String, Object> sanitizeObjectMap(Map<String, Object> source) {
-        return source == null ? Map.of() : source;
     }
 
     private static List<String> sanitizeList(List<String> source) {
@@ -82,35 +78,14 @@ public record ReleaseCreateRequest(
         return normalized.isBlank() ? null : normalized;
     }
 
-    private static MappoArmDeploymentMode deploymentSettingMode(Map<String, Object> settings) {
-        String value = deploymentSettingText(settings, "arm_mode");
-        MappoArmDeploymentMode parsed = MappoArmDeploymentMode.lookupLiteral(value);
-        return parsed == null ? MappoArmDeploymentMode.incremental : parsed;
+    private static MappoArmDeploymentMode deploymentSettingMode(ReleaseExecutionSettingsRequest settings) {
+        if (settings == null || settings.armMode() == null) {
+            return MappoArmDeploymentMode.incremental;
+        }
+        return settings.armMode();
     }
 
-    private static boolean deploymentSettingBoolean(
-        Map<String, Object> settings,
-        String key,
-        boolean fallback
-    ) {
-        if (settings == null || settings.isEmpty()) {
-            return fallback;
-        }
-        Object value = settings.get(key);
-        if (value instanceof Boolean booleanValue) {
-            return booleanValue;
-        }
-        String normalized = normalize(value);
-        if (normalized.isBlank()) {
-            return fallback;
-        }
-        return Boolean.parseBoolean(normalized);
-    }
-
-    private static String deploymentSettingText(Map<String, Object> settings, String key) {
-        if (settings == null || settings.isEmpty()) {
-            return "";
-        }
-        return normalize(settings.get(key)).toLowerCase();
+    private static boolean deploymentSettingBoolean(Boolean value, boolean fallback) {
+        return value == null ? fallback : value;
     }
 }

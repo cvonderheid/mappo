@@ -2,7 +2,6 @@ package com.mappo.controlplane.model;
 
 import com.mappo.controlplane.jooq.enums.MappoForwarderLogLevel;
 import java.time.OffsetDateTime;
-import java.util.Map;
 import java.util.UUID;
 
 public record ForwarderLogRecord(
@@ -17,7 +16,7 @@ public record ForwarderLogRecord(
     String functionAppName,
     String forwarderRequestId,
     Integer backendStatusCode,
-    Map<String, Object> details,
+    ForwarderLogDetailsRecord details,
     OffsetDateTime createdAt
 ) {
 }

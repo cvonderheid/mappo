@@ -15,6 +15,23 @@ Core commands:
 ./mvnw verify
 ```
 
+Contract workflow:
+
+```bash
+# export authoritative OpenAPI from the Java backend
+./mvnw -pl backend-java verify
+
+# regenerate and verify the frontend against that artifact (root-only wrappers)
+./mvnw -N exec:exec@frontend-client-gen
+./mvnw -N exec:exec@frontend-typecheck
+./mvnw -N exec:exec@frontend-test
+./mvnw -N exec:exec@frontend-build
+```
+
+Contract artifact paths:
+- backend OpenAPI export: `/Users/cvonderheid/workspace/mappo/backend-java/target/openapi/openapi.json`
+- frontend generated schema: `/Users/cvonderheid/workspace/mappo/frontend/src/lib/api/generated/schema.ts`
+
 Script operations now run through Maven `exec`:
 
 ```bash
@@ -90,11 +107,7 @@ Environment variables:
 
 ## Quality Commands
 
-Legacy gate names retained in docs:
-- `phase1-gate-fast`
-- `phase1-gate-full`
-
-Maven equivalent baseline:
+Maven baseline:
 
 ```bash
 ./mvnw test

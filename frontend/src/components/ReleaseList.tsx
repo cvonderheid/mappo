@@ -22,7 +22,9 @@ export default function ReleaseList({
         </Badge>
       </CardHeader>
       <CardContent className="space-y-2">
-        {releases.map((release) => {
+        {releases
+          .filter((release): release is Release & { id: string } => Boolean(release.id))
+          .map((release) => {
           const isSelected = release.id === selectedReleaseId;
           return (
             <button
@@ -35,9 +37,12 @@ export default function ReleaseList({
               }
               onClick={() => onSelectRelease(release.id)}
             >
-              <p className="text-sm font-semibold text-primary">{release.template_spec_version}</p>
+              <p className="text-sm font-semibold text-primary">{release.sourceVersion}</p>
               <p className="font-mono text-[11px] text-muted-foreground">{release.id}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{release.release_notes}</p>
+              <p className="mt-1 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                {release.sourceType?.replaceAll("_", " ") ?? "unknown source"}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{release.releaseNotes}</p>
             </button>
           );
         })}

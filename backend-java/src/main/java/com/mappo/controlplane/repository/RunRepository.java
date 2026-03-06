@@ -8,8 +8,8 @@ import static com.mappo.controlplane.jooq.Tables.TARGET_EXECUTION_RECORDS;
 import static com.mappo.controlplane.jooq.Tables.TARGET_LOG_EVENTS;
 import static com.mappo.controlplane.jooq.Tables.TARGET_STAGE_RECORDS;
 
-import com.mappo.controlplane.jooq.enums.MappoDeploymentMode;
 import com.mappo.controlplane.jooq.enums.MappoForwarderLogLevel;
+import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.jooq.enums.MappoRunStatus;
 import com.mappo.controlplane.jooq.enums.MappoStrategyMode;
 import com.mappo.controlplane.jooq.enums.MappoTargetStage;
@@ -19,6 +19,7 @@ import com.mappo.controlplane.model.RunDetailRecord;
 import com.mappo.controlplane.model.RunStopPolicyRecord;
 import com.mappo.controlplane.model.RunSummaryRecord;
 import com.mappo.controlplane.model.RunTargetRecord;
+import com.mappo.controlplane.model.StageErrorDetailsRecord;
 import com.mappo.controlplane.model.StageErrorRecord;
 import com.mappo.controlplane.model.TargetLogEventRecord;
 import com.mappo.controlplane.model.TargetRecord;
@@ -47,7 +48,7 @@ public class RunRepository {
         var rows = dsl.select(
                 RUNS.ID,
                 RUNS.RELEASE_ID,
-                RUNS.EXECUTION_MODE,
+                RUNS.EXECUTION_SOURCE_TYPE,
                 RUNS.STATUS,
                 RUNS.STRATEGY_MODE,
                 RUNS.CREATED_AT,
@@ -78,7 +79,7 @@ public class RunRepository {
             summaries.add(new RunSummaryRecord(
                 runId,
                 row.get(RUNS.RELEASE_ID),
-                row.get(RUNS.EXECUTION_MODE),
+                row.get(RUNS.EXECUTION_SOURCE_TYPE),
                 row.get(RUNS.STATUS),
                 row.get(RUNS.STRATEGY_MODE),
                 row.get(RUNS.CREATED_AT),
@@ -101,7 +102,7 @@ public class RunRepository {
         Record row = dsl.select(
                 RUNS.ID,
                 RUNS.RELEASE_ID,
-                RUNS.EXECUTION_MODE,
+                RUNS.EXECUTION_SOURCE_TYPE,
                 RUNS.STATUS,
                 RUNS.STRATEGY_MODE,
                 RUNS.WAVE_TAG,
@@ -131,7 +132,7 @@ public class RunRepository {
         RunDetailRecord detail = new RunDetailRecord(
             runId,
             row.get(RUNS.RELEASE_ID),
-            row.get(RUNS.EXECUTION_MODE),
+            row.get(RUNS.EXECUTION_SOURCE_TYPE),
             row.get(RUNS.STATUS),
             row.get(RUNS.STRATEGY_MODE),
             row.get(RUNS.WAVE_TAG),
@@ -155,7 +156,7 @@ public class RunRepository {
         String runId,
         CreateRunCommand request,
         List<TargetRecord> targets,
-        MappoDeploymentMode executionMode,
+        MappoReleaseSourceType executionSourceType,
         boolean immediateSuccess
     ) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -164,7 +165,10 @@ public class RunRepository {
         dsl.insertInto(RUNS)
             .set(RUNS.ID, runId)
             .set(RUNS.RELEASE_ID, normalize(request.releaseId()))
-            .set(RUNS.EXECUTION_MODE, enumOrDefault(executionMode, MappoDeploymentMode.container_patch))
+            .set(
+                RUNS.EXECUTION_SOURCE_TYPE,
+                enumOrDefault(executionSourceType, MappoReleaseSourceType.template_spec)
+            )
             .set(RUNS.STRATEGY_MODE, enumOrDefault(request.strategyMode(), MappoStrategyMode.all_at_once))
             .set(RUNS.WAVE_TAG, defaultIfBlank(normalize(request.waveTag()), "ring"))
             .set(RUNS.CONCURRENCY, toInt(request.concurrency(), 3))
@@ -454,34 +458,20 @@ public class RunRepository {
         return logs;
     }
 
-    private Map<String, Object> stageErrorDetails(Record row) {
-        Map<String, Object> details = new LinkedHashMap<>();
-        put(details, "status_code", row.get(TARGET_STAGE_RECORDS.ERROR_STATUS_CODE));
-        put(details, "error", row.get(TARGET_STAGE_RECORDS.ERROR_DETAIL_TEXT));
-        put(details, "desired_image", row.get(TARGET_STAGE_RECORDS.ERROR_DESIRED_IMAGE));
-        put(details, "azure_error_code", row.get(TARGET_STAGE_RECORDS.AZURE_ERROR_CODE));
-        put(details, "azure_error_message", row.get(TARGET_STAGE_RECORDS.AZURE_ERROR_MESSAGE));
-        put(details, "azure_request_id", row.get(TARGET_STAGE_RECORDS.AZURE_REQUEST_ID));
-        put(
-            details,
-            "azure_arm_service_request_id",
-            row.get(TARGET_STAGE_RECORDS.AZURE_ARM_SERVICE_REQUEST_ID)
+    private StageErrorDetailsRecord stageErrorDetails(Record row) {
+        return new StageErrorDetailsRecord(
+            row.get(TARGET_STAGE_RECORDS.ERROR_STATUS_CODE),
+            nullableText(row.get(TARGET_STAGE_RECORDS.ERROR_DETAIL_TEXT)),
+            nullableText(row.get(TARGET_STAGE_RECORDS.ERROR_DESIRED_IMAGE)),
+            nullableText(row.get(TARGET_STAGE_RECORDS.AZURE_ERROR_CODE)),
+            nullableText(row.get(TARGET_STAGE_RECORDS.AZURE_ERROR_MESSAGE)),
+            nullableText(row.get(TARGET_STAGE_RECORDS.AZURE_REQUEST_ID)),
+            nullableText(row.get(TARGET_STAGE_RECORDS.AZURE_ARM_SERVICE_REQUEST_ID)),
+            nullableText(row.get(TARGET_STAGE_RECORDS.AZURE_CORRELATION_ID)),
+            nullableText(row.get(TARGET_STAGE_RECORDS.AZURE_DEPLOYMENT_NAME)),
+            nullableText(row.get(TARGET_STAGE_RECORDS.AZURE_OPERATION_ID)),
+            nullableText(row.get(TARGET_STAGE_RECORDS.AZURE_RESOURCE_ID))
         );
-        put(details, "azure_correlation_id", row.get(TARGET_STAGE_RECORDS.AZURE_CORRELATION_ID));
-        put(details, "azure_deployment_name", row.get(TARGET_STAGE_RECORDS.AZURE_DEPLOYMENT_NAME));
-        put(details, "azure_operation_id", row.get(TARGET_STAGE_RECORDS.AZURE_OPERATION_ID));
-        put(details, "azure_resource_id", row.get(TARGET_STAGE_RECORDS.AZURE_RESOURCE_ID));
-        return details;
-    }
-
-    private void put(Map<String, Object> target, String key, Object value) {
-        if (value == null) {
-            return;
-        }
-        if (value instanceof String text && text.isBlank()) {
-            return;
-        }
-        target.put(key, value);
     }
 
     private UUID requiredUuid(UUID value, String field) {
@@ -504,6 +494,11 @@ public class RunRepository {
 
     private String normalize(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private String nullableText(Object value) {
+        String normalized = normalize(value);
+        return normalized.isBlank() ? null : normalized;
     }
 
     private String defaultIfBlank(String value, String fallback) {

@@ -16,7 +16,7 @@ public record TargetRegistrationPatchRequest(
     MappoHealthStatus healthStatus,
     String containerAppResourceId,
     Map<String, String> tags,
-    Map<String, Object> metadata
+    TargetRegistrationMetadataRequest metadata
 ) {
 
     public TargetRegistrationPatchCommand toCommand() {
@@ -26,8 +26,8 @@ public record TargetRegistrationPatchRequest(
             nullable(managedApplicationId),
             nullable(managedResourceGroupId),
             nullable(containerAppResourceId),
-            metadataString("container_app_name"),
-            metadataString("source"),
+            metadata == null ? null : nullable(metadata.containerAppName()),
+            metadata == null ? null : nullable(metadata.source()),
             nullable(lastDeployedRelease),
             healthStatus,
             sanitizeTags(tags)
@@ -54,12 +54,6 @@ public record TargetRegistrationPatchRequest(
     }
 
     private static String nullable(String value) {
-        String normalized = normalize(value);
-        return normalized.isBlank() ? null : normalized;
-    }
-
-    private String metadataString(String key) {
-        Object value = metadata == null ? null : metadata.get(key);
         String normalized = normalize(value);
         return normalized.isBlank() ? null : normalized;
     }

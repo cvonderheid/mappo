@@ -9,10 +9,13 @@ import static com.mappo.controlplane.jooq.Tables.TARGET_TAGS;
 import com.mappo.controlplane.jooq.enums.MappoForwarderLogLevel;
 import com.mappo.controlplane.jooq.enums.MappoHealthStatus;
 import com.mappo.controlplane.jooq.enums.MappoMarketplaceEventStatus;
+import com.mappo.controlplane.model.ForwarderLogDetailsRecord;
 import com.mappo.controlplane.model.ForwarderLogRecord;
+import com.mappo.controlplane.model.MarketplaceEventPayloadRecord;
 import com.mappo.controlplane.model.MarketplaceEventRecord;
 import com.mappo.controlplane.model.MarketplaceEventType;
 import com.mappo.controlplane.model.TargetRegistrationRecord;
+import com.mappo.controlplane.model.TargetRegistrationMetadataRecord;
 import com.mappo.controlplane.model.command.ForwarderLogIngestCommand;
 import com.mappo.controlplane.model.command.TargetRegistrationPatchCommand;
 import com.mappo.controlplane.model.command.TargetRegistrationUpsertCommand;
@@ -346,11 +349,11 @@ public class AdminRepository {
         );
         String containerAppName = firstNullableText(
             patch.containerAppName(),
-            metadataValue(current.metadata(), "container_app_name")
+            current.metadata() == null ? null : current.metadata().containerAppName()
         );
         String registrationSource = firstNullableText(
             patch.registrationSource(),
-            metadataValue(current.metadata(), "source")
+            current.metadata() == null ? null : current.metadata().source()
         );
 
         dsl.update(TARGET_REGISTRATIONS)
@@ -441,58 +444,37 @@ public class AdminRepository {
         );
     }
 
-    private Map<String, Object> eventPayload(Record row) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        put(payload, "display_name", row.get(MARKETPLACE_EVENTS.DISPLAY_NAME));
-        put(payload, "customer_name", row.get(MARKETPLACE_EVENTS.CUSTOMER_NAME));
-        put(payload, "managed_application_id", row.get(MARKETPLACE_EVENTS.MANAGED_APPLICATION_ID));
-        put(payload, "managed_resource_group_id", row.get(MARKETPLACE_EVENTS.MANAGED_RESOURCE_GROUP_ID));
-        put(payload, "container_app_resource_id", row.get(MARKETPLACE_EVENTS.CONTAINER_APP_RESOURCE_ID));
-        put(payload, "container_app_name", row.get(MARKETPLACE_EVENTS.CONTAINER_APP_NAME));
-        put(payload, "target_group", row.get(MARKETPLACE_EVENTS.TARGET_GROUP));
-        put(payload, "region", row.get(MARKETPLACE_EVENTS.REGION));
-        put(payload, "environment", row.get(MARKETPLACE_EVENTS.ENVIRONMENT));
-        put(payload, "tier", row.get(MARKETPLACE_EVENTS.TIER));
-        put(payload, "last_deployed_release", row.get(MARKETPLACE_EVENTS.LAST_DEPLOYED_RELEASE));
-
-        MappoHealthStatus healthStatus = row.get(MARKETPLACE_EVENTS.HEALTH_STATUS);
-        if (healthStatus != null) {
-            payload.put("health_status", healthStatus.getLiteral());
-        }
-
-        put(payload, "registration_source", row.get(MARKETPLACE_EVENTS.REGISTRATION_SOURCE));
-        put(payload, "marketplace_payload_id", row.get(MARKETPLACE_EVENTS.MARKETPLACE_PAYLOAD_ID));
-        return payload;
+    private MarketplaceEventPayloadRecord eventPayload(Record row) {
+        return new MarketplaceEventPayloadRecord(
+            nullableText(row.get(MARKETPLACE_EVENTS.DISPLAY_NAME)),
+            nullableText(row.get(MARKETPLACE_EVENTS.CUSTOMER_NAME)),
+            nullableText(row.get(MARKETPLACE_EVENTS.MANAGED_APPLICATION_ID)),
+            nullableText(row.get(MARKETPLACE_EVENTS.MANAGED_RESOURCE_GROUP_ID)),
+            nullableText(row.get(MARKETPLACE_EVENTS.CONTAINER_APP_RESOURCE_ID)),
+            nullableText(row.get(MARKETPLACE_EVENTS.CONTAINER_APP_NAME)),
+            nullableText(row.get(MARKETPLACE_EVENTS.TARGET_GROUP)),
+            nullableText(row.get(MARKETPLACE_EVENTS.REGION)),
+            nullableText(row.get(MARKETPLACE_EVENTS.ENVIRONMENT)),
+            nullableText(row.get(MARKETPLACE_EVENTS.TIER)),
+            nullableText(row.get(MARKETPLACE_EVENTS.LAST_DEPLOYED_RELEASE)),
+            row.get(MARKETPLACE_EVENTS.HEALTH_STATUS),
+            nullableText(row.get(MARKETPLACE_EVENTS.REGISTRATION_SOURCE)),
+            nullableText(row.get(MARKETPLACE_EVENTS.MARKETPLACE_PAYLOAD_ID))
+        );
     }
 
-    private Map<String, Object> forwarderDetails(Record row) {
-        Map<String, Object> details = new LinkedHashMap<>();
-        put(details, "detail", row.get(FORWARDER_LOGS.DETAIL_TEXT));
-        put(details, "backend_response", row.get(FORWARDER_LOGS.BACKEND_RESPONSE_BODY));
-        return details;
+    private ForwarderLogDetailsRecord forwarderDetails(Record row) {
+        return new ForwarderLogDetailsRecord(
+            nullableText(row.get(FORWARDER_LOGS.DETAIL_TEXT)),
+            nullableText(row.get(FORWARDER_LOGS.BACKEND_RESPONSE_BODY))
+        );
     }
 
-    private Map<String, Object> registrationMetadata(Record row) {
-        Map<String, Object> metadata = new LinkedHashMap<>();
-        put(metadata, "container_app_name", row.get(TARGET_REGISTRATIONS.CONTAINER_APP_NAME));
-        put(metadata, "source", row.get(TARGET_REGISTRATIONS.REGISTRATION_SOURCE));
-        return metadata;
-    }
-
-    private void put(Map<String, Object> target, String key, String value) {
-        String normalized = normalize(value);
-        if (!normalized.isBlank()) {
-            target.put(key, normalized);
-        }
-    }
-
-    private String metadataValue(Map<String, Object> metadata, String key) {
-        if (metadata == null) {
-            return null;
-        }
-        Object value = metadata.get(key);
-        String normalized = normalize(value);
-        return normalized.isBlank() ? null : normalized;
+    private TargetRegistrationMetadataRecord registrationMetadata(Record row) {
+        return new TargetRegistrationMetadataRecord(
+            nullableText(row.get(TARGET_REGISTRATIONS.CONTAINER_APP_NAME)),
+            nullableText(row.get(TARGET_REGISTRATIONS.REGISTRATION_SOURCE))
+        );
     }
 
     private OffsetDateTime toTimestamp(Object value, OffsetDateTime fallback) {

@@ -98,16 +98,16 @@ export function RegistrationsDataTable({
     () =>
       registrations.map((record) => ({
         record,
-        targetId: record.target_id,
-        displayName: record.display_name,
-        customerName: record.customer_name ?? "unknown",
+        targetId: record.targetId ?? "unknown",
+        displayName: record.displayName ?? "unknown",
+        customerName: record.customerName ?? "unknown",
         targetGroup: normalizeTagValue(record.tags?.ring, "unassigned"),
         region: normalizeTagValue(record.tags?.region, "unknown"),
         tier: normalizeTagValue(record.tags?.tier, "unknown"),
         environment: normalizeTagValue(record.tags?.environment, "unknown"),
-        subscriptionId: record.subscription_id,
-        tenantId: record.tenant_id,
-        updatedAt: record.updated_at,
+        subscriptionId: record.subscriptionId ?? "unknown",
+        tenantId: record.tenantId ?? "unknown",
+        updatedAt: record.updatedAt ?? "",
       })),
     [registrations]
   );
@@ -381,14 +381,14 @@ export function EventsDataTable({ events }: EventsDataTableProps) {
   const rows = useMemo<EventRow[]>(
     () =>
       events.map((record) => ({
-        eventId: record.event_id,
-        status: record.status,
-        eventType: record.event_type,
-        targetId: record.target_id ?? "n/a",
-        subscriptionId: record.subscription_id,
-        tenantId: record.tenant_id,
-        createdAt: record.created_at,
-        message: record.message,
+        eventId: record.eventId ?? "unknown",
+        status: record.status ?? "unknown",
+        eventType: record.eventType ?? "unknown",
+        targetId: record.targetId ?? "n/a",
+        subscriptionId: record.subscriptionId ?? "unknown",
+        tenantId: record.tenantId ?? "unknown",
+        createdAt: record.createdAt ?? "",
+        message: record.message ?? "",
       })),
     [events]
   );
@@ -565,17 +565,17 @@ export function ForwarderLogsDataTable({ logs }: ForwarderLogsDataTableProps) {
   const rows = useMemo<ForwarderLogRow[]>(
     () =>
       logs.map((record) => ({
-        logId: record.log_id,
-        level: record.level,
-        message: record.message,
-        eventId: record.event_id ?? "n/a",
-        targetId: record.target_id ?? "n/a",
-        subscriptionId: record.subscription_id ?? "n/a",
+        logId: record.logId ?? "unknown",
+        level: record.level ?? "unknown",
+        message: record.message ?? "",
+        eventId: record.eventId ?? "n/a",
+        targetId: record.targetId ?? "n/a",
+        subscriptionId: record.subscriptionId ?? "n/a",
         backendStatusCode:
-          record.backend_status_code === undefined || record.backend_status_code === null
+          record.backendStatusCode === undefined || record.backendStatusCode === null
             ? "n/a"
-            : String(record.backend_status_code),
-        createdAt: record.created_at,
+            : String(record.backendStatusCode),
+        createdAt: record.createdAt ?? "",
       })),
     [logs]
   );

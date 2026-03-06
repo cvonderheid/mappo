@@ -2,79 +2,82 @@ import type { Page, Route } from "@playwright/test";
 
 type Target = {
   id: string;
-  tenant_id: string;
-  subscription_id: string;
-  managed_app_id: string;
+  tenantId: string;
+  subscriptionId: string;
+  managedAppId: string;
   tags: Record<string, string>;
-  last_deployed_release: string;
-  health_status: string;
-  last_check_in_at: string;
-  simulated_failure_mode: string;
+  lastDeployedRelease: string;
+  healthStatus: string;
+  lastCheckInAt: string;
+  simulatedFailureMode: string;
 };
 
 type Release = {
   id: string;
-  template_spec_id: string;
-  template_spec_version: string;
-  parameter_defaults: Record<string, string>;
-  release_notes: string;
-  verification_hints: string[];
-  created_at: string;
+  sourceRef: string;
+  sourceVersion: string;
+  sourceType: "template_spec" | "bicep" | "deployment_stack";
+  parameterDefaults: Record<string, string>;
+  releaseNotes: string;
+  verificationHints: string[];
+  createdAt: string;
 };
 
 type RunSummary = {
   id: string;
-  release_id: string;
+  releaseId: string;
+  executionSourceType: "template_spec" | "bicep" | "deployment_stack";
   status: "running" | "succeeded" | "failed" | "partial" | "halted";
-  strategy_mode: "all_at_once" | "waves";
-  created_at: string;
-  started_at: string | null;
-  ended_at: string | null;
-  total_targets: number;
-  succeeded_targets: number;
-  failed_targets: number;
-  in_progress_targets: number;
-  queued_targets: number;
-  halt_reason: string | null;
+  strategyMode: "all_at_once" | "waves";
+  createdAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  totalTargets: number;
+  succeededTargets: number;
+  failedTargets: number;
+  inProgressTargets: number;
+  queuedTargets: number;
+  haltReason: string | null;
 };
 
 type TargetExecutionRecord = {
-  target_id: string;
-  subscription_id: string;
-  tenant_id: string;
+  targetId: string;
+  subscriptionId: string;
+  tenantId: string;
   status: "QUEUED" | "VALIDATING" | "DEPLOYING" | "VERIFYING" | "SUCCEEDED" | "FAILED";
   attempt: number;
-  updated_at: string;
+  updatedAt: string;
   stages: unknown[];
   logs: unknown[];
 };
 
 type RunDetail = {
   id: string;
-  release_id: string;
+  releaseId: string;
+  executionSourceType: "template_spec" | "bicep" | "deployment_stack";
   status: "running" | "succeeded" | "failed" | "partial" | "halted";
-  strategy_mode: "all_at_once" | "waves";
-  wave_tag: string;
-  wave_order: string[];
+  strategyMode: "all_at_once" | "waves";
+  waveTag: string;
+  waveOrder: string[];
   concurrency: number;
-  stop_policy: Record<string, unknown>;
-  created_at: string;
-  started_at: string | null;
-  ended_at: string | null;
-  updated_at: string;
-  halt_reason: string | null;
-  target_records: TargetExecutionRecord[];
+  stopPolicy: Record<string, unknown>;
+  createdAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  updatedAt: string;
+  haltReason: string | null;
+  targetRecords: TargetExecutionRecord[];
 };
 
 type CreateRunRequest = {
-  release_id?: string;
-  strategy_mode?: "all_at_once" | "waves";
-  wave_tag?: string;
-  wave_order?: string[];
+  releaseId?: string;
+  strategyMode?: "all_at_once" | "waves";
+  waveTag?: string;
+  waveOrder?: string[];
   concurrency?: number;
-  stop_policy?: Record<string, unknown>;
-  target_ids?: string[];
-  target_tags?: Record<string, string>;
+  stopPolicy?: Record<string, unknown>;
+  targetIds?: string[];
+  targetTags?: Record<string, string>;
 };
 
 export type MockApiState = {
@@ -99,21 +102,23 @@ export function createMockApiState(): MockApiState {
   const releases: Release[] = [
     {
       id: "rel-2026-02-25",
-      template_spec_id: "template-spec-id",
-      template_spec_version: "2026.02.25.3",
-      parameter_defaults: { imageTag: "1.5.0", featureFlag: "on" },
-      release_notes: "Canary-first rollout.",
-      verification_hints: ["health endpoint 200"],
-      created_at: NOW,
+      sourceRef: "template-spec-id",
+      sourceVersion: "2026.02.25.3",
+      sourceType: "template_spec",
+      parameterDefaults: { imageTag: "1.5.0", featureFlag: "on" },
+      releaseNotes: "Canary-first rollout.",
+      verificationHints: ["health endpoint 200"],
+      createdAt: NOW,
     },
     {
       id: "rel-2026-02-20",
-      template_spec_id: "template-spec-id",
-      template_spec_version: "2026.02.20.1",
-      parameter_defaults: { imageTag: "1.4.2", featureFlag: "off" },
-      release_notes: "Stable baseline.",
-      verification_hints: ["startup under 60s"],
-      created_at: "2026-02-20T00:00:00Z",
+      sourceRef: "template-spec-id",
+      sourceVersion: "2026.02.20.1",
+      sourceType: "template_spec",
+      parameterDefaults: { imageTag: "1.4.2", featureFlag: "off" },
+      releaseNotes: "Stable baseline.",
+      verificationHints: ["startup under 60s"],
+      createdAt: "2026-02-20T00:00:00Z",
     },
   ];
 
@@ -187,8 +192,8 @@ async function handleRoute(route: Route, state: MockApiState): Promise<void> {
     const body = request.postDataJSON() as CreateRunRequest;
     state.createRunRequests.push(body);
 
-    if (!body.release_id) {
-      await respond(route, 400, { detail: "release_id is required" });
+    if (!body.releaseId) {
+      await respond(route, 400, { detail: "releaseId is required" });
       return;
     }
 
@@ -203,15 +208,15 @@ async function handleRoute(route: Route, state: MockApiState): Promise<void> {
 
     const detail = makeRunDetail({
       id: runId,
-      releaseId: body.release_id,
-      strategyMode: body.strategy_mode ?? "waves",
+      releaseId: body.releaseId,
+      strategyMode: body.strategyMode ?? "waves",
       status: "running",
       targetIds: selectedTargetIds,
       targetStatus: "QUEUED",
       concurrency: body.concurrency ?? 3,
-      stopPolicy: body.stop_policy ?? {},
-      waveTag: body.wave_tag ?? "ring",
-      waveOrder: body.wave_order ?? ["canary", "prod"],
+      stopPolicy: body.stopPolicy ?? {},
+      waveTag: body.waveTag ?? "ring",
+      waveOrder: body.waveOrder ?? ["canary", "prod"],
     });
 
     state.runDetails.set(runId, detail);
@@ -270,9 +275,9 @@ async function respond(route: Route, status: number, payload: unknown): Promise<
 
 function selectTargetIds(request: CreateRunRequest, targets: Target[]): string[] {
   const targetMap = new Map(targets.map((target) => [target.id, target]));
-  const filters = request.target_tags ?? {};
+  const filters = request.targetTags ?? {};
 
-  const candidates = request.target_ids ?? targets.map((target) => target.id);
+  const candidates = request.targetIds ?? targets.map((target) => target.id);
   const selected = candidates.filter((targetId) => {
     const target = targetMap.get(targetId);
     if (!target) {
@@ -301,19 +306,19 @@ function makeTarget(
 ): Target {
   return {
     id,
-    tenant_id: `tenant-${id}`,
-    subscription_id: `sub-${id}`,
-    managed_app_id: `/subscriptions/sub-${id}/resourceGroups/rg-${id}`,
+    tenantId: `tenant-${id}`,
+    subscriptionId: `sub-${id}`,
+    managedAppId: `/subscriptions/sub-${id}/resourceGroups/rg-${id}`,
     tags: {
       ring,
       region,
       tier,
       environment: "prod",
     },
-    last_deployed_release: "2026.02.20.1",
-    health_status: "healthy",
-    last_check_in_at: NOW,
-    simulated_failure_mode: "none",
+    lastDeployedRelease: "2026.02.20.1",
+    healthStatus: "healthy",
+    lastCheckInAt: NOW,
+    simulatedFailureMode: "none",
   };
 }
 
@@ -334,39 +339,39 @@ function makeRunDetail(input: {
 
     if (input.targetStatus === "FAILED") {
       return {
-        target_id: targetId,
-        subscription_id: `sub-${targetId}`,
-        tenant_id: `tenant-${targetId}`,
+        targetId,
+        subscriptionId: `sub-${targetId}`,
+        tenantId: `tenant-${targetId}`,
         status: input.targetStatus,
         attempt: 1,
-        updated_at: NOW,
+        updatedAt: NOW,
         stages: [
           {
             stage: "VALIDATING",
-            started_at: NOW,
-            ended_at: NOW,
+            startedAt: NOW,
+            endedAt: NOW,
             message: `Validated target ca-${targetId}.`,
             error: null,
-            correlation_id: "corr-e2e-validating",
-            portal_link: portalLink,
+            correlationId: "corr-e2e-validating",
+            portalLink,
           },
           {
             stage: "DEPLOYING",
-            started_at: NOW,
-            ended_at: NOW,
+            startedAt: NOW,
+            endedAt: NOW,
             message: "Azure Container App update failed.",
             error: {
               code: "azure_deploy_failed",
               message: "Azure Container App update failed.",
               details: {
-                status_code: 200,
+                statusCode: 200,
                 error:
                   "(ContainerAppOperationError) MANIFEST_UNKNOWN: manifest tagged by \"1.5.0\" is not found.",
-                desired_image: "mcr.microsoft.com/azuredocs/containerapps-helloworld:1.5.0",
+                desiredImage: "mcr.microsoft.com/azuredocs/containerapps-helloworld:1.5.0",
               },
             },
-            correlation_id: "corr-e2e-deploying",
-            portal_link: portalLink,
+            correlationId: "corr-e2e-deploying",
+            portalLink,
           },
         ],
         logs: [
@@ -375,28 +380,28 @@ function makeRunDetail(input: {
             level: "INFO",
             stage: "VALIDATING",
             message: "Validating started.",
-            correlation_id: "corr-e2e-validating",
+            correlationId: "corr-e2e-validating",
           },
           {
             timestamp: NOW,
             level: "INFO",
             stage: "VALIDATING",
             message: `Validated target ca-${targetId}.`,
-            correlation_id: "corr-e2e-validating",
+            correlationId: "corr-e2e-validating",
           },
           {
             timestamp: NOW,
             level: "INFO",
             stage: "DEPLOYING",
             message: "Deploying started.",
-            correlation_id: "corr-e2e-deploying",
+            correlationId: "corr-e2e-deploying",
           },
           {
             timestamp: NOW,
             level: "ERROR",
             stage: "DEPLOYING",
             message: "Azure Container App update failed.",
-            correlation_id: "corr-e2e-deploying",
+            correlationId: "corr-e2e-deploying",
           },
         ],
       };
@@ -409,31 +414,31 @@ function makeRunDetail(input: {
         : [
             {
               stage: "VALIDATING",
-              started_at: NOW,
-              ended_at: NOW,
+              startedAt: NOW,
+              endedAt: NOW,
               message: `Validated target ca-${targetId}.`,
               error: null,
-              correlation_id: "corr-e2e-validating",
-              portal_link: portalLink,
+              correlationId: "corr-e2e-validating",
+              portalLink,
             },
             {
               stage: terminalStage,
-              started_at: NOW,
-              ended_at: NOW,
+              startedAt: NOW,
+              endedAt: NOW,
               message: input.targetStatus === "SUCCEEDED" ? "Target deployment succeeded." : `${terminalStage} completed.`,
               error: null,
-              correlation_id: "corr-e2e-terminal",
-              portal_link: portalLink,
+              correlationId: "corr-e2e-terminal",
+              portalLink,
             },
           ];
 
     return {
-      target_id: targetId,
-      subscription_id: `sub-${targetId}`,
-      tenant_id: `tenant-${targetId}`,
+      targetId,
+      subscriptionId: `sub-${targetId}`,
+      tenantId: `tenant-${targetId}`,
       status: input.targetStatus,
       attempt: input.targetStatus === "QUEUED" ? 0 : 1,
-      updated_at: NOW,
+      updatedAt: NOW,
       stages: stageList,
       logs: [],
     };
@@ -441,19 +446,20 @@ function makeRunDetail(input: {
 
   return {
     id: input.id,
-    release_id: input.releaseId,
+    releaseId: input.releaseId,
+    executionSourceType: "template_spec",
     status: input.status,
-    strategy_mode: input.strategyMode,
-    wave_tag: input.waveTag ?? "ring",
-    wave_order: input.waveOrder ?? ["canary", "prod"],
+    strategyMode: input.strategyMode,
+    waveTag: input.waveTag ?? "ring",
+    waveOrder: input.waveOrder ?? ["canary", "prod"],
     concurrency: input.concurrency ?? 3,
-    stop_policy: input.stopPolicy ?? {},
-    created_at: NOW,
-    started_at: NOW,
-    ended_at: input.status === "running" ? null : NOW,
-    updated_at: NOW,
-    halt_reason: input.status === "halted" ? "halted by policy" : null,
-    target_records: targetRecords,
+    stopPolicy: input.stopPolicy ?? {},
+    createdAt: NOW,
+    startedAt: NOW,
+    endedAt: input.status === "running" ? null : NOW,
+    updatedAt: NOW,
+    haltReason: input.status === "halted" ? "halted by policy" : null,
+    targetRecords: targetRecords,
   };
 }
 
@@ -464,7 +470,7 @@ function toRunSummary(detail: RunDetail): RunSummary {
     succeeded: 0,
     failed: 0,
   };
-  for (const record of detail.target_records) {
+  for (const record of detail.targetRecords) {
     if (record.status === "QUEUED") {
       counts.queued += 1;
       continue;
@@ -482,17 +488,18 @@ function toRunSummary(detail: RunDetail): RunSummary {
 
   return {
     id: detail.id,
-    release_id: detail.release_id,
+    releaseId: detail.releaseId,
+    executionSourceType: detail.executionSourceType,
     status: detail.status,
-    strategy_mode: detail.strategy_mode,
-    created_at: detail.created_at,
-    started_at: detail.started_at,
-    ended_at: detail.ended_at,
-    total_targets: detail.target_records.length,
-    succeeded_targets: counts.succeeded,
-    failed_targets: counts.failed,
-    in_progress_targets: counts.inProgress,
-    queued_targets: counts.queued,
-    halt_reason: detail.halt_reason,
+    strategyMode: detail.strategyMode,
+    createdAt: detail.createdAt,
+    startedAt: detail.startedAt,
+    endedAt: detail.endedAt,
+    totalTargets: detail.targetRecords.length,
+    succeededTargets: counts.succeeded,
+    failedTargets: counts.failed,
+    inProgressTargets: counts.inProgress,
+    queuedTargets: counts.queued,
+    haltReason: detail.haltReason,
   };
 }

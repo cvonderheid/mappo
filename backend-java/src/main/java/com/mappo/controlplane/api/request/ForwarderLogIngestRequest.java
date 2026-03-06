@@ -6,8 +6,6 @@ import com.mappo.controlplane.model.MarketplaceEventType;
 import com.mappo.controlplane.model.command.ForwarderLogIngestCommand;
 import jakarta.validation.constraints.NotBlank;
 import java.time.OffsetDateTime;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.UUID;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -23,7 +21,7 @@ public record ForwarderLogIngestRequest(
     String functionAppName,
     String forwarderRequestId,
     Integer backendStatusCode,
-    Map<String, Object> details,
+    ForwarderLogDetailsRequest details,
     OffsetDateTime occurredAt
 ) {
 
@@ -40,32 +38,10 @@ public record ForwarderLogIngestRequest(
             nullable(functionAppName),
             nullable(forwarderRequestId),
             backendStatusCode,
-            nullable(detailValue(details)),
-            nullable(backendResponseValue(details)),
+            details == null ? null : nullable(details.detail()),
+            details == null ? null : nullable(details.backendResponse()),
             occurredAt
         );
-    }
-
-    private static Map<String, Object> sanitizeDetails(Map<String, Object> source) {
-        if (source == null || source.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, Object> out = new LinkedHashMap<>();
-        for (Map.Entry<String, Object> entry : source.entrySet()) {
-            String key = normalize(entry.getKey());
-            if (!key.isBlank()) {
-                out.put(key, entry.getValue());
-            }
-        }
-        return out;
-    }
-
-    private static String detailValue(Map<String, Object> source) {
-        return source == null ? null : normalize(source.get("detail"));
-    }
-
-    private static String backendResponseValue(Map<String, Object> source) {
-        return source == null ? null : normalize(source.get("backend_response"));
     }
 
     private static String normalize(Object value) {

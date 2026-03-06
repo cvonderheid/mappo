@@ -7,8 +7,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 
+@TestPropertySource(properties = {
+    "mappo.marketplace-ingest-token=",
+    "MAPPO_MARKETPLACE_INGEST_TOKEN="
+})
 abstract class PostgresIntegrationTestBase {
 
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
@@ -25,6 +30,8 @@ abstract class PostgresIntegrationTestBase {
         registry.add("MAPPO_JDBC_DATABASE_URL", postgres::getJdbcUrl);
         registry.add("MAPPO_DB_USER", postgres::getUsername);
         registry.add("MAPPO_DB_PASSWORD", postgres::getPassword);
+        registry.add("mappo.marketplace-ingest-token", () -> "");
+        registry.add("MAPPO_MARKETPLACE_INGEST_TOKEN", () -> "");
     }
 
     @Autowired

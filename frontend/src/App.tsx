@@ -30,6 +30,7 @@ import type {
   RunDetail,
   RunSummary,
   Target,
+  TargetExecutionRecord,
   UpdateTargetRegistrationRequest,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -82,7 +83,7 @@ function AppShell() {
         if (current && payload.some((release) => release.id === current)) {
           return current;
         }
-        return payload[0].id;
+        return payload[0]?.id ?? "";
       });
     } catch (error) {
       setErrorMessage((error as Error).message);
@@ -94,7 +95,7 @@ function AppShell() {
       const payload = await listRuns();
       setRuns(payload);
       if (!selectedRunId && payload.length > 0) {
-        setSelectedRunId(payload[0].id);
+        setSelectedRunId(payload[0]?.id ?? "");
       }
     } catch (error) {
       setErrorMessage((error as Error).message);
@@ -165,7 +166,7 @@ function AppShell() {
     () =>
       targetGroupFilter === "all"
         ? targets
-        : targets.filter((target) => target.tags.ring === targetGroupFilter),
+        : targets.filter((target) => target.tags?.ring === targetGroupFilter),
     [targetGroupFilter, targets]
   );
 
@@ -202,16 +203,16 @@ function AppShell() {
     }
 
     const request: CreateRunRequest = {
-      release_id: selectedRelease.id,
-      strategy_mode: formState.strategyMode,
-      wave_tag: "ring",
-      wave_order: ["canary", "prod"],
+      releaseId: selectedRelease.id ?? selectedReleaseId,
+      strategyMode: formState.strategyMode,
+      waveTag: "ring",
+      waveOrder: ["canary", "prod"],
       concurrency: formState.concurrency,
-      target_tags: targetGroupFilter === "all" ? {} : { ring: targetGroupFilter },
-      stop_policy: {
-        max_failure_count:
+      targetTags: targetGroupFilter === "all" ? {} : { ring: targetGroupFilter },
+      stopPolicy: {
+        maxFailureCount:
           formState.maxFailureCount.trim() === "" ? undefined : Number(formState.maxFailureCount),
-        max_failure_rate:
+        maxFailureRate:
           formState.maxFailureRatePercent.trim() === ""
             ? undefined
             : Number(formState.maxFailureRatePercent) / 100,
@@ -219,15 +220,19 @@ function AppShell() {
     };
 
     if (selectedTargetIds.length > 0) {
-      request.target_ids = [...selectedTargetIds].sort();
+      request.targetIds = [...selectedTargetIds].sort();
     }
 
     setIsSubmitting(true);
     try {
       const created = await createRun(request);
-      setSelectedRunId(created.id);
+      if (created.id) {
+        setSelectedRunId(created.id);
+      }
       await refreshRuns();
-      await refreshRunDetail(created.id);
+      if (created.id) {
+        await refreshRunDetail(created.id);
+      }
       await refreshTargets();
       setErrorMessage("");
       setDeploymentControlsOpen(false);
@@ -267,30 +272,38 @@ function AppShell() {
   async function handleCloneRun(runId: string): Promise<void> {
     try {
       const sourceRun = await getRun(runId);
-      const clonedTargetIds = [...new Set(sourceRun.target_records.map((record) => record.target_id))].sort();
+      const clonedTargetIds = Array.from(
+        new Set(
+          (sourceRun.targetRecords ?? []).flatMap((record: TargetExecutionRecord) =>
+            record.targetId ? [record.targetId] : []
+          )
+        )
+      ).sort();
       const clonedTargetGroups = [
         ...new Set(
           clonedTargetIds
-            .map((targetId) => targets.find((target) => target.id === targetId)?.tags.ring)
+            .map((targetId) => targets.find((target) => target.id === targetId)?.tags?.ring)
             .filter((group): group is string => Boolean(group))
         ),
       ];
-      const clonedTargetGroup = clonedTargetGroups.length === 1 ? clonedTargetGroups[0] : "all";
+      const clonedTargetGroup =
+        clonedTargetGroups.length === 1 ? (clonedTargetGroups[0] ?? "all") : "all";
+      const stopPolicy = sourceRun.stopPolicy ?? {};
 
-      setSelectedReleaseId(sourceRun.release_id);
+      setSelectedReleaseId(sourceRun.releaseId ?? "");
       setFormState({
-        strategyMode: sourceRun.strategy_mode,
-        concurrency: sourceRun.concurrency,
+        strategyMode: sourceRun.strategyMode ?? DEFAULT_FORM.strategyMode,
+        concurrency: sourceRun.concurrency ?? DEFAULT_FORM.concurrency,
         maxFailureCount:
-          sourceRun.stop_policy.max_failure_count === null ||
-          sourceRun.stop_policy.max_failure_count === undefined
+          stopPolicy.maxFailureCount === null ||
+          stopPolicy.maxFailureCount === undefined
             ? ""
-            : String(sourceRun.stop_policy.max_failure_count),
+            : String(stopPolicy.maxFailureCount),
         maxFailureRatePercent:
-          sourceRun.stop_policy.max_failure_rate === null ||
-          sourceRun.stop_policy.max_failure_rate === undefined
+          stopPolicy.maxFailureRate === null ||
+          stopPolicy.maxFailureRate === undefined
             ? ""
-            : String(Math.round(sourceRun.stop_policy.max_failure_rate * 100)),
+            : String(Math.round(stopPolicy.maxFailureRate * 100)),
       });
       setTargetGroupFilter(clonedTargetGroup);
       setSelectedTargetIds(clonedTargetIds);

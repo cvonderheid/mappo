@@ -19,6 +19,7 @@ import type {
   AdminOnboardingSnapshotResponse,
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
+  TargetRegistrationRecord,
 } from "@/lib/types";
 
 type DemoEventType =
@@ -74,7 +75,12 @@ export default function DemoPanel({
     [adminSnapshot]
   );
   const registrationByTargetId = useMemo(
-    () => new Map(registrations.map((row) => [row.target_id, row])),
+    () =>
+      new Map(
+        registrations.flatMap((row: TargetRegistrationRecord) =>
+          row.targetId ? [[row.targetId, row] as const] : []
+        )
+      ),
     [registrations]
   );
 
@@ -126,17 +132,19 @@ export default function DemoPanel({
     if (!registration) {
       return;
     }
-    setTargetId(registration.target_id);
-    setTenantId(registration.tenant_id);
-    setSubscriptionId(registration.subscription_id);
-    setManagedApplicationId(registration.managed_application_id ?? "");
-    setManagedResourceGroupId(registration.managed_resource_group_id);
-    setContainerAppResourceId(registration.container_app_resource_id);
+    setTargetId(registration.targetId ?? "");
+    setTenantId(registration.tenantId ?? "");
+    setSubscriptionId(registration.subscriptionId ?? "");
+    setManagedApplicationId(registration.managedApplicationId ?? "");
+    setManagedResourceGroupId(registration.managedResourceGroupId ?? "");
+    setContainerAppResourceId(registration.containerAppResourceId ?? "");
     setContainerAppName(
-      registration.container_app_resource_id.split("/").at(-1) ?? ""
+      registration.metadata?.containerAppName ??
+        registration.containerAppResourceId?.split("/").at(-1) ??
+        ""
     );
-    setCustomerName(registration.customer_name ?? "");
-    setDisplayName(registration.display_name);
+    setCustomerName(registration.customerName ?? "");
+    setDisplayName(registration.displayName ?? "");
     setTargetGroup(registration.tags?.ring ?? "prod");
     setRegion(registration.tags?.region ?? "eastus");
     setEnvironment(registration.tags?.environment ?? "prod");
@@ -146,11 +154,11 @@ export default function DemoPanel({
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const request: MarketplaceEventIngestRequest = {
-      event_id: eventId.trim(),
-      event_type: eventType,
-      tenant_id: tenantId.trim(),
-      subscription_id: subscriptionId.trim(),
-      target_group: targetGroup.trim() || "prod",
+      eventId: eventId.trim(),
+      eventType,
+      tenantId: tenantId.trim(),
+      subscriptionId: subscriptionId.trim(),
+      targetGroup: targetGroup.trim() || "prod",
       region: region.trim() || undefined,
       environment: environment.trim() || "prod",
       tier: tier.trim() || "standard",
@@ -158,29 +166,29 @@ export default function DemoPanel({
       metadata: {
         source: "demo-panel",
       },
-      health_status: eventType === "subscription_suspended" ? "degraded" : "registered",
-      last_deployed_release: "unknown",
+      healthStatus: eventType === "subscription_suspended" ? "degraded" : "registered",
+      lastDeployedRelease: "unknown",
     };
     if (targetId.trim() !== "") {
-      request.target_id = targetId.trim();
+      request.targetId = targetId.trim();
     }
     if (managedApplicationId.trim() !== "") {
-      request.managed_application_id = managedApplicationId.trim();
+      request.managedApplicationId = managedApplicationId.trim();
     }
     if (managedResourceGroupId.trim() !== "") {
-      request.managed_resource_group_id = managedResourceGroupId.trim();
+      request.managedResourceGroupId = managedResourceGroupId.trim();
     }
     if (containerAppResourceId.trim() !== "") {
-      request.container_app_resource_id = containerAppResourceId.trim();
+      request.containerAppResourceId = containerAppResourceId.trim();
     }
     if (containerAppName.trim() !== "") {
-      request.container_app_name = containerAppName.trim();
+      request.containerAppName = containerAppName.trim();
     }
     if (customerName.trim() !== "") {
-      request.customer_name = customerName.trim();
+      request.customerName = customerName.trim();
     }
     if (displayName.trim() !== "") {
-      request.display_name = displayName.trim();
+      request.displayName = displayName.trim();
     }
 
     await onIngestMarketplaceEvent(request, ingestToken.trim() || undefined);
@@ -238,9 +246,12 @@ export default function DemoPanel({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__manual__">Manual input</SelectItem>
-                        {registrations.map((registration) => (
-                          <SelectItem key={registration.target_id} value={registration.target_id}>
-                            {registration.target_id}
+                        {registrations.map((registration: TargetRegistrationRecord) => (
+                          <SelectItem
+                            key={registration.targetId ?? "unknown"}
+                            value={registration.targetId ?? "unknown"}
+                          >
+                            {registration.targetId ?? "unknown"}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -419,11 +430,11 @@ export default function DemoPanel({
       {adminResult ? (
         <div className="rounded-md border border-border/70 bg-card/70 p-3">
           <p className="text-sm text-foreground">
-            Event {adminResult.event_id}: <strong>{adminResult.status}</strong>
+            Event {adminResult.eventId}: <strong>{adminResult.status}</strong>
           </p>
           <p className="mt-1 text-xs">{adminResult.message}</p>
-          {adminResult.target_id ? (
-            <p className="mt-1 font-mono text-xs text-primary">target: {adminResult.target_id}</p>
+          {adminResult.targetId ? (
+            <p className="mt-1 font-mono text-xs text-primary">target: {adminResult.targetId}</p>
           ) : null}
         </div>
       ) : null}

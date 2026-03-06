@@ -10,6 +10,12 @@ Purpose: capture recurring correction patterns and preventative guardrails.
 - Enforcement (test/lint/checklist):
 
 ## Entries
+- Date: 2026-03-06
+- Pattern: Type-hardening initially stopped at request DTOs while response records and repository projections still leaked `Map<String, Object>`, leaving the Java contract half-typed.
+- Preventative rule: When hardening an API contract, cover both ingress and egress in the same slice; repositories and response records should never rebuild anonymous maps for structured data.
+- Detection signal: `rg -n "Map<String, Object>" backend-java/src/main/java/com/mappo/controlplane/{model,repository,api/request}` returns hits outside generic error handlers.
+- Enforcement (test/lint/checklist): add a contract-hardening grep check plus integration assertions for nested JSON fields before closing the slice.
+
 - Date: 2026-03-01
 - Pattern: Intermediate refactor state left compatibility shim modules (`control_plane_storage*`) in place, which obscured actual ownership boundaries.
 - Preventative rule: Once repositories are domain-scoped and stable, delete compatibility shims in the same slice; do not carry dead adapter layers into subsequent work.
@@ -321,3 +327,27 @@ Purpose: capture recurring correction patterns and preventative guardrails.
 - Preventative rule: For any field backed by a Postgres enum, use the generated jOOQ enum type end-to-end (record models, repository signatures, service calls) instead of string literals.
 - Detection signal: `rg -n "String\s+.*(status|mode|stage|scope|health|level|strategy|failure)" backend-java/src/main/java/com/mappo/controlplane/{model,service,repository}` returns matches that are not business text fields.
 - Enforcement (test/lint/checklist): add enum-surface grep check to backend architecture lint and require `./mvnw -pl backend-java test` on enum-related refactors.
+
+- Date: 2026-03-06
+- Pattern: Promoting a new OpenAPI generator to source-of-truth without immediately regenerating and validating downstream clients leaves the frontend broken on schema names, field casing, and path parameters.
+- Preventative rule: Any backend contract-generator change must include same-slice regeneration of checked-in clients plus frontend `typecheck`, `test`, and `build` before the slice can be called complete.
+- Detection signal: generated schema names drift from existing aliases (`RunCreateRequest` vs `CreateRunRequest`, camelCase vs snake_case) and TypeScript errors cluster around path strings and property names.
+- Enforcement (test/lint/checklist): require `./mvnw -pl backend-java verify`, `./mvnw -N exec:exec@frontend-client-gen`, `./mvnw -N exec:exec@frontend-typecheck`, `./mvnw -N exec:exec@frontend-test`, and `./mvnw -N exec:exec@frontend-build` after contract changes.
+
+- Date: 2026-03-06
+- Pattern: Keeping backend runtime JSON in snake_case while Springdoc exports camelCase creates a silent contract split where integration tests pass but generated clients target a different API than production serves.
+- Preventative rule: Runtime JSON naming, OpenAPI export, and integration-test assertions must use the same casing convention; do not preserve serializer compatibility modes once Java OpenAPI is the contract source of truth.
+- Detection signal: MockMvc assertions use snake_case paths while `backend-java/target/openapi/openapi.json` exposes camelCase properties for the same DTOs.
+- Enforcement (test/lint/checklist): after any serializer or DTO rename, verify one backend integration test response body and the exported OpenAPI schema use identical property names before regenerating frontend clients.
+
+- Date: 2026-03-06
+- Pattern: Integration tests that hit authenticated webhook-style endpoints can accidentally depend on developer shell env such as `MAPPO_MARKETPLACE_INGEST_TOKEN`, causing nondeterministic `401` failures in CI or local `clean install`.
+- Preventative rule: Shared integration-test bootstrap must explicitly neutralize or set all auth-related properties needed for deterministic test behavior; never inherit webhook auth state from ambient env unless the test is specifically exercising auth.
+- Detection signal: MockMvc onboarding/forwarder POST tests fail with `401` only on machines where marketplace ingest token env vars are exported.
+- Enforcement (test/lint/checklist): base integration test setup should override auth-sensitive properties (`MAPPO_MARKETPLACE_INGEST_TOKEN`, similar secrets) and auth-specific tests must set them explicitly per test class.
+
+- Date: 2026-03-06
+- Pattern: Integration tests asserted full warning/error strings that vary with runtime feature flags (`azureExecutionEnabled`), causing `clean install` to pass on one machine and fail on another.
+- Preventative rule: For environment-sensitive messages, assert the invariant contract fragments or explicitly pin the feature flag in test configuration; do not assert full strings unless the test controls every input that shapes them.
+- Detection signal: the same test flips between two semantically valid warning messages depending on local env or app config.
+- Enforcement (test/lint/checklist): when a response includes warnings derived from runtime config, either override that config in the test class or assert only stable substrings that define the contract.

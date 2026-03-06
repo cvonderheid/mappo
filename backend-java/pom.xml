@@ -33,6 +33,10 @@
       <artifactId>spring-boot-starter-jooq</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.springdoc</groupId>
+      <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-core</artifactId>
     </dependency>
@@ -80,6 +84,31 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>openapi-start</id>
+            <phase>pre-integration-test</phase>
+            <goals>
+              <goal>start</goal>
+            </goals>
+            <configuration>
+              <arguments>
+                <argument>--server.port=18010</argument>
+              </arguments>
+              <jmxPort>19010</jmxPort>
+            </configuration>
+          </execution>
+          <execution>
+            <id>openapi-stop</id>
+            <phase>post-integration-test</phase>
+            <goals>
+              <goal>stop</goal>
+            </goals>
+            <configuration>
+              <jmxPort>19010</jmxPort>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -102,6 +131,24 @@
                 <argument>scripts/backend_java_file_size_check.py</argument>
                 <argument>--root</argument>
                 <argument>backend-java/src/main/java</argument>
+              </arguments>
+            </configuration>
+          </execution>
+          <execution>
+            <id>export-openapi-artifact</id>
+            <phase>integration-test</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>python3</executable>
+              <workingDirectory>${project.basedir}/..</workingDirectory>
+              <arguments>
+                <argument>scripts/export_backend_java_openapi.py</argument>
+                <argument>--url</argument>
+                <argument>http://127.0.0.1:18010/api/v1/openapi.json</argument>
+                <argument>--output</argument>
+                <argument>${project.build.directory}/openapi/openapi.json</argument>
               </arguments>
             </configuration>
           </execution>

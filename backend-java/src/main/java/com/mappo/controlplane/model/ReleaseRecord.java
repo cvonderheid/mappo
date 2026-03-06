@@ -1,19 +1,19 @@
 package com.mappo.controlplane.model;
 
-import com.mappo.controlplane.jooq.enums.MappoDeploymentMode;
 import com.mappo.controlplane.jooq.enums.MappoDeploymentScope;
+import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
 public record ReleaseRecord(
     String id,
-    String templateSpecId,
-    String templateSpecVersion,
-    MappoDeploymentMode deploymentMode,
-    String templateSpecVersionId,
+    String sourceRef,
+    String sourceVersion,
+    MappoReleaseSourceType sourceType,
+    String sourceVersionRef,
     MappoDeploymentScope deploymentScope,
-    Map<String, Object> deploymentModeSettings,
+    ReleaseExecutionSettingsRecord executionSettings,
     Map<String, String> parameterDefaults,
     String releaseNotes,
     List<String> verificationHints,

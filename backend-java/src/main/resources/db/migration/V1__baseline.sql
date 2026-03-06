@@ -23,7 +23,7 @@ CREATE TYPE mappo_marketplace_event_type AS ENUM (
   'unknown'
 );
 CREATE TYPE mappo_forwarder_log_level AS ENUM ('info', 'warning', 'error');
-CREATE TYPE mappo_deployment_mode AS ENUM ('container_patch', 'template_spec');
+CREATE TYPE mappo_release_source_type AS ENUM ('template_spec', 'bicep', 'deployment_stack');
 CREATE TYPE mappo_deployment_scope AS ENUM ('resource_group', 'subscription');
 CREATE TYPE mappo_arm_deployment_mode AS ENUM ('incremental', 'complete');
 
@@ -68,10 +68,10 @@ CREATE INDEX idx_target_tags_key_value
 
 CREATE TABLE releases (
   id VARCHAR(128) PRIMARY KEY,
-  template_spec_id VARCHAR(2048) NOT NULL,
-  template_spec_version VARCHAR(128) NOT NULL,
-  deployment_mode mappo_deployment_mode NOT NULL DEFAULT 'container_patch',
-  template_spec_version_id VARCHAR(2048) NULL,
+  source_ref VARCHAR(2048) NOT NULL,
+  source_version VARCHAR(128) NOT NULL,
+  source_type mappo_release_source_type NOT NULL DEFAULT 'template_spec',
+  source_version_ref VARCHAR(2048) NULL,
   deployment_scope mappo_deployment_scope NOT NULL DEFAULT 'resource_group',
   arm_deployment_mode mappo_arm_deployment_mode NOT NULL DEFAULT 'incremental',
   what_if_on_canary BOOLEAN NOT NULL DEFAULT FALSE,
@@ -100,7 +100,7 @@ CREATE TABLE release_verification_hints (
 CREATE TABLE runs (
   id VARCHAR(128) PRIMARY KEY,
   release_id VARCHAR(128) NOT NULL,
-  execution_mode mappo_deployment_mode NOT NULL DEFAULT 'container_patch',
+  execution_source_type mappo_release_source_type NOT NULL DEFAULT 'template_spec',
   strategy_mode mappo_strategy_mode NOT NULL,
   wave_tag VARCHAR(64) NOT NULL,
   concurrency INTEGER NOT NULL,
