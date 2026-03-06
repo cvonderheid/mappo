@@ -4,6 +4,83 @@ Date: 2026-02-26
 Owner: Codex
 
 ## Scope (Current Slice)
+Java backend persistence normalization (`V1` baseline):
+- Replace JSON/blob persistence with normalized relational columns in Flyway baseline.
+- Keep one source of truth for registration-owned fields by moving customer/app metadata to `target_registrations`.
+- Refactor repositories to project API payloads from normalized columns instead of storing JSON envelopes.
+
+## Plan (Current Slice)
+- [x] Replace Flyway SQL set with a new normalized `V1__baseline.sql`.
+- [x] Remove obsolete follow-on migration now folded into baseline.
+- [x] Refactor Java repositories (`admin`, `targets`, `runs`, `releases`) against the normalized schema.
+- [x] Regenerate jOOQ and run compile/tests/full verify.
+- [x] Update task notes with verified outcomes.
+
+## Verification Commands (Current Slice)
+- [x] `./mvnw -pl backend-java -DskipTests compile`
+- [x] `./mvnw -pl backend-java test`
+- [x] `./mvnw verify`
+
+## Results Log (Current Slice)
+- 2026-03-06: Replaced `/Users/cvonderheid/workspace/mappo/backend-java/src/main/resources/db/migration/V1__baseline.sql` with a normalized `V1` schema covering releases, runs, marketplace events, forwarder logs, target registrations, and explicit stage error diagnostics.
+- 2026-03-06: Deleted `/Users/cvonderheid/workspace/mappo/backend-java/src/main/resources/db/migration/V2__release_execution_modes.sql` because its schema is now part of the new baseline.
+- 2026-03-06: Refactored `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/repository/TargetRepository.java` to join `target_registrations` for registration-owned fields instead of duplicating `customer_name` / app identifiers in `targets`.
+- 2026-03-06: Rewrote `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/repository/AdminRepository.java` to persist explicit marketplace/forwarder/registration columns and reconstruct compatibility payloads from normalized data.
+- 2026-03-06: Updated `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/repository/RunRepository.java` to replace JSON stage-error storage with explicit Azure diagnostic columns while preserving the operator-facing error detail payload.
+- 2026-03-06: Fixed a null-safety regression in `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/service/AdminService.java` uncovered by integration tests.
+- 2026-03-06: Added error logging in `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/api/ApiExceptionHandler.java` so test/runtime 500s surface their root cause instead of failing silently.
+- 2026-03-06: Verified full reactor `./mvnw verify` passes after jOOQ regeneration and integration-test coverage against Postgres Testcontainers.
+
+## Scope (Current Slice)
+Java backend type hardening (enum + UUID):
+- Remove stringly-typed marketplace event routing from onboarding/forwarder flow.
+- Convert tenant/subscription identifiers to `UUID` across commands/models/repositories.
+- Keep API payload compatibility while tightening internal typing.
+
+## Plan (Current Slice)
+- [x] Add `MarketplaceEventType` enum with stable JSON literal mapping.
+- [x] Replace string event-type fields in onboarding/forwarder request-command-model paths.
+- [x] Replace `tenantId`/`subscriptionId` string fields with `UUID` in core records and repository boundaries.
+- [x] Run compile/tests/full verify and capture results.
+
+## Verification Commands (Current Slice)
+- [x] `./mvnw -pl backend-java -DskipTests compile`
+- [x] `./mvnw -pl backend-java test`
+- [x] `./mvnw verify`
+
+## Results Log (Current Slice)
+- 2026-03-05: Added `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/model/MarketplaceEventType.java` and routed onboarding event semantics through this enum (`subscription_purchased`, `subscription_suspended`, `subscription_deleted`).
+- 2026-03-05: Refactored onboarding/forwarder request and command contracts to use typed event enums and UUID tenant/subscription identifiers.
+- 2026-03-05: Refactored `TargetRecord`, `TargetRegistrationRecord`, `RunTargetRecord`, `MarketplaceEventRecord`, and `ForwarderLogRecord` to use UUID tenant/subscription fields instead of strings.
+- 2026-03-05: Updated repositories/services (`AdminRepository`, `TargetRepository`, `RunRepository`, `AdminService`) to persist/load typed UUIDs and enum event literals.
+- 2026-03-05: Verified compile/tests/full reactor verify are green after type hardening.
+
+## Scope (Current Slice)
+Java backend contract hardening:
+- Replace `Map<String, Object>` request contracts with typed DTOs on primary mutation routes.
+- Use domain command records between service and repository layers to keep API/repository decoupled.
+- Extend enum usage into request/command paths so lifecycle/mode/status fields remain typed.
+- Enforce backend Java file-size guardrails (750 lines) in Maven lifecycle.
+
+## Plan (Current Slice)
+- [x] Add typed request DTOs for `releases`, `runs`, and `admin` mutation endpoints.
+- [x] Add domain command records and map DTOs to command objects.
+- [x] Refactor services/repositories to consume typed commands instead of map-shaped request payloads.
+- [x] Add backend Java file-size check script and wire it into Maven `validate`.
+- [x] Run backend compile/tests and verify no regressions.
+
+## Verification Commands (Current Slice)
+- [x] `./mvnw -pl backend-java -DskipTests compile`
+- [x] `./mvnw -pl backend-java test`
+
+## Results Log (Current Slice)
+- 2026-03-05: Added typed API request records under `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/api/request` (`ReleaseCreateRequest`, `RunCreateRequest`, `RunStopPolicyRequest`, `OnboardingEventRequest`, `ForwarderLogIngestRequest`, `TargetRegistrationPatchRequest`).
+- 2026-03-05: Added service/repository command records under `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/model/command`.
+- 2026-03-05: Refactored controllers/services/repositories so primary mutation paths no longer accept map-shaped request bodies.
+- 2026-03-05: Added Java file-size guardrail script `/Users/cvonderheid/workspace/mappo/scripts/backend_java_file_size_check.py` and wired it into `/Users/cvonderheid/workspace/mappo/backend-java/pom.xml` Maven `validate` phase.
+- 2026-03-05: Verified backend compile + tests are green with typed contracts and file-size enforcement enabled.
+
+## Scope (Current Slice)
 Maven dependency and plugin centralization:
 - Add a dedicated BOM module at `dependencies/pom.xml` for shared dependency version management.
 - Move plugin version management to root `pom.xml` `pluginManagement`.

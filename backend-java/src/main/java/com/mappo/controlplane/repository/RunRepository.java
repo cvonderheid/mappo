@@ -13,17 +13,26 @@ import com.mappo.controlplane.jooq.enums.MappoForwarderLogLevel;
 import com.mappo.controlplane.jooq.enums.MappoRunStatus;
 import com.mappo.controlplane.jooq.enums.MappoStrategyMode;
 import com.mappo.controlplane.jooq.enums.MappoTargetStage;
-import com.mappo.controlplane.util.JsonUtil;
+import com.mappo.controlplane.model.command.CreateRunCommand;
+import com.mappo.controlplane.model.command.RunStopPolicyCommand;
+import com.mappo.controlplane.model.RunDetailRecord;
+import com.mappo.controlplane.model.RunStopPolicyRecord;
+import com.mappo.controlplane.model.RunSummaryRecord;
+import com.mappo.controlplane.model.RunTargetRecord;
+import com.mappo.controlplane.model.StageErrorRecord;
+import com.mappo.controlplane.model.TargetLogEventRecord;
+import com.mappo.controlplane.model.TargetRecord;
+import com.mappo.controlplane.model.TargetStageRecord;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
-import org.jooq.JSONB;
 import org.jooq.Record;
 import org.jooq.impl.DSL;
 import org.springframework.stereotype.Repository;
@@ -33,9 +42,8 @@ import org.springframework.stereotype.Repository;
 public class RunRepository {
 
     private final DSLContext dsl;
-    private final JsonUtil jsonUtil;
 
-    public List<Map<String, Object>> listRunSummaries() {
+    public List<RunSummaryRecord> listRunSummaries() {
         var rows = dsl.select(
                 RUNS.ID,
                 RUNS.RELEASE_ID,
@@ -53,43 +61,43 @@ public class RunRepository {
             .fetch();
 
         List<String> runIds = rows.stream().map(row -> row.get(RUNS.ID)).toList();
-        Map<String, Map<String, Integer>> counts = loadRunCounts(runIds);
+        Map<String, Map<MappoTargetStage, Integer>> counts = loadRunCounts(runIds);
         Map<String, List<String>> warnings = loadGuardrails(runIds);
 
-        List<Map<String, Object>> summaries = new ArrayList<>(rows.size());
+        List<RunSummaryRecord> summaries = new ArrayList<>(rows.size());
         for (Record row : rows) {
             String runId = row.get(RUNS.ID);
-            Map<String, Integer> perStatus = counts.getOrDefault(runId, Map.of());
-            int succeeded = perStatus.getOrDefault("SUCCEEDED", 0);
-            int failed = perStatus.getOrDefault("FAILED", 0);
-            int queued = perStatus.getOrDefault("QUEUED", 0);
-            int inProgress = perStatus.getOrDefault("VALIDATING", 0)
-                + perStatus.getOrDefault("DEPLOYING", 0)
-                + perStatus.getOrDefault("VERIFYING", 0);
+            Map<MappoTargetStage, Integer> perStatus = counts.getOrDefault(runId, Map.of());
+            int succeeded = perStatus.getOrDefault(MappoTargetStage.SUCCEEDED, 0);
+            int failed = perStatus.getOrDefault(MappoTargetStage.FAILED, 0);
+            int queued = perStatus.getOrDefault(MappoTargetStage.QUEUED, 0);
+            int inProgress = perStatus.getOrDefault(MappoTargetStage.VALIDATING, 0)
+                + perStatus.getOrDefault(MappoTargetStage.DEPLOYING, 0)
+                + perStatus.getOrDefault(MappoTargetStage.VERIFYING, 0);
 
-            Map<String, Object> summary = new LinkedHashMap<>();
-            summary.put("id", runId);
-            summary.put("release_id", row.get(RUNS.RELEASE_ID));
-            summary.put("execution_mode", literal(row.get(RUNS.EXECUTION_MODE)));
-            summary.put("status", literal(row.get(RUNS.STATUS)));
-            summary.put("strategy_mode", literal(row.get(RUNS.STRATEGY_MODE)));
-            summary.put("created_at", row.get(RUNS.CREATED_AT));
-            summary.put("started_at", row.get(RUNS.STARTED_AT));
-            summary.put("ended_at", row.get(RUNS.ENDED_AT));
-            summary.put("subscription_concurrency", row.get(RUNS.SUBSCRIPTION_CONCURRENCY));
-            summary.put("total_targets", succeeded + failed + queued + inProgress);
-            summary.put("succeeded_targets", succeeded);
-            summary.put("failed_targets", failed);
-            summary.put("in_progress_targets", inProgress);
-            summary.put("queued_targets", queued);
-            summary.put("halt_reason", row.get(RUNS.HALT_REASON));
-            summary.put("guardrail_warnings", warnings.getOrDefault(runId, List.of()));
-            summaries.add(summary);
+            summaries.add(new RunSummaryRecord(
+                runId,
+                row.get(RUNS.RELEASE_ID),
+                row.get(RUNS.EXECUTION_MODE),
+                row.get(RUNS.STATUS),
+                row.get(RUNS.STRATEGY_MODE),
+                row.get(RUNS.CREATED_AT),
+                row.get(RUNS.STARTED_AT),
+                row.get(RUNS.ENDED_AT),
+                row.get(RUNS.SUBSCRIPTION_CONCURRENCY),
+                succeeded + failed + queued + inProgress,
+                succeeded,
+                failed,
+                inProgress,
+                queued,
+                row.get(RUNS.HALT_REASON),
+                warnings.getOrDefault(runId, List.of())
+            ));
         }
         return summaries;
     }
 
-    public Map<String, Object> getRunDetail(String runId) {
+    public Optional<RunDetailRecord> getRunDetail(String runId) {
         Record row = dsl.select(
                 RUNS.ID,
                 RUNS.RELEASE_ID,
@@ -112,67 +120,57 @@ public class RunRepository {
             .fetchOne();
 
         if (row == null) {
-            return Map.of();
+            return Optional.empty();
         }
 
-        Map<String, Object> detail = new LinkedHashMap<>();
-        detail.put("id", runId);
-        detail.put("release_id", row.get(RUNS.RELEASE_ID));
-        detail.put("execution_mode", literal(row.get(RUNS.EXECUTION_MODE)));
-        detail.put("status", literal(row.get(RUNS.STATUS)));
-        detail.put("strategy_mode", literal(row.get(RUNS.STRATEGY_MODE)));
-        detail.put("wave_tag", row.get(RUNS.WAVE_TAG));
-        detail.put("wave_order", loadWaveOrder(runId));
-        detail.put("concurrency", row.get(RUNS.CONCURRENCY));
-        detail.put("subscription_concurrency", row.get(RUNS.SUBSCRIPTION_CONCURRENCY));
+        RunStopPolicyRecord stopPolicy = new RunStopPolicyRecord(
+            row.get(RUNS.STOP_POLICY_MAX_FAILURE_COUNT),
+            row.get(RUNS.STOP_POLICY_MAX_FAILURE_RATE)
+        );
 
-        Map<String, Object> stopPolicy = new LinkedHashMap<>();
-        stopPolicy.put("max_failure_count", row.get(RUNS.STOP_POLICY_MAX_FAILURE_COUNT));
-        stopPolicy.put("max_failure_rate", row.get(RUNS.STOP_POLICY_MAX_FAILURE_RATE));
-        detail.put("stop_policy", stopPolicy);
+        RunDetailRecord detail = new RunDetailRecord(
+            runId,
+            row.get(RUNS.RELEASE_ID),
+            row.get(RUNS.EXECUTION_MODE),
+            row.get(RUNS.STATUS),
+            row.get(RUNS.STRATEGY_MODE),
+            row.get(RUNS.WAVE_TAG),
+            loadWaveOrder(runId),
+            row.get(RUNS.CONCURRENCY),
+            row.get(RUNS.SUBSCRIPTION_CONCURRENCY),
+            stopPolicy,
+            row.get(RUNS.CREATED_AT),
+            row.get(RUNS.STARTED_AT),
+            row.get(RUNS.ENDED_AT),
+            row.get(RUNS.UPDATED_AT),
+            row.get(RUNS.HALT_REASON),
+            loadGuardrails(List.of(runId)).getOrDefault(runId, List.of()),
+            loadTargetRecords(runId)
+        );
 
-        detail.put("created_at", row.get(RUNS.CREATED_AT));
-        detail.put("started_at", row.get(RUNS.STARTED_AT));
-        detail.put("ended_at", row.get(RUNS.ENDED_AT));
-        detail.put("updated_at", row.get(RUNS.UPDATED_AT));
-        detail.put("halt_reason", row.get(RUNS.HALT_REASON));
-        detail.put("guardrail_warnings", loadGuardrails(List.of(runId)).getOrDefault(runId, List.of()));
-        detail.put("target_records", loadTargetRecords(runId));
-        return detail;
+        return Optional.of(detail);
     }
 
-    @SuppressWarnings("unchecked")
     public void createRun(
         String runId,
-        Map<String, Object> request,
-        List<Map<String, Object>> targets,
-        String executionMode,
+        CreateRunCommand request,
+        List<TargetRecord> targets,
+        MappoDeploymentMode executionMode,
         boolean immediateSuccess
     ) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        Map<String, Object> stopPolicy = request.get("stop_policy") instanceof Map<?, ?> raw
-            ? (Map<String, Object>) raw
-            : Map.of();
+        RunStopPolicyCommand stopPolicy = request.stopPolicy();
 
         dsl.insertInto(RUNS)
             .set(RUNS.ID, runId)
-            .set(RUNS.RELEASE_ID, normalize(request.get("release_id")))
-            .set(
-                RUNS.EXECUTION_MODE,
-                enumOrDefault(MappoDeploymentMode.lookupLiteral(normalize(executionMode)), MappoDeploymentMode.container_patch)
-            )
-            .set(
-                RUNS.STRATEGY_MODE,
-                enumOrDefault(
-                    MappoStrategyMode.lookupLiteral(normalize(request.getOrDefault("strategy_mode", "all_at_once"))),
-                    MappoStrategyMode.all_at_once
-                )
-            )
-            .set(RUNS.WAVE_TAG, defaultIfBlank(normalize(request.get("wave_tag")), "ring"))
-            .set(RUNS.CONCURRENCY, toInt(request.get("concurrency"), 3))
+            .set(RUNS.RELEASE_ID, normalize(request.releaseId()))
+            .set(RUNS.EXECUTION_MODE, enumOrDefault(executionMode, MappoDeploymentMode.container_patch))
+            .set(RUNS.STRATEGY_MODE, enumOrDefault(request.strategyMode(), MappoStrategyMode.all_at_once))
+            .set(RUNS.WAVE_TAG, defaultIfBlank(normalize(request.waveTag()), "ring"))
+            .set(RUNS.CONCURRENCY, toInt(request.concurrency(), 3))
             .set(RUNS.SUBSCRIPTION_CONCURRENCY, 1)
-            .set(RUNS.STOP_POLICY_MAX_FAILURE_COUNT, toNullableInt(stopPolicy.get("max_failure_count")))
-            .set(RUNS.STOP_POLICY_MAX_FAILURE_RATE, toNullableDouble(stopPolicy.get("max_failure_rate")))
+            .set(RUNS.STOP_POLICY_MAX_FAILURE_COUNT, stopPolicy == null ? null : stopPolicy.maxFailureCount())
+            .set(RUNS.STOP_POLICY_MAX_FAILURE_RATE, stopPolicy == null ? null : stopPolicy.maxFailureRate())
             .set(RUNS.STATUS, immediateSuccess ? MappoRunStatus.succeeded : MappoRunStatus.running)
             .set(RUNS.HALT_REASON, (String) null)
             .set(RUNS.CREATED_AT, now)
@@ -181,16 +179,7 @@ public class RunRepository {
             .set(RUNS.UPDATED_AT, now)
             .execute();
 
-        List<String> waveOrder = new ArrayList<>();
-        Object waveOrderObj = request.get("wave_order");
-        if (waveOrderObj instanceof List<?> rawList) {
-            for (Object item : rawList) {
-                String value = normalize(item);
-                if (!value.isBlank()) {
-                    waveOrder.add(value);
-                }
-            }
-        }
+        List<String> waveOrder = new ArrayList<>(request.waveOrder());
         if (waveOrder.isEmpty()) {
             waveOrder.add("canary");
             waveOrder.add("prod");
@@ -205,8 +194,8 @@ public class RunRepository {
         }
 
         for (int i = 0; i < targets.size(); i++) {
-            Map<String, Object> target = targets.get(i);
-            String targetId = normalize(target.get("id"));
+            TargetRecord target = targets.get(i);
+            String targetId = target.id();
 
             dsl.insertInto(RUN_TARGETS)
                 .set(RUN_TARGETS.RUN_ID, runId)
@@ -221,11 +210,11 @@ public class RunRepository {
                 .set(TARGET_EXECUTION_RECORDS.TARGET_ID, targetId)
                 .set(
                     TARGET_EXECUTION_RECORDS.SUBSCRIPTION_ID,
-                    requiredUuid(target.get("subscription_id"), "subscription_id")
+                    requiredUuid(target.subscriptionId(), "subscription_id")
                 )
                 .set(
                     TARGET_EXECUTION_RECORDS.TENANT_ID,
-                    requiredUuid(target.get("tenant_id"), "tenant_id")
+                    requiredUuid(target.tenantId(), "tenant_id")
                 )
                 .set(TARGET_EXECUTION_RECORDS.STATUS, stage)
                 .set(TARGET_EXECUTION_RECORDS.ATTEMPT, 1)
@@ -242,7 +231,17 @@ public class RunRepository {
                 .set(TARGET_STAGE_RECORDS.MESSAGE, immediateSuccess ? "Succeeded." : "Queued.")
                 .set(TARGET_STAGE_RECORDS.ERROR_CODE, (String) null)
                 .set(TARGET_STAGE_RECORDS.ERROR_MESSAGE, (String) null)
-                .set(TARGET_STAGE_RECORDS.ERROR_DETAILS, (JSONB) null)
+                .set(TARGET_STAGE_RECORDS.ERROR_STATUS_CODE, (Integer) null)
+                .set(TARGET_STAGE_RECORDS.ERROR_DETAIL_TEXT, (String) null)
+                .set(TARGET_STAGE_RECORDS.ERROR_DESIRED_IMAGE, (String) null)
+                .set(TARGET_STAGE_RECORDS.AZURE_ERROR_CODE, (String) null)
+                .set(TARGET_STAGE_RECORDS.AZURE_ERROR_MESSAGE, (String) null)
+                .set(TARGET_STAGE_RECORDS.AZURE_REQUEST_ID, (String) null)
+                .set(TARGET_STAGE_RECORDS.AZURE_ARM_SERVICE_REQUEST_ID, (String) null)
+                .set(TARGET_STAGE_RECORDS.AZURE_CORRELATION_ID, (String) null)
+                .set(TARGET_STAGE_RECORDS.AZURE_DEPLOYMENT_NAME, (String) null)
+                .set(TARGET_STAGE_RECORDS.AZURE_OPERATION_ID, (String) null)
+                .set(TARGET_STAGE_RECORDS.AZURE_RESOURCE_ID, (String) null)
                 .set(TARGET_STAGE_RECORDS.CORRELATION_ID, "corr-" + runId)
                 .set(TARGET_STAGE_RECORDS.PORTAL_LINK, "")
                 .execute();
@@ -260,10 +259,10 @@ public class RunRepository {
         }
     }
 
-    public void markRunComplete(String runId, String status, String haltReason) {
+    public void markRunComplete(String runId, MappoRunStatus status, String haltReason) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         dsl.update(RUNS)
-            .set(RUNS.STATUS, enumOrDefault(MappoRunStatus.lookupLiteral(normalize(status)), MappoRunStatus.succeeded))
+            .set(RUNS.STATUS, enumOrDefault(status, MappoRunStatus.succeeded))
             .set(RUNS.HALT_REASON, haltReason)
             .set(RUNS.ENDED_AT, now)
             .set(RUNS.UPDATED_AT, now)
@@ -312,7 +311,7 @@ public class RunRepository {
         return map;
     }
 
-    private Map<String, Map<String, Integer>> loadRunCounts(List<String> runIds) {
+    private Map<String, Map<MappoTargetStage, Integer>> loadRunCounts(List<String> runIds) {
         if (runIds == null || runIds.isEmpty()) {
             return Map.of();
         }
@@ -324,10 +323,10 @@ public class RunRepository {
             .groupBy(TARGET_EXECUTION_RECORDS.RUN_ID, TARGET_EXECUTION_RECORDS.STATUS)
             .fetch();
 
-        Map<String, Map<String, Integer>> counts = new LinkedHashMap<>();
+        Map<String, Map<MappoTargetStage, Integer>> counts = new LinkedHashMap<>();
         for (Record row : rows) {
             String runId = row.get(TARGET_EXECUTION_RECORDS.RUN_ID);
-            String status = literal(row.get(TARGET_EXECUTION_RECORDS.STATUS));
+            MappoTargetStage status = row.get(TARGET_EXECUTION_RECORDS.STATUS);
             int count = row.get(countField).intValue();
             counts.computeIfAbsent(runId, ignored -> new LinkedHashMap<>())
                 .put(status, count);
@@ -335,7 +334,7 @@ public class RunRepository {
         return counts;
     }
 
-    private List<Map<String, Object>> loadTargetRecords(String runId) {
+    private List<RunTargetRecord> loadTargetRecords(String runId) {
         var rows = dsl.select(
                 TARGET_EXECUTION_RECORDS.TARGET_ID,
                 TARGET_EXECUTION_RECORDS.SUBSCRIPTION_ID,
@@ -349,27 +348,27 @@ public class RunRepository {
             .orderBy(TARGET_EXECUTION_RECORDS.TARGET_ID.asc())
             .fetch();
 
-        Map<String, List<Map<String, Object>>> stages = loadStages(runId);
-        Map<String, List<Map<String, Object>>> logs = loadLogs(runId);
+        Map<String, List<TargetStageRecord>> stages = loadStages(runId);
+        Map<String, List<TargetLogEventRecord>> logs = loadLogs(runId);
 
-        List<Map<String, Object>> targetRecords = new ArrayList<>(rows.size());
+        List<RunTargetRecord> targetRecords = new ArrayList<>(rows.size());
         for (Record row : rows) {
             String targetId = row.get(TARGET_EXECUTION_RECORDS.TARGET_ID);
-            Map<String, Object> target = new LinkedHashMap<>();
-            target.put("target_id", targetId);
-            target.put("subscription_id", uuidText(row.get(TARGET_EXECUTION_RECORDS.SUBSCRIPTION_ID)));
-            target.put("tenant_id", uuidText(row.get(TARGET_EXECUTION_RECORDS.TENANT_ID)));
-            target.put("status", literal(row.get(TARGET_EXECUTION_RECORDS.STATUS)));
-            target.put("attempt", row.get(TARGET_EXECUTION_RECORDS.ATTEMPT));
-            target.put("updated_at", row.get(TARGET_EXECUTION_RECORDS.UPDATED_AT));
-            target.put("stages", stages.getOrDefault(targetId, List.of()));
-            target.put("logs", logs.getOrDefault(targetId, List.of()));
-            targetRecords.add(target);
+            targetRecords.add(new RunTargetRecord(
+                targetId,
+                row.get(TARGET_EXECUTION_RECORDS.SUBSCRIPTION_ID),
+                row.get(TARGET_EXECUTION_RECORDS.TENANT_ID),
+                row.get(TARGET_EXECUTION_RECORDS.STATUS),
+                row.get(TARGET_EXECUTION_RECORDS.ATTEMPT),
+                row.get(TARGET_EXECUTION_RECORDS.UPDATED_AT),
+                stages.getOrDefault(targetId, List.of()),
+                logs.getOrDefault(targetId, List.of())
+            ));
         }
         return targetRecords;
     }
 
-    private Map<String, List<Map<String, Object>>> loadStages(String runId) {
+    private Map<String, List<TargetStageRecord>> loadStages(String runId) {
         var rows = dsl.select(
                 TARGET_STAGE_RECORDS.TARGET_ID,
                 TARGET_STAGE_RECORDS.STAGE,
@@ -378,7 +377,17 @@ public class RunRepository {
                 TARGET_STAGE_RECORDS.MESSAGE,
                 TARGET_STAGE_RECORDS.ERROR_CODE,
                 TARGET_STAGE_RECORDS.ERROR_MESSAGE,
-                TARGET_STAGE_RECORDS.ERROR_DETAILS,
+                TARGET_STAGE_RECORDS.ERROR_STATUS_CODE,
+                TARGET_STAGE_RECORDS.ERROR_DETAIL_TEXT,
+                TARGET_STAGE_RECORDS.ERROR_DESIRED_IMAGE,
+                TARGET_STAGE_RECORDS.AZURE_ERROR_CODE,
+                TARGET_STAGE_RECORDS.AZURE_ERROR_MESSAGE,
+                TARGET_STAGE_RECORDS.AZURE_REQUEST_ID,
+                TARGET_STAGE_RECORDS.AZURE_ARM_SERVICE_REQUEST_ID,
+                TARGET_STAGE_RECORDS.AZURE_CORRELATION_ID,
+                TARGET_STAGE_RECORDS.AZURE_DEPLOYMENT_NAME,
+                TARGET_STAGE_RECORDS.AZURE_OPERATION_ID,
+                TARGET_STAGE_RECORDS.AZURE_RESOURCE_ID,
                 TARGET_STAGE_RECORDS.CORRELATION_ID,
                 TARGET_STAGE_RECORDS.PORTAL_LINK
             )
@@ -387,35 +396,36 @@ public class RunRepository {
             .orderBy(TARGET_STAGE_RECORDS.TARGET_ID.asc(), TARGET_STAGE_RECORDS.POSITION.asc())
             .fetch();
 
-        Map<String, List<Map<String, Object>>> stages = new LinkedHashMap<>();
+        Map<String, List<TargetStageRecord>> stages = new LinkedHashMap<>();
         for (Record row : rows) {
             String targetId = row.get(TARGET_STAGE_RECORDS.TARGET_ID);
-            Map<String, Object> stage = new LinkedHashMap<>();
-            stage.put("stage", literal(row.get(TARGET_STAGE_RECORDS.STAGE)));
-            stage.put("started_at", row.get(TARGET_STAGE_RECORDS.STARTED_AT));
-            stage.put("ended_at", row.get(TARGET_STAGE_RECORDS.ENDED_AT));
-            stage.put("message", row.get(TARGET_STAGE_RECORDS.MESSAGE));
 
+            StageErrorRecord error = null;
             String errorCode = row.get(TARGET_STAGE_RECORDS.ERROR_CODE);
             String errorMessage = row.get(TARGET_STAGE_RECORDS.ERROR_MESSAGE);
             if (errorCode != null && errorMessage != null) {
-                stage.put("error", Map.of(
-                    "code", errorCode,
-                    "message", errorMessage,
-                    "details", parseJsonMap(row.get(TARGET_STAGE_RECORDS.ERROR_DETAILS))
-                ));
-            } else {
-                stage.put("error", null);
+                error = new StageErrorRecord(
+                    errorCode,
+                    errorMessage,
+                    stageErrorDetails(row)
+                );
             }
 
-            stage.put("correlation_id", row.get(TARGET_STAGE_RECORDS.CORRELATION_ID));
-            stage.put("portal_link", row.get(TARGET_STAGE_RECORDS.PORTAL_LINK));
+            TargetStageRecord stage = new TargetStageRecord(
+                row.get(TARGET_STAGE_RECORDS.STAGE),
+                row.get(TARGET_STAGE_RECORDS.STARTED_AT),
+                row.get(TARGET_STAGE_RECORDS.ENDED_AT),
+                row.get(TARGET_STAGE_RECORDS.MESSAGE),
+                error,
+                row.get(TARGET_STAGE_RECORDS.CORRELATION_ID),
+                row.get(TARGET_STAGE_RECORDS.PORTAL_LINK)
+            );
             stages.computeIfAbsent(targetId, ignored -> new ArrayList<>()).add(stage);
         }
         return stages;
     }
 
-    private Map<String, List<Map<String, Object>>> loadLogs(String runId) {
+    private Map<String, List<TargetLogEventRecord>> loadLogs(String runId) {
         var rows = dsl.select(
                 TARGET_LOG_EVENTS.TARGET_ID,
                 TARGET_LOG_EVENTS.EVENT_TIMESTAMP,
@@ -429,41 +439,56 @@ public class RunRepository {
             .orderBy(TARGET_LOG_EVENTS.TARGET_ID.asc(), TARGET_LOG_EVENTS.POSITION.asc())
             .fetch();
 
-        Map<String, List<Map<String, Object>>> logs = new LinkedHashMap<>();
+        Map<String, List<TargetLogEventRecord>> logs = new LinkedHashMap<>();
         for (Record row : rows) {
             String targetId = row.get(TARGET_LOG_EVENTS.TARGET_ID);
-            Map<String, Object> log = new LinkedHashMap<>();
-            log.put("timestamp", row.get(TARGET_LOG_EVENTS.EVENT_TIMESTAMP));
-            log.put("level", literal(row.get(TARGET_LOG_EVENTS.LEVEL)));
-            log.put("stage", literal(row.get(TARGET_LOG_EVENTS.STAGE)));
-            log.put("message", row.get(TARGET_LOG_EVENTS.MESSAGE));
-            log.put("correlation_id", row.get(TARGET_LOG_EVENTS.CORRELATION_ID));
+            TargetLogEventRecord log = new TargetLogEventRecord(
+                row.get(TARGET_LOG_EVENTS.EVENT_TIMESTAMP),
+                row.get(TARGET_LOG_EVENTS.LEVEL),
+                row.get(TARGET_LOG_EVENTS.STAGE),
+                row.get(TARGET_LOG_EVENTS.MESSAGE),
+                row.get(TARGET_LOG_EVENTS.CORRELATION_ID)
+            );
             logs.computeIfAbsent(targetId, ignored -> new ArrayList<>()).add(log);
         }
         return logs;
     }
 
-    private Map<String, Object> parseJsonMap(JSONB json) {
-        if (json == null) {
-            return Map.of();
+    private Map<String, Object> stageErrorDetails(Record row) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        put(details, "status_code", row.get(TARGET_STAGE_RECORDS.ERROR_STATUS_CODE));
+        put(details, "error", row.get(TARGET_STAGE_RECORDS.ERROR_DETAIL_TEXT));
+        put(details, "desired_image", row.get(TARGET_STAGE_RECORDS.ERROR_DESIRED_IMAGE));
+        put(details, "azure_error_code", row.get(TARGET_STAGE_RECORDS.AZURE_ERROR_CODE));
+        put(details, "azure_error_message", row.get(TARGET_STAGE_RECORDS.AZURE_ERROR_MESSAGE));
+        put(details, "azure_request_id", row.get(TARGET_STAGE_RECORDS.AZURE_REQUEST_ID));
+        put(
+            details,
+            "azure_arm_service_request_id",
+            row.get(TARGET_STAGE_RECORDS.AZURE_ARM_SERVICE_REQUEST_ID)
+        );
+        put(details, "azure_correlation_id", row.get(TARGET_STAGE_RECORDS.AZURE_CORRELATION_ID));
+        put(details, "azure_deployment_name", row.get(TARGET_STAGE_RECORDS.AZURE_DEPLOYMENT_NAME));
+        put(details, "azure_operation_id", row.get(TARGET_STAGE_RECORDS.AZURE_OPERATION_ID));
+        put(details, "azure_resource_id", row.get(TARGET_STAGE_RECORDS.AZURE_RESOURCE_ID));
+        return details;
+    }
+
+    private void put(Map<String, Object> target, String key, Object value) {
+        if (value == null) {
+            return;
         }
-        return jsonUtil.readMap(json.data());
+        if (value instanceof String text && text.isBlank()) {
+            return;
+        }
+        target.put(key, value);
     }
 
-    private String literal(org.jooq.EnumType value) {
-        return value == null ? null : value.getLiteral();
-    }
-
-    private String uuidText(UUID value) {
-        return value == null ? null : value.toString();
-    }
-
-    private UUID requiredUuid(Object value, String field) {
-        String text = normalize(value);
-        if (text.isBlank()) {
+    private UUID requiredUuid(UUID value, String field) {
+        if (value == null) {
             throw new IllegalArgumentException(field + " is required");
         }
-        return UUID.fromString(text);
+        return value;
     }
 
     private int toInt(Object value, int fallback) {
@@ -475,34 +500,6 @@ public class RunRepository {
             return fallback;
         }
         return Integer.parseInt(text);
-    }
-
-    private Integer toNullableInt(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        String text = normalize(value);
-        if (text.isBlank()) {
-            return null;
-        }
-        return Integer.parseInt(text);
-    }
-
-    private Double toNullableDouble(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Number number) {
-            return number.doubleValue();
-        }
-        String text = normalize(value);
-        if (text.isBlank()) {
-            return null;
-        }
-        return Double.parseDouble(text);
     }
 
     private String normalize(Object value) {

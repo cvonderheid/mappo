@@ -1,9 +1,18 @@
 package com.mappo.controlplane.api;
 
+import com.mappo.controlplane.api.request.ForwarderLogIngestRequest;
+import com.mappo.controlplane.api.request.OnboardingEventRequest;
+import com.mappo.controlplane.api.request.TargetRegistrationPatchRequest;
 import com.mappo.controlplane.config.MappoProperties;
+import com.mappo.controlplane.model.DeleteRegistrationResultRecord;
+import com.mappo.controlplane.model.EventIngestResultRecord;
+import com.mappo.controlplane.model.ForwarderLogIngestResultRecord;
+import com.mappo.controlplane.model.ForwarderLogRecord;
+import com.mappo.controlplane.model.OnboardingSnapshotRecord;
+import com.mappo.controlplane.model.TargetRegistrationRecord;
 import com.mappo.controlplane.service.AdminService;
+import jakarta.validation.Valid;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -26,15 +35,15 @@ public class AdminController {
     private final MappoProperties properties;
 
     @GetMapping("/onboarding")
-    public Map<String, Object> onboardingSnapshot(
+    public OnboardingSnapshotRecord onboardingSnapshot(
         @RequestParam(value = "event_limit", defaultValue = "50") int eventLimit
     ) {
         return adminService.getOnboardingSnapshot(eventLimit);
     }
 
     @PostMapping("/onboarding/events")
-    public Map<String, Object> ingestMarketplaceEvent(
-        @RequestBody Map<String, Object> request,
+    public EventIngestResultRecord ingestMarketplaceEvent(
+        @Valid @RequestBody OnboardingEventRequest request,
         @RequestHeader(value = "x-mappo-ingest-token", required = false) String ingestToken
     ) {
         validateIngestToken(ingestToken);
@@ -42,15 +51,15 @@ public class AdminController {
     }
 
     @GetMapping("/onboarding/forwarder-logs")
-    public List<Map<String, Object>> listForwarderLogs(
+    public List<ForwarderLogRecord> listForwarderLogs(
         @RequestParam(value = "limit", defaultValue = "50") int limit
     ) {
         return adminService.listForwarderLogs(limit);
     }
 
     @PostMapping("/onboarding/forwarder-logs")
-    public Map<String, Object> ingestForwarderLog(
-        @RequestBody Map<String, Object> request,
+    public ForwarderLogIngestResultRecord ingestForwarderLog(
+        @Valid @RequestBody ForwarderLogIngestRequest request,
         @RequestHeader(value = "x-mappo-ingest-token", required = false) String ingestToken
     ) {
         validateIngestToken(ingestToken);
@@ -58,17 +67,17 @@ public class AdminController {
     }
 
     @PatchMapping("/onboarding/registrations/{targetId}")
-    public Map<String, Object> updateRegistration(
+    public TargetRegistrationRecord updateRegistration(
         @PathVariable("targetId") String targetId,
-        @RequestBody Map<String, Object> patch
+        @RequestBody TargetRegistrationPatchRequest patch
     ) {
         return adminService.updateTargetRegistration(targetId, patch);
     }
 
     @DeleteMapping("/onboarding/registrations/{targetId}")
-    public Map<String, Object> deleteRegistration(@PathVariable("targetId") String targetId) {
+    public DeleteRegistrationResultRecord deleteRegistration(@PathVariable("targetId") String targetId) {
         adminService.deleteTargetRegistration(targetId);
-        return Map.of("target_id", targetId, "deleted", true);
+        return new DeleteRegistrationResultRecord(targetId, true);
     }
 
     private void validateIngestToken(String ingestToken) {

@@ -9,17 +9,23 @@ import static com.mappo.controlplane.jooq.Tables.TARGET_TAGS;
 import com.mappo.controlplane.jooq.enums.MappoForwarderLogLevel;
 import com.mappo.controlplane.jooq.enums.MappoHealthStatus;
 import com.mappo.controlplane.jooq.enums.MappoMarketplaceEventStatus;
-import com.mappo.controlplane.util.JsonUtil;
+import com.mappo.controlplane.model.ForwarderLogRecord;
+import com.mappo.controlplane.model.MarketplaceEventRecord;
+import com.mappo.controlplane.model.MarketplaceEventType;
+import com.mappo.controlplane.model.TargetRegistrationRecord;
+import com.mappo.controlplane.model.command.ForwarderLogIngestCommand;
+import com.mappo.controlplane.model.command.TargetRegistrationPatchCommand;
+import com.mappo.controlplane.model.command.TargetRegistrationUpsertCommand;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
-import org.jooq.JSONB;
 import org.jooq.Record;
 import org.springframework.stereotype.Repository;
 
@@ -28,9 +34,8 @@ import org.springframework.stereotype.Repository;
 public class AdminRepository {
 
     private final DSLContext dsl;
-    private final JsonUtil jsonUtil;
 
-    public List<Map<String, Object>> listMarketplaceEvents(int limit) {
+    public List<MarketplaceEventRecord> listMarketplaceEvents(int limit) {
         var rows = dsl.select(
                 MARKETPLACE_EVENTS.ID,
                 MARKETPLACE_EVENTS.EVENT_TYPE,
@@ -39,7 +44,20 @@ public class AdminRepository {
                 MARKETPLACE_EVENTS.TARGET_ID,
                 MARKETPLACE_EVENTS.TENANT_ID,
                 MARKETPLACE_EVENTS.SUBSCRIPTION_ID,
-                MARKETPLACE_EVENTS.PAYLOAD,
+                MARKETPLACE_EVENTS.DISPLAY_NAME,
+                MARKETPLACE_EVENTS.CUSTOMER_NAME,
+                MARKETPLACE_EVENTS.MANAGED_APPLICATION_ID,
+                MARKETPLACE_EVENTS.MANAGED_RESOURCE_GROUP_ID,
+                MARKETPLACE_EVENTS.CONTAINER_APP_RESOURCE_ID,
+                MARKETPLACE_EVENTS.CONTAINER_APP_NAME,
+                MARKETPLACE_EVENTS.TARGET_GROUP,
+                MARKETPLACE_EVENTS.REGION,
+                MARKETPLACE_EVENTS.ENVIRONMENT,
+                MARKETPLACE_EVENTS.TIER,
+                MARKETPLACE_EVENTS.LAST_DEPLOYED_RELEASE,
+                MARKETPLACE_EVENTS.HEALTH_STATUS,
+                MARKETPLACE_EVENTS.REGISTRATION_SOURCE,
+                MARKETPLACE_EVENTS.MARKETPLACE_PAYLOAD_ID,
                 MARKETPLACE_EVENTS.CREATED_AT,
                 MARKETPLACE_EVENTS.PROCESSED_AT
             )
@@ -48,25 +66,25 @@ public class AdminRepository {
             .limit(Math.max(1, limit))
             .fetch();
 
-        List<Map<String, Object>> events = new ArrayList<>(rows.size());
+        List<MarketplaceEventRecord> events = new ArrayList<>(rows.size());
         for (Record row : rows) {
-            Map<String, Object> event = new LinkedHashMap<>();
-            event.put("event_id", row.get(MARKETPLACE_EVENTS.ID));
-            event.put("event_type", row.get(MARKETPLACE_EVENTS.EVENT_TYPE));
-            event.put("status", literal(row.get(MARKETPLACE_EVENTS.STATUS)));
-            event.put("message", row.get(MARKETPLACE_EVENTS.MESSAGE));
-            event.put("target_id", row.get(MARKETPLACE_EVENTS.TARGET_ID));
-            event.put("tenant_id", uuidText(row.get(MARKETPLACE_EVENTS.TENANT_ID)));
-            event.put("subscription_id", uuidText(row.get(MARKETPLACE_EVENTS.SUBSCRIPTION_ID)));
-            event.put("payload", parseJsonMap(row.get(MARKETPLACE_EVENTS.PAYLOAD)));
-            event.put("created_at", row.get(MARKETPLACE_EVENTS.CREATED_AT));
-            event.put("processed_at", row.get(MARKETPLACE_EVENTS.PROCESSED_AT));
-            events.add(event);
+            events.add(new MarketplaceEventRecord(
+                row.get(MARKETPLACE_EVENTS.ID),
+                toMarketplaceEventType(row.get(MARKETPLACE_EVENTS.EVENT_TYPE)),
+                row.get(MARKETPLACE_EVENTS.STATUS),
+                row.get(MARKETPLACE_EVENTS.MESSAGE),
+                row.get(MARKETPLACE_EVENTS.TARGET_ID),
+                row.get(MARKETPLACE_EVENTS.TENANT_ID),
+                row.get(MARKETPLACE_EVENTS.SUBSCRIPTION_ID),
+                eventPayload(row),
+                row.get(MARKETPLACE_EVENTS.CREATED_AT),
+                row.get(MARKETPLACE_EVENTS.PROCESSED_AT)
+            ));
         }
         return events;
     }
 
-    public List<Map<String, Object>> listForwarderLogs(int limit) {
+    public List<ForwarderLogRecord> listForwarderLogs(int limit) {
         var rows = dsl.select(
                 FORWARDER_LOGS.ID,
                 FORWARDER_LOGS.LEVEL,
@@ -79,7 +97,8 @@ public class AdminRepository {
                 FORWARDER_LOGS.FUNCTION_APP_NAME,
                 FORWARDER_LOGS.FORWARDER_REQUEST_ID,
                 FORWARDER_LOGS.BACKEND_STATUS_CODE,
-                FORWARDER_LOGS.DETAILS,
+                FORWARDER_LOGS.DETAIL_TEXT,
+                FORWARDER_LOGS.BACKEND_RESPONSE_BODY,
                 FORWARDER_LOGS.CREATED_AT
             )
             .from(FORWARDER_LOGS)
@@ -87,23 +106,23 @@ public class AdminRepository {
             .limit(Math.max(1, limit))
             .fetch();
 
-        List<Map<String, Object>> logs = new ArrayList<>(rows.size());
+        List<ForwarderLogRecord> logs = new ArrayList<>(rows.size());
         for (Record row : rows) {
-            Map<String, Object> log = new LinkedHashMap<>();
-            log.put("log_id", row.get(FORWARDER_LOGS.ID));
-            log.put("level", literal(row.get(FORWARDER_LOGS.LEVEL)));
-            log.put("message", row.get(FORWARDER_LOGS.MESSAGE));
-            log.put("event_id", row.get(FORWARDER_LOGS.EVENT_ID));
-            log.put("event_type", row.get(FORWARDER_LOGS.EVENT_TYPE));
-            log.put("target_id", row.get(FORWARDER_LOGS.TARGET_ID));
-            log.put("tenant_id", uuidText(row.get(FORWARDER_LOGS.TENANT_ID)));
-            log.put("subscription_id", uuidText(row.get(FORWARDER_LOGS.SUBSCRIPTION_ID)));
-            log.put("function_app_name", row.get(FORWARDER_LOGS.FUNCTION_APP_NAME));
-            log.put("forwarder_request_id", row.get(FORWARDER_LOGS.FORWARDER_REQUEST_ID));
-            log.put("backend_status_code", row.get(FORWARDER_LOGS.BACKEND_STATUS_CODE));
-            log.put("details", parseJsonMap(row.get(FORWARDER_LOGS.DETAILS)));
-            log.put("created_at", row.get(FORWARDER_LOGS.CREATED_AT));
-            logs.add(log);
+            logs.add(new ForwarderLogRecord(
+                row.get(FORWARDER_LOGS.ID),
+                row.get(FORWARDER_LOGS.LEVEL),
+                row.get(FORWARDER_LOGS.MESSAGE),
+                row.get(FORWARDER_LOGS.EVENT_ID),
+                toMarketplaceEventType(row.get(FORWARDER_LOGS.EVENT_TYPE)),
+                row.get(FORWARDER_LOGS.TARGET_ID),
+                row.get(FORWARDER_LOGS.TENANT_ID),
+                row.get(FORWARDER_LOGS.SUBSCRIPTION_ID),
+                row.get(FORWARDER_LOGS.FUNCTION_APP_NAME),
+                row.get(FORWARDER_LOGS.FORWARDER_REQUEST_ID),
+                row.get(FORWARDER_LOGS.BACKEND_STATUS_CODE),
+                forwarderDetails(row),
+                row.get(FORWARDER_LOGS.CREATED_AT)
+            ));
         }
         return logs;
     }
@@ -118,28 +137,55 @@ public class AdminRepository {
 
     public void saveMarketplaceEvent(
         String eventId,
-        String eventType,
-        String status,
+        MarketplaceEventType eventType,
+        MappoMarketplaceEventStatus status,
         String message,
         String targetId,
-        String tenantId,
-        String subscriptionId,
-        Map<String, Object> payload
+        UUID tenantId,
+        UUID subscriptionId,
+        String displayName,
+        String customerName,
+        String managedApplicationId,
+        String managedResourceGroupId,
+        String containerAppResourceId,
+        String containerAppName,
+        String targetGroup,
+        String region,
+        String environment,
+        String tier,
+        String lastDeployedRelease,
+        MappoHealthStatus healthStatus,
+        String registrationSource,
+        String marketplacePayloadId
     ) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         dsl.insertInto(MARKETPLACE_EVENTS)
             .set(MARKETPLACE_EVENTS.ID, eventId)
-            .set(MARKETPLACE_EVENTS.EVENT_TYPE, eventType)
             .set(
-                MARKETPLACE_EVENTS.STATUS,
-                enumOrDefault(MappoMarketplaceEventStatus.lookupLiteral(status), MappoMarketplaceEventStatus.applied)
+                MARKETPLACE_EVENTS.EVENT_TYPE,
+                toMarketplaceEventEnum(enumOrDefault(eventType, MarketplaceEventType.SUBSCRIPTION_PURCHASED))
             )
-            .set(MARKETPLACE_EVENTS.MESSAGE, message)
+            .set(MARKETPLACE_EVENTS.STATUS, enumOrDefault(status, MappoMarketplaceEventStatus.applied))
+            .set(MARKETPLACE_EVENTS.MESSAGE, normalize(message))
             .set(MARKETPLACE_EVENTS.TARGET_ID, nullableText(targetId))
             .set(MARKETPLACE_EVENTS.TENANT_ID, requiredUuid(tenantId, "tenant_id"))
             .set(MARKETPLACE_EVENTS.SUBSCRIPTION_ID, requiredUuid(subscriptionId, "subscription_id"))
-            .set(MARKETPLACE_EVENTS.PAYLOAD, toJson(payload == null ? Map.of() : payload))
-            .set(MARKETPLACE_EVENTS.CREATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
-            .set(MARKETPLACE_EVENTS.PROCESSED_AT, OffsetDateTime.now(ZoneOffset.UTC))
+            .set(MARKETPLACE_EVENTS.DISPLAY_NAME, nullableText(displayName))
+            .set(MARKETPLACE_EVENTS.CUSTOMER_NAME, nullableText(customerName))
+            .set(MARKETPLACE_EVENTS.MANAGED_APPLICATION_ID, nullableText(managedApplicationId))
+            .set(MARKETPLACE_EVENTS.MANAGED_RESOURCE_GROUP_ID, nullableText(managedResourceGroupId))
+            .set(MARKETPLACE_EVENTS.CONTAINER_APP_RESOURCE_ID, nullableText(containerAppResourceId))
+            .set(MARKETPLACE_EVENTS.CONTAINER_APP_NAME, nullableText(containerAppName))
+            .set(MARKETPLACE_EVENTS.TARGET_GROUP, nullableText(targetGroup))
+            .set(MARKETPLACE_EVENTS.REGION, nullableText(region))
+            .set(MARKETPLACE_EVENTS.ENVIRONMENT, nullableText(environment))
+            .set(MARKETPLACE_EVENTS.TIER, nullableText(tier))
+            .set(MARKETPLACE_EVENTS.LAST_DEPLOYED_RELEASE, nullableText(lastDeployedRelease))
+            .set(MARKETPLACE_EVENTS.HEALTH_STATUS, healthStatus)
+            .set(MARKETPLACE_EVENTS.REGISTRATION_SOURCE, nullableText(registrationSource))
+            .set(MARKETPLACE_EVENTS.MARKETPLACE_PAYLOAD_ID, nullableText(marketplacePayloadId))
+            .set(MARKETPLACE_EVENTS.CREATED_AT, now)
+            .set(MARKETPLACE_EVENTS.PROCESSED_AT, now)
             .execute();
     }
 
@@ -151,46 +197,45 @@ public class AdminRepository {
         );
     }
 
-    public void saveForwarderLog(Map<String, Object> request) {
+    public void saveForwarderLog(ForwarderLogIngestCommand request) {
         dsl.insertInto(FORWARDER_LOGS)
-            .set(FORWARDER_LOGS.ID, normalize(request.get("log_id")))
+            .set(FORWARDER_LOGS.ID, normalize(request.logId()))
+            .set(FORWARDER_LOGS.LEVEL, enumOrDefault(request.level(), MappoForwarderLogLevel.error))
+            .set(FORWARDER_LOGS.MESSAGE, normalize(request.message()))
+            .set(FORWARDER_LOGS.EVENT_ID, nullableText(request.eventId()))
             .set(
-                FORWARDER_LOGS.LEVEL,
-                enumOrDefault(
-                    MappoForwarderLogLevel.lookupLiteral(normalize(request.getOrDefault("level", "error"))),
-                    MappoForwarderLogLevel.error
-                )
+                FORWARDER_LOGS.EVENT_TYPE,
+                request.eventType() == null ? null : toMarketplaceEventEnum(request.eventType())
             )
-            .set(FORWARDER_LOGS.MESSAGE, normalize(request.get("message")))
-            .set(FORWARDER_LOGS.EVENT_ID, nullableText(request.get("event_id")))
-            .set(FORWARDER_LOGS.EVENT_TYPE, nullableText(request.get("event_type")))
-            .set(FORWARDER_LOGS.TARGET_ID, nullableText(request.get("target_id")))
-            .set(FORWARDER_LOGS.TENANT_ID, optionalUuid(request.get("tenant_id")))
-            .set(FORWARDER_LOGS.SUBSCRIPTION_ID, optionalUuid(request.get("subscription_id")))
-            .set(FORWARDER_LOGS.FUNCTION_APP_NAME, nullableText(request.get("function_app_name")))
-            .set(FORWARDER_LOGS.FORWARDER_REQUEST_ID, nullableText(request.get("forwarder_request_id")))
-            .set(FORWARDER_LOGS.BACKEND_STATUS_CODE, asInteger(request.get("backend_status_code")))
-            .set(FORWARDER_LOGS.DETAILS, toJson(request.getOrDefault("details", Map.of())))
-            .set(FORWARDER_LOGS.CREATED_AT, toTimestamp(request.get("occurred_at"), OffsetDateTime.now(ZoneOffset.UTC)))
+            .set(FORWARDER_LOGS.TARGET_ID, nullableText(request.targetId()))
+            .set(FORWARDER_LOGS.TENANT_ID, request.tenantId())
+            .set(FORWARDER_LOGS.SUBSCRIPTION_ID, request.subscriptionId())
+            .set(FORWARDER_LOGS.FUNCTION_APP_NAME, nullableText(request.functionAppName()))
+            .set(FORWARDER_LOGS.FORWARDER_REQUEST_ID, nullableText(request.forwarderRequestId()))
+            .set(FORWARDER_LOGS.BACKEND_STATUS_CODE, request.backendStatusCode())
+            .set(FORWARDER_LOGS.DETAIL_TEXT, nullableText(request.detailText()))
+            .set(FORWARDER_LOGS.BACKEND_RESPONSE_BODY, nullableText(request.backendResponseBody()))
+            .set(FORWARDER_LOGS.CREATED_AT, toTimestamp(request.occurredAt(), OffsetDateTime.now(ZoneOffset.UTC)))
             .execute();
     }
 
-    public List<Map<String, Object>> listRegistrations() {
+    public List<TargetRegistrationRecord> listRegistrations() {
         var rows = dsl.select(
                 TARGET_REGISTRATIONS.TARGET_ID,
-                TARGET_REGISTRATIONS.DISPLAY_NAME,
-                TARGET_REGISTRATIONS.MANAGED_APPLICATION_ID,
-                TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID,
-                TARGET_REGISTRATIONS.METADATA,
-                TARGET_REGISTRATIONS.LAST_EVENT_ID,
-                TARGET_REGISTRATIONS.CREATED_AT,
-                TARGET_REGISTRATIONS.UPDATED_AT,
                 TARGETS.TENANT_ID,
                 TARGETS.SUBSCRIPTION_ID,
-                TARGETS.MANAGED_APP_ID,
-                TARGETS.CUSTOMER_NAME,
+                TARGET_REGISTRATIONS.MANAGED_APPLICATION_ID,
+                TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID,
+                TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID,
+                TARGET_REGISTRATIONS.DISPLAY_NAME,
+                TARGET_REGISTRATIONS.CUSTOMER_NAME,
+                TARGET_REGISTRATIONS.CONTAINER_APP_NAME,
+                TARGET_REGISTRATIONS.REGISTRATION_SOURCE,
+                TARGET_REGISTRATIONS.LAST_EVENT_ID,
                 TARGETS.LAST_DEPLOYED_RELEASE,
-                TARGETS.HEALTH_STATUS
+                TARGETS.HEALTH_STATUS,
+                TARGET_REGISTRATIONS.CREATED_AT,
+                TARGET_REGISTRATIONS.UPDATED_AT
             )
             .from(TARGET_REGISTRATIONS)
             .join(TARGETS)
@@ -201,30 +246,31 @@ public class AdminRepository {
         List<String> targetIds = rows.stream().map(row -> row.get(TARGET_REGISTRATIONS.TARGET_ID)).toList();
         Map<String, Map<String, String>> tagsByTarget = loadTags(targetIds);
 
-        List<Map<String, Object>> registrations = new ArrayList<>(rows.size());
+        List<TargetRegistrationRecord> registrations = new ArrayList<>(rows.size());
         for (Record row : rows) {
             String targetId = row.get(TARGET_REGISTRATIONS.TARGET_ID);
-            registrations.add(toRegistrationMap(row, tagsByTarget.getOrDefault(targetId, Map.of())));
+            registrations.add(toRegistrationRecord(row, tagsByTarget.getOrDefault(targetId, Map.of())));
         }
         return registrations;
     }
 
-    public Map<String, Object> getRegistration(String targetId) {
+    public Optional<TargetRegistrationRecord> getRegistration(String targetId) {
         Record row = dsl.select(
                 TARGET_REGISTRATIONS.TARGET_ID,
-                TARGET_REGISTRATIONS.DISPLAY_NAME,
-                TARGET_REGISTRATIONS.MANAGED_APPLICATION_ID,
-                TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID,
-                TARGET_REGISTRATIONS.METADATA,
-                TARGET_REGISTRATIONS.LAST_EVENT_ID,
-                TARGET_REGISTRATIONS.CREATED_AT,
-                TARGET_REGISTRATIONS.UPDATED_AT,
                 TARGETS.TENANT_ID,
                 TARGETS.SUBSCRIPTION_ID,
-                TARGETS.MANAGED_APP_ID,
-                TARGETS.CUSTOMER_NAME,
+                TARGET_REGISTRATIONS.MANAGED_APPLICATION_ID,
+                TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID,
+                TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID,
+                TARGET_REGISTRATIONS.DISPLAY_NAME,
+                TARGET_REGISTRATIONS.CUSTOMER_NAME,
+                TARGET_REGISTRATIONS.CONTAINER_APP_NAME,
+                TARGET_REGISTRATIONS.REGISTRATION_SOURCE,
+                TARGET_REGISTRATIONS.LAST_EVENT_ID,
                 TARGETS.LAST_DEPLOYED_RELEASE,
-                TARGETS.HEALTH_STATUS
+                TARGETS.HEALTH_STATUS,
+                TARGET_REGISTRATIONS.CREATED_AT,
+                TARGET_REGISTRATIONS.UPDATED_AT
             )
             .from(TARGET_REGISTRATIONS)
             .join(TARGETS)
@@ -233,33 +279,39 @@ public class AdminRepository {
             .fetchOne();
 
         if (row == null) {
-            return Map.of();
+            return Optional.empty();
         }
 
         Map<String, String> tags = loadTags(List.of(targetId)).getOrDefault(targetId, Map.of());
-        return toRegistrationMap(row, tags);
+        return Optional.of(toRegistrationRecord(row, tags));
     }
 
-    public void upsertRegistration(Map<String, Object> registration) {
+    public void upsertRegistration(TargetRegistrationUpsertCommand registration) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        OffsetDateTime createdAt = toTimestamp(registration.get("created_at"), now);
+        OffsetDateTime createdAt = toTimestamp(registration.createdAt(), now);
 
         dsl.insertInto(TARGET_REGISTRATIONS)
-            .set(TARGET_REGISTRATIONS.TARGET_ID, normalize(registration.get("target_id")))
-            .set(TARGET_REGISTRATIONS.DISPLAY_NAME, normalize(registration.get("display_name")))
-            .set(TARGET_REGISTRATIONS.MANAGED_APPLICATION_ID, nullableText(registration.get("managed_application_id")))
-            .set(TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID, normalize(registration.get("managed_resource_group_id")))
-            .set(TARGET_REGISTRATIONS.METADATA, toJson(registration.getOrDefault("metadata", Map.of())))
-            .set(TARGET_REGISTRATIONS.LAST_EVENT_ID, nullableText(registration.get("last_event_id")))
+            .set(TARGET_REGISTRATIONS.TARGET_ID, normalize(registration.targetId()))
+            .set(TARGET_REGISTRATIONS.DISPLAY_NAME, normalize(registration.displayName()))
+            .set(TARGET_REGISTRATIONS.CUSTOMER_NAME, nullableText(registration.customerName()))
+            .set(TARGET_REGISTRATIONS.MANAGED_APPLICATION_ID, nullableText(registration.managedApplicationId()))
+            .set(TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID, normalize(registration.managedResourceGroupId()))
+            .set(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID, normalize(registration.containerAppResourceId()))
+            .set(TARGET_REGISTRATIONS.CONTAINER_APP_NAME, nullableText(registration.containerAppName()))
+            .set(TARGET_REGISTRATIONS.REGISTRATION_SOURCE, nullableText(registration.registrationSource()))
+            .set(TARGET_REGISTRATIONS.LAST_EVENT_ID, nullableText(registration.lastEventId()))
             .set(TARGET_REGISTRATIONS.CREATED_AT, createdAt)
             .set(TARGET_REGISTRATIONS.UPDATED_AT, now)
             .onConflict(TARGET_REGISTRATIONS.TARGET_ID)
             .doUpdate()
-            .set(TARGET_REGISTRATIONS.DISPLAY_NAME, normalize(registration.get("display_name")))
-            .set(TARGET_REGISTRATIONS.MANAGED_APPLICATION_ID, nullableText(registration.get("managed_application_id")))
-            .set(TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID, normalize(registration.get("managed_resource_group_id")))
-            .set(TARGET_REGISTRATIONS.METADATA, toJson(registration.getOrDefault("metadata", Map.of())))
-            .set(TARGET_REGISTRATIONS.LAST_EVENT_ID, nullableText(registration.get("last_event_id")))
+            .set(TARGET_REGISTRATIONS.DISPLAY_NAME, normalize(registration.displayName()))
+            .set(TARGET_REGISTRATIONS.CUSTOMER_NAME, nullableText(registration.customerName()))
+            .set(TARGET_REGISTRATIONS.MANAGED_APPLICATION_ID, nullableText(registration.managedApplicationId()))
+            .set(TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID, normalize(registration.managedResourceGroupId()))
+            .set(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID, normalize(registration.containerAppResourceId()))
+            .set(TARGET_REGISTRATIONS.CONTAINER_APP_NAME, nullableText(registration.containerAppName()))
+            .set(TARGET_REGISTRATIONS.REGISTRATION_SOURCE, nullableText(registration.registrationSource()))
+            .set(TARGET_REGISTRATIONS.LAST_EVENT_ID, nullableText(registration.lastEventId()))
             .set(TARGET_REGISTRATIONS.UPDATED_AT, now)
             .execute();
     }
@@ -270,90 +322,81 @@ public class AdminRepository {
             .execute();
     }
 
-    @SuppressWarnings("unchecked")
-    public void updateRegistrationAndTarget(String targetId, Map<String, Object> patch) {
-        Map<String, Object> current = getRegistration(targetId);
-        if (current.isEmpty()) {
+    public void updateRegistrationAndTarget(String targetId, TargetRegistrationPatchCommand patch) {
+        Optional<TargetRegistrationRecord> currentOptional = getRegistration(targetId);
+        if (currentOptional.isEmpty()) {
             return;
         }
+        TargetRegistrationRecord current = currentOptional.get();
 
-        String displayName = patch.containsKey("display_name")
-            ? normalize(patch.get("display_name"))
-            : normalize(current.get("display_name"));
-        String managedApplicationId = patch.containsKey("managed_application_id")
-            ? nullableText(patch.get("managed_application_id"))
-            : nullableText(current.get("managed_application_id"));
-        String managedResourceGroupId = patch.containsKey("managed_resource_group_id")
-            ? normalize(patch.get("managed_resource_group_id"))
-            : normalize(current.get("managed_resource_group_id"));
-
-        Map<String, Object> metadata = new LinkedHashMap<>((Map<String, Object>) current.getOrDefault("metadata", Map.of()));
-        if (patch.get("metadata") instanceof Map<?, ?> metadataPatch) {
-            Map<String, Object> replaced = new LinkedHashMap<>();
-            for (Map.Entry<?, ?> entry : metadataPatch.entrySet()) {
-                replaced.put(String.valueOf(entry.getKey()), entry.getValue());
-            }
-            metadata = replaced;
-        }
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        String displayName = firstNonBlank(patch.displayName(), current.displayName());
+        String customerName = firstNullableText(patch.customerName(), current.customerName());
+        String managedApplicationId = firstNullableText(
+            patch.managedApplicationId(),
+            current.managedApplicationId()
+        );
+        String managedResourceGroupId = firstNonBlank(
+            patch.managedResourceGroupId(),
+            current.managedResourceGroupId()
+        );
+        String containerAppResourceId = firstNonBlank(
+            patch.containerAppResourceId(),
+            current.containerAppResourceId()
+        );
+        String containerAppName = firstNullableText(
+            patch.containerAppName(),
+            metadataValue(current.metadata(), "container_app_name")
+        );
+        String registrationSource = firstNullableText(
+            patch.registrationSource(),
+            metadataValue(current.metadata(), "source")
+        );
 
         dsl.update(TARGET_REGISTRATIONS)
             .set(TARGET_REGISTRATIONS.DISPLAY_NAME, displayName)
+            .set(TARGET_REGISTRATIONS.CUSTOMER_NAME, customerName)
             .set(TARGET_REGISTRATIONS.MANAGED_APPLICATION_ID, managedApplicationId)
             .set(TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID, managedResourceGroupId)
-            .set(TARGET_REGISTRATIONS.METADATA, toJson(metadata))
-            .set(TARGET_REGISTRATIONS.UPDATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
+            .set(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID, containerAppResourceId)
+            .set(TARGET_REGISTRATIONS.CONTAINER_APP_NAME, containerAppName)
+            .set(TARGET_REGISTRATIONS.REGISTRATION_SOURCE, registrationSource)
+            .set(TARGET_REGISTRATIONS.UPDATED_AT, now)
             .where(TARGET_REGISTRATIONS.TARGET_ID.eq(targetId))
             .execute();
 
-        if (
-            patch.containsKey("customer_name")
-                || patch.containsKey("last_deployed_release")
-                || patch.containsKey("health_status")
-                || patch.containsKey("container_app_resource_id")
-        ) {
-            String managedAppId = patch.containsKey("container_app_resource_id")
-                ? nullableText(patch.get("container_app_resource_id"))
-                : nullableText(current.get("container_app_resource_id"));
-            String customerName = patch.containsKey("customer_name")
-                ? nullableText(patch.get("customer_name"))
-                : nullableText(current.get("customer_name"));
-            String lastDeployedRelease = patch.containsKey("last_deployed_release")
-                ? normalize(patch.get("last_deployed_release"))
-                : normalize(current.get("last_deployed_release"));
-            String healthStatus = patch.containsKey("health_status")
-                ? normalize(patch.get("health_status"))
-                : normalize(current.get("health_status"));
-
+        if (patch.lastDeployedRelease() != null || patch.healthStatus() != null) {
+            String lastDeployedRelease = firstNonBlank(
+                patch.lastDeployedRelease(),
+                current.lastDeployedRelease()
+            );
             dsl.update(TARGETS)
-                .set(TARGETS.MANAGED_APP_ID, managedAppId)
-                .set(TARGETS.CUSTOMER_NAME, customerName)
-                .set(
-                    TARGETS.LAST_DEPLOYED_RELEASE,
-                    lastDeployedRelease.isBlank() ? "unknown" : lastDeployedRelease
-                )
+                .set(TARGETS.LAST_DEPLOYED_RELEASE, defaultIfBlank(lastDeployedRelease, "unknown"))
                 .set(
                     TARGETS.HEALTH_STATUS,
-                    enumOrDefault(MappoHealthStatus.lookupLiteral(healthStatus), MappoHealthStatus.registered)
+                    patch.healthStatus() == null
+                        ? enumOrDefault(current.healthStatus(), MappoHealthStatus.registered)
+                        : enumOrDefault(patch.healthStatus(), MappoHealthStatus.registered)
                 )
-                .set(TARGETS.UPDATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
+                .set(TARGETS.UPDATED_AT, now)
                 .where(TARGETS.ID.eq(targetId))
                 .execute();
         }
 
-        if (patch.containsKey("tags") && patch.get("tags") instanceof Map<?, ?> tagPatch) {
+        if (patch.tags() != null) {
             dsl.deleteFrom(TARGET_TAGS)
                 .where(TARGET_TAGS.TARGET_ID.eq(targetId))
                 .execute();
 
-            for (Map.Entry<?, ?> entry : tagPatch.entrySet()) {
-                String key = String.valueOf(entry.getKey()).trim();
+            for (Map.Entry<String, String> entry : patch.tags().entrySet()) {
+                String key = normalize(entry.getKey());
                 if (key.isEmpty()) {
                     continue;
                 }
                 dsl.insertInto(TARGET_TAGS)
                     .set(TARGET_TAGS.TARGET_ID, targetId)
                     .set(TARGET_TAGS.TAG_KEY, key)
-                    .set(TARGET_TAGS.TAG_VALUE, String.valueOf(entry.getValue()))
+                    .set(TARGET_TAGS.TAG_VALUE, normalize(entry.getValue()))
                     .execute();
             }
         }
@@ -378,59 +421,78 @@ public class AdminRepository {
         return tags;
     }
 
-    private Map<String, Object> toRegistrationMap(Record row, Map<String, String> tags) {
-        Map<String, Object> registration = new LinkedHashMap<>();
-        registration.put("target_id", row.get(TARGET_REGISTRATIONS.TARGET_ID));
-        registration.put("tenant_id", uuidText(row.get(TARGETS.TENANT_ID)));
-        registration.put("subscription_id", uuidText(row.get(TARGETS.SUBSCRIPTION_ID)));
-        registration.put("managed_application_id", row.get(TARGET_REGISTRATIONS.MANAGED_APPLICATION_ID));
-        registration.put("managed_resource_group_id", row.get(TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID));
-        registration.put("container_app_resource_id", row.get(TARGETS.MANAGED_APP_ID));
-        registration.put("display_name", row.get(TARGET_REGISTRATIONS.DISPLAY_NAME));
-        registration.put("customer_name", row.get(TARGETS.CUSTOMER_NAME));
-        registration.put("tags", tags);
-        registration.put("metadata", parseJsonMap(row.get(TARGET_REGISTRATIONS.METADATA)));
-        registration.put("last_event_id", row.get(TARGET_REGISTRATIONS.LAST_EVENT_ID));
-        registration.put("last_deployed_release", row.get(TARGETS.LAST_DEPLOYED_RELEASE));
-        registration.put("health_status", literal(row.get(TARGETS.HEALTH_STATUS)));
-        registration.put("created_at", row.get(TARGET_REGISTRATIONS.CREATED_AT));
-        registration.put("updated_at", row.get(TARGET_REGISTRATIONS.UPDATED_AT));
-        return registration;
+    private TargetRegistrationRecord toRegistrationRecord(Record row, Map<String, String> tags) {
+        return new TargetRegistrationRecord(
+            row.get(TARGET_REGISTRATIONS.TARGET_ID),
+            row.get(TARGETS.TENANT_ID),
+            row.get(TARGETS.SUBSCRIPTION_ID),
+            row.get(TARGET_REGISTRATIONS.MANAGED_APPLICATION_ID),
+            row.get(TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID),
+            row.get(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID),
+            row.get(TARGET_REGISTRATIONS.DISPLAY_NAME),
+            row.get(TARGET_REGISTRATIONS.CUSTOMER_NAME),
+            tags,
+            registrationMetadata(row),
+            row.get(TARGET_REGISTRATIONS.LAST_EVENT_ID),
+            row.get(TARGETS.LAST_DEPLOYED_RELEASE),
+            row.get(TARGETS.HEALTH_STATUS),
+            row.get(TARGET_REGISTRATIONS.CREATED_AT),
+            row.get(TARGET_REGISTRATIONS.UPDATED_AT)
+        );
     }
 
-    private JSONB toJson(Object value) {
-        return JSONB.valueOf(jsonUtil.write(value));
-    }
+    private Map<String, Object> eventPayload(Record row) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        put(payload, "display_name", row.get(MARKETPLACE_EVENTS.DISPLAY_NAME));
+        put(payload, "customer_name", row.get(MARKETPLACE_EVENTS.CUSTOMER_NAME));
+        put(payload, "managed_application_id", row.get(MARKETPLACE_EVENTS.MANAGED_APPLICATION_ID));
+        put(payload, "managed_resource_group_id", row.get(MARKETPLACE_EVENTS.MANAGED_RESOURCE_GROUP_ID));
+        put(payload, "container_app_resource_id", row.get(MARKETPLACE_EVENTS.CONTAINER_APP_RESOURCE_ID));
+        put(payload, "container_app_name", row.get(MARKETPLACE_EVENTS.CONTAINER_APP_NAME));
+        put(payload, "target_group", row.get(MARKETPLACE_EVENTS.TARGET_GROUP));
+        put(payload, "region", row.get(MARKETPLACE_EVENTS.REGION));
+        put(payload, "environment", row.get(MARKETPLACE_EVENTS.ENVIRONMENT));
+        put(payload, "tier", row.get(MARKETPLACE_EVENTS.TIER));
+        put(payload, "last_deployed_release", row.get(MARKETPLACE_EVENTS.LAST_DEPLOYED_RELEASE));
 
-    private Map<String, Object> parseJsonMap(JSONB value) {
-        if (value == null) {
-            return Map.of();
+        MappoHealthStatus healthStatus = row.get(MARKETPLACE_EVENTS.HEALTH_STATUS);
+        if (healthStatus != null) {
+            payload.put("health_status", healthStatus.getLiteral());
         }
-        return jsonUtil.readMap(value.data());
+
+        put(payload, "registration_source", row.get(MARKETPLACE_EVENTS.REGISTRATION_SOURCE));
+        put(payload, "marketplace_payload_id", row.get(MARKETPLACE_EVENTS.MARKETPLACE_PAYLOAD_ID));
+        return payload;
     }
 
-    private String literal(org.jooq.EnumType value) {
-        return value == null ? null : value.getLiteral();
+    private Map<String, Object> forwarderDetails(Record row) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        put(details, "detail", row.get(FORWARDER_LOGS.DETAIL_TEXT));
+        put(details, "backend_response", row.get(FORWARDER_LOGS.BACKEND_RESPONSE_BODY));
+        return details;
     }
 
-    private String uuidText(UUID value) {
-        return value == null ? null : value.toString();
+    private Map<String, Object> registrationMetadata(Record row) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        put(metadata, "container_app_name", row.get(TARGET_REGISTRATIONS.CONTAINER_APP_NAME));
+        put(metadata, "source", row.get(TARGET_REGISTRATIONS.REGISTRATION_SOURCE));
+        return metadata;
     }
 
-    private UUID optionalUuid(Object value) {
-        String text = normalize(value);
-        if (text.isBlank()) {
+    private void put(Map<String, Object> target, String key, String value) {
+        String normalized = normalize(value);
+        if (!normalized.isBlank()) {
+            target.put(key, normalized);
+        }
+    }
+
+    private String metadataValue(Map<String, Object> metadata, String key) {
+        if (metadata == null) {
             return null;
         }
-        return UUID.fromString(text);
-    }
-
-    private UUID requiredUuid(Object value, String field) {
-        String text = normalize(value);
-        if (text.isBlank()) {
-            throw new IllegalArgumentException(field + " is required");
-        }
-        return UUID.fromString(text);
+        Object value = metadata.get(key);
+        String normalized = normalize(value);
+        return normalized.isBlank() ? null : normalized;
     }
 
     private OffsetDateTime toTimestamp(Object value, OffsetDateTime fallback) {
@@ -440,18 +502,30 @@ public class AdminRepository {
         return fallback;
     }
 
-    private Integer asInteger(Object value) {
-        if (value instanceof Integer number) {
-            return number;
+    private UUID requiredUuid(UUID value, String field) {
+        if (value == null) {
+            throw new IllegalArgumentException(field + " is required");
         }
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        String text = normalize(value);
-        if (text.isBlank()) {
+        return value;
+    }
+
+    private MarketplaceEventType toMarketplaceEventType(
+        com.mappo.controlplane.jooq.enums.MappoMarketplaceEventType value
+    ) {
+        if (value == null) {
             return null;
         }
-        return Integer.parseInt(text);
+        return MarketplaceEventType.fromValue(value.getLiteral());
+    }
+
+    private com.mappo.controlplane.jooq.enums.MappoMarketplaceEventType toMarketplaceEventEnum(
+        MarketplaceEventType value
+    ) {
+        return com.mappo.controlplane.jooq.enums.MappoMarketplaceEventType.lookupLiteral(value.literal());
+    }
+
+    private <T> T enumOrDefault(T value, T fallback) {
+        return value == null ? fallback : value;
     }
 
     private String normalize(Object value) {
@@ -463,7 +537,18 @@ public class AdminRepository {
         return text.isBlank() ? null : text;
     }
 
-    private <T> T enumOrDefault(T value, T fallback) {
-        return value == null ? fallback : value;
+    private String defaultIfBlank(String value, String fallback) {
+        String normalized = normalize(value);
+        return normalized.isBlank() ? fallback : normalized;
+    }
+
+    private String firstNonBlank(String preferred, String fallback) {
+        String normalizedPreferred = normalize(preferred);
+        return normalizedPreferred.isBlank() ? normalize(fallback) : normalizedPreferred;
+    }
+
+    private String firstNullableText(String preferred, String fallback) {
+        String normalizedPreferred = nullableText(preferred);
+        return normalizedPreferred != null ? normalizedPreferred : nullableText(fallback);
     }
 }

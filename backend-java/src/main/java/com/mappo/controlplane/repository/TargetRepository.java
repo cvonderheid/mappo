@@ -1,21 +1,24 @@
 package com.mappo.controlplane.repository;
 
 import static com.mappo.controlplane.jooq.Tables.TARGETS;
+import static com.mappo.controlplane.jooq.Tables.TARGET_REGISTRATIONS;
 import static com.mappo.controlplane.jooq.Tables.TARGET_TAGS;
 
 import com.mappo.controlplane.jooq.enums.MappoHealthStatus;
 import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
+import com.mappo.controlplane.model.command.TargetUpsertCommand;
+import com.mappo.controlplane.model.TargetRecord;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
-import org.jooq.EnumType;
 import org.jooq.Record;
 import org.jooq.impl.DSL;
 import org.springframework.stereotype.Repository;
@@ -26,7 +29,7 @@ public class TargetRepository {
 
     private final DSLContext dsl;
 
-    public List<Map<String, Object>> listTargets(Map<String, String> filters) {
+    public List<TargetRecord> listTargets(Map<String, String> filters) {
         Condition condition = DSL.trueCondition();
         if (filters != null) {
             var tagFilterTable = TARGET_TAGS.as("tt");
@@ -50,14 +53,16 @@ public class TargetRepository {
                 TARGETS.ID,
                 TARGETS.TENANT_ID,
                 TARGETS.SUBSCRIPTION_ID,
-                TARGETS.MANAGED_APP_ID,
-                TARGETS.CUSTOMER_NAME,
+                TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID,
+                TARGET_REGISTRATIONS.CUSTOMER_NAME,
                 TARGETS.LAST_DEPLOYED_RELEASE,
                 TARGETS.HEALTH_STATUS,
                 TARGETS.LAST_CHECK_IN_AT,
                 TARGETS.SIMULATED_FAILURE_MODE
             )
             .from(TARGETS)
+            .leftJoin(TARGET_REGISTRATIONS)
+            .on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
             .where(condition)
             .orderBy(TARGETS.ID.asc())
             .fetch();
@@ -69,39 +74,41 @@ public class TargetRepository {
         List<String> targetIds = rows.stream().map(row -> row.get(TARGETS.ID)).toList();
         Map<String, Map<String, String>> tagsByTarget = loadTags(targetIds);
 
-        List<Map<String, Object>> targets = new ArrayList<>(rows.size());
+        List<TargetRecord> targets = new ArrayList<>(rows.size());
         for (Record row : rows) {
             String targetId = row.get(TARGETS.ID);
-            targets.add(toTargetMap(row, tagsByTarget.getOrDefault(targetId, Map.of())));
+            targets.add(toTargetRecord(row, tagsByTarget.getOrDefault(targetId, Map.of())));
         }
         return targets;
     }
 
-    public Map<String, Object> getTarget(String targetId) {
+    public Optional<TargetRecord> getTarget(String targetId) {
         Record row = dsl.select(
                 TARGETS.ID,
                 TARGETS.TENANT_ID,
                 TARGETS.SUBSCRIPTION_ID,
-                TARGETS.MANAGED_APP_ID,
-                TARGETS.CUSTOMER_NAME,
+                TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID,
+                TARGET_REGISTRATIONS.CUSTOMER_NAME,
                 TARGETS.LAST_DEPLOYED_RELEASE,
                 TARGETS.HEALTH_STATUS,
                 TARGETS.LAST_CHECK_IN_AT,
                 TARGETS.SIMULATED_FAILURE_MODE
             )
             .from(TARGETS)
+            .leftJoin(TARGET_REGISTRATIONS)
+            .on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
             .where(TARGETS.ID.eq(targetId))
             .fetchOne();
 
         if (row == null) {
-            return Map.of();
+            return Optional.empty();
         }
 
         Map<String, String> tags = loadTags(List.of(targetId)).getOrDefault(targetId, Map.of());
-        return toTargetMap(row, tags);
+        return Optional.of(toTargetRecord(row, tags));
     }
 
-    public List<Map<String, Object>> getTargetsByIds(List<String> targetIds) {
+    public List<TargetRecord> getTargetsByIds(List<String> targetIds) {
         if (targetIds == null || targetIds.isEmpty()) {
             return List.of();
         }
@@ -110,70 +117,68 @@ public class TargetRepository {
                 TARGETS.ID,
                 TARGETS.TENANT_ID,
                 TARGETS.SUBSCRIPTION_ID,
-                TARGETS.MANAGED_APP_ID,
-                TARGETS.CUSTOMER_NAME,
+                TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID,
+                TARGET_REGISTRATIONS.CUSTOMER_NAME,
                 TARGETS.LAST_DEPLOYED_RELEASE,
                 TARGETS.HEALTH_STATUS,
                 TARGETS.LAST_CHECK_IN_AT,
                 TARGETS.SIMULATED_FAILURE_MODE
             )
             .from(TARGETS)
+            .leftJoin(TARGET_REGISTRATIONS)
+            .on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
             .where(TARGETS.ID.in(targetIds))
             .orderBy(TARGETS.ID.asc())
             .fetch();
 
         Map<String, Map<String, String>> tagsByTarget = loadTags(targetIds);
-        List<Map<String, Object>> targets = new ArrayList<>(rows.size());
+        List<TargetRecord> targets = new ArrayList<>(rows.size());
         for (Record row : rows) {
             String targetId = row.get(TARGETS.ID);
-            targets.add(toTargetMap(row, tagsByTarget.getOrDefault(targetId, Map.of())));
+            targets.add(toTargetRecord(row, tagsByTarget.getOrDefault(targetId, Map.of())));
         }
         return targets;
     }
 
-    public List<Map<String, Object>> getTargetsByTagFilters(Map<String, String> filters) {
+    public List<TargetRecord> getTargetsByTagFilters(Map<String, String> filters) {
         return listTargets(filters == null ? Map.of() : filters);
     }
 
-    public void upsertTarget(Map<String, Object> target) {
-        String targetId = requiredText(target.get("id"), "id");
+    public void upsertTarget(TargetUpsertCommand target) {
+        String targetId = requiredText(target.id(), "id");
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
-        String release = normalize(target.getOrDefault("last_deployed_release", "unknown"));
+        String release = normalize(defaultIfBlank(target.lastDeployedRelease(), "unknown"));
         if (release.isBlank()) {
             release = "unknown";
         }
 
         dsl.insertInto(TARGETS)
             .set(TARGETS.ID, targetId)
-            .set(TARGETS.TENANT_ID, requiredUuid(target.get("tenant_id"), "tenant_id"))
-            .set(TARGETS.SUBSCRIPTION_ID, requiredUuid(target.get("subscription_id"), "subscription_id"))
-            .set(TARGETS.MANAGED_APP_ID, requiredText(target.get("managed_app_id"), "managed_app_id"))
-            .set(TARGETS.CUSTOMER_NAME, nullableText(target.get("customer_name")))
+            .set(TARGETS.TENANT_ID, requiredUuid(target.tenantId(), "tenant_id"))
+            .set(TARGETS.SUBSCRIPTION_ID, requiredUuid(target.subscriptionId(), "subscription_id"))
             .set(TARGETS.LAST_DEPLOYED_RELEASE, release)
-            .set(TARGETS.HEALTH_STATUS, toHealthStatus(target.get("health_status"), MappoHealthStatus.registered))
-            .set(TARGETS.LAST_CHECK_IN_AT, toTimestamp(target.get("last_check_in_at"), now))
-            .set(TARGETS.SIMULATED_FAILURE_MODE, toFailureMode(target.get("simulated_failure_mode"), MappoSimulatedFailureMode.none))
+            .set(TARGETS.HEALTH_STATUS, enumOrDefault(target.healthStatus(), MappoHealthStatus.registered))
+            .set(TARGETS.LAST_CHECK_IN_AT, toTimestamp(target.lastCheckInAt(), now))
+            .set(TARGETS.SIMULATED_FAILURE_MODE, enumOrDefault(target.simulatedFailureMode(), MappoSimulatedFailureMode.none))
             .set(TARGETS.UPDATED_AT, now)
             .onConflict(TARGETS.ID)
             .doUpdate()
-            .set(TARGETS.TENANT_ID, requiredUuid(target.get("tenant_id"), "tenant_id"))
-            .set(TARGETS.SUBSCRIPTION_ID, requiredUuid(target.get("subscription_id"), "subscription_id"))
-            .set(TARGETS.MANAGED_APP_ID, requiredText(target.get("managed_app_id"), "managed_app_id"))
-            .set(TARGETS.CUSTOMER_NAME, nullableText(target.get("customer_name")))
+            .set(TARGETS.TENANT_ID, requiredUuid(target.tenantId(), "tenant_id"))
+            .set(TARGETS.SUBSCRIPTION_ID, requiredUuid(target.subscriptionId(), "subscription_id"))
             .set(TARGETS.LAST_DEPLOYED_RELEASE, release)
-            .set(TARGETS.HEALTH_STATUS, toHealthStatus(target.get("health_status"), MappoHealthStatus.registered))
-            .set(TARGETS.LAST_CHECK_IN_AT, toTimestamp(target.get("last_check_in_at"), now))
-            .set(TARGETS.SIMULATED_FAILURE_MODE, toFailureMode(target.get("simulated_failure_mode"), MappoSimulatedFailureMode.none))
+            .set(TARGETS.HEALTH_STATUS, enumOrDefault(target.healthStatus(), MappoHealthStatus.registered))
+            .set(TARGETS.LAST_CHECK_IN_AT, toTimestamp(target.lastCheckInAt(), now))
+            .set(TARGETS.SIMULATED_FAILURE_MODE, enumOrDefault(target.simulatedFailureMode(), MappoSimulatedFailureMode.none))
             .set(TARGETS.UPDATED_AT, now)
             .execute();
 
-        replaceTags(targetId, castTags(target.get("tags")));
+        replaceTags(targetId, target.tags());
     }
 
-    public void updateTargetHealth(String targetId, String healthStatus) {
+    public void updateTargetHealth(String targetId, MappoHealthStatus healthStatus) {
         dsl.update(TARGETS)
-            .set(TARGETS.HEALTH_STATUS, toHealthStatus(healthStatus, MappoHealthStatus.registered))
+            .set(TARGETS.HEALTH_STATUS, enumOrDefault(healthStatus, MappoHealthStatus.registered))
             .set(TARGETS.UPDATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
             .where(TARGETS.ID.eq(targetId))
             .execute();
@@ -233,44 +238,19 @@ public class TargetRepository {
         return tags;
     }
 
-    private Map<String, Object> toTargetMap(Record row, Map<String, String> tags) {
-        Map<String, Object> target = new LinkedHashMap<>();
-        target.put("id", row.get(TARGETS.ID));
-        target.put("tenant_id", uuidText(row.get(TARGETS.TENANT_ID)));
-        target.put("subscription_id", uuidText(row.get(TARGETS.SUBSCRIPTION_ID)));
-        target.put("managed_app_id", row.get(TARGETS.MANAGED_APP_ID));
-        target.put("customer_name", row.get(TARGETS.CUSTOMER_NAME));
-        target.put("tags", tags);
-        target.put("last_deployed_release", row.get(TARGETS.LAST_DEPLOYED_RELEASE));
-        target.put("health_status", enumLiteral(row.get(TARGETS.HEALTH_STATUS)));
-        target.put("last_check_in_at", row.get(TARGETS.LAST_CHECK_IN_AT));
-        target.put("simulated_failure_mode", enumLiteral(row.get(TARGETS.SIMULATED_FAILURE_MODE)));
-        return target;
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, String> castTags(Object value) {
-        if (!(value instanceof Map<?, ?> raw)) {
-            return Map.of();
-        }
-
-        Map<String, String> tags = new LinkedHashMap<>();
-        for (Map.Entry<?, ?> entry : raw.entrySet()) {
-            String key = normalize(entry.getKey());
-            String val = normalize(entry.getValue());
-            if (!key.isBlank()) {
-                tags.put(key, val);
-            }
-        }
-        return tags;
-    }
-
-    private String uuidText(UUID value) {
-        return value == null ? null : value.toString();
-    }
-
-    private String enumLiteral(EnumType value) {
-        return value == null ? null : value.getLiteral();
+    private TargetRecord toTargetRecord(Record row, Map<String, String> tags) {
+        return new TargetRecord(
+            row.get(TARGETS.ID),
+            row.get(TARGETS.TENANT_ID),
+            row.get(TARGETS.SUBSCRIPTION_ID),
+            row.get(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID),
+            row.get(TARGET_REGISTRATIONS.CUSTOMER_NAME),
+            tags,
+            row.get(TARGETS.LAST_DEPLOYED_RELEASE),
+            row.get(TARGETS.HEALTH_STATUS),
+            row.get(TARGETS.LAST_CHECK_IN_AT),
+            row.get(TARGETS.SIMULATED_FAILURE_MODE)
+        );
     }
 
     private OffsetDateTime toTimestamp(Object value, OffsetDateTime fallback) {
@@ -280,30 +260,15 @@ public class TargetRepository {
         return fallback;
     }
 
-    private MappoHealthStatus toHealthStatus(Object value, MappoHealthStatus fallback) {
-        String text = normalize(value);
-        if (text.isBlank()) {
-            return fallback;
-        }
-        MappoHealthStatus parsed = MappoHealthStatus.lookupLiteral(text);
-        return parsed == null ? fallback : parsed;
+    private <T> T enumOrDefault(T value, T fallback) {
+        return value == null ? fallback : value;
     }
 
-    private MappoSimulatedFailureMode toFailureMode(Object value, MappoSimulatedFailureMode fallback) {
-        String text = normalize(value);
-        if (text.isBlank()) {
-            return fallback;
-        }
-        MappoSimulatedFailureMode parsed = MappoSimulatedFailureMode.lookupLiteral(text);
-        return parsed == null ? fallback : parsed;
-    }
-
-    private UUID requiredUuid(Object value, String field) {
-        String text = normalize(value);
-        if (text.isBlank()) {
+    private UUID requiredUuid(UUID value, String field) {
+        if (value == null) {
             throw new IllegalArgumentException(field + " is required");
         }
-        return UUID.fromString(text);
+        return value;
     }
 
     private String requiredText(Object value, String field) {
@@ -321,5 +286,10 @@ public class TargetRepository {
 
     private String normalize(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private String defaultIfBlank(String value, String fallback) {
+        String normalized = normalize(value);
+        return normalized.isBlank() ? fallback : normalized;
     }
 }

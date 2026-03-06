@@ -1,6 +1,23 @@
 package com.mappo.controlplane.service;
 
 import com.mappo.controlplane.api.ApiException;
+import com.mappo.controlplane.api.request.ForwarderLogIngestRequest;
+import com.mappo.controlplane.api.request.OnboardingEventRequest;
+import com.mappo.controlplane.api.request.TargetRegistrationPatchRequest;
+import com.mappo.controlplane.jooq.enums.MappoHealthStatus;
+import com.mappo.controlplane.jooq.enums.MappoMarketplaceEventStatus;
+import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
+import com.mappo.controlplane.model.EventIngestResultRecord;
+import com.mappo.controlplane.model.ForwarderLogIngestResultRecord;
+import com.mappo.controlplane.model.ForwarderLogRecord;
+import com.mappo.controlplane.model.MarketplaceEventType;
+import com.mappo.controlplane.model.OnboardingSnapshotRecord;
+import com.mappo.controlplane.model.TargetRecord;
+import com.mappo.controlplane.model.TargetRegistrationRecord;
+import com.mappo.controlplane.model.command.ForwarderLogIngestCommand;
+import com.mappo.controlplane.model.command.TargetRegistrationPatchCommand;
+import com.mappo.controlplane.model.command.TargetRegistrationUpsertCommand;
+import com.mappo.controlplane.model.command.TargetUpsertCommand;
 import com.mappo.controlplane.repository.AdminRepository;
 import com.mappo.controlplane.repository.TargetRepository;
 import java.time.OffsetDateTime;
@@ -8,6 +25,7 @@ import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -19,85 +37,89 @@ public class AdminService {
     private final AdminRepository adminRepository;
     private final TargetRepository targetRepository;
 
-    public Map<String, Object> getOnboardingSnapshot(int eventLimit) {
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("registrations", adminRepository.listRegistrations());
-        snapshot.put("events", adminRepository.listMarketplaceEvents(eventLimit));
-        snapshot.put("forwarder_logs", adminRepository.listForwarderLogs(eventLimit));
-        return snapshot;
+    public OnboardingSnapshotRecord getOnboardingSnapshot(int eventLimit) {
+        return new OnboardingSnapshotRecord(
+            adminRepository.listRegistrations(),
+            adminRepository.listMarketplaceEvents(eventLimit),
+            adminRepository.listForwarderLogs(eventLimit)
+        );
     }
 
-    public Map<String, Object> ingestMarketplaceEvent(Map<String, Object> request) {
-        String eventId = stringValue(request.get("event_id"));
-        String eventType = stringValue(request.getOrDefault("event_type", "subscription_purchased"));
-        String tenantId = stringValue(request.get("tenant_id"));
-        String subscriptionId = stringValue(request.get("subscription_id"));
+    public EventIngestResultRecord ingestMarketplaceEvent(OnboardingEventRequest request) {
+        if (request == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "event request is required");
+        }
 
-        if (eventId.isBlank() || tenantId.isBlank() || subscriptionId.isBlank()) {
+        String eventId = normalize(request.eventId());
+        MarketplaceEventType eventType = request.effectiveEventType();
+        UUID tenantId = request.tenantId();
+        UUID subscriptionId = request.subscriptionId();
+
+        if (eventId.isBlank() || tenantId == null || subscriptionId == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "event_id, tenant_id, and subscription_id are required");
         }
 
         if (adminRepository.marketplaceEventExists(eventId)) {
-            Map<String, Object> duplicate = new LinkedHashMap<>();
-            duplicate.put("event_id", eventId);
-            duplicate.put("status", "duplicate");
-            duplicate.put("message", "event already processed");
-            duplicate.put("target_id", request.get("target_id"));
-            return duplicate;
+            return new EventIngestResultRecord(
+                eventId,
+                MappoMarketplaceEventStatus.duplicate,
+                "event already processed",
+                normalize(request.targetId())
+            );
         }
 
         String targetId = resolveTargetId(request);
         String message;
 
-        if (isDeleteEvent(eventType)) {
+        if (eventType.isDeleteLike()) {
             adminRepository.deleteRegistration(targetId);
             targetRepository.deleteTarget(targetId);
             message = "Deleted target registration and target.";
-        } else if (isSuspendEvent(eventType)) {
-            Map<String, Object> existing = targetRepository.getTarget(targetId);
-            if (!existing.isEmpty()) {
-                targetRepository.updateTargetHealth(targetId, "degraded");
+        } else if (eventType.isSuspendLike()) {
+            TargetRecord existing = targetRepository.getTarget(targetId).orElse(null);
+            if (existing != null) {
+                targetRepository.updateTargetHealth(targetId, MappoHealthStatus.degraded);
                 message = "Marked target as degraded.";
             } else {
                 message = "Target not found; suspension acknowledged.";
             }
         } else {
-            String managedAppId = stringValue(request.get("container_app_resource_id"));
-            if (managedAppId.isBlank()) {
+            String containerAppResourceId = normalize(request.containerAppResourceId());
+            if (containerAppResourceId.isBlank()) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "container_app_resource_id is required for registration events");
             }
 
+            OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
             Map<String, String> tags = buildTags(request);
-            Map<String, Object> target = new LinkedHashMap<>();
-            target.put("id", targetId);
-            target.put("tenant_id", tenantId);
-            target.put("subscription_id", subscriptionId);
-            target.put("managed_app_id", managedAppId);
-            target.put("customer_name", nullableString(request.get("customer_name")));
-            target.put("tags", tags);
-            target.put("last_deployed_release", stringValue(request.getOrDefault("last_deployed_release", "unknown")));
-            target.put("health_status", stringValue(request.getOrDefault("health_status", "registered")));
-            target.put("last_check_in_at", OffsetDateTime.now(ZoneOffset.UTC));
-            target.put("simulated_failure_mode", "none");
+            TargetUpsertCommand target = new TargetUpsertCommand(
+                targetId,
+                tenantId,
+                subscriptionId,
+                tags,
+                defaultIfBlank(normalize(request.lastDeployedRelease()), "unknown"),
+                request.healthStatus() == null ? MappoHealthStatus.registered : request.healthStatus(),
+                now,
+                MappoSimulatedFailureMode.none
+            );
             targetRepository.upsertTarget(target);
 
-            Map<String, Object> metadata = mapValue(request.get("metadata"));
-            metadata.putIfAbsent("container_app_name", stringValue(request.get("container_app_name")));
-            metadata.putIfAbsent("customer_name", stringValue(request.get("customer_name")));
-
-            String managedResourceGroupId = stringValue(request.get("managed_resource_group_id"));
+            String managedResourceGroupId = normalize(request.managedResourceGroupId());
             if (managedResourceGroupId.isBlank()) {
-                managedResourceGroupId = deriveResourceGroupIdFromContainerApp(managedAppId);
+                managedResourceGroupId = deriveResourceGroupIdFromContainerApp(containerAppResourceId);
             }
 
-            Map<String, Object> registration = new LinkedHashMap<>();
-            registration.put("target_id", targetId);
-            registration.put("display_name", defaultIfBlank(stringValue(request.get("display_name")), targetId));
-            registration.put("managed_application_id", nullableString(request.get("managed_application_id")));
-            registration.put("managed_resource_group_id", managedResourceGroupId);
-            registration.put("metadata", metadata);
-            registration.put("last_event_id", eventId);
-            registration.put("created_at", OffsetDateTime.now(ZoneOffset.UTC));
+            TargetRegistrationUpsertCommand registration = new TargetRegistrationUpsertCommand(
+                targetId,
+                defaultIfBlank(normalize(request.displayName()), targetId),
+                nullable(request.customerName()),
+                nullable(request.managedApplicationId()),
+                managedResourceGroupId,
+                containerAppResourceId,
+                nullable(request.containerAppName()),
+                defaultIfBlank(request.registrationSource(), "manual"),
+                eventId,
+                now
+            );
             adminRepository.upsertRegistration(registration);
 
             message = "Registered target " + targetId + " for subscription " + subscriptionId + ".";
@@ -106,55 +128,79 @@ public class AdminService {
         adminRepository.saveMarketplaceEvent(
             eventId,
             eventType,
-            "applied",
+            MappoMarketplaceEventStatus.applied,
             message,
             targetId,
             tenantId,
             subscriptionId,
-            request
+            nullable(request.displayName()),
+            nullable(request.customerName()),
+            nullable(request.managedApplicationId()),
+            nullable(request.managedResourceGroupId()),
+            nullable(request.containerAppResourceId()),
+            nullable(request.containerAppName()),
+            nullable(request.targetGroup()),
+            nullable(request.region()),
+            nullable(request.environment()),
+            nullable(request.tier()),
+            nullable(request.lastDeployedRelease()),
+            request.healthStatus(),
+            defaultIfBlank(request.registrationSource(), "manual"),
+            request.marketplacePayloadId()
         );
 
-        return Map.of(
-            "event_id", eventId,
-            "status", "applied",
-            "message", message,
-            "target_id", targetId
+        return new EventIngestResultRecord(
+            eventId,
+            MappoMarketplaceEventStatus.applied,
+            message,
+            targetId
         );
     }
 
-    public List<Map<String, Object>> listForwarderLogs(int limit) {
+    public List<ForwarderLogRecord> listForwarderLogs(int limit) {
         return adminRepository.listForwarderLogs(limit);
     }
 
-    public Map<String, Object> ingestForwarderLog(Map<String, Object> request) {
-        String logId = stringValue(request.get("log_id"));
+    public ForwarderLogIngestResultRecord ingestForwarderLog(ForwarderLogIngestRequest request) {
+        if (request == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "forwarder log request is required");
+        }
+
+        ForwarderLogIngestCommand command = request.toCommand();
+        String logId = normalize(command.logId());
         if (logId.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "log_id is required");
         }
 
         if (adminRepository.forwarderLogExists(logId)) {
-            return Map.of(
-                "log_id", logId,
-                "status", "duplicate",
-                "message", "forwarder log already ingested"
+            return new ForwarderLogIngestResultRecord(
+                logId,
+                MappoMarketplaceEventStatus.duplicate,
+                "forwarder log already ingested"
             );
         }
 
-        adminRepository.saveForwarderLog(request);
-        return Map.of(
-            "log_id", logId,
-            "status", "applied",
-            "message", "forwarder log ingested"
+        adminRepository.saveForwarderLog(command);
+        return new ForwarderLogIngestResultRecord(
+            logId,
+            MappoMarketplaceEventStatus.applied,
+            "forwarder log ingested"
         );
     }
 
-    public Map<String, Object> updateTargetRegistration(String targetId, Map<String, Object> patch) {
-        Map<String, Object> existing = adminRepository.getRegistration(targetId);
-        if (existing.isEmpty()) {
+    public TargetRegistrationRecord updateTargetRegistration(String targetId, TargetRegistrationPatchRequest patch) {
+        TargetRegistrationRecord existing = adminRepository.getRegistration(targetId).orElse(null);
+        if (existing == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "target registration not found: " + targetId);
         }
-        adminRepository.updateRegistrationAndTarget(targetId, patch);
-        return adminRepository.getRegistration(targetId);
+        if (patch == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "registration patch is required");
+        }
+
+        TargetRegistrationPatchCommand patchCommand = patch.toCommand();
+        adminRepository.updateRegistrationAndTarget(targetId, patchCommand);
+        return adminRepository.getRegistration(targetId)
+            .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "target registration not found: " + targetId));
     }
 
     public void deleteTargetRegistration(String targetId) {
@@ -162,36 +208,12 @@ public class AdminService {
         targetRepository.deleteTarget(targetId);
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> mapValue(Object value) {
-        if (value instanceof Map<?, ?> raw) {
-            Map<String, Object> map = new LinkedHashMap<>();
-            for (Map.Entry<?, ?> entry : raw.entrySet()) {
-                map.put(String.valueOf(entry.getKey()), entry.getValue());
-            }
-            return map;
-        }
-        return new LinkedHashMap<>();
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, String> buildTags(Map<String, Object> request) {
-        Map<String, String> tags = new LinkedHashMap<>();
-        Object tagsObj = request.get("tags");
-        if (tagsObj instanceof Map<?, ?> raw) {
-            for (Map.Entry<?, ?> entry : raw.entrySet()) {
-                String key = String.valueOf(entry.getKey()).trim();
-                String value = String.valueOf(entry.getValue()).trim();
-                if (!key.isBlank() && !value.isBlank()) {
-                    tags.put(key, value);
-                }
-            }
-        }
-
-        putDefault(tags, "ring", stringValue(request.getOrDefault("target_group", "prod")));
-        putDefault(tags, "region", defaultIfBlank(stringValue(request.get("region")), "eastus"));
-        putDefault(tags, "environment", stringValue(request.getOrDefault("environment", "prod")));
-        putDefault(tags, "tier", stringValue(request.getOrDefault("tier", "standard")));
+    private Map<String, String> buildTags(OnboardingEventRequest request) {
+        Map<String, String> tags = new LinkedHashMap<>(request.effectiveTags());
+        putDefault(tags, "ring", defaultIfBlank(normalize(request.targetGroup()), "prod"));
+        putDefault(tags, "region", defaultIfBlank(normalize(request.region()), "eastus"));
+        putDefault(tags, "environment", defaultIfBlank(normalize(request.environment()), "prod"));
+        putDefault(tags, "tier", defaultIfBlank(normalize(request.tier()), "standard"));
         return tags;
     }
 
@@ -201,28 +223,18 @@ public class AdminService {
         }
     }
 
-    private boolean isSuspendEvent(String eventType) {
-        String normalized = eventType.toLowerCase();
-        return normalized.contains("suspend") || normalized.contains("subscription_suspended");
-    }
-
-    private boolean isDeleteEvent(String eventType) {
-        String normalized = eventType.toLowerCase();
-        return normalized.contains("delete") || normalized.contains("unsubscribe") || normalized.contains("cancel");
-    }
-
-    private String resolveTargetId(Map<String, Object> request) {
-        String targetId = stringValue(request.get("target_id"));
+    private String resolveTargetId(OnboardingEventRequest request) {
+        String targetId = normalize(request.targetId());
         if (!targetId.isBlank()) {
             return targetId;
         }
 
-        String displayName = stringValue(request.get("display_name"));
+        String displayName = normalize(request.displayName());
         if (!displayName.isBlank()) {
             return normalizeId(displayName);
         }
 
-        String managedAppId = stringValue(request.get("managed_application_id"));
+        String managedAppId = normalize(request.managedApplicationId());
         if (!managedAppId.isBlank()) {
             int idx = managedAppId.lastIndexOf("/");
             if (idx >= 0 && idx < managedAppId.length() - 1) {
@@ -230,12 +242,12 @@ public class AdminService {
             }
         }
 
-        String containerAppName = stringValue(request.get("container_app_name"));
+        String containerAppName = normalize(request.containerAppName());
         if (!containerAppName.isBlank()) {
             return normalizeId(containerAppName);
         }
 
-        return "target-" + Math.abs((stringValue(request.get("subscription_id")) + "-" + stringValue(request.get("tenant_id"))).hashCode());
+        return "target-" + Math.abs((normalize(request.subscriptionId()) + "-" + normalize(request.tenantId())).hashCode());
     }
 
     private String normalizeId(String value) {
@@ -251,16 +263,17 @@ public class AdminService {
         return "";
     }
 
-    private String stringValue(Object value) {
+    private String normalize(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
     }
 
     private String defaultIfBlank(String value, String fallback) {
-        return value.isBlank() ? fallback : value;
+        String normalized = normalize(value);
+        return normalized.isBlank() ? fallback : normalized;
     }
 
-    private String nullableString(Object value) {
-        String valueText = stringValue(value);
-        return valueText.isBlank() ? null : valueText;
+    private String nullable(String value) {
+        String normalized = normalize(value);
+        return normalized.isBlank() ? null : normalized;
     }
 }

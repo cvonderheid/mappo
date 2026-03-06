@@ -315,3 +315,9 @@ Purpose: capture recurring correction patterns and preventative guardrails.
 - Preventative rule: When enforcing single-source-of-truth projection, audit and project all duplicated fields in one pass, and block partial field-by-field fixes.
 - Detection signal: Admin registration table and Fleet table show different values for the same target after edits.
 - Enforcement (test/lint/checklist): keep one regression test that tampers every duplicated target field and asserts list/read paths project all of them from registration data.
+
+- Date: 2026-03-05
+- Pattern: Domain records and repository/service seams used free-form `String` status values where DB-backed enums already exist, weakening type-safety and allowing invalid lifecycle values.
+- Preventative rule: For any field backed by a Postgres enum, use the generated jOOQ enum type end-to-end (record models, repository signatures, service calls) instead of string literals.
+- Detection signal: `rg -n "String\s+.*(status|mode|stage|scope|health|level|strategy|failure)" backend-java/src/main/java/com/mappo/controlplane/{model,service,repository}` returns matches that are not business text fields.
+- Enforcement (test/lint/checklist): add enum-surface grep check to backend architecture lint and require `./mvnw -pl backend-java test` on enum-related refactors.

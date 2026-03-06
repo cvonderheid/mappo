@@ -16,20 +16,45 @@ CREATE TYPE mappo_target_stage AS ENUM (
   'FAILED'
 );
 CREATE TYPE mappo_marketplace_event_status AS ENUM ('applied', 'duplicate', 'rejected');
+CREATE TYPE mappo_marketplace_event_type AS ENUM (
+  'subscription_purchased',
+  'subscription_suspended',
+  'subscription_deleted',
+  'unknown'
+);
 CREATE TYPE mappo_forwarder_log_level AS ENUM ('info', 'warning', 'error');
+CREATE TYPE mappo_deployment_mode AS ENUM ('container_patch', 'template_spec');
+CREATE TYPE mappo_deployment_scope AS ENUM ('resource_group', 'subscription');
+CREATE TYPE mappo_arm_deployment_mode AS ENUM ('incremental', 'complete');
 
 CREATE TABLE targets (
   id VARCHAR(128) PRIMARY KEY,
   tenant_id UUID NOT NULL,
   subscription_id UUID NOT NULL,
-  managed_app_id VARCHAR(2048) NOT NULL,
-  customer_name VARCHAR(255) NULL,
   last_deployed_release VARCHAR(128) NOT NULL,
   health_status mappo_health_status NOT NULL,
   last_check_in_at TIMESTAMPTZ NOT NULL,
   simulated_failure_mode mappo_simulated_failure_mode NOT NULL DEFAULT 'none',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, subscription_id)
+);
+
+CREATE TABLE target_registrations (
+  target_id VARCHAR(128) PRIMARY KEY REFERENCES targets (id) ON DELETE CASCADE,
+  display_name VARCHAR(255) NOT NULL,
+  customer_name VARCHAR(255) NULL,
+  managed_application_id VARCHAR(2048) NULL,
+  managed_resource_group_id VARCHAR(2048) NOT NULL,
+  container_app_resource_id VARCHAR(2048) NOT NULL,
+  container_app_name VARCHAR(255) NULL,
+  registration_source VARCHAR(64) NULL,
+  last_event_id VARCHAR(128) NULL,
+  created_at TIMESTAMPTZ NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE INDEX idx_target_registrations_updated_at
+  ON target_registrations (updated_at DESC);
 
 CREATE TABLE target_tags (
   target_id VARCHAR(128) NOT NULL REFERENCES targets (id) ON DELETE CASCADE,
@@ -41,24 +66,16 @@ CREATE TABLE target_tags (
 CREATE INDEX idx_target_tags_key_value
   ON target_tags (tag_key, tag_value);
 
-CREATE TABLE target_registrations (
-  target_id VARCHAR(128) PRIMARY KEY,
-  display_name VARCHAR(255) NOT NULL,
-  managed_application_id VARCHAR(2048) NULL,
-  managed_resource_group_id VARCHAR(2048) NOT NULL,
-  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-  last_event_id VARCHAR(128) NULL,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX idx_target_registrations_updated_at
-  ON target_registrations (updated_at DESC);
-
 CREATE TABLE releases (
   id VARCHAR(128) PRIMARY KEY,
   template_spec_id VARCHAR(2048) NOT NULL,
   template_spec_version VARCHAR(128) NOT NULL,
+  deployment_mode mappo_deployment_mode NOT NULL DEFAULT 'container_patch',
+  template_spec_version_id VARCHAR(2048) NULL,
+  deployment_scope mappo_deployment_scope NOT NULL DEFAULT 'resource_group',
+  arm_deployment_mode mappo_arm_deployment_mode NOT NULL DEFAULT 'incremental',
+  what_if_on_canary BOOLEAN NOT NULL DEFAULT FALSE,
+  verify_after_deploy BOOLEAN NOT NULL DEFAULT TRUE,
   release_notes TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -83,6 +100,7 @@ CREATE TABLE release_verification_hints (
 CREATE TABLE runs (
   id VARCHAR(128) PRIMARY KEY,
   release_id VARCHAR(128) NOT NULL,
+  execution_mode mappo_deployment_mode NOT NULL DEFAULT 'container_patch',
   strategy_mode mappo_strategy_mode NOT NULL,
   wave_tag VARCHAR(64) NOT NULL,
   concurrency INTEGER NOT NULL,
@@ -129,7 +147,7 @@ CREATE INDEX idx_run_targets_target_id
 
 CREATE TABLE target_execution_records (
   run_id VARCHAR(128) NOT NULL REFERENCES runs (id) ON DELETE CASCADE,
-  target_id VARCHAR(128) NOT NULL,
+  target_id VARCHAR(128) NOT NULL REFERENCES targets (id) ON DELETE CASCADE,
   subscription_id UUID NOT NULL,
   tenant_id UUID NOT NULL,
   status mappo_target_stage NOT NULL,
@@ -148,7 +166,17 @@ CREATE TABLE target_stage_records (
   message TEXT NOT NULL DEFAULT '',
   error_code VARCHAR(128) NULL,
   error_message TEXT NULL,
-  error_details JSONB NULL,
+  error_status_code INTEGER NULL,
+  error_detail_text TEXT NULL,
+  error_desired_image VARCHAR(2048) NULL,
+  azure_error_code VARCHAR(128) NULL,
+  azure_error_message TEXT NULL,
+  azure_request_id VARCHAR(128) NULL,
+  azure_arm_service_request_id VARCHAR(128) NULL,
+  azure_correlation_id VARCHAR(128) NULL,
+  azure_deployment_name VARCHAR(128) NULL,
+  azure_operation_id VARCHAR(128) NULL,
+  azure_resource_id VARCHAR(2048) NULL,
   correlation_id VARCHAR(128) NOT NULL,
   portal_link VARCHAR(2048) NOT NULL,
   PRIMARY KEY (run_id, target_id, position),
@@ -174,13 +202,26 @@ CREATE TABLE target_log_events (
 
 CREATE TABLE marketplace_events (
   id VARCHAR(128) PRIMARY KEY,
-  event_type VARCHAR(64) NOT NULL,
+  event_type mappo_marketplace_event_type NOT NULL,
   status mappo_marketplace_event_status NOT NULL,
   message TEXT NOT NULL,
   target_id VARCHAR(128) NULL,
   tenant_id UUID NOT NULL,
   subscription_id UUID NOT NULL,
-  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  display_name VARCHAR(255) NULL,
+  customer_name VARCHAR(255) NULL,
+  managed_application_id VARCHAR(2048) NULL,
+  managed_resource_group_id VARCHAR(2048) NULL,
+  container_app_resource_id VARCHAR(2048) NULL,
+  container_app_name VARCHAR(255) NULL,
+  target_group VARCHAR(64) NULL,
+  region VARCHAR(64) NULL,
+  environment VARCHAR(64) NULL,
+  tier VARCHAR(64) NULL,
+  last_deployed_release VARCHAR(128) NULL,
+  health_status mappo_health_status NULL,
+  registration_source VARCHAR(64) NULL,
+  marketplace_payload_id VARCHAR(128) NULL,
   created_at TIMESTAMPTZ NOT NULL,
   processed_at TIMESTAMPTZ NULL
 );
@@ -193,14 +234,15 @@ CREATE TABLE forwarder_logs (
   level mappo_forwarder_log_level NOT NULL,
   message TEXT NOT NULL,
   event_id VARCHAR(128) NULL,
-  event_type VARCHAR(64) NULL,
+  event_type mappo_marketplace_event_type NULL,
   target_id VARCHAR(128) NULL,
   tenant_id UUID NULL,
   subscription_id UUID NULL,
   function_app_name VARCHAR(255) NULL,
   forwarder_request_id VARCHAR(128) NULL,
   backend_status_code INTEGER NULL,
-  details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  detail_text TEXT NULL,
+  backend_response_body TEXT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

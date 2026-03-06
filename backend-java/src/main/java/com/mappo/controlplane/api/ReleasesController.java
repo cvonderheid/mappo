@@ -1,8 +1,10 @@
 package com.mappo.controlplane.api;
 
+import com.mappo.controlplane.api.request.ReleaseCreateRequest;
+import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.service.ReleaseService;
+import jakarta.validation.Valid;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,13 +22,13 @@ public class ReleasesController {
     private final ReleaseService releaseService;
 
     @GetMapping
-    public List<Map<String, Object>> listReleases() {
+    public List<ReleaseRecord> listReleases() {
         return releaseService.listReleases();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Map<String, Object> createRelease(@RequestBody Map<String, Object> request) {
+    public ReleaseRecord createRelease(@Valid @RequestBody ReleaseCreateRequest request) {
         return releaseService.createRelease(request);
     }
 }

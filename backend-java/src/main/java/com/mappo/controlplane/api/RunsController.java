@@ -1,8 +1,11 @@
 package com.mappo.controlplane.api;
 
+import com.mappo.controlplane.api.request.RunCreateRequest;
+import com.mappo.controlplane.model.RunDetailRecord;
+import com.mappo.controlplane.model.RunSummaryRecord;
 import com.mappo.controlplane.service.RunService;
+import jakarta.validation.Valid;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,28 +24,28 @@ public class RunsController {
     private final RunService runService;
 
     @GetMapping
-    public List<Map<String, Object>> listRuns() {
+    public List<RunSummaryRecord> listRuns() {
         return runService.listRuns();
     }
 
     @GetMapping("/{runId}")
-    public Map<String, Object> getRun(@PathVariable("runId") String runId) {
+    public RunDetailRecord getRun(@PathVariable("runId") String runId) {
         return runService.getRun(runId);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Map<String, Object> createRun(@RequestBody Map<String, Object> request) {
+    public RunDetailRecord createRun(@Valid @RequestBody RunCreateRequest request) {
         return runService.createRun(request);
     }
 
     @PostMapping("/{runId}/resume")
-    public Map<String, Object> resumeRun(@PathVariable("runId") String runId) {
+    public RunDetailRecord resumeRun(@PathVariable("runId") String runId) {
         return runService.resumeRun(runId);
     }
 
     @PostMapping("/{runId}/retry-failed")
-    public Map<String, Object> retryFailed(@PathVariable("runId") String runId) {
+    public RunDetailRecord retryFailed(@PathVariable("runId") String runId) {
         return runService.retryFailed(runId);
     }
 }

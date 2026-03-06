@@ -4,19 +4,21 @@ import static com.mappo.controlplane.jooq.Tables.RELEASES;
 import static com.mappo.controlplane.jooq.Tables.RELEASE_PARAMETER_DEFAULTS;
 import static com.mappo.controlplane.jooq.Tables.RELEASE_VERIFICATION_HINTS;
 
+import com.mappo.controlplane.jooq.enums.MappoArmDeploymentMode;
 import com.mappo.controlplane.jooq.enums.MappoDeploymentMode;
 import com.mappo.controlplane.jooq.enums.MappoDeploymentScope;
-import com.mappo.controlplane.util.JsonUtil;
+import com.mappo.controlplane.model.command.CreateReleaseCommand;
+import com.mappo.controlplane.model.ReleaseRecord;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
-import org.jooq.JSONB;
 import org.jooq.Record;
 import org.springframework.stereotype.Repository;
 
@@ -25,9 +27,8 @@ import org.springframework.stereotype.Repository;
 public class ReleaseRepository {
 
     private final DSLContext dsl;
-    private final JsonUtil jsonUtil;
 
-    public List<Map<String, Object>> listReleases() {
+    public List<ReleaseRecord> listReleases() {
         var rows = dsl.select(
                 RELEASES.ID,
                 RELEASES.TEMPLATE_SPEC_ID,
@@ -35,7 +36,9 @@ public class ReleaseRepository {
                 RELEASES.DEPLOYMENT_MODE,
                 RELEASES.TEMPLATE_SPEC_VERSION_ID,
                 RELEASES.DEPLOYMENT_SCOPE,
-                RELEASES.DEPLOYMENT_MODE_SETTINGS,
+                RELEASES.ARM_DEPLOYMENT_MODE,
+                RELEASES.WHAT_IF_ON_CANARY,
+                RELEASES.VERIFY_AFTER_DEPLOY,
                 RELEASES.RELEASE_NOTES,
                 RELEASES.CREATED_AT
             )
@@ -47,15 +50,15 @@ public class ReleaseRepository {
         Map<String, Map<String, String>> defaults = loadDefaults(ids);
         Map<String, List<String>> hints = loadHints(ids);
 
-        List<Map<String, Object>> releases = new ArrayList<>(rows.size());
+        List<ReleaseRecord> releases = new ArrayList<>(rows.size());
         for (Record row : rows) {
             String id = row.get(RELEASES.ID);
-            releases.add(toReleaseMap(row, defaults.getOrDefault(id, Map.of()), hints.getOrDefault(id, List.of())));
+            releases.add(toReleaseRecord(row, defaults.getOrDefault(id, Map.of()), hints.getOrDefault(id, List.of())));
         }
         return releases;
     }
 
-    public Map<String, Object> getRelease(String releaseId) {
+    public Optional<ReleaseRecord> getRelease(String releaseId) {
         Record row = dsl.select(
                 RELEASES.ID,
                 RELEASES.TEMPLATE_SPEC_ID,
@@ -63,7 +66,9 @@ public class ReleaseRepository {
                 RELEASES.DEPLOYMENT_MODE,
                 RELEASES.TEMPLATE_SPEC_VERSION_ID,
                 RELEASES.DEPLOYMENT_SCOPE,
-                RELEASES.DEPLOYMENT_MODE_SETTINGS,
+                RELEASES.ARM_DEPLOYMENT_MODE,
+                RELEASES.WHAT_IF_ON_CANARY,
+                RELEASES.VERIFY_AFTER_DEPLOY,
                 RELEASES.RELEASE_NOTES,
                 RELEASES.CREATED_AT
             )
@@ -72,52 +77,51 @@ public class ReleaseRepository {
             .fetchOne();
 
         if (row == null) {
-            return Map.of();
+            return Optional.empty();
         }
 
         Map<String, String> defaults = loadDefaults(List.of(releaseId)).getOrDefault(releaseId, Map.of());
         List<String> hints = loadHints(List.of(releaseId)).getOrDefault(releaseId, List.of());
-        return toReleaseMap(row, defaults, hints);
+        return Optional.of(toReleaseRecord(row, defaults, hints));
     }
 
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> createRelease(Map<String, Object> request) {
+    public ReleaseRecord createRelease(CreateReleaseCommand request) {
         String releaseId = "rel-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
-        String deploymentModeLiteral = normalize(request.getOrDefault("deployment_mode", "container_patch"));
-        String deploymentScopeLiteral = normalize(request.getOrDefault("deployment_scope", "resource_group"));
-
         MappoDeploymentMode deploymentMode = enumOrDefault(
-            MappoDeploymentMode.lookupLiteral(deploymentModeLiteral),
+            request.deploymentMode(),
             MappoDeploymentMode.container_patch
         );
         MappoDeploymentScope deploymentScope = enumOrDefault(
-            MappoDeploymentScope.lookupLiteral(deploymentScopeLiteral),
+            request.deploymentScope(),
             MappoDeploymentScope.resource_group
         );
 
         dsl.insertInto(RELEASES)
             .set(RELEASES.ID, releaseId)
-            .set(RELEASES.TEMPLATE_SPEC_ID, normalize(request.get("template_spec_id")))
-            .set(RELEASES.TEMPLATE_SPEC_VERSION, normalize(request.get("template_spec_version")))
+            .set(RELEASES.TEMPLATE_SPEC_ID, normalize(request.templateSpecId()))
+            .set(RELEASES.TEMPLATE_SPEC_VERSION, normalize(request.templateSpecVersion()))
             .set(RELEASES.DEPLOYMENT_MODE, deploymentMode)
-            .set(RELEASES.TEMPLATE_SPEC_VERSION_ID, nullableText(request.get("template_spec_version_id")))
+            .set(RELEASES.TEMPLATE_SPEC_VERSION_ID, nullableText(request.templateSpecVersionId()))
             .set(RELEASES.DEPLOYMENT_SCOPE, deploymentScope)
-            .set(RELEASES.DEPLOYMENT_MODE_SETTINGS, toJson(request.getOrDefault("deployment_mode_settings", Map.of())))
-            .set(RELEASES.RELEASE_NOTES, String.valueOf(request.getOrDefault("release_notes", "")))
+            .set(
+                RELEASES.ARM_DEPLOYMENT_MODE,
+                enumOrDefault(request.armDeploymentMode(), MappoArmDeploymentMode.incremental)
+            )
+            .set(RELEASES.WHAT_IF_ON_CANARY, request.whatIfOnCanary())
+            .set(RELEASES.VERIFY_AFTER_DEPLOY, request.verifyAfterDeploy())
+            .set(RELEASES.RELEASE_NOTES, normalize(request.releaseNotes()))
             .set(RELEASES.CREATED_AT, now)
             .execute();
 
         Map<String, String> defaults = new LinkedHashMap<>();
-        Object defaultsObj = request.get("parameter_defaults");
-        if (defaultsObj instanceof Map<?, ?> rawDefaults) {
-            for (Map.Entry<?, ?> entry : rawDefaults.entrySet()) {
+        if (request.parameterDefaults() != null && !request.parameterDefaults().isEmpty()) {
+            for (Map.Entry<String, String> entry : request.parameterDefaults().entrySet()) {
                 String key = normalize(entry.getKey());
-                if (key.isBlank()) {
-                    continue;
+                if (!key.isBlank()) {
+                    defaults.put(key, normalize(entry.getValue()));
                 }
-                defaults.put(key, normalize(entry.getValue()));
             }
         }
 
@@ -130,9 +134,8 @@ public class ReleaseRepository {
         }
 
         List<String> hints = new ArrayList<>();
-        Object hintsObj = request.get("verification_hints");
-        if (hintsObj instanceof List<?> rawHints) {
-            for (Object item : rawHints) {
+        if (request.verificationHints() != null && !request.verificationHints().isEmpty()) {
+            for (String item : request.verificationHints()) {
                 String hint = normalize(item);
                 if (!hint.isBlank()) {
                     hints.add(hint);
@@ -148,7 +151,7 @@ public class ReleaseRepository {
                 .execute();
         }
 
-        return getRelease(releaseId);
+        return getRelease(releaseId).orElseThrow();
     }
 
     private Map<String, Map<String, String>> loadDefaults(List<String> releaseIds) {
@@ -197,31 +200,31 @@ public class ReleaseRepository {
         return hints;
     }
 
-    private Map<String, Object> toReleaseMap(Record row, Map<String, String> defaults, List<String> hints) {
-        Map<String, Object> release = new LinkedHashMap<>();
-        release.put("id", row.get(RELEASES.ID));
-        release.put("template_spec_id", row.get(RELEASES.TEMPLATE_SPEC_ID));
-        release.put("template_spec_version", row.get(RELEASES.TEMPLATE_SPEC_VERSION));
-        release.put("deployment_mode", row.get(RELEASES.DEPLOYMENT_MODE).getLiteral());
-        release.put("template_spec_version_id", row.get(RELEASES.TEMPLATE_SPEC_VERSION_ID));
-        release.put("deployment_scope", row.get(RELEASES.DEPLOYMENT_SCOPE).getLiteral());
-        release.put("deployment_mode_settings", parseJsonMap(row.get(RELEASES.DEPLOYMENT_MODE_SETTINGS)));
-        release.put("parameter_defaults", defaults);
-        release.put("release_notes", row.get(RELEASES.RELEASE_NOTES));
-        release.put("verification_hints", hints);
-        release.put("created_at", row.get(RELEASES.CREATED_AT));
-        return release;
+    private ReleaseRecord toReleaseRecord(Record row, Map<String, String> defaults, List<String> hints) {
+        return new ReleaseRecord(
+            row.get(RELEASES.ID),
+            row.get(RELEASES.TEMPLATE_SPEC_ID),
+            row.get(RELEASES.TEMPLATE_SPEC_VERSION),
+            row.get(RELEASES.DEPLOYMENT_MODE),
+            row.get(RELEASES.TEMPLATE_SPEC_VERSION_ID),
+            row.get(RELEASES.DEPLOYMENT_SCOPE),
+            deploymentModeSettings(row),
+            defaults,
+            row.get(RELEASES.RELEASE_NOTES),
+            hints,
+            row.get(RELEASES.CREATED_AT)
+        );
     }
 
-    private Map<String, Object> parseJsonMap(JSONB json) {
-        if (json == null) {
-            return Map.of();
-        }
-        return jsonUtil.readMap(json.data());
-    }
-
-    private JSONB toJson(Object value) {
-        return JSONB.valueOf(jsonUtil.write(value));
+    private Map<String, Object> deploymentModeSettings(Record row) {
+        Map<String, Object> settings = new LinkedHashMap<>();
+        settings.put(
+            "arm_mode",
+            enumOrDefault(row.get(RELEASES.ARM_DEPLOYMENT_MODE), MappoArmDeploymentMode.incremental).getLiteral()
+        );
+        settings.put("what_if_on_canary", Boolean.TRUE.equals(row.get(RELEASES.WHAT_IF_ON_CANARY)));
+        settings.put("verify_after_deploy", !Boolean.FALSE.equals(row.get(RELEASES.VERIFY_AFTER_DEPLOY)));
+        return settings;
     }
 
     private String nullableText(Object value) {

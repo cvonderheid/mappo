@@ -1,5 +1,6 @@
 package com.mappo.controlplane.service;
 
+import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.repository.TargetRepository;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -13,7 +14,7 @@ public class TargetService {
 
     private final TargetRepository repository;
 
-    public List<Map<String, Object>> listTargets(String ring, String region, String tier, String environment) {
+    public List<TargetRecord> listTargets(String ring, String region, String tier, String environment) {
         Map<String, String> filters = new LinkedHashMap<>();
         putIfPresent(filters, "ring", ring);
         putIfPresent(filters, "region", region);

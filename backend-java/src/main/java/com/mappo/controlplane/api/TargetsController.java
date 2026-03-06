@@ -1,8 +1,8 @@
 package com.mappo.controlplane.api;
 
+import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.service.TargetService;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,7 +17,7 @@ public class TargetsController {
     private final TargetService targetService;
 
     @GetMapping
-    public List<Map<String, Object>> listTargets(
+    public List<TargetRecord> listTargets(
         @RequestParam(value = "ring", required = false) String ring,
         @RequestParam(value = "region", required = false) String region,
         @RequestParam(value = "tier", required = false) String tier,

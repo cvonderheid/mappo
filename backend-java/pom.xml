@@ -86,6 +86,28 @@
         <artifactId>maven-compiler-plugin</artifactId>
       </plugin>
       <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>backend-java-file-size-check</id>
+            <phase>validate</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>python3</executable>
+              <workingDirectory>${project.basedir}/..</workingDirectory>
+              <arguments>
+                <argument>scripts/backend_java_file_size_check.py</argument>
+                <argument>--root</argument>
+                <argument>backend-java/src/main/java</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
         <groupId>org.testcontainers</groupId>
         <artifactId>testcontainers-jooq-codegen-maven-plugin</artifactId>
         <executions>

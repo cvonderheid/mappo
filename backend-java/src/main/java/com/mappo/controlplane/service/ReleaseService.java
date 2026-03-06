@@ -1,9 +1,11 @@
 package com.mappo.controlplane.service;
 
 import com.mappo.controlplane.api.ApiException;
+import com.mappo.controlplane.api.request.ReleaseCreateRequest;
+import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.repository.ReleaseRepository;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -14,24 +16,19 @@ public class ReleaseService {
 
     private final ReleaseRepository repository;
 
-    public List<Map<String, Object>> listReleases() {
+    public List<ReleaseRecord> listReleases() {
         return repository.listReleases();
     }
 
-    public Map<String, Object> createRelease(Map<String, Object> request) {
-        String templateSpecId = stringValue(request.get("template_spec_id"));
-        String templateSpecVersion = stringValue(request.get("template_spec_version"));
-        if (templateSpecId.isBlank() || templateSpecVersion.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "template_spec_id and template_spec_version are required");
+    public ReleaseRecord createRelease(ReleaseCreateRequest request) {
+        if (request == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "release request is required");
         }
-        return repository.createRelease(request);
+        return repository.createRelease(request.toCommand());
     }
 
-    public Map<String, Object> getRelease(String releaseId) {
-        return repository.getRelease(releaseId);
-    }
-
-    private String stringValue(Object value) {
-        return value == null ? "" : String.valueOf(value).trim();
+    public ReleaseRecord getRelease(String releaseId) {
+        Optional<ReleaseRecord> release = repository.getRelease(releaseId);
+        return release.orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "release not found: " + releaseId));
     }
 }

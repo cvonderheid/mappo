@@ -1,10 +1,18 @@
 package com.mappo.controlplane.service;
 
 import com.mappo.controlplane.api.ApiException;
+import com.mappo.controlplane.api.request.RunCreateRequest;
 import com.mappo.controlplane.azure.AzureExecutorClient;
+import com.mappo.controlplane.jooq.enums.MappoDeploymentMode;
+import com.mappo.controlplane.jooq.enums.MappoRunStatus;
+import com.mappo.controlplane.jooq.enums.MappoTargetStage;
+import com.mappo.controlplane.model.command.CreateRunCommand;
+import com.mappo.controlplane.model.ReleaseRecord;
+import com.mappo.controlplane.model.RunDetailRecord;
+import com.mappo.controlplane.model.RunSummaryRecord;
+import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.repository.RunRepository;
 import com.mappo.controlplane.repository.TargetRepository;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -21,105 +29,81 @@ public class RunService {
     private final ReleaseService releaseService;
     private final AzureExecutorClient azureExecutorClient;
 
-    public List<Map<String, Object>> listRuns() {
+    public List<RunSummaryRecord> listRuns() {
         return runRepository.listRunSummaries();
     }
 
-    public Map<String, Object> getRun(String runId) {
-        Map<String, Object> run = runRepository.getRunDetail(runId);
-        if (run.isEmpty()) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "run not found: " + runId);
-        }
-        return run;
+    public RunDetailRecord getRun(String runId) {
+        return runRepository.getRunDetail(runId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "run not found: " + runId));
     }
 
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> createRun(Map<String, Object> request) {
-        String releaseId = stringValue(request.get("release_id"));
+    public RunDetailRecord createRun(RunCreateRequest request) {
+        if (request == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "run request is required");
+        }
+        CreateRunCommand command = request.toCommand();
+        String releaseId = command.releaseId();
         if (releaseId.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "release_id is required");
         }
 
-        Map<String, Object> release = releaseService.getRelease(releaseId);
-        if (release.isEmpty()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "release not found: " + releaseId);
-        }
-
-        List<Map<String, Object>> targets = resolveTargets(request);
+        ReleaseRecord release = releaseService.getRelease(releaseId);
+        List<TargetRecord> targets = resolveTargets(command);
         if (targets.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "no matching targets found");
         }
 
         String runId = "run-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
-        String executionMode = stringValue(release.get("deployment_mode"));
+        MappoDeploymentMode executionMode = release.deploymentMode();
         boolean immediateSuccess = true;
 
-        runRepository.createRun(runId, request, targets, executionMode, immediateSuccess);
+        runRepository.createRun(runId, command, targets, executionMode, immediateSuccess);
 
-        if (!"template_spec".equals(executionMode)) {
+        if (executionMode != MappoDeploymentMode.template_spec) {
             runRepository.addRunWarning(runId, 0, "execution mode is not template_spec; run completed in simulator mode");
         } else if (!azureExecutorClient.isConfigured()) {
             runRepository.addRunWarning(runId, 0, "azure sdk credentials are not configured; run completed in simulator mode");
         }
 
-        String releaseVersion = stringValue(release.get("template_spec_version"));
-        for (Map<String, Object> target : targets) {
-            targetRepository.updateLastDeployedRelease(stringValue(target.get("id")), releaseVersion);
+        String releaseVersion = release.templateSpecVersion();
+        for (TargetRecord target : targets) {
+            targetRepository.updateLastDeployedRelease(target.id(), releaseVersion);
         }
 
         return getRun(runId);
     }
 
-    public Map<String, Object> resumeRun(String runId) {
-        Map<String, Object> detail = getRun(runId);
-        String status = stringValue(detail.get("status"));
-        if (!"halted".equals(status)) {
+    public RunDetailRecord resumeRun(String runId) {
+        RunDetailRecord detail = getRun(runId);
+        if (detail.status() != MappoRunStatus.halted) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "run is not resumable");
         }
-        runRepository.markRunComplete(runId, "succeeded", null);
+        runRepository.markRunComplete(runId, MappoRunStatus.succeeded, null);
         return getRun(runId);
     }
 
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> retryFailed(String runId) {
-        Map<String, Object> detail = getRun(runId);
-        List<Map<String, Object>> records = (List<Map<String, Object>>) detail.getOrDefault("target_records", List.of());
-        long failed = records.stream()
-            .filter(row -> "FAILED".equalsIgnoreCase(String.valueOf(row.get("status"))))
+    public RunDetailRecord retryFailed(String runId) {
+        RunDetailRecord detail = getRun(runId);
+        long failed = detail.targetRecords().stream()
+            .filter(row -> row.status() == MappoTargetStage.FAILED)
             .count();
         if (failed == 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "run has no failed targets to retry");
         }
-        runRepository.markRunComplete(runId, "succeeded", null);
+        runRepository.markRunComplete(runId, MappoRunStatus.succeeded, null);
         return getRun(runId);
     }
 
-    @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> resolveTargets(Map<String, Object> request) {
-        Object targetIdsObj = request.get("target_ids");
-        if (targetIdsObj instanceof List<?> rawTargetIds && !rawTargetIds.isEmpty()) {
-            List<String> targetIds = rawTargetIds.stream().map(String::valueOf).toList();
-            return targetRepository.getTargetsByIds(targetIds);
+    private List<TargetRecord> resolveTargets(CreateRunCommand request) {
+        if (!request.targetIds().isEmpty()) {
+            return targetRepository.getTargetsByIds(request.targetIds());
         }
 
-        Object targetTagsObj = request.get("target_tags");
-        if (targetTagsObj instanceof Map<?, ?> rawTags && !rawTags.isEmpty()) {
-            List<Map.Entry<?, ?>> entries = new ArrayList<>(rawTags.entrySet());
-            java.util.LinkedHashMap<String, String> tags = new java.util.LinkedHashMap<>();
-            for (Map.Entry<?, ?> entry : entries) {
-                String key = String.valueOf(entry.getKey()).trim();
-                String value = String.valueOf(entry.getValue()).trim();
-                if (!key.isBlank() && !value.isBlank()) {
-                    tags.put(key, value);
-                }
-            }
-            return targetRepository.getTargetsByTagFilters(tags);
+        if (!request.targetTags().isEmpty()) {
+            return targetRepository.getTargetsByTagFilters(request.targetTags());
         }
 
         return targetRepository.listTargets(Map.of());
-    }
-
-    private String stringValue(Object value) {
-        return value == null ? "" : String.valueOf(value).trim();
     }
 }
