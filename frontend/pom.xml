@@ -1,0 +1,98 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.mappo</groupId>
+    <artifactId>mappo</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>frontend</artifactId>
+  <packaging>pom</packaging>
+  <name>frontend</name>
+  <description>MAPPO frontend build lifecycle</description>
+
+  <properties>
+    <node.version>v20.19.0</node.version>
+    <npm.version>10.8.2</npm.version>
+  </properties>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>com.github.eirslett</groupId>
+        <artifactId>frontend-maven-plugin</artifactId>
+        <configuration>
+          <workingDirectory>${project.basedir}</workingDirectory>
+          <installDirectory>${project.build.directory}</installDirectory>
+        </configuration>
+        <executions>
+          <execution>
+            <id>install-node-and-npm</id>
+            <phase>initialize</phase>
+            <goals>
+              <goal>install-node-and-npm</goal>
+            </goals>
+            <configuration>
+              <nodeVersion>${node.version}</nodeVersion>
+              <npmVersion>${npm.version}</npmVersion>
+            </configuration>
+          </execution>
+          <execution>
+            <id>npm-ci</id>
+            <phase>initialize</phase>
+            <goals>
+              <goal>npm</goal>
+            </goals>
+            <configuration>
+              <arguments>ci</arguments>
+            </configuration>
+          </execution>
+          <execution>
+            <id>client-gen</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>npm</goal>
+            </goals>
+            <configuration>
+              <arguments>run client-gen</arguments>
+            </configuration>
+          </execution>
+          <execution>
+            <id>typecheck</id>
+            <phase>compile</phase>
+            <goals>
+              <goal>npm</goal>
+            </goals>
+            <configuration>
+              <arguments>run typecheck</arguments>
+            </configuration>
+          </execution>
+          <execution>
+            <id>unit-test</id>
+            <phase>test</phase>
+            <goals>
+              <goal>npm</goal>
+            </goals>
+            <configuration>
+              <arguments>run test -- --run</arguments>
+            </configuration>
+          </execution>
+          <execution>
+            <id>build</id>
+            <phase>package</phase>
+            <goals>
+              <goal>npm</goal>
+            </goals>
+            <configuration>
+              <arguments>run build</arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

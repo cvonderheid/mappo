@@ -16,15 +16,30 @@ REQUIRED_FILES = [
     "docs/plans.md",
 ]
 
+NO_MAKE_REFERENCE_FILES = [
+    "README.md",
+    "plans.md",
+    "plans-next.md",
+    "docs/architecture.md",
+    "docs/documentation.md",
+    "docs/engineering-playbook.md",
+    "docs/golden-principles.md",
+    "docs/implement.md",
+    "docs/live-demo-checklist.md",
+    "docs/marketplace-forwarder-runbook.md",
+    "docs/marketplace-portal-playbook.md",
+    "docs/runtime-aca-runbook.md",
+]
+
 CONTENT_RULES = {
     "plans.md": ["## Status", "## Milestone Plan", "## Review Checklist Before Coding"],
     "plans-next.md": ["## Verification Checklist", "## Status Snapshot", "## Phase"],
     "docs/documentation.md": ["## Engineering workflow discipline (before implementation)"],
-    "pom.xml": ["<module>backend-java</module>"],
+    "pom.xml": ["<module>backend</module>", "<module>frontend</module>"],
     "README.md": [
-        "./mvnw -pl backend-java verify",
-        "./mvnw -N exec:exec@frontend-client-gen",
-        "/Users/cvonderheid/workspace/mappo/backend-java/target/openapi/openapi.json",
+        "./mvnw -pl backend verify",
+        "./mvnw -pl frontend package",
+        "/Users/cvonderheid/workspace/mappo/backend/target/openapi/openapi.json",
     ],
 }
 
@@ -46,6 +61,14 @@ def main() -> int:
         for marker in markers:
             if marker not in text:
                 failures.append(f"{relative} missing marker: {marker}")
+
+    for relative in NO_MAKE_REFERENCE_FILES:
+        path = repo / relative
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "make " in text or "`make" in text:
+            failures.append(f"{relative} still references removed Makefile workflow")
 
     if failures:
         print("docs-consistency-check: FAIL")

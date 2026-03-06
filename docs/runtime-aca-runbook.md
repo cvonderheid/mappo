@@ -14,7 +14,7 @@ This runbook deploys MAPPO backend and frontend into Azure Container Apps (produ
 
 ## Prerequisites
 
-- `make iac-up PULUMI_STACK=<stack>` completed
+- `cd infra/pulumi && pulumi up --stack <stack> --yes` completed
 - Docker Desktop running (used as fallback image builder when ACR Tasks are restricted)
 - `.data/mappo-azure.env` exists and includes:
   - `MAPPO_AZURE_TENANT_ID`
@@ -22,19 +22,19 @@ This runbook deploys MAPPO backend and frontend into Azure Container Apps (produ
   - `MAPPO_AZURE_CLIENT_SECRET`
   - `MAPPO_AZURE_TENANT_BY_SUBSCRIPTION`
   - `MAPPO_MARKETPLACE_INGEST_TOKEN`
-- `.data/mappo-db.env` exists (from `make iac-export-db-env`)
+- `.data/mappo-db.env` exists (from `./scripts/iac_export_db_env.sh --stack <stack>`)
 
 ## 1) Deploy Runtime
 
 ```bash
-make runtime-aca-deploy PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-subscription-id>"
-make runtime-easyauth-configure PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-subscription-id>"
+./scripts/runtime_aca_deploy.sh --stack <stack> --subscription-id "<provider-subscription-id>"
+./scripts/runtime_easyauth_configure.sh --stack <stack> --subscription-id "<provider-subscription-id>"
 source .data/mappo-runtime.env
 ```
 
 On-demand migration rerun:
 ```bash
-make runtime-db-migrate-job-run PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-subscription-id>"
+./scripts/runtime_db_migrate_job_run.sh --stack <stack> --subscription-id "<provider-subscription-id>"
 ```
 
 Outputs in `.data/mappo-runtime.env`:
@@ -65,11 +65,11 @@ EasyAuth validation:
 ## 3) Wire Forwarder to Runtime API
 
 ```bash
-make marketplace-forwarder-deploy \
-  RESOURCE_GROUP="rg-mappo-marketplace-forwarder" \
-  FUNCTION_APP_NAME="fa-mappo-marketplace-forwarder-<suffix>" \
-  SUBSCRIPTION_ID="<provider-subscription-id>" \
-  MAPPO_INGEST_TOKEN="$MAPPO_MARKETPLACE_INGEST_TOKEN"
+./scripts/marketplace_forwarder_deploy.sh \
+  --resource-group "rg-mappo-marketplace-forwarder" \
+  --function-app-name "fa-mappo-marketplace-forwarder-<suffix>" \
+  --subscription-id "<provider-subscription-id>" \
+  --mappo-ingest-token "$MAPPO_MARKETPLACE_INGEST_TOKEN"
 ```
 
 Notes:
@@ -78,11 +78,11 @@ Notes:
 ## 4) Teardown Runtime
 
 ```bash
-make runtime-aca-destroy
+./scripts/runtime_aca_destroy.sh
 ```
 
 Or explicit:
 
 ```bash
-make runtime-aca-destroy RESOURCE_GROUP="<runtime-rg>" SUBSCRIPTION_ID="<provider-subscription-id>"
+./scripts/runtime_aca_destroy.sh --resource-group "<runtime-rg>" --subscription-id "<provider-subscription-id>"
 ```

@@ -12,12 +12,12 @@ This playbook defines what is automated versus manual for a marketplace-accurate
 - Target inventory export (`mappoTargetInventory`) as source input for webhook simulation
 
 ### Automated with CLI/API scripts
-- Azure auth bootstrap (`make azure-auth-bootstrap`)
-- Optional simulation inventory export (`make iac-export-targets`)
-- MAPPO runtime deploy to ACA (`make runtime-aca-deploy`, `make runtime-db-migrate-job-run`, `make runtime-easyauth-configure`, `make runtime-aca-destroy`)
-- Function App forwarder package/deploy/replay (`make marketplace-forwarder-package`, `make marketplace-forwarder-deploy`, `make marketplace-forwarder-replay-inventory`)
-- Partner Center token acquisition (`make partner-center-token`)
-- Partner Center API invocation wrapper (`make partner-center-api URL=...`)
+- Azure auth bootstrap (`./scripts/azure_auth_bootstrap.sh`)
+- Optional simulation inventory export (`pulumi stack output mappoTargetInventory --json`)
+- MAPPO runtime deploy to ACA (`./scripts/runtime_aca_deploy.sh`, `./scripts/runtime_db_migrate_job_run.sh`, `./scripts/runtime_easyauth_configure.sh`, `./scripts/runtime_aca_destroy.sh`)
+- Function App forwarder package/deploy/replay (`./scripts/marketplace_forwarder_package.sh`, `./scripts/marketplace_forwarder_deploy.sh`, `./scripts/marketplace_forwarder_replay_inventory.sh`)
+- Partner Center token acquisition (`./scripts/partner_center_get_token.sh`)
+- Partner Center API invocation wrapper (`./scripts/partner_center_api.sh --url ...`)
 - MAPPO onboarding ingest (`POST /api/v1/admin/onboarding/events`)
 
 ### Automated in production flow after customer deploy
@@ -67,41 +67,43 @@ Roadmap-aligned mode:
 ## 1) Provision target surface with Pulumi
 - Export publisher principal object ID:
   - `export MAPPO_PUBLISHER_PRINCIPAL_OBJECT_ID="<azure-ad-object-id>"`
+- Compile and select stack:
+  - `./mvnw -pl infra/pulumi -DskipTests compile`
+  - `cd infra/pulumi && pulumi login --local`
+  - `cd infra/pulumi && pulumi stack select <stack> || pulumi stack init <stack>`
 - Deploy:
-  - `make iac-install`
-  - `make iac-stack-init PULUMI_STACK=<stack>`
-  - `make iac-up PULUMI_STACK=<stack>`
-- Export target snapshot + bootstrap releases:
-  - `make iac-export-db-env PULUMI_STACK=<stack>`
+  - `cd infra/pulumi && pulumi up --stack <stack> --yes`
+- Export target snapshot + register releases:
+  - `./scripts/iac_export_db_env.sh --stack <stack>`
   - `source .data/mappo-db.env`
-  - `make bootstrap-releases`
-  - Optional simulation-only: `make iac-export-targets PULUMI_STACK=<stack>`
+  - Register releases through the MAPPO UI or `POST /api/v1/releases`
+  - Optional simulation-only: `cd infra/pulumi && pulumi stack output mappoTargetInventory --stack <stack> --json > ../../.data/mappo-target-inventory.json`
 
 ## 2) Deploy MAPPO runtime to ACA
-- `make azure-preflight`
-- `make runtime-aca-deploy PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub>"`
-- `make runtime-db-migrate-job-run PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub>"` (optional rerun)
-- `make runtime-easyauth-configure PULUMI_STACK=<stack> SUBSCRIPTION_ID="<provider-sub>"`
+- `./scripts/azure_preflight.sh`
+- `./scripts/runtime_aca_deploy.sh --stack <stack> --subscription-id "<provider-sub>"`
+- `./scripts/runtime_db_migrate_job_run.sh --stack <stack> --subscription-id "<provider-sub>"` (optional rerun)
+- `./scripts/runtime_easyauth_configure.sh --stack <stack> --subscription-id "<provider-sub>"`
 - `source .data/mappo-runtime.env`
 - `source .data/mappo-easyauth.env`
 
 ## 2b) Deploy webhook forwarder Function App
-- `make marketplace-forwarder-deploy RESOURCE_GROUP="<rg>" FUNCTION_APP_NAME="<name>" SUBSCRIPTION_ID="<provider-sub>" MAPPO_API_BASE_URL="$MAPPO_API_BASE_URL" MAPPO_INGEST_TOKEN="$MAPPO_MARKETPLACE_INGEST_TOKEN"`
+- `./scripts/marketplace_forwarder_deploy.sh --resource-group "<rg>" --function-app-name "<name>" --subscription-id "<provider-sub>" --mappo-api-base-url "$MAPPO_API_BASE_URL" --mappo-ingest-token "$MAPPO_MARKETPLACE_INGEST_TOKEN"`
 - Capture printed `webhook_url` and use it in Partner Center technical config.
 - Validate path:
   - Production-like: trigger real marketplace lifecycle event.
-  - Simulation fallback: `make marketplace-forwarder-replay-inventory FORWARDER_URL="<webhook_url>"`
+  - Simulation fallback: `./scripts/marketplace_forwarder_replay_inventory.sh --forwarder-url "<webhook_url>"`
 
 ## 3) Partner Center API path (non-IaC)
 - Acquire token:
-  - `make partner-center-token`
+  - `./scripts/partner_center_get_token.sh --env-file .data/mappo-partnercenter.env`
 - Call API (endpoint from current Microsoft Partner Center docs):
-  - `make partner-center-api URL="<partner-center-api-url>" [METHOD=GET] [BODY_FILE=payload.json]`
+  - `./scripts/partner_center_api.sh --url "<partner-center-api-url>" [--method GET] [--body-file payload.json]`
 
 ## 4) Portal-only completion steps
 - Complete remaining Partner Center listing/certification/publish tasks in portal.
 - Record the portal action and resulting artifact IDs in demo notes.
-- Re-run `make azure-preflight` and a MAPPO canary rollout before presenting.
+- Re-run `./scripts/azure_preflight.sh` and a MAPPO canary rollout before presenting.
 
 ## Security Boundary Note
 - Prefer token/auth based controls for inbound webhooks (Function key + MAPPO ingest token + payload validation).

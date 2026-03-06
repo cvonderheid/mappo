@@ -10,8 +10,8 @@
     <relativePath>../pom.xml</relativePath>
   </parent>
 
-  <artifactId>backend-java</artifactId>
-  <name>backend-java</name>
+  <artifactId>backend</artifactId>
+  <name>backend</name>
   <description>MAPPO Java Spring Boot backend</description>
 
   <properties>
@@ -119,7 +119,7 @@
         <artifactId>exec-maven-plugin</artifactId>
         <executions>
           <execution>
-            <id>backend-java-file-size-check</id>
+            <id>backend-file-size-check</id>
             <phase>validate</phase>
             <goals>
               <goal>exec</goal>
@@ -128,9 +128,9 @@
               <executable>python3</executable>
               <workingDirectory>${project.basedir}/..</workingDirectory>
               <arguments>
-                <argument>scripts/backend_java_file_size_check.py</argument>
+                <argument>scripts/backend_file_size_check.py</argument>
                 <argument>--root</argument>
-                <argument>backend-java/src/main/java</argument>
+                <argument>backend/src/main/java</argument>
               </arguments>
             </configuration>
           </execution>
@@ -144,7 +144,7 @@
               <executable>python3</executable>
               <workingDirectory>${project.basedir}/..</workingDirectory>
               <arguments>
-                <argument>scripts/export_backend_java_openapi.py</argument>
+                <argument>scripts/export_backend_openapi.py</argument>
                 <argument>--url</argument>
                 <argument>http://127.0.0.1:18010/api/v1/openapi.json</argument>
                 <argument>--output</argument>

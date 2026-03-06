@@ -33,18 +33,18 @@ Postgres-first persistence baseline:
 - Local commands can create/migrate/reset schema and generate models deterministically.
 
 **Verification commands**
-- `./mvnw -pl backend-java test`
-- `./mvnw -pl backend-java verify`
+- `./mvnw -pl backend test`
+- `./mvnw -pl backend verify`
 
 ## Phase 4 — Milestone 02: Store Migration
 **Scope**
-- Refactor control-plane store persistence from SQLite to Postgres using SQLAlchemy + generated models.
+- Refactor control-plane store persistence from SQLite to Postgres using jOOQ-backed repositories.
 
 **Acceptance criteria**
 - Existing API contract remains stable while data persists in Postgres JSONB tables.
 
 **Verification commands**
-- `./mvnw -pl backend-java test`
+- `./mvnw -pl backend test`
 
 ## Phase 4 — Milestone 03: Runtime/Script Wiring
 **Scope**
@@ -64,22 +64,22 @@ Postgres-first persistence baseline:
 - Lint/typecheck/test and phase gate commands all pass.
 
 **Verification commands**
-- `./mvnw -pl backend-java verify`
-- `./mvnw -N exec:exec@frontend-typecheck`
-- `./mvnw -N exec:exec@frontend-test`
+- `./mvnw -pl backend verify`
+- `./mvnw -pl frontend compile`
+- `./mvnw -pl frontend test`
 
 ## Phase 4 — Milestone 05: OpenAPI + Client Generation
 **Scope**
-- Add deterministic OpenAPI generation from FastAPI and frontend generated client types.
+- Add deterministic OpenAPI generation from Spring Boot and frontend generated client types.
 
 **Acceptance criteria**
-- `/Users/cvonderheid/workspace/mappo/backend-java/target/openapi/openapi.json` is generated from backend app contract.
+- `/Users/cvonderheid/workspace/mappo/backend/target/openapi/openapi.json` is generated from backend app contract.
 - Frontend API layer uses generated schema/client types instead of handwritten shape definitions.
 
 **Verification commands**
-- `./mvnw -pl backend-java verify`
-- `./mvnw -N exec:exec@frontend-client-gen`
-- `./mvnw -N exec:exec@frontend-typecheck`
+- `./mvnw -pl backend verify`
+- `./mvnw -pl frontend generate-sources`
+- `./mvnw -pl frontend compile`
 
 ## Phase 4 — Milestone 06: Docker Compose Dev Stack
 **Scope**
@@ -104,10 +104,10 @@ Postgres-first persistence baseline:
 - Existing API contract remains stable.
 
 **Verification commands**
-- `./mvnw -pl backend-java verify`
-- `./mvnw -N exec:exec@frontend-client-gen`
-- `./mvnw -N exec:exec@frontend-typecheck`
-- `./mvnw -N exec:exec@frontend-test`
+- `./mvnw -pl backend verify`
+- `./mvnw -pl frontend generate-sources`
+- `./mvnw -pl frontend compile`
+- `./mvnw -pl frontend test`
 
 ## Phase 5 — Milestone 02: Pulumi Demo Target Provisioning
 **Scope**

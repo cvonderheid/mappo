@@ -11,23 +11,23 @@
 
 ```bash
 # compile backend
-./mvnw -pl backend-java compile
+./mvnw -pl backend compile
 
 # run tests
-./mvnw -pl backend-java test
+./mvnw -pl backend test
 
 # full verification for current modules
 ./mvnw verify
 
 # run backend API
-./mvnw -pl backend-java spring-boot:run
+./mvnw -pl backend spring-boot:run
 ```
 
 ### Backend module
-- `/Users/cvonderheid/workspace/mappo/backend-java`
+- `/Users/cvonderheid/workspace/mappo/backend`
 
 ### Database migrations
-- `/Users/cvonderheid/workspace/mappo/backend-java/src/main/resources/db/migration`
+- `/Users/cvonderheid/workspace/mappo/backend/src/main/resources/db/migration`
 - Flyway runs automatically on backend startup.
 
 ### Environment

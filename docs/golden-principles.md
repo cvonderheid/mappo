@@ -23,5 +23,5 @@ These principles are enforced by scripts and gate targets, not convention only.
 - `python3 scripts/docs_consistency_check.py`
 - `python3 scripts/golden_principles_check.py`
 - `python3 scripts/check_no_demo_leak.py`
-- `./mvnw -pl backend-java test`
-- `./mvnw -N exec:exec@frontend-typecheck`
+- `./mvnw -pl backend test`
+- `./mvnw -pl frontend compile`

@@ -4,6 +4,30 @@ Date: 2026-02-26
 Owner: Codex
 
 ## Scope (Current Slice)
+Workflow surface cleanup after Java/Maven cutover:
+- Remove stale Makefile references from the active docs/runbook surface.
+- Standardize the supported operator model on Maven for build lifecycles and direct scripts/Pulumi for runtime operations.
+- Add a regression check so removed Makefile commands do not reappear in active docs.
+
+## Plan (Current Slice)
+- [x] Audit remaining `make` references across README/runbooks/plans and identify the supported replacement command for each.
+- [x] Rewrite active docs to use Maven phases for build workflows and direct scripts/Pulumi commands for operational workflows.
+- [x] Add a docs consistency guard that fails if active docs reference the removed Makefile workflow.
+- [x] Run docs checks plus full `clean install` and capture results.
+
+## Verification Commands (Current Slice)
+- [x] `python3 scripts/docs_consistency_check.py`
+- [x] `python3 scripts/check_no_demo_leak.py`
+- [x] `./mvnw -q -DskipTests clean install`
+
+## Results Log (Current Slice)
+- 2026-03-06: Rewrote `/Users/cvonderheid/workspace/mappo/README.md` so the supported workflow boundary is explicit: Maven for build/test/package and direct `scripts/` + Pulumi for runtime operations.
+- 2026-03-06: Updated `/Users/cvonderheid/workspace/mappo/docs/marketplace-forwarder-runbook.md`, `/Users/cvonderheid/workspace/mappo/docs/runtime-aca-runbook.md`, `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`, and `/Users/cvonderheid/workspace/mappo/docs/live-demo-checklist.md` to remove removed `make` targets and replace them with concrete script/Pulumi commands.
+- 2026-03-06: Updated `/Users/cvonderheid/workspace/mappo/docs/architecture.md`, `/Users/cvonderheid/workspace/mappo/docs/engineering-playbook.md`, and `/Users/cvonderheid/workspace/mappo/docs/script-sweep.md` so the narrative architecture and enforcement docs no longer describe Makefile-driven operations.
+- 2026-03-06: Extended `/Users/cvonderheid/workspace/mappo/scripts/docs_consistency_check.py` to fail if the active docs surface references the removed Makefile workflow.
+- 2026-03-06: Verified docs consistency, demo-leak checks, and full reactor `clean install` are green after the workflow-surface cleanup.
+
+## Scope (Current Slice)
 Java backend response contract typing:
 - Replace remaining map-shaped response/request envelopes with typed nested DTOs.
 - Preserve current snake_case JSON field names so the UI contract stays stable.
@@ -2292,3 +2316,30 @@ Java backend persistence hardening:
 - 2026-03-06: Replaced immediate-success run creation with staged execution orchestration in `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/service/run/RunExecutionService.java`, including queued/validating/deploying/verifying/succeeded or failed target state transitions, per-target logs, and basic halt-threshold handling.
 - 2026-03-06: Added real Azure Template Spec resource-group execution in `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane/service/run/AzureTemplateSpecExecutor.java`; unsupported source/scope combinations still fall back to simulator mode with explicit run guardrail warnings.
 - 2026-03-06: Added `/Users/cvonderheid/workspace/mappo/backend-java/src/test/java/com/mappo/controlplane/TemplateSpecExecutionIntegrationTests.java` to cover the real template-spec orchestration branch via a stubbed executor, and verified backend `test` plus root `clean install`.
+
+## Scope (Current Slice)
+Java backend cutover + frontend Maven lifecycle:
+- Replace the repo's canonical backend module path with the Spring Boot backend.
+- Remove the obsolete Python backend service files and stale Python workspace metadata.
+- Make the frontend a first-class Maven child module with phase-bound build steps.
+
+## Plan (Current Slice)
+- [x] Move the Spring Boot backend into the canonical `backend/` module path.
+- [x] Add `frontend/pom.xml` and bind frontend install/client-gen/typecheck/test/build to Maven phases.
+- [x] Update runtime/deploy/local-compose/docs to use `backend` instead of `backend-java`.
+- [x] Remove obsolete Python backend runtime files and stale `uv` workspace metadata.
+- [x] Run full root verification and repo guardrail checks.
+
+## Verification Commands (Current Slice)
+- [x] `./mvnw clean install`
+- [x] `python3 scripts/docs_consistency_check.py`
+- [x] `python3 scripts/check_no_demo_leak.py`
+
+## Results Log (Current Slice)
+- 2026-03-06: Moved the Spring Boot backend module from `/Users/cvonderheid/workspace/mappo/backend-java` into the canonical `/Users/cvonderheid/workspace/mappo/backend` path and updated the root Maven reactor to build `backend` + `frontend`.
+- 2026-03-06: Added `/Users/cvonderheid/workspace/mappo/frontend/pom.xml` with phase-bound frontend lifecycle steps: Node/npm bootstrap, `client-gen`, `typecheck`, `test`, and `build`.
+- 2026-03-06: Updated `/Users/cvonderheid/workspace/mappo/backend/Dockerfile`, `/Users/cvonderheid/workspace/mappo/backend/flyway/Dockerfile`, `/Users/cvonderheid/workspace/mappo/infra/docker-compose.yml`, and `/Users/cvonderheid/workspace/mappo/scripts/runtime_aca_deploy.sh` to use the canonical backend module and backend-owned migrations.
+- 2026-03-06: Replaced stale backend helper references in `/Users/cvonderheid/workspace/mappo/README.md`, `/Users/cvonderheid/workspace/mappo/docs/documentation.md`, `/Users/cvonderheid/workspace/mappo/docs/implement.md`, `/Users/cvonderheid/workspace/mappo/docs/script-sweep.md`, `/Users/cvonderheid/workspace/mappo/plans.md`, and `/Users/cvonderheid/workspace/mappo/plans-next.md`.
+- 2026-03-06: Removed obsolete Python backend service/workspace artifacts, including the deleted FastAPI app tree, deleted `backend/scripts/*` runtime helpers, and deleted `/Users/cvonderheid/workspace/mappo/uv.lock`.
+- 2026-03-06: Relocated the frontend Maven toolchain install directory under `frontend/target` so `clean install` does not leave a stray `frontend/node/` directory in the repo.
+- 2026-03-06: Verified the cutover with `./mvnw clean install`, `python3 scripts/docs_consistency_check.py`, and `python3 scripts/check_no_demo_leak.py`.

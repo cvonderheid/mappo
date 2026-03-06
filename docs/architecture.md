@@ -62,9 +62,9 @@ MAPPO is a provider-tenant control plane that orchestrates release rollouts acro
 - UI and API are separate deployable containers.
 - Demo automation boundary:
   - Pulumi IaC provisions managed app definitions, managed app instances, shared ACA environments, and exports MAPPO inventory.
-  - Runtime ACA deployment is scripted outside Pulumi (`make runtime-aca-deploy`) into a dedicated runtime resource group to keep Pulumi destroy deterministic.
-  - Runtime deploy also manages an ACA Job for Flyway migrations and runs it before app revision rollout (`make runtime-db-migrate-job-run` for on-demand reruns).
-  - EasyAuth app registration + frontend auth wiring is handled by script (`make runtime-easyauth-configure`) for deterministic post-deploy callback URL binding.
+  - Runtime ACA deployment is scripted outside Pulumi (`./scripts/runtime_aca_deploy.sh`) into a dedicated runtime resource group to keep Pulumi destroy deterministic.
+  - Runtime deploy also manages an ACA Job for Flyway migrations and runs it before app revision rollout (`./scripts/runtime_db_migrate_job_run.sh` for on-demand reruns).
+  - EasyAuth app registration + frontend auth wiring is handled by script (`./scripts/runtime_easyauth_configure.sh`) for deterministic post-deploy callback URL binding.
   - CLI scripts provision/deploy the Function App webhook forwarder and replay inventory events through the webhook path.
   - Partner Center offer lifecycle is handled via API/CLI helper scripts.
   - Portal-only steps are documented in `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`.

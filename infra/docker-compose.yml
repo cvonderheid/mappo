@@ -23,7 +23,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ../backend-java/src/main/resources/db/migration:/flyway/sql
+      - ../backend/src/main/resources/db/migration:/flyway/sql
     command:
       - -url=jdbc:postgresql://postgres:5432/mappo
       - -user=mappo
@@ -53,7 +53,7 @@ services:
       - bash
       - -lc
       - |
-        ./mvnw -pl backend-java spring-boot:run
+        ./mvnw -pl backend spring-boot:run
     ports:
       - "8010:8010"
 

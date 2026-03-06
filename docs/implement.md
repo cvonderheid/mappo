@@ -19,7 +19,7 @@
 4. Add operator-facing messages and troubleshooting links.
 
 ## Add a New Execution Adapter
-1. Implement the execution adapter in the Java orchestration/service layer under `/Users/cvonderheid/workspace/mappo/backend-java/src/main/java/com/mappo/controlplane`.
+1. Implement the execution adapter in the Java orchestration/service layer under `/Users/cvonderheid/workspace/mappo/backend/src/main/java/com/mappo/controlplane`.
 2. Keep emitted stage events deterministic (`started`/`completed`) with explicit correlation IDs.
 3. Wire adapter selection through the backend settings/config path (do not fork orchestration logic).
 4. Add adapter behavior tests and run backend verify plus frontend contract checks.
@@ -27,9 +27,9 @@
 ## Quality Gate
 Run before merging non-trivial changes:
 ```bash
-./mvnw -pl backend-java verify
-./mvnw -N exec:exec@frontend-client-gen
-./mvnw -N exec:exec@frontend-typecheck
-./mvnw -N exec:exec@frontend-test
-./mvnw -N exec:exec@frontend-build
+./mvnw -pl backend verify
+./mvnw -pl frontend generate-sources
+./mvnw -pl frontend compile
+./mvnw -pl frontend test
+./mvnw -pl frontend package
 ```

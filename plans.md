@@ -40,14 +40,14 @@
 
 ## Global Milestone Definition of Done
 - Acceptance criteria met.
-- `./mvnw -pl backend-java verify` passes.
-- Frontend contract commands (`client-gen`, `typecheck`, `test`, `build`) pass via Maven wrappers.
+- `./mvnw -pl backend verify` passes.
+- Frontend contract commands (`client-gen`, `typecheck`, `test`, `build`) pass via the frontend Maven module lifecycle.
 - Relevant module tests pass.
 - Docs/plans updated for behavior changes.
 - Determinism and legibility invariants preserved.
 
 ## Proposed Repo Shape (target)
-- `backend-java/`
+- `backend/`
   - `src/main/java/com/mappo/controlplane/api/*`
   - `src/main/java/com/mappo/controlplane/service/*`
   - `src/main/java/com/mappo/controlplane/repository/*`
@@ -70,11 +70,11 @@
 ## Milestone Plan
 ### Milestone 1: Governance + gate baseline
 - Scope: process artifacts, check scripts, and phase gate targets.
-- Verify: backend verify plus frontend Maven wrapper checks.
+- Verify: backend verify plus frontend Maven module checks.
 
 ### Milestone 2: Backend skeleton + API contract baseline
 - Scope: Spring Boot app, health/router/error model, OpenAPI generation.
-- Verify: `./mvnw -pl backend-java test`, `./mvnw -pl backend-java verify`.
+- Verify: `./mvnw -pl backend test`, `./mvnw -pl backend verify`.
 
 ### Milestone 3: Domain model + storage for targets/releases/runs
 - Scope: persistence models, repositories, service contracts.

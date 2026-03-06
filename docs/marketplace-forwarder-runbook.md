@@ -6,14 +6,14 @@ Marketplace lifecycle webhook -> Azure Function App forwarder -> MAPPO onboardin
 
 ## What Is Automated
 
-- Function source package build (`make marketplace-forwarder-package`)
-- Function App provisioning + deployment via Azure CLI (`make marketplace-forwarder-deploy`)
-- Inventory replay through the deployed webhook endpoint (`make marketplace-forwarder-replay-inventory`)
+- Function source package build (`./scripts/marketplace_forwarder_package.sh`)
+- Function App provisioning + deployment via Azure CLI (`./scripts/marketplace_forwarder_deploy.sh`)
+- Inventory replay through the deployed webhook endpoint (`./scripts/marketplace_forwarder_replay_inventory.sh`)
 
 ## 1) Package Function Code
 
 ```bash
-make marketplace-forwarder-package
+./scripts/marketplace_forwarder_package.sh
 ```
 
 Output:
@@ -28,12 +28,12 @@ source .data/mappo-runtime.env
 ```
 
 ```bash
-make marketplace-forwarder-deploy \
-  RESOURCE_GROUP="rg-mappo-marketplace-forwarder" \
-  FUNCTION_APP_NAME="fa-mappo-marketplace-forwarder-<suffix>" \
-  LOCATION="eastus" \
-  SUBSCRIPTION_ID="<provider-subscription-id>" \
-  MAPPO_INGEST_TOKEN="<same-token-as-MAPPO_MARKETPLACE_INGEST_TOKEN>"
+./scripts/marketplace_forwarder_deploy.sh \
+  --resource-group "rg-mappo-marketplace-forwarder" \
+  --function-app-name "fa-mappo-marketplace-forwarder-<suffix>" \
+  --location "eastus" \
+  --subscription-id "<provider-subscription-id>" \
+  --mappo-ingest-token "<same-token-as-MAPPO_MARKETPLACE_INGEST_TOKEN>"
 ```
 
 If `MAPPO_API_BASE_URL` is omitted, deploy script falls back to `.data/mappo-runtime.env`.
@@ -55,8 +55,8 @@ Important:
 Replay inventory through Function App (instead of calling MAPPO backend directly):
 
 ```bash
-make marketplace-forwarder-replay-inventory \
-  FORWARDER_URL="https://<function-app>.azurewebsites.net/api/marketplace/events?code=<function-key>"
+./scripts/marketplace_forwarder_replay_inventory.sh \
+  --forwarder-url "https://<function-app>.azurewebsites.net/api/marketplace/events?code=<function-key>"
 ```
 
 Expected:

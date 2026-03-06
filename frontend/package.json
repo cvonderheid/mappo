@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run typecheck && vite build",
+    "build": "vite build",
     "lint": "eslint .",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run --passWithNoTests",
-    "client-gen": "openapi-typescript ../backend-java/target/openapi/openapi.json -o src/lib/api/generated/schema.ts",
+    "client-gen": "openapi-typescript ../backend/target/openapi/openapi.json -o src/lib/api/generated/schema.ts",
     "test:e2e": "playwright test",
     "test:e2e:ci": "playwright install chromium && playwright test --reporter=line"
   },

@@ -1,6 +1,6 @@
 # Script Sweep (2026-03-01)
 
-This is the current script inventory across `scripts/` and `backend/scripts/`, with disposition:
+This is the current script inventory across `scripts/`, with disposition:
 - `keep`: still actively used and appropriate as a script.
 - `delete`: dead/deprecated and removed.
 - `migrate-to-pulumi`: infra lifecycle currently done imperatively and should be Pulumi-managed.
@@ -26,7 +26,7 @@ This is the current script inventory across `scripts/` and `backend/scripts/`, w
 - `scripts/backend_file_size_check.py`: `keep` (engineering quality gate).
 - `scripts/check_no_demo_leak.py`: `keep` (engineering quality gate).
 - `scripts/docs_consistency_check.py`: `keep` (engineering quality gate).
-- `scripts/export_backend_java_openapi.py`: `keep-wrapper` (Springdoc contract export used by Maven verify).
+- `scripts/export_backend_openapi.py`: `keep-wrapper` (Springdoc contract export used by Maven verify).
 - `scripts/golden_principles_check.py`: `keep` (engineering quality gate).
 - `scripts/iac_configure_marketplace_demo.sh`: `keep-wrapper` (Pulumi stack config normalization).
 - `scripts/iac_export_db_env.sh`: `keep-wrapper` (exports Pulumi stack outputs into env file).
@@ -43,17 +43,10 @@ This is the current script inventory across `scripts/` and `backend/scripts/`, w
 - `scripts/with_mappo_azure_env.sh`: `keep` (local DX helper).
 - `scripts/workflow_discipline_check.py`: `keep` (engineering quality gate).
 
-### `backend/scripts/`
+### Legacy backend scripts
 
-- `backend/scripts/bootstrap_releases.py`: `keep` (seed utility).
-- `backend/scripts/ensure_db.sh`: `keep` (local/dev DB bootstrap guard).
-- `backend/scripts/flyway.sh`: `keep` (migration command wrapper).
-- `backend/scripts/gen_models.sh`: `keep` (ORM generation workflow).
-- `backend/scripts/generate_openapi.py`: `delete` (legacy Python OpenAPI path superseded by Java Springdoc export).
-- `backend/scripts/import_targets.py`: `keep` (legacy/manual import path; explicitly non-primary).
-- `backend/scripts/prune_retention.py`: `keep` (maintenance task).
-- `backend/scripts/demo_reset.py`: `delete` (legacy demo seeding path; removed).
-- `backend/scripts/import_pulumi_targets.py`: `delete` (deprecated alias; removed).
+- Legacy `backend/scripts/` utilities belonged to the removed Python backend.
+- Any remaining operator automation should live under top-level `scripts/` or as Maven lifecycle steps in the owning module.
 
 ## Pulumi Migration Priority
 
@@ -72,7 +65,7 @@ This is the current script inventory across `scripts/` and `backend/scripts/`, w
 
 ### Priority 2 (deploy model alignment)
 
-1. Split `make deploy` into:
+1. Split the deploy workflow into:
    - artifact publish (build/push images + package function zip/blob)
    - `pulumi up` to roll out image/package references
 2. Decommission imperative update scripts:

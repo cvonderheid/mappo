@@ -357,3 +357,21 @@ Purpose: capture recurring correction patterns and preventative guardrails.
 - Preventative rule: Keep cloud execution behind a narrow interface (`TemplateSpecExecutor`, similar strategy seams) so integration tests can exercise orchestration, state transitions, and persistence with a stubbed executor.
 - Detection signal: a new execution branch can only be tested with live Azure credentials or is skipped entirely in automated tests.
 - Enforcement (test/lint/checklist): every new cloud execution mode must ship with one orchestration-level test using a primary stub bean and one lower-level unit/integration test for the strategy-specific logic where feasible.
+
+- Date: 2026-03-06
+- Pattern: Maven lifecycle ordering was assumed incorrectly for the new frontend module, binding `client-gen` to `generate-sources` while Node/npm installation was still bound to `generate-resources`, which made `clean install` fail before the frontend toolchain existed.
+- Preventative rule: When introducing a new Maven child module, map tool bootstrap steps to `initialize` or earlier before binding any source-generation tasks that invoke that toolchain.
+- Detection signal: a module fails on its first tool-invoking goal with `No such file or directory` for a locally-installed runtime even though a later execution installs it.
+- Enforcement (test/lint/checklist): after adding phase-bound plugin executions, run the full requested lifecycle (`clean install`, not ad hoc individual goals) once before calling the wiring complete.
+
+- Date: 2026-03-06
+- Pattern: Frontend toolchain installation defaulted into the source tree (`frontend/node/`), leaving repo pollution after an otherwise successful Maven build.
+- Preventative rule: Any build-installed toolchain or generated cache owned by Maven plugins must live under the module `target/` directory unless there is a strong reason otherwise.
+- Detection signal: `git status --short` shows new untracked build tool directories after a green build.
+- Enforcement (test/lint/checklist): after adding a new plugin-managed toolchain, run `git status --short` and move the install directory under `target/` if the build dirties the repo.
+
+- Date: 2026-03-06
+- Pattern: Workflow cutovers regress when active runbooks keep referencing removed command surfaces (`make ...`) even after the underlying build/deploy model changed.
+- Preventative rule: After replacing a primary workflow surface, rewrite all active README/runbook/checklist docs in the same slice and add a negative docs check for the retired command form.
+- Detection signal: current docs mention `make` even though the repo no longer has a root Makefile or supported Make wrappers.
+- Enforcement (test/lint/checklist): `python3 scripts/docs_consistency_check.py` must fail if active docs reference removed Makefile commands.

@@ -4,14 +4,14 @@ MAPPO is a multi-tenant deployment control plane for Azure Managed Apps.
 
 ## Build System
 
-This repository now uses Maven as the primary workflow runner.
+This repository now uses Maven as the primary workflow runner for build, test, code generation, and packaging.
 
 Core commands:
 
 ```bash
 ./mvnw -v
-./mvnw -pl backend-java compile
-./mvnw -pl backend-java test
+./mvnw -pl backend compile
+./mvnw -pl backend test
 ./mvnw verify
 ```
 
@@ -19,41 +19,45 @@ Contract workflow:
 
 ```bash
 # export authoritative OpenAPI from the Java backend
-./mvnw -pl backend-java verify
+./mvnw -pl backend verify
 
-# regenerate and verify the frontend against that artifact (root-only wrappers)
-./mvnw -N exec:exec@frontend-client-gen
-./mvnw -N exec:exec@frontend-typecheck
-./mvnw -N exec:exec@frontend-test
-./mvnw -N exec:exec@frontend-build
+# regenerate and verify the frontend against that artifact
+./mvnw -pl frontend generate-sources
+./mvnw -pl frontend compile
+./mvnw -pl frontend test
+./mvnw -pl frontend package
 ```
 
 Contract artifact paths:
-- backend OpenAPI export: `/Users/cvonderheid/workspace/mappo/backend-java/target/openapi/openapi.json`
+- backend OpenAPI export: `/Users/cvonderheid/workspace/mappo/backend/target/openapi/openapi.json`
 - frontend generated schema: `/Users/cvonderheid/workspace/mappo/frontend/src/lib/api/generated/schema.ts`
 
-Script operations now run through Maven `exec`:
+Operational automation runs directly through `scripts/` and Pulumi:
 
 ```bash
 # release ingest from repo/file
-./mvnw -q exec:exec \
-  -Dexec.executable=./scripts/release_ingest_from_repo.sh \
-  -Dexec.args="--api-base-url $MAPPO_API_BASE_URL --github-repo <owner>/<repo> --github-path releases/releases.manifest.json --github-ref main"
+./scripts/release_ingest_from_repo.sh \
+  --api-base-url "$MAPPO_API_BASE_URL" \
+  --github-repo <owner>/<repo> \
+  --github-path releases/releases.manifest.json \
+  --github-ref main
 
 # demo fleet up/down lifecycle
-./mvnw -q exec:exec \
-  -Dexec.executable=./scripts/demo_fleet_up.sh \
-  -Dexec.args="--stack demo-fleet --inventory-file .data/demo-fleet-target-inventory.json --api-base-url $MAPPO_API_BASE_URL"
+./scripts/demo_fleet_up.sh \
+  --stack demo-fleet \
+  --inventory-file .data/demo-fleet-target-inventory.json \
+  --api-base-url "$MAPPO_API_BASE_URL"
 
-./mvnw -q exec:exec \
-  -Dexec.executable=./scripts/demo_fleet_down.sh \
-  -Dexec.args="--stack demo-fleet --inventory-file .data/demo-fleet-target-inventory.json --api-base-url $MAPPO_API_BASE_URL"
+./scripts/demo_fleet_down.sh \
+  --stack demo-fleet \
+  --inventory-file .data/demo-fleet-target-inventory.json \
+  --api-base-url "$MAPPO_API_BASE_URL"
 ```
 
 Run backend locally:
 
 ```bash
-./mvnw -pl backend-java spring-boot:run
+./mvnw -pl backend spring-boot:run
 ```
 
 Pulumi IaC projects are now Java-based:
@@ -69,12 +73,12 @@ Pulumi IaC projects are now Java-based:
 - Azure Java SDK (`azure-identity`, `azure-resourcemanager`)
 
 Backend module location:
-- `/Users/cvonderheid/workspace/mappo/backend-java`
+- `/Users/cvonderheid/workspace/mappo/backend`
 
 ## Database
 
 Flyway migrations are in:
-- `/Users/cvonderheid/workspace/mappo/backend-java/src/main/resources/db/migration`
+- `/Users/cvonderheid/workspace/mappo/backend/src/main/resources/db/migration`
 
 Environment variables:
 - `MAPPO_JDBC_DATABASE_URL` (preferred)

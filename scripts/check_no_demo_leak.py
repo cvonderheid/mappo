@@ -20,8 +20,8 @@ BANNED = [
     re.compile(r"\bcontrol_plane_storage\b", re.IGNORECASE),
 ]
 
-CODE_SUFFIXES = {".py", ".ts", ".tsx", ".js", ".jsx"}
-SCAN_DIRS = ["backend/app", "frontend/src"]
+CODE_SUFFIXES = {".java", ".py", ".ts", ".tsx", ".js", ".jsx"}
+SCAN_DIRS = ["backend/src/main/java", "frontend/src"]
 
 
 def main() -> int:

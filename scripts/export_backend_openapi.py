@@ -58,7 +58,7 @@ def main() -> int:
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(f"export-backend-java-openapi: wrote {output_path}")
+    print(f"export-backend-openapi: wrote {output_path}")
     return 0
 
 
