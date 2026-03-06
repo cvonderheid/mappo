@@ -6,16 +6,14 @@ import com.azure.identity.ClientSecretCredential;
 import com.azure.identity.ClientSecretCredentialBuilder;
 import com.azure.resourcemanager.AzureResourceManager;
 import com.mappo.controlplane.config.MappoProperties;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class AzureExecutorClient {
 
     private final MappoProperties properties;
-
-    public AzureExecutorClient(MappoProperties properties) {
-        this.properties = properties;
-    }
 
     public boolean isConfigured() {
         return !blank(properties.getAzureTenantId())

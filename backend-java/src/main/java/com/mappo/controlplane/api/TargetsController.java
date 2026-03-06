@@ -3,6 +3,7 @@ package com.mappo.controlplane.api;
 import com.mappo.controlplane.service.TargetService;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -10,13 +11,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/targets")
+@RequiredArgsConstructor
 public class TargetsController {
 
     private final TargetService targetService;
-
-    public TargetsController(TargetService targetService) {
-        this.targetService = targetService;
-    }
 
     @GetMapping
     public List<Map<String, Object>> listTargets(

@@ -8,28 +8,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class RunService {
 
     private final RunRepository runRepository;
     private final TargetRepository targetRepository;
     private final ReleaseService releaseService;
     private final AzureExecutorClient azureExecutorClient;
-
-    public RunService(
-        RunRepository runRepository,
-        TargetRepository targetRepository,
-        ReleaseService releaseService,
-        AzureExecutorClient azureExecutorClient
-    ) {
-        this.runRepository = runRepository;
-        this.targetRepository = targetRepository;
-        this.releaseService = releaseService;
-        this.azureExecutorClient = azureExecutorClient;
-    }
 
     public List<Map<String, Object>> listRuns() {
         return runRepository.listRunSummaries();

@@ -8,19 +8,16 @@ import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class AdminService {
 
     private final AdminRepository adminRepository;
     private final TargetRepository targetRepository;
-
-    public AdminService(AdminRepository adminRepository, TargetRepository targetRepository) {
-        this.adminRepository = adminRepository;
-        this.targetRepository = targetRepository;
-    }
 
     public Map<String, Object> getOnboardingSnapshot(int eventLimit) {
         Map<String, Object> snapshot = new LinkedHashMap<>();

@@ -4,17 +4,15 @@ import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.repository.ReleaseRepository;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class ReleaseService {
 
     private final ReleaseRepository repository;
-
-    public ReleaseService(ReleaseRepository repository) {
-        this.repository = repository;
-    }
 
     public List<Map<String, Object>> listReleases() {
         return repository.listReleases();

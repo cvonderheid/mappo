@@ -2132,3 +2132,26 @@ EasyAuth hardening for cloud runtime:
 - 2026-03-01: Added Make target `runtime-easyauth-configure` and wired it into `make deploy` (enabled by default; override with `ENABLE_EASYAUTH=false`).
 - 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/README.md`, `/Users/cvonderheid/workspace/mappo/docs/runtime-aca-runbook.md`, `/Users/cvonderheid/workspace/mappo/docs/live-demo-checklist.md`, `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`, `/Users/cvonderheid/workspace/mappo/docs/documentation.md`, and `/Users/cvonderheid/workspace/mappo/docs/architecture.md`.
 - 2026-03-01: Updated `/Users/cvonderheid/workspace/mappo/docs/script-sweep.md` inventory/disposition counts to include runtime EasyAuth script.
+
+## Scope (Current Slice)
+Java backend persistence hardening:
+- Replace raw SQL string repositories with generated jOOQ tables/enums.
+- Apply Lombok where it removes constructor/getter/setter boilerplate.
+- Keep Spring Boot 4.0.3 + Maven build green end-to-end.
+
+## Plan (Current Slice)
+- [x] Refactor `TargetRepository` to typed jOOQ DSL usage only.
+- [x] Refactor `AdminRepository` to typed jOOQ DSL usage only.
+- [x] Refactor `ReleaseRepository` to typed jOOQ DSL usage only.
+- [x] Refactor `RunRepository` to typed jOOQ DSL usage only.
+- [x] Add Lombok `@RequiredArgsConstructor`/`@Getter`/`@Setter` where appropriate across API/service/config/util classes.
+- [x] Run compile + full `mvn verify` and resolve regressions.
+
+## Verification Commands (Current Slice)
+- [x] `./mvnw -q -pl backend-java -DskipTests generate-sources compile`
+- [x] `./mvnw -q verify`
+
+## Results Log (Current Slice)
+- 2026-03-05: Replaced raw SQL string-based persistence in all Java repositories (`targets`, `admin`, `releases`, `runs`) with generated jOOQ table/enum DSL queries.
+- 2026-03-05: Added Lombok constructor/getter/setter annotations to reduce boilerplate across controllers/services/config/util.
+- 2026-03-05: Fixed Spring Boot 4 Jackson package mismatch in `JsonUtil` (`tools.jackson.*`), restoring `mvn verify` pass.

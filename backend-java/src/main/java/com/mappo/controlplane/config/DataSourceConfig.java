@@ -3,7 +3,7 @@ package com.mappo.controlplane.config;
 import com.zaxxer.hikari.HikariDataSource;
 import java.net.URI;
 import java.net.URISyntaxException;
-import javax.sql.DataSource;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
@@ -12,7 +12,8 @@ import org.springframework.core.env.Environment;
 public class DataSourceConfig {
 
     @Bean
-    public DataSource dataSource(Environment environment) {
+    @ConfigurationProperties(prefix = "spring.datasource.hikari")
+    public HikariDataSource dataSource(Environment environment) {
         String jdbcUrl = trim(environment.getProperty("MAPPO_JDBC_DATABASE_URL"));
         if (jdbcUrl.isEmpty()) {
             jdbcUrl = convertSqlAlchemyUrl(trim(environment.getProperty("MAPPO_DATABASE_URL")));
@@ -35,7 +36,15 @@ public class DataSourceConfig {
         dataSource.setJdbcUrl(jdbcUrl);
         dataSource.setUsername(username);
         dataSource.setPassword(password);
-        dataSource.setMaximumPoolSize(8);
+        if (dataSource.getPoolName() == null || dataSource.getPoolName().isBlank()) {
+            dataSource.setPoolName("mappo-hikari");
+        }
+        if (dataSource.getMaximumPoolSize() <= 0) {
+            dataSource.setMaximumPoolSize(8);
+        }
+        if (dataSource.getMinimumIdle() <= 0) {
+            dataSource.setMinimumIdle(2);
+        }
         return dataSource;
     }
 

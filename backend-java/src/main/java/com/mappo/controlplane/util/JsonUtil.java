@@ -1,24 +1,22 @@
 package com.mappo.controlplane.util;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
+@RequiredArgsConstructor
 public class JsonUtil {
 
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
     private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
-
-    public JsonUtil(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
-    }
 
     public Map<String, Object> readMap(String value) {
         if (value == null || value.isBlank()) {
