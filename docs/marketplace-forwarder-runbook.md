@@ -34,14 +34,17 @@ source .data/mappo-runtime.env
 
 ```bash
 ./scripts/marketplace_forwarder_deploy.sh \
-  --resource-group "rg-mappo-marketplace-forwarder" \
-  --function-app-name "fa-mappo-marketplace-forwarder-<suffix>" \
+  --stack <stack> \
   --location "eastus" \
   --subscription-id "<provider-subscription-id>" \
   --mappo-ingest-token "<same-token-as-MAPPO_MARKETPLACE_INGEST_TOKEN>"
 ```
 
 If `MAPPO_API_BASE_URL` is omitted, deploy script falls back to `.data/mappo-runtime.env`.
+
+Notes:
+- `--stack` defaults the resource group to `rg-mappo-marketplace-forwarder-<stack>`.
+- `--stack` defaults the Function App name to `fa-mappo-marketplace-forwarder-<stack>-<subtoken>`.
 
 Script prints:
 - `function_url`

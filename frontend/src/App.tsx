@@ -10,6 +10,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { DEFAULT_FORM, type StartRunFormState } from "@/lib/deployment-form";
 import {
   adminDeleteTargetRegistration,
+  adminIngestGithubReleaseManifest,
   adminIngestMarketplaceEvent,
   adminUpdateTargetRegistration,
   createRun,
@@ -27,6 +28,8 @@ import type {
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
   Release,
+  ReleaseManifestIngestRequest,
+  ReleaseManifestIngestResponse,
   RunDetail,
   RunSummary,
   Target,
@@ -68,6 +71,9 @@ function AppShell() {
   const [adminIsSubmitting, setAdminIsSubmitting] = useState<boolean>(false);
   const [adminErrorMessage, setAdminErrorMessage] = useState<string>("");
   const [adminResult, setAdminResult] = useState<MarketplaceEventIngestResponse | null>(null);
+  const [releaseIngestIsSubmitting, setReleaseIngestIsSubmitting] = useState<boolean>(false);
+  const [releaseIngestErrorMessage, setReleaseIngestErrorMessage] = useState<string>("");
+  const [releaseIngestResult, setReleaseIngestResult] = useState<ReleaseManifestIngestResponse | null>(null);
 
   const refreshTargets = useCallback(async () => {
     try {
@@ -354,6 +360,22 @@ function AppShell() {
     await refreshAdminSnapshot();
   }
 
+  async function handleIngestManagedAppReleases(
+    request: ReleaseManifestIngestRequest
+  ): Promise<void> {
+    setReleaseIngestIsSubmitting(true);
+    try {
+      const result = await adminIngestGithubReleaseManifest(request);
+      setReleaseIngestResult(result);
+      setReleaseIngestErrorMessage("");
+      await refreshReleases();
+    } catch (error) {
+      setReleaseIngestErrorMessage((error as Error).message);
+    } finally {
+      setReleaseIngestIsSubmitting(false);
+    }
+  }
+
   return (
     <main className="mx-auto flex w-[min(1400px,96vw)] flex-col gap-4 py-6">
       <Card className="glass-card hero-gradient animate-fade-up [animation-fill-mode:forwards]">
@@ -454,6 +476,10 @@ function AppShell() {
             <AdminPanel
               adminErrorMessage={adminErrorMessage}
               adminSnapshot={adminSnapshot}
+              releaseIngestErrorMessage={releaseIngestErrorMessage}
+              releaseIngestIsSubmitting={releaseIngestIsSubmitting}
+              releaseIngestResult={releaseIngestResult}
+              onIngestManagedAppReleases={handleIngestManagedAppReleases}
               onUpdateTargetRegistration={handleAdminUpdateRegistration}
               onDeleteTargetRegistration={handleAdminDeleteRegistration}
               onRefreshSnapshot={refreshAdminSnapshot}

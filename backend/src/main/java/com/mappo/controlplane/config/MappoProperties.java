@@ -18,4 +18,7 @@ public class MappoProperties {
     private String azureTenantId = "";
     private String azureClientId = "";
     private String azureClientSecret = "";
+    private String managedAppReleaseRepo = "cvonderheid/mappo-managed-app";
+    private String managedAppReleasePath = "releases/releases.manifest.json";
+    private String managedAppReleaseRef = "main";
 }

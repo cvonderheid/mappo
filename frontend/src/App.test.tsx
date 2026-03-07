@@ -94,6 +94,7 @@ const mockAdminSnapshot = {
 };
 
 const apiMock = vi.hoisted(() => ({
+  adminIngestGithubReleaseManifest: vi.fn(),
   adminIngestMarketplaceEvent: vi.fn(),
   createRun: vi.fn(),
   getAdminOnboardingSnapshot: vi.fn(),
@@ -114,6 +115,7 @@ describe("App", () => {
     apiMock.listRuns.mockResolvedValue(mockRuns);
     apiMock.getRun.mockResolvedValue(mockRunDetail);
     apiMock.getAdminOnboardingSnapshot.mockResolvedValue(mockAdminSnapshot);
+    apiMock.adminIngestGithubReleaseManifest.mockReset();
     apiMock.adminIngestMarketplaceEvent.mockReset();
     apiMock.createRun.mockReset();
     apiMock.resumeRun.mockReset();
@@ -160,6 +162,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Admin" })).toBeInTheDocument();
       expect(screen.getByText(/Recent Onboarding Events/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Ingest Managed-App Releases/i })).toBeInTheDocument();
     });
   });
 

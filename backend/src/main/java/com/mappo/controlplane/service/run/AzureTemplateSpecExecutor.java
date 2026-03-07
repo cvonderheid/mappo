@@ -2,6 +2,8 @@ package com.mappo.controlplane.service.run;
 
 import com.azure.core.management.exception.ManagementError;
 import com.azure.core.management.exception.ManagementException;
+import com.azure.resourcemanager.appcontainers.ContainerAppsApiManager;
+import com.azure.resourcemanager.appcontainers.models.ContainerApp;
 import com.azure.resourcemanager.resources.fluentcore.arm.ResourceId;
 import com.azure.resourcemanager.resources.models.Deployment;
 import com.azure.resourcemanager.resources.models.DeploymentMode;
@@ -33,19 +35,21 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
         ReleaseRecord release,
         TargetExecutionContextRecord target
     ) {
-        String templateSpecVersionId = resolveTemplateSpecVersionId(release);
+        String tenantId = uuidText(target.tenantId(), "tenantId");
+        String subscriptionId = uuidText(target.subscriptionId(), "subscriptionId");
+        String templateSpecVersionId = resolveTemplateSpecVersionId(release, subscriptionId);
         String resourceGroupName = parseResourceGroupName(target.managedResourceGroupId(), target.targetId());
         String deploymentName = buildDeploymentName(runId, target.targetId());
 
         try {
-            Deployment deployment = azureExecutorClient.createManager(
-                    uuidText(target.tenantId(), "tenantId"),
-                    uuidText(target.subscriptionId(), "subscriptionId")
-                )
+            ContainerAppsApiManager containerAppsManager = azureExecutorClient.createContainerAppsManager(tenantId, subscriptionId);
+            ContainerApp currentContainerApp = containerAppsManager.containerApps().getById(target.containerAppResourceId());
+
+            Deployment deployment = azureExecutorClient.createManager(tenantId, subscriptionId)
                 .deployments()
                 .define(deploymentName)
                 .withExistingResourceGroup(resourceGroupName)
-                .withTemplate(wrapperTemplate(templateSpecVersionId, release))
+                .withTemplate(wrapperTemplate(templateSpecVersionId, release, target, currentContainerApp))
                 .withParameters(Map.of())
                 .withMode(toAzureMode(release.executionSettings().armMode()))
                 .create();
@@ -133,11 +137,16 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
         }
     }
 
-    private Map<String, Object> wrapperTemplate(String templateSpecVersionId, ReleaseRecord release) {
+    private Map<String, Object> wrapperTemplate(
+        String templateSpecVersionId,
+        ReleaseRecord release,
+        TargetExecutionContextRecord target,
+        ContainerApp currentContainerApp
+    ) {
         Map<String, Object> resourceProperties = new LinkedHashMap<>();
         resourceProperties.put("mode", toAzureMode(release.executionSettings().armMode()).toString());
         resourceProperties.put("templateLink", Map.of("id", templateSpecVersionId));
-        resourceProperties.put("parameters", deploymentParameters(release.parameterDefaults()));
+        resourceProperties.put("parameters", deploymentParameters(release.parameterDefaults(), target, currentContainerApp));
 
         Map<String, Object> nestedDeployment = new LinkedHashMap<>();
         nestedDeployment.put("type", "Microsoft.Resources/deployments");
@@ -152,20 +161,44 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
         return template;
     }
 
-    private Map<String, Object> deploymentParameters(Map<String, String> defaults) {
-        if (defaults == null || defaults.isEmpty()) {
-            return Map.of();
-        }
-
+    private Map<String, Object> deploymentParameters(
+        Map<String, String> defaults,
+        TargetExecutionContextRecord target,
+        ContainerApp currentContainerApp
+    ) {
         Map<String, Object> parameters = new LinkedHashMap<>();
-        for (Map.Entry<String, String> entry : defaults.entrySet()) {
+        mergeParameterValues(parameters, defaults);
+        mergeParameterValues(parameters, targetParameterDefaults(target, currentContainerApp));
+        return parameters;
+    }
+
+    private void mergeParameterValues(Map<String, Object> targetParameters, Map<String, String> values) {
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, String> entry : values.entrySet()) {
             String key = normalize(entry.getKey());
             if (key.isBlank()) {
                 continue;
             }
-            parameters.put(key, Map.of("value", entry.getValue()));
+            targetParameters.put(key, Map.of("value", entry.getValue()));
         }
-        return parameters;
+    }
+
+    private Map<String, String> targetParameterDefaults(TargetExecutionContextRecord target, ContainerApp currentContainerApp) {
+        Map<String, String> values = new LinkedHashMap<>();
+        values.put("containerAppName", normalize(currentContainerApp.name()));
+        values.put(
+            "managedEnvironmentResourceId",
+            firstNonBlank(currentContainerApp.managedEnvironmentId(), currentContainerApp.environmentId())
+        );
+        values.put("location", normalize(currentContainerApp.regionName()));
+        values.put("targetGroup", firstNonBlank(target.tags().get("ring"), "prod"));
+        values.put("tenantId", uuidText(target.tenantId(), "tenantId"));
+        values.put("targetId", normalize(target.targetId()));
+        values.put("tier", firstNonBlank(target.tags().get("tier"), "standard"));
+        values.put("environment", firstNonBlank(target.tags().get("environment"), "prod"));
+        return values;
     }
 
     private TargetDeploymentException deploymentFailure(
@@ -205,15 +238,15 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
         );
     }
 
-    private String resolveTemplateSpecVersionId(ReleaseRecord release) {
+    private String resolveTemplateSpecVersionId(ReleaseRecord release, String targetSubscriptionId) {
         String versionRef = normalize(release.sourceVersionRef());
         if (!versionRef.isBlank()) {
-            return versionRef;
+            return mirrorTemplateSpecVersionId(versionRef, targetSubscriptionId);
         }
 
         String sourceRef = normalize(release.sourceRef());
         if (sourceRef.contains("/versions/")) {
-            return sourceRef;
+            return mirrorTemplateSpecVersionId(sourceRef, targetSubscriptionId);
         }
         if (sourceRef.isBlank()) {
             throw new IllegalArgumentException("release sourceRef is required for template_spec execution");
@@ -223,7 +256,21 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
         if (version.isBlank()) {
             throw new IllegalArgumentException("release sourceVersion is required to resolve the Template Spec version ID");
         }
-        return sourceRef + "/versions/" + version;
+        return mirrorTemplateSpecVersionId(sourceRef + "/versions/" + version, targetSubscriptionId);
+    }
+
+    private String mirrorTemplateSpecVersionId(String templateSpecVersionId, String targetSubscriptionId) {
+        String resourceId = normalize(templateSpecVersionId);
+        ResourceId parsed = ResourceId.fromString(resourceId);
+        String sourceSubscriptionId = normalize(parsed.subscriptionId());
+        if (sourceSubscriptionId.isBlank() || sourceSubscriptionId.equalsIgnoreCase(normalize(targetSubscriptionId))) {
+            return resourceId;
+        }
+        String mirrored = resourceId.replaceFirst(
+            "/subscriptions/" + sourceSubscriptionId,
+            "/subscriptions/" + normalize(targetSubscriptionId)
+        );
+        return mirrored;
     }
 
     private String parseResourceGroupName(String managedResourceGroupId, String targetId) {
@@ -286,6 +333,16 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
     private String nullable(String value) {
         String normalized = normalize(value);
         return normalized.isBlank() ? null : normalized;
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            String normalized = normalize(value);
+            if (!normalized.isBlank()) {
+                return normalized;
+            }
+        }
+        return "";
     }
 
     private String normalize(Object value) {

@@ -9,6 +9,10 @@ PROVIDER_SUBSCRIPTION_ID=""
 CUSTOMER_SUBSCRIPTION_ID=""
 PROVIDER_TENANT_ID=""
 CUSTOMER_TENANT_ID=""
+PROVIDER_REGION=""
+CUSTOMER_REGION=""
+PROVIDER_EXISTING_ENVIRONMENT_ID=""
+CUSTOMER_EXISTING_ENVIRONMENT_ID=""
 
 usage() {
   cat <<EOF
@@ -23,6 +27,12 @@ Options:
   --customer-subscription-id <id>    Second target subscription ID (required)
   --provider-tenant-id <id>          Override provider tenant ID (optional; auto-resolved)
   --customer-tenant-id <id>          Override customer tenant ID (optional; auto-resolved)
+  --provider-region <region>         Override provider target region (default: --location)
+  --customer-region <region>         Override customer target region (default: --location)
+  --provider-existing-environment-id <id>
+                                     Reuse an existing ACA environment in provider subscription
+  --customer-existing-environment-id <id>
+                                     Reuse an existing ACA environment in customer subscription
   --iac-dir <path>                   demo-fleet Pulumi directory (default: infra/demo-fleet)
   -h, --help                         Show help
 EOF
@@ -52,6 +62,22 @@ while [[ $# -gt 0 ]]; do
       ;;
     --customer-tenant-id)
       CUSTOMER_TENANT_ID="${2:-}"
+      shift 2
+      ;;
+    --provider-region)
+      PROVIDER_REGION="${2:-}"
+      shift 2
+      ;;
+    --customer-region)
+      CUSTOMER_REGION="${2:-}"
+      shift 2
+      ;;
+    --provider-existing-environment-id)
+      PROVIDER_EXISTING_ENVIRONMENT_ID="${2:-}"
+      shift 2
+      ;;
+    --customer-existing-environment-id)
+      CUSTOMER_EXISTING_ENVIRONMENT_ID="${2:-}"
       shift 2
       ;;
     --iac-dir)
@@ -109,6 +135,12 @@ fi
 if [[ -z "${CUSTOMER_TENANT_ID}" ]]; then
   CUSTOMER_TENANT_ID="$(resolve_tenant_for_subscription "${CUSTOMER_SUBSCRIPTION_ID}")"
 fi
+if [[ -z "${PROVIDER_REGION}" ]]; then
+  PROVIDER_REGION="${LOCATION}"
+fi
+if [[ -z "${CUSTOMER_REGION}" ]]; then
+  CUSTOMER_REGION="${LOCATION}"
+fi
 
 echo "demo-fleet-configure: stack=${STACK}"
 echo "demo-fleet-configure: provider subscription=${PROVIDER_SUBSCRIPTION_ID} tenant=${PROVIDER_TENANT_ID}"
@@ -123,7 +155,7 @@ pulumi config set --stack "${STACK}" --path "demoFleet:targets[0].id" "demo-targ
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[0].tenantId" "${PROVIDER_TENANT_ID}"
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[0].subscriptionId" "${PROVIDER_SUBSCRIPTION_ID}"
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[0].targetGroup" "canary"
-pulumi config set --stack "${STACK}" --path "demoFleet:targets[0].region" "${LOCATION}"
+pulumi config set --stack "${STACK}" --path "demoFleet:targets[0].region" "${PROVIDER_REGION}"
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[0].environment" "prod"
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[0].tier" "gold"
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[0].customerName" "Demo Customer A"
@@ -133,11 +165,17 @@ pulumi config set --stack "${STACK}" --path "demoFleet:targets[1].id" "demo-targ
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[1].tenantId" "${CUSTOMER_TENANT_ID}"
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[1].subscriptionId" "${CUSTOMER_SUBSCRIPTION_ID}"
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[1].targetGroup" "prod"
-pulumi config set --stack "${STACK}" --path "demoFleet:targets[1].region" "${LOCATION}"
+pulumi config set --stack "${STACK}" --path "demoFleet:targets[1].region" "${CUSTOMER_REGION}"
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[1].environment" "prod"
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[1].tier" "gold"
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[1].customerName" "Demo Customer B"
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[1].managedApplicationId" "/subscriptions/${CUSTOMER_SUBSCRIPTION_ID}/resourceGroups/rg-demo-ma-apps-b/providers/Microsoft.Solutions/applications/mappo-ma-target-02"
+if [[ -n "${PROVIDER_EXISTING_ENVIRONMENT_ID}" ]]; then
+  pulumi config set --stack "${STACK}" --path "demoFleet:existingManagedEnvironmentIdsBySubscription.${PROVIDER_SUBSCRIPTION_ID}" "${PROVIDER_EXISTING_ENVIRONMENT_ID}"
+fi
+if [[ -n "${CUSTOMER_EXISTING_ENVIRONMENT_ID}" ]]; then
+  pulumi config set --stack "${STACK}" --path "demoFleet:existingManagedEnvironmentIdsBySubscription.${CUSTOMER_SUBSCRIPTION_ID}" "${CUSTOMER_EXISTING_ENVIRONMENT_ID}"
+fi
 popd >/dev/null
 
 echo "demo-fleet-configure: stack configured."

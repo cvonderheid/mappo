@@ -23,6 +23,13 @@
   <build>
     <plugins>
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-deploy-plugin</artifactId>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+      <plugin>
         <groupId>com.github.eirslett</groupId>
         <artifactId>frontend-maven-plugin</artifactId>
         <configuration>
@@ -90,6 +97,36 @@
             <configuration>
               <arguments>run build</arguments>
             </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>io.fabric8</groupId>
+        <artifactId>docker-maven-plugin</artifactId>
+        <configuration>
+          <images>
+            <image>
+              <name>${docker.image.prefix}/mappo-frontend:${mappo.image.tag}</name>
+              <build>
+                <contextDir>${project.basedir}</contextDir>
+                <dockerFile>${project.basedir}/Dockerfile</dockerFile>
+                <buildx>
+                  <platforms>
+                    <platform>${docker.platforms}</platform>
+                  </platforms>
+                </buildx>
+              </build>
+            </image>
+          </images>
+        </configuration>
+        <executions>
+          <execution>
+            <id>publish-frontend-image</id>
+            <phase>deploy</phase>
+            <goals>
+              <goal>build</goal>
+              <goal>push</goal>
+            </goals>
           </execution>
         </executions>
       </plugin>

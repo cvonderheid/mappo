@@ -24,6 +24,8 @@ MAX_REPLICAS="2"
 MIGRATION_JOB_NAME=""
 MIGRATION_TIMEOUT_SECONDS="900"
 RUN_MIGRATIONS="true"
+SKIP_BUILD="false"
+SKIP_APP_DEPLOY="false"
 
 usage() {
   cat <<EOF
@@ -48,6 +50,8 @@ Options:
   --max-replicas <int>         Max replicas per app (default: 2)
   --migration-job-name <name>  Migration Container App Job name (default: job-mappo-db-<stack>)
   --migration-timeout <sec>    Migration job timeout/replica-timeout seconds (default: 900)
+  --skip-build                Reuse published images; do not build/push backend, frontend, or flyway images
+  --skip-app-deploy           Prepare infra/job only; do not create or update backend/frontend apps
   --skip-migrations            Deploy apps but do not execute migration job
   -h, --help                   Show help
 EOF
@@ -119,6 +123,14 @@ while [[ $# -gt 0 ]]; do
       MIGRATION_TIMEOUT_SECONDS="${2:-}"
       shift 2
       ;;
+    --skip-build)
+      SKIP_BUILD="true"
+      shift
+      ;;
+    --skip-app-deploy)
+      SKIP_APP_DEPLOY="true"
+      shift
+      ;;
     --skip-migrations)
       RUN_MIGRATIONS="false"
       shift
@@ -134,6 +146,10 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+is_falsey() {
+  [[ "$1" =~ ^(0|false|no|off)$ ]]
+}
 
 if [[ ! -f "${AZURE_ENV_FILE}" ]]; then
   echo "runtime-aca-deploy: missing Azure env file: ${AZURE_ENV_FILE}" >&2
@@ -236,6 +252,8 @@ else
   echo "runtime-aca-deploy: acr=<auto>"
 fi
 echo "runtime-aca-deploy: image_tag=${IMAGE_TAG}"
+echo "runtime-aca-deploy: skip_build=${SKIP_BUILD}"
+echo "runtime-aca-deploy: skip_app_deploy=${SKIP_APP_DEPLOY}"
 echo "runtime-aca-deploy: run_migrations=${RUN_MIGRATIONS}"
 
 az provider register --namespace Microsoft.App --wait --only-show-errors >/dev/null
@@ -382,11 +400,13 @@ acr_password="$(az acr credential show --name "${ACR_NAME}" --resource-group "${
 
 backend_image="${acr_login_server}/mappo-backend:${IMAGE_TAG}"
 frontend_image="${acr_login_server}/mappo-frontend:${IMAGE_TAG}"
+flyway_image="${acr_login_server}/mappo-flyway:${IMAGE_TAG}"
 
 build_image() {
   local image_repo="$1"
   local dockerfile_path="$2"
-  shift 2
+  local build_context="$3"
+  shift 3
   local build_args=("$@")
 
   local task_log
@@ -397,7 +417,7 @@ build_image() {
     --image "${image_repo}:${IMAGE_TAG}" \
     --file "${dockerfile_path}" \
     "${build_args[@]}" \
-    "${ROOT_DIR}" \
+    "${build_context}" \
     --only-show-errors \
     >"${task_log}" 2>&1; then
     rm -f "${task_log}"
@@ -420,10 +440,10 @@ build_image() {
         -t "${acr_login_server}/${image_repo}:${IMAGE_TAG}" \
         "${build_args[@]}" \
         --push \
-        "${ROOT_DIR}"
+        "${build_context}"
     else
       echo "runtime-aca-deploy: docker buildx unavailable; falling back to docker build (platform compatibility not guaranteed)." >&2
-      docker build -f "${dockerfile_path}" -t "${acr_login_server}/${image_repo}:${IMAGE_TAG}" "${build_args[@]}" "${ROOT_DIR}"
+      docker build -f "${dockerfile_path}" -t "${acr_login_server}/${image_repo}:${IMAGE_TAG}" "${build_args[@]}" "${build_context}"
       docker push "${acr_login_server}/${image_repo}:${IMAGE_TAG}"
     fi
     rm -f "${task_log}"
@@ -435,12 +455,16 @@ build_image() {
   exit 1
 }
 
-echo "runtime-aca-deploy: building backend image ${backend_image}"
-build_image "mappo-backend" "${ROOT_DIR}/backend/Dockerfile"
+if is_falsey "${SKIP_BUILD}"; then
+  echo "runtime-aca-deploy: building backend image ${backend_image}"
+  build_image "mappo-backend" "${ROOT_DIR}/backend/Dockerfile" "${ROOT_DIR}/backend"
 
-flyway_image="${acr_login_server}/mappo-flyway:${IMAGE_TAG}"
-echo "runtime-aca-deploy: building migration image ${flyway_image}"
-build_image "mappo-flyway" "${ROOT_DIR}/backend/flyway/Dockerfile"
+  echo "runtime-aca-deploy: building migration image ${flyway_image}"
+  build_image "mappo-flyway" "${ROOT_DIR}/backend/flyway/Dockerfile" "${ROOT_DIR}/backend"
+else
+  echo "runtime-aca-deploy: reusing published backend image ${backend_image}"
+  echo "runtime-aca-deploy: reusing published migration image ${flyway_image}"
+fi
 
 flyway_jdbc_url="jdbc:postgresql://${MAPPO_DB_HOST}:${MAPPO_DB_PORT}/${MAPPO_DB_NAME}"
 if [[ -n "${MAPPO_DB_SSLMODE:-}" ]]; then
@@ -564,6 +588,9 @@ fi
 
 backend_env_vars=(
   "MAPPO_DATABASE_URL=secretref:database-url"
+  "MAPPO_BACKEND_PORT=8000"
+  "MAPPO_DB_USER=${MAPPO_DB_USER}"
+  "MAPPO_DB_PASSWORD=secretref:database-password"
   "MAPPO_EXECUTION_MODE=azure"
   "MAPPO_AZURE_TENANT_ID=${MAPPO_AZURE_TENANT_ID}"
   "MAPPO_AZURE_CLIENT_ID=${MAPPO_AZURE_CLIENT_ID}"
@@ -574,148 +601,168 @@ backend_env_vars=(
 )
 backend_secrets=(
   "database-url=${MAPPO_DATABASE_URL}"
+  "database-password=${MAPPO_DB_PASSWORD}"
   "azure-client-secret=${MAPPO_AZURE_CLIENT_SECRET}"
   "marketplace-ingest-token=${MAPPO_MARKETPLACE_INGEST_TOKEN}"
 )
 
-backend_state="$(az containerapp show --name "${BACKEND_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query properties.provisioningState -o tsv --only-show-errors 2>/dev/null || true)"
-if [[ "${backend_state}" == "Failed" ]]; then
-  echo "runtime-aca-deploy: backend app ${BACKEND_APP_NAME} is in Failed provisioning state; deleting and recreating."
-  az containerapp delete \
-    --name "${BACKEND_APP_NAME}" \
-    --resource-group "${RESOURCE_GROUP}" \
-    --yes \
-    --only-show-errors \
-    >/dev/null
-  backend_state=""
-fi
+backend_base_url=""
+frontend_base_url=""
+if is_falsey "${SKIP_APP_DEPLOY}"; then
+  backend_state="$(az containerapp show --name "${BACKEND_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query properties.provisioningState -o tsv --only-show-errors 2>/dev/null || true)"
+  if [[ "${backend_state}" == "Failed" ]]; then
+    echo "runtime-aca-deploy: backend app ${BACKEND_APP_NAME} is in Failed provisioning state; deleting and recreating."
+    az containerapp delete \
+      --name "${BACKEND_APP_NAME}" \
+      --resource-group "${RESOURCE_GROUP}" \
+      --yes \
+      --only-show-errors \
+      >/dev/null
+    backend_state=""
+  fi
 
-if [[ -n "${backend_state}" ]]; then
-  echo "runtime-aca-deploy: updating backend app ${BACKEND_APP_NAME}"
-  az containerapp secret set \
-    --name "${BACKEND_APP_NAME}" \
-    --resource-group "${RESOURCE_GROUP}" \
-    --secrets "${backend_secrets[@]}" \
-    --only-show-errors \
-    >/dev/null
-  az containerapp registry set \
-    --name "${BACKEND_APP_NAME}" \
-    --resource-group "${RESOURCE_GROUP}" \
-    --server "${acr_login_server}" \
-    --username "${acr_username}" \
-    --password "${acr_password}" \
-    --only-show-errors \
-    >/dev/null
+  if [[ -n "${backend_state}" ]]; then
+    echo "runtime-aca-deploy: updating backend app ${BACKEND_APP_NAME}"
+    az containerapp secret set \
+      --name "${BACKEND_APP_NAME}" \
+      --resource-group "${RESOURCE_GROUP}" \
+      --secrets "${backend_secrets[@]}" \
+      --only-show-errors \
+      >/dev/null
+    az containerapp registry set \
+      --name "${BACKEND_APP_NAME}" \
+      --resource-group "${RESOURCE_GROUP}" \
+      --server "${acr_login_server}" \
+      --username "${acr_username}" \
+      --password "${acr_password}" \
+      --only-show-errors \
+      >/dev/null
+    az containerapp update \
+      --name "${BACKEND_APP_NAME}" \
+      --resource-group "${RESOURCE_GROUP}" \
+      --image "${backend_image}" \
+      --set-env-vars "${backend_env_vars[@]}" \
+      --cpu "${BACKEND_CPU}" \
+      --memory "${BACKEND_MEMORY}" \
+      --min-replicas "${MIN_REPLICAS}" \
+      --max-replicas "${MAX_REPLICAS}" \
+      --only-show-errors \
+      >/dev/null
+  else
+    echo "runtime-aca-deploy: creating backend app ${BACKEND_APP_NAME}"
+    az containerapp create \
+      --name "${BACKEND_APP_NAME}" \
+      --resource-group "${RESOURCE_GROUP}" \
+      --environment "${CONTAINER_ENV_ID}" \
+      --image "${backend_image}" \
+      --ingress external \
+      --target-port 8000 \
+      --registry-server "${acr_login_server}" \
+      --registry-username "${acr_username}" \
+      --registry-password "${acr_password}" \
+      --secrets "${backend_secrets[@]}" \
+      --env-vars "${backend_env_vars[@]}" \
+      --cpu "${BACKEND_CPU}" \
+      --memory "${BACKEND_MEMORY}" \
+      --min-replicas "${MIN_REPLICAS}" \
+      --max-replicas "${MAX_REPLICAS}" \
+      --only-show-errors \
+      >/dev/null
+  fi
+
+  backend_fqdn="$(az containerapp show --name "${BACKEND_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query properties.configuration.ingress.fqdn -o tsv)"
+  if [[ -z "${backend_fqdn}" ]]; then
+    echo "runtime-aca-deploy: failed to resolve backend FQDN for ${BACKEND_APP_NAME}" >&2
+    exit 1
+  fi
+  backend_base_url="https://${backend_fqdn}"
+
+  if is_falsey "${SKIP_BUILD}"; then
+    echo "runtime-aca-deploy: building frontend image ${frontend_image}"
+    build_image "mappo-frontend" "${ROOT_DIR}/frontend/Dockerfile" "${ROOT_DIR}/frontend"
+  else
+    echo "runtime-aca-deploy: reusing published frontend image ${frontend_image}"
+  fi
+
+  frontend_state="$(az containerapp show --name "${FRONTEND_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query properties.provisioningState -o tsv --only-show-errors 2>/dev/null || true)"
+  if [[ "${frontend_state}" == "Failed" ]]; then
+    echo "runtime-aca-deploy: frontend app ${FRONTEND_APP_NAME} is in Failed provisioning state; deleting and recreating."
+    az containerapp delete \
+      --name "${FRONTEND_APP_NAME}" \
+      --resource-group "${RESOURCE_GROUP}" \
+      --yes \
+      --only-show-errors \
+      >/dev/null
+    frontend_state=""
+  fi
+
+  if [[ -n "${frontend_state}" ]]; then
+    echo "runtime-aca-deploy: updating frontend app ${FRONTEND_APP_NAME}"
+    az containerapp registry set \
+      --name "${FRONTEND_APP_NAME}" \
+      --resource-group "${RESOURCE_GROUP}" \
+      --server "${acr_login_server}" \
+      --username "${acr_username}" \
+      --password "${acr_password}" \
+      --only-show-errors \
+      >/dev/null
+    az containerapp update \
+      --name "${FRONTEND_APP_NAME}" \
+      --resource-group "${RESOURCE_GROUP}" \
+      --image "${frontend_image}" \
+      --set-env-vars "MAPPO_API_BASE_URL=${backend_base_url}" \
+      --cpu "${FRONTEND_CPU}" \
+      --memory "${FRONTEND_MEMORY}" \
+      --min-replicas "${MIN_REPLICAS}" \
+      --max-replicas "${MAX_REPLICAS}" \
+      --only-show-errors \
+      >/dev/null
+  else
+    echo "runtime-aca-deploy: creating frontend app ${FRONTEND_APP_NAME}"
+    az containerapp create \
+      --name "${FRONTEND_APP_NAME}" \
+      --resource-group "${RESOURCE_GROUP}" \
+      --environment "${CONTAINER_ENV_ID}" \
+      --image "${frontend_image}" \
+      --ingress external \
+      --target-port 80 \
+      --registry-server "${acr_login_server}" \
+      --registry-username "${acr_username}" \
+      --registry-password "${acr_password}" \
+      --env-vars "MAPPO_API_BASE_URL=${backend_base_url}" \
+      --cpu "${FRONTEND_CPU}" \
+      --memory "${FRONTEND_MEMORY}" \
+      --min-replicas "${MIN_REPLICAS}" \
+      --max-replicas "${MAX_REPLICAS}" \
+      --only-show-errors \
+      >/dev/null
+  fi
+
+  frontend_fqdn="$(az containerapp show --name "${FRONTEND_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query properties.configuration.ingress.fqdn -o tsv)"
+  if [[ -z "${frontend_fqdn}" ]]; then
+    echo "runtime-aca-deploy: failed to resolve frontend FQDN for ${FRONTEND_APP_NAME}" >&2
+    exit 1
+  fi
+  frontend_base_url="https://${frontend_fqdn}"
+
+  backend_cors="http://localhost:5174,http://127.0.0.1:5174,${frontend_base_url}"
   az containerapp update \
     --name "${BACKEND_APP_NAME}" \
     --resource-group "${RESOURCE_GROUP}" \
-    --image "${backend_image}" \
-    --set-env-vars "${backend_env_vars[@]}" \
-    --cpu "${BACKEND_CPU}" \
-    --memory "${BACKEND_MEMORY}" \
-    --min-replicas "${MIN_REPLICAS}" \
-    --max-replicas "${MAX_REPLICAS}" \
+    --set-env-vars "MAPPO_CORS_ORIGINS=${backend_cors}" \
     --only-show-errors \
     >/dev/null
 else
-  echo "runtime-aca-deploy: creating backend app ${BACKEND_APP_NAME}"
-  az containerapp create \
-    --name "${BACKEND_APP_NAME}" \
-    --resource-group "${RESOURCE_GROUP}" \
-    --environment "${CONTAINER_ENV_ID}" \
-    --image "${backend_image}" \
-    --ingress external \
-    --target-port 8000 \
-    --registry-server "${acr_login_server}" \
-    --registry-username "${acr_username}" \
-    --registry-password "${acr_password}" \
-    --secrets "${backend_secrets[@]}" \
-    --env-vars "${backend_env_vars[@]}" \
-    --cpu "${BACKEND_CPU}" \
-    --memory "${BACKEND_MEMORY}" \
-    --min-replicas "${MIN_REPLICAS}" \
-    --max-replicas "${MAX_REPLICAS}" \
-    --only-show-errors \
-    >/dev/null
+  echo "runtime-aca-deploy: skipping backend/frontend app deployment by request."
+  backend_fqdn="$(az containerapp show --name "${BACKEND_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors 2>/dev/null || true)"
+  frontend_fqdn="$(az containerapp show --name "${FRONTEND_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors 2>/dev/null || true)"
+  if [[ -n "${backend_fqdn}" ]]; then
+    backend_base_url="https://${backend_fqdn}"
+  fi
+  if [[ -n "${frontend_fqdn}" ]]; then
+    frontend_base_url="https://${frontend_fqdn}"
+  fi
 fi
-
-backend_fqdn="$(az containerapp show --name "${BACKEND_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query properties.configuration.ingress.fqdn -o tsv)"
-if [[ -z "${backend_fqdn}" ]]; then
-  echo "runtime-aca-deploy: failed to resolve backend FQDN for ${BACKEND_APP_NAME}" >&2
-  exit 1
-fi
-backend_base_url="https://${backend_fqdn}"
-
-echo "runtime-aca-deploy: building frontend image ${frontend_image}"
-build_image "mappo-frontend" "${ROOT_DIR}/frontend/Dockerfile" \
-  --build-arg "VITE_API_BASE_URL=${backend_base_url}"
-
-frontend_state="$(az containerapp show --name "${FRONTEND_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query properties.provisioningState -o tsv --only-show-errors 2>/dev/null || true)"
-if [[ "${frontend_state}" == "Failed" ]]; then
-  echo "runtime-aca-deploy: frontend app ${FRONTEND_APP_NAME} is in Failed provisioning state; deleting and recreating."
-  az containerapp delete \
-    --name "${FRONTEND_APP_NAME}" \
-    --resource-group "${RESOURCE_GROUP}" \
-    --yes \
-    --only-show-errors \
-    >/dev/null
-  frontend_state=""
-fi
-
-if [[ -n "${frontend_state}" ]]; then
-  echo "runtime-aca-deploy: updating frontend app ${FRONTEND_APP_NAME}"
-  az containerapp registry set \
-    --name "${FRONTEND_APP_NAME}" \
-    --resource-group "${RESOURCE_GROUP}" \
-    --server "${acr_login_server}" \
-    --username "${acr_username}" \
-    --password "${acr_password}" \
-    --only-show-errors \
-    >/dev/null
-  az containerapp update \
-    --name "${FRONTEND_APP_NAME}" \
-    --resource-group "${RESOURCE_GROUP}" \
-    --image "${frontend_image}" \
-    --cpu "${FRONTEND_CPU}" \
-    --memory "${FRONTEND_MEMORY}" \
-    --min-replicas "${MIN_REPLICAS}" \
-    --max-replicas "${MAX_REPLICAS}" \
-    --only-show-errors \
-    >/dev/null
-else
-  echo "runtime-aca-deploy: creating frontend app ${FRONTEND_APP_NAME}"
-  az containerapp create \
-    --name "${FRONTEND_APP_NAME}" \
-    --resource-group "${RESOURCE_GROUP}" \
-    --environment "${CONTAINER_ENV_ID}" \
-    --image "${frontend_image}" \
-    --ingress external \
-    --target-port 80 \
-    --registry-server "${acr_login_server}" \
-    --registry-username "${acr_username}" \
-    --registry-password "${acr_password}" \
-    --cpu "${FRONTEND_CPU}" \
-    --memory "${FRONTEND_MEMORY}" \
-    --min-replicas "${MIN_REPLICAS}" \
-    --max-replicas "${MAX_REPLICAS}" \
-    --only-show-errors \
-    >/dev/null
-fi
-
-frontend_fqdn="$(az containerapp show --name "${FRONTEND_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query properties.configuration.ingress.fqdn -o tsv)"
-if [[ -z "${frontend_fqdn}" ]]; then
-  echo "runtime-aca-deploy: failed to resolve frontend FQDN for ${FRONTEND_APP_NAME}" >&2
-  exit 1
-fi
-frontend_base_url="https://${frontend_fqdn}"
-
-backend_cors="http://localhost:5174,http://127.0.0.1:5174,${frontend_base_url}"
-az containerapp update \
-  --name "${BACKEND_APP_NAME}" \
-  --resource-group "${RESOURCE_GROUP}" \
-  --set-env-vars "MAPPO_CORS_ORIGINS=${backend_cors}" \
-  --only-show-errors \
-  >/dev/null
 
 mkdir -p "$(dirname "${OUTPUT_ENV_FILE}")"
 cat > "${OUTPUT_ENV_FILE}" <<EOF

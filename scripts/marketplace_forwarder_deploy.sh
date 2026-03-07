@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+STACK="${PULUMI_STACK:-demo}"
 RESOURCE_GROUP=""
 LOCATION="eastus"
 FUNCTION_APP_NAME=""
@@ -23,9 +24,10 @@ Usage: $(basename "$0") [options]
 Provision and deploy the MAPPO Marketplace Forwarder Azure Function App.
 
 Options:
-  --resource-group <name>       Azure resource group (required)
+  --stack <name>                Naming suffix seed (default: \$PULUMI_STACK or demo)
+  --resource-group <name>       Azure resource group (default: rg-mappo-marketplace-forwarder-<stack>)
   --location <region>           Azure region (default: eastus)
-  --function-app-name <name>    Function App name (required, globally unique)
+  --function-app-name <name>    Function App name (default: fa-mappo-marketplace-forwarder-<stack>-<subtoken>)
   --storage-account <name>      Storage account name (default: auto-derived)
   --subscription-id <id>        Optional subscription context override
   --package-zip <path>          Function zip artifact (default: .data/marketplace-forwarder-function.zip; auto-built if missing)
@@ -40,6 +42,10 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --stack)
+      STACK="${2:-}"
+      shift 2
+      ;;
     --resource-group)
       RESOURCE_GROUP="${2:-}"
       shift 2
@@ -103,12 +109,6 @@ if [[ -z "${MAPPO_INGEST_ENDPOINT}" && -z "${MAPPO_API_BASE_URL}" && -f "${RUNTI
   MAPPO_API_BASE_URL="${MAPPO_API_BASE_URL:-${MAPPO_RUNTIME_BACKEND_URL:-}}"
 fi
 
-if [[ -z "${RESOURCE_GROUP}" || -z "${FUNCTION_APP_NAME}" ]]; then
-  echo "marketplace-forwarder-deploy: --resource-group and --function-app-name are required." >&2
-  usage >&2
-  exit 2
-fi
-
 if [[ ! -f "${PACKAGE_ZIP}" ]]; then
   echo "marketplace-forwarder-deploy: package zip not found, building it now."
   "${ROOT_DIR}/scripts/marketplace_forwarder_package.sh" \
@@ -138,6 +138,28 @@ fi
 
 if [[ -n "${SUBSCRIPTION_ID}" ]]; then
   az account set --subscription "${SUBSCRIPTION_ID}"
+else
+  SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
+fi
+
+normalize_stack() {
+  printf "%s" "$1" \
+    | tr "[:upper:]" "[:lower:]" \
+    | tr -cd "a-z0-9-" \
+    | sed -E 's/^-+//; s/-+$//; s/-+/-/g'
+}
+
+stack_token="$(normalize_stack "${STACK}")"
+if [[ -z "${stack_token}" ]]; then
+  stack_token="demo"
+fi
+
+if [[ -z "${RESOURCE_GROUP}" ]]; then
+  RESOURCE_GROUP="rg-mappo-marketplace-forwarder-${stack_token}"
+fi
+if [[ -z "${FUNCTION_APP_NAME}" ]]; then
+  sub_token="$(printf "%s" "${SUBSCRIPTION_ID}" | tr -d '-' | cut -c1-8)"
+  FUNCTION_APP_NAME="$(printf '%s' "fa-mappo-marketplace-forwarder-${stack_token}-${sub_token}" | tr '[:upper:]' '[:lower:]' | cut -c1-60 | sed -E 's/-+$//')"
 fi
 
 az provider register --namespace Microsoft.Storage --wait --only-show-errors >/dev/null

@@ -50,6 +50,11 @@ What this does:
 - writes `.data/demo-fleet-target-inventory.json`
 - sends `subscription_purchased` events to `POST /api/v1/admin/onboarding/events`
 
+Required demo RBAC for the MAPPO runtime service principal:
+- Contributor on each target resource group.
+- Reader on the mirrored Template Spec resource group in each target subscription.
+- Contributor on each subscription's shared demo-fleet managed environment resource group so ARM can perform `Microsoft.App/managedEnvironments/join/action` during Container App deployment.
+
 ## 3) Simulate suspend/delete lifecycle
 
 Suspend:
@@ -108,7 +113,7 @@ GitHub manifest:
 source .data/mappo-runtime.env
 ./scripts/release_ingest_from_repo.sh \
   --api-base-url "$MAPPO_API_BASE_URL" \
-  --github-repo "<owner>/<repo>" \
+  --github-repo "cvonderheid/mappo-managed-app" \
   --github-path "releases/releases.manifest.json" \
   --github-ref "main"
 ```
@@ -150,3 +155,20 @@ Supported manifest shape:
   ]
 }
 ```
+
+## 6) Cross-tenant Template Spec note
+
+For this demo, each release's Template Spec version must exist in every target subscription under the same path shape:
+- resource group: `rg-mappo-control-plane-c0d51042`
+- Template Spec name: `mappo-webapp-managed-app`
+- version: release `source_version`
+
+Reason:
+- ARM deployments in the customer tenant cannot link directly to a provider-tenant Template Spec version ID.
+- MAPPO's Java executor rewrites the subscription segment of the provider-side `source_version_ref` to the target subscription and expects a mirrored Template Spec version to exist there.
+
+Practical workflow for a new demo release:
+1. publish the Template Spec version in the provider subscription,
+2. publish the same version in the customer subscription under the mirrored resource group/name,
+3. ingest the release manifest from `cvonderheid/mappo-managed-app`,
+4. start the MAPPO deployment run.

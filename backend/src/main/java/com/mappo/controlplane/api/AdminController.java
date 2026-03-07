@@ -2,6 +2,7 @@ package com.mappo.controlplane.api;
 
 import com.mappo.controlplane.api.request.ForwarderLogIngestRequest;
 import com.mappo.controlplane.api.request.OnboardingEventRequest;
+import com.mappo.controlplane.api.request.ReleaseManifestIngestRequest;
 import com.mappo.controlplane.api.request.TargetRegistrationPatchRequest;
 import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.model.DeleteRegistrationResultRecord;
@@ -9,8 +10,10 @@ import com.mappo.controlplane.model.EventIngestResultRecord;
 import com.mappo.controlplane.model.ForwarderLogIngestResultRecord;
 import com.mappo.controlplane.model.ForwarderLogRecord;
 import com.mappo.controlplane.model.OnboardingSnapshotRecord;
+import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
 import com.mappo.controlplane.model.TargetRegistrationRecord;
 import com.mappo.controlplane.service.AdminService;
+import com.mappo.controlplane.service.release.ReleaseManifestIngestService;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminController {
 
     private final AdminService adminService;
+    private final ReleaseManifestIngestService releaseManifestIngestService;
     private final MappoProperties properties;
 
     @GetMapping("/onboarding")
@@ -64,6 +68,13 @@ public class AdminController {
     ) {
         validateIngestToken(ingestToken);
         return adminService.ingestForwarderLog(request);
+    }
+
+    @PostMapping("/releases/ingest/github")
+    public ReleaseManifestIngestResultRecord ingestGithubReleaseManifest(
+        @RequestBody(required = false) ReleaseManifestIngestRequest request
+    ) {
+        return releaseManifestIngestService.ingestGithubManifest(request);
     }
 
     @PatchMapping("/onboarding/registrations/{targetId}")

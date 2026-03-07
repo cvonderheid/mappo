@@ -82,6 +82,24 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Detection signal: `exec-maven-plugin` reports it cannot execute the Java main class even though the module compiles.
 - Enforcement (test/lint/checklist): whenever a shell wrapper delegates into a Maven module, run the wrapper once with `--help` or `--dry-run`.
 
+- Date: 2026-03-07
+- Pattern: Passing raw JSON through Maven `-Dexec.args` is brittle and breaks as soon as shell escaping and plugin parsing disagree.
+- Preventative rule: For tooling commands that accept arbitrary JSON or other structured payloads, pass arguments via an args file and decode them inside Java instead of relying on command-line escaping.
+- Detection signal: shell wrappers work for simple flags but fail on JSON with quotes/backslashes/newlines.
+- Enforcement (test/lint/checklist): keep at least one smoke test that invokes the shell bridge with a JSON-bearing argument.
+
+- Date: 2026-03-07
+- Pattern: Parent POM deploy configuration can look correct while child modules still execute the default Maven deploy goal.
+- Preventative rule: If the repo repurposes `deploy` as an operational workflow, explicitly neutralize `maven-deploy-plugin` in each child module or prove inheritance with an effective-POM check.
+- Detection signal: `mvn deploy` still fails in an early child module with `repository element was not specified`.
+- Enforcement (test/lint/checklist): after changing deploy semantics, run a full root `deploy` dry pass and inspect the first failing child before assuming the parent POM is sufficient.
+
+- Date: 2026-03-07
+- Pattern: Spring Boot 4 on this stack wires the JSON mapper bean from the `tools.jackson` package, so new services that inject `com.fasterxml.jackson.databind.ObjectMapper` fail at context startup even though JSON annotations still compile.
+- Preventative rule: For Spring-managed JSON parsing in the backend, reuse the existing app-level mapper/utility types instead of assuming the classic `com.fasterxml` bean is present.
+- Detection signal: context startup fails with `No qualifying bean of type 'com.fasterxml.jackson.databind.ObjectMapper' available`.
+- Enforcement (test/lint/checklist): after adding any JSON-heavy service bean, run at least one Spring integration test before moving on to frontend wiring.
+
 - Date: 2026-03-06
 - Pattern: Persistence fixes that only address one duplicated field leave the real single-source-of-truth problem unresolved.
 - Preventative rule: When fixing duplicated data ownership, audit and correct the full duplicated field set in one slice.

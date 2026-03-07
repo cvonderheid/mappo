@@ -10,10 +10,38 @@ Core commands:
 
 ```bash
 ./mvnw -v
+./mvnw clean install
 ./mvnw -pl backend compile
 ./mvnw -pl backend test
 ./mvnw verify
 ```
+
+Deployment commands:
+
+```bash
+export MAPPO_IMAGE_PREFIX="<acr-login-server>"
+
+# publish MAPPO runtime artifacts only
+./mvnw deploy \
+  -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX" \
+  -Dmappo.image.tag="<image-tag>"
+
+# publish artifacts, then run the Azure rollout path
+./mvnw -Pazure deploy \
+  -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX" \
+  -Dmappo.image.tag="<image-tag>" \
+  -Dpulumi.stack="<stack>"
+```
+
+Notes:
+- `deploy` publishes backend, frontend, and Flyway images and packages the forwarder artifact, but does not mutate Azure runtime state.
+- `deploy -Pazure` then runs the Azure rollout path for this repo:
+  - `pulumi up`
+  - prepare/create the runtime migration job
+  - run the migration job
+  - apply backend/frontend runtime updates
+  - deploy the webhook forwarder
+- Azure rollout expects `.data/mappo-azure.env` and `.data/mappo-db.env` to already exist.
 
 Contract workflow:
 
@@ -38,7 +66,7 @@ Operational automation runs directly through `scripts/` and Pulumi:
 # release ingest from repo/file
 ./scripts/release_ingest_from_repo.sh \
   --api-base-url "$MAPPO_API_BASE_URL" \
-  --github-repo <owner>/<repo> \
+  --github-repo cvonderheid/mappo-managed-app \
   --github-path releases/releases.manifest.json \
   --github-ref main
 

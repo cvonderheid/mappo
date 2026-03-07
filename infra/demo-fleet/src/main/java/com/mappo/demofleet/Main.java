@@ -94,6 +94,7 @@ public final class Main {
     private final String managedEnvironmentNamePrefix;
     private final String targetResourceGroupPrefix;
     private final String containerAppNamePrefix;
+    private final Map<String, String> existingManagedEnvironmentIdsBySubscription;
 
     private final Map<String, Provider> providersBySubscription = new HashMap<>();
     private final Map<String, SubscriptionContext> contextBySubscription = new HashMap<>();
@@ -115,6 +116,8 @@ public final class Main {
         this.managedEnvironmentNamePrefix = config.get("managedEnvironmentNamePrefix").orElse("cae-mappo-demo-fleet");
         this.targetResourceGroupPrefix = config.get("targetResourceGroupPrefix").orElse("rg-mappo-demo-target");
         this.containerAppNamePrefix = config.get("containerAppNamePrefix").orElse("ca-mappo-demo-target");
+        this.existingManagedEnvironmentIdsBySubscription =
+            parseConfigStringMap(config, "existingManagedEnvironmentIdsBySubscription").orElse(Map.of());
     }
 
     public static void main(String[] args) {
@@ -144,14 +147,15 @@ public final class Main {
     }
 
     private DeploymentOutput createDeployment(DemoFleetTargetConfig target, int index) {
-        String region = normalizeTagValue(target.region, defaultLocation);
+        String requestedRegion = normalizeTagValue(target.region, defaultLocation);
         String targetGroup = normalizeTagValue(target.targetGroup, "prod");
         String environmentTag = normalizeTagValue(target.environment, "demo");
         String tier = normalizeTagValue(target.tier, "standard");
         String customerName = normalizeNullableValue(target.customerName);
 
         Provider provider = getProvider(target.subscriptionId);
-        SubscriptionContext subscriptionContext = getOrCreateSubscriptionContext(provider, target.subscriptionId, region);
+        SubscriptionContext subscriptionContext = getOrCreateSubscriptionContext(provider, target.subscriptionId, requestedRegion);
+        String region = subscriptionContext.location;
 
         String targetToken = normalizeName(target.id, "target-" + (index + 1), 28);
         String managedResourceGroupName = normalizeName(
@@ -207,7 +211,7 @@ public final class Main {
                 .resourceGroupName(managedResourceGroup.name())
                 .containerAppName(containerAppName)
                 .location(region)
-                .managedEnvironmentId(subscriptionContext.environment.id())
+                .managedEnvironmentId(subscriptionContext.environmentId)
                 .configuration(ConfigurationArgs.builder()
                     .ingress(IngressArgs.builder()
                         .external(true)
@@ -336,6 +340,16 @@ public final class Main {
         );
 
         CustomResourceOptions withProvider = CustomResourceOptions.builder().provider(provider).build();
+        String existingManagedEnvironmentId = normalizeNullableResourceId(
+            existingManagedEnvironmentIdsBySubscription.get(subscriptionId)
+        );
+
+        if (existingManagedEnvironmentId != null) {
+            ctx.log().info("Reusing existing managed environment for subscription " + subscriptionId + ": " + existingManagedEnvironmentId);
+            SubscriptionContext context = new SubscriptionContext(provider, location, Output.of(existingManagedEnvironmentId));
+            contextBySubscription.put(subscriptionId, context);
+            return context;
+        }
 
         ResourceGroup observabilityResourceGroup = new ResourceGroup(
             "demo-fleet-observability-rg-" + subscriptionToken,
@@ -398,7 +412,7 @@ public final class Main {
             withProvider
         );
 
-        SubscriptionContext context = new SubscriptionContext(provider, location, observabilityResourceGroup, workspace, environment);
+        SubscriptionContext context = new SubscriptionContext(provider, location, environment.id());
         contextBySubscription.put(subscriptionId, context);
         return context;
     }
@@ -530,6 +544,26 @@ public final class Main {
         return Optional.ofNullable(value);
     }
 
+    private static Optional<Map<String, String>> parseConfigStringMap(Config cfg, String key) {
+        try {
+            Optional<Map<String, String>> parsed = cfg.getObject(key, TypeShape.map(String.class, String.class));
+            if (parsed.isPresent()) {
+                return parsed;
+            }
+        } catch (Exception ignored) {
+            // Fallback to JSON parse below.
+        }
+
+        Optional<String> raw = cfg.get(key).map(String::trim).filter(v -> !v.isEmpty());
+        if (raw.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Type mapType = new TypeToken<Map<String, String>>() {}.getType();
+        Map<String, String> value = GSON.fromJson(raw.get(), mapType);
+        return Optional.ofNullable(value);
+    }
+
     private static Map<String, Object> linkedMapOf(Object... keyValues) {
         if (keyValues.length % 2 != 0) {
             throw new IllegalArgumentException("linkedMapOf expects an even number of arguments.");
@@ -572,22 +606,16 @@ public final class Main {
     private static final class SubscriptionContext {
         private final Provider provider;
         private final String location;
-        private final ResourceGroup observabilityResourceGroup;
-        private final Workspace workspace;
-        private final ManagedEnvironment environment;
+        private final Output<String> environmentId;
 
         private SubscriptionContext(
             Provider provider,
             String location,
-            ResourceGroup observabilityResourceGroup,
-            Workspace workspace,
-            ManagedEnvironment environment
+            Output<String> environmentId
         ) {
             this.provider = provider;
             this.location = location;
-            this.observabilityResourceGroup = observabilityResourceGroup;
-            this.workspace = workspace;
-            this.environment = environment;
+            this.environmentId = environmentId;
         }
     }
 

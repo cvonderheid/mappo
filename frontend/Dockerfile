@@ -1,19 +1,19 @@
 FROM node:20-alpine AS build
 
-ARG VITE_API_BASE_URL
-ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
-
 WORKDIR /app
 
-COPY frontend/package.json frontend/package-lock.json ./
+COPY package.json package-lock.json ./
 RUN npm ci
 
-COPY frontend ./
+COPY . ./
 RUN npm run build
 
 FROM nginx:1.27-alpine
 
-COPY infra/nginx/mappo-frontend.conf /etc/nginx/conf.d/default.conf
+COPY nginx/mappo-frontend.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
+COPY docker-entrypoint.d/40-mappo-runtime-config.sh /docker-entrypoint.d/40-mappo-runtime-config.sh
+
+RUN chmod +x /docker-entrypoint.d/40-mappo-runtime-config.sh
 
 EXPOSE 80

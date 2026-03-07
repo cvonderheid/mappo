@@ -6,6 +6,8 @@ import type {
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
   Release,
+  ReleaseManifestIngestRequest,
+  ReleaseManifestIngestResponse,
   RunDetail,
   RunSummary,
   Target,
@@ -135,4 +137,13 @@ export async function adminDeleteTargetRegistration(
     }
   );
   return requireData("adminDeleteTargetRegistration", { data, error, response });
+}
+
+export async function adminIngestGithubReleaseManifest(
+  request: ReleaseManifestIngestRequest
+): Promise<ReleaseManifestIngestResponse> {
+  const { data, error, response } = await apiClient.POST("/api/v1/admin/releases/ingest/github", {
+    body: request,
+  });
+  return requireData("adminIngestGithubReleaseManifest", { data, error, response });
 }

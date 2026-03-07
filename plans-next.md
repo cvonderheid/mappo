@@ -1,89 +1,106 @@
 # MAPPO Next Plan (`plans-next.md`)
 
-Date: 2026-03-06
+Date: 2026-03-07
+
+## Phase
+Demo readiness
 
 ## Theme
-Java-first completion and production-like Azure runtime:
-- finish the real Azure execution paths,
-- keep build/package workflows Maven-native,
-- keep runtime operations explicit through scripts and Pulumi,
-- rebuild the cloud demo from the cleaned Java baseline.
+Production-shaped Azure demo with explicit repo boundaries:
+- this repo deploys MAPPO itself,
+- `/Users/cvonderheid/workspace/mappo-managed-app` defines the customer workload releases,
+- Maven owns build and artifact publish,
+- Azure rollout stays explicit and deterministic.
 
-## Verification Checklist
-- [x] `./mvnw clean install` passes from repo root.
-- [x] Active docs use Maven + direct scripts/Pulumi, not removed Make or UV workflows.
-- [x] Frontend client generation is driven from the Java backend OpenAPI artifact.
-- [x] Legacy backend files and UV workspace metadata are removed from the active runtime path.
-- [x] Real `template_spec` resource-group execution exists behind a testable strategy seam.
-
-## Status Snapshot (2026-03-06)
+## Status Snapshot
 - [x] Java backend cutover completed.
 - [x] Frontend Maven lifecycle wiring completed.
-- [x] Active docs/runbook command surface cleaned.
-- [ ] `template_spec` subscription-scope execution
-- [ ] `deployment_stack` execution
-- [ ] `bicep` execution
-- [ ] Pulumi-managed runtime/forwarder lifecycle
-- [ ] Clean Azure demo rebuild from current baseline
+- [x] Repo is Java-only; no `.py` files or embedded Python shell blocks remain.
+- [x] `./mvnw clean install` passes from repo root.
+- [x] Real `template_spec` resource-group execution exists behind a testable strategy seam.
+- [x] Maven deploy contract implemented and dry-verified (`deploy` vs `deploy -Pazure`)
+- [x] Release ingest wired cleanly against `/Users/cvonderheid/workspace/mappo-managed-app`
+- [ ] Azure full demo rebuilt from clean baseline
+- [ ] End-to-end demo validation completed
 
-## Phase A: Execution Completeness
+## Milestone A: MAPPO Deploy Contract
 **Scope**
-- Implement real `template_spec` execution for subscription scope.
-- Implement real `deployment_stack` execution.
-- Implement real `bicep` execution.
-- Keep run orchestration, retries, and halt/resume semantics consistent across strategies.
+- Keep `install` side-effect free.
+- Make `deploy` publish MAPPO runtime artifacts only.
+- Make `deploy -Pazure` perform the Azure rollout for MAPPO runtime/forwarder:
+  - Pulumi apply,
+  - DB migration job execution,
+  - runtime revision update.
 
 **Acceptance criteria**
-- Unsupported source/scope combinations are reduced to only intentionally deferred cases.
-- Each strategy records normalized stage logs, deployment metadata, and Azure identifiers.
-- Orchestration-level tests cover every strategy branch through interfaces/stubs where live Azure is not required.
+- No live Azure mutation occurs in the default lifecycle.
+- Artifact versions come directly from Maven into the Azure rollout path.
+- The deploy command surface is simple enough to operate without remembering script order.
 
-**Verification commands**
-- `./mvnw -pl backend test`
-- `./mvnw -pl backend verify`
-
-## Phase B: Runtime and Deploy Model Alignment
-**Scope**
-- Move ACA runtime resource lifecycle and marketplace forwarder infrastructure under Pulumi where appropriate.
-- Keep scripts for auth/bootstrap, validation, packaging, and manual operator actions.
-- Preserve the split between artifact publish and infrastructure rollout.
-
-**Acceptance criteria**
-- Resource creation/update/destroy for steady-state cloud runtime is Pulumi-managed.
-- Script surface is reduced to non-IaC concerns.
-- Docs describe one authoritative deploy/update path.
-
-**Verification commands**
-- `./mvnw -pl infra/pulumi -DskipTests compile`
-- `cd infra/pulumi && pulumi preview --stack <stack>`
-
-## Phase C: Demo Rebuild From Clean Baseline
-**Scope**
-- Recreate the provider runtime and two-target demo environment from the cleaned Java repo.
-- Use webhook-style onboarding and demo-fleet event simulation as the default validation path.
-- Keep DB/runtime state empty until onboarding events or explicit release registration occur.
-
-**Acceptance criteria**
-- Local and cloud demos start from a clean slate with no hidden seed data.
-- Demo runbooks are executable end-to-end without referencing removed Python or Make workflows.
-- Fleet state is populated only through onboarding/registration flows.
-
-**Verification commands**
-- `./mvnw -pl tooling exec:java@docs-consistency-check`
-- `./mvnw -pl tooling exec:java@check-no-demo-leak`
+**Verification**
 - `./mvnw clean install`
+- `./mvnw deploy`
+- `./mvnw deploy -Pazure`
 
-## Phase D: Marketplace Validation Readiness
+## Milestone B: Managed-App Repo Integration
 **Scope**
-- Keep the private-offer/Partner Center path documented and scriptable where Microsoft allows.
-- Preserve simulated webhook ingress until publisher account prerequisites are available.
-- Ensure the current demo mirrors the production auth and onboarding model as closely as possible.
+- Treat `/Users/cvonderheid/workspace/mappo-managed-app` as the authoritative release-definition repo.
+- Ingest `releases/releases.manifest.json` into MAPPO as release records.
+- Keep MAPPO runtime deployment separate from managed-app release publication.
 
 **Acceptance criteria**
-- Forwarder path remains the primary onboarding ingress.
-- Portal-only steps are isolated to the playbook.
-- No target registration path depends on direct inventory import as the default flow.
+- Release ingestion works without manual MAPPO code changes per release.
+- Docs show the boundary between “deployer” and “thing being deployed.”
+- Demo flow uses the managed-app repo as the release source.
 
-**Verification commands**
-- Run the live demo checklist against a fresh environment.
-- Validate forwarder replay and one canary deployment end-to-end.
+**Verification**
+- Ingest from `/Users/cvonderheid/workspace/mappo-managed-app/releases/releases.manifest.json`
+- Confirm releases appear in MAPPO UI/API
+
+## Milestone C: Azure Demo Rebuild
+**Scope**
+- Recreate runtime, forwarder, DB, and demo-fleet from the cleaned Java baseline.
+- Use simulated Marketplace events through the real forwarder/onboarding path.
+- Start from a clean DB/runtime state.
+
+**Acceptance criteria**
+- Clean bring-up works without hidden seed data.
+- Targets appear from onboarding events, not manual import as the default path.
+- Hosted MAPPO UI is fully usable against Azure-backed state.
+
+**Verification**
+- `./scripts/azure_preflight.sh`
+- runtime/forwarder deploy
+- demo-fleet up
+- simulated onboarding import through the forwarder/backend path
+
+## Milestone D: Full Demo Validation
+**Scope**
+- Execute the full demo the current account model supports.
+- Validate the same control-plane behavior we would rely on in production, minus Partner Center delivery.
+
+**Acceptance criteria**
+- Demo proves:
+  - onboarding events,
+  - target registration,
+  - release ingest,
+  - canary rollout,
+  - broader rollout,
+  - logs/status/health/version updates.
+- Remaining gaps are recorded as product backlog, not implicit operator knowledge.
+
+**Verification**
+- Full walkthrough from clean Azure state
+- Runbook updated from actual execution
+
+## Deferred Until After Demo
+- Real `template_spec` execution at subscription scope.
+- Real `deployment_stack` execution.
+- Real `bicep` execution.
+- Real Partner Center/private-offer validation once publisher prerequisites exist.
+
+## Verification Checklist
+- `./mvnw clean install`
+- `./mvnw deploy -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX" -Dmappo.image.tag="<image-tag>"`
+- `./mvnw -Pazure deploy -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX" -Dmappo.image.tag="<image-tag>" -Dpulumi.stack="<stack>"`
+- Azure demo smoke: onboarding -> release ingest -> canary rollout -> broader rollout

@@ -24,6 +24,36 @@ This runbook deploys MAPPO backend and frontend into Azure Container Apps (produ
   - `MAPPO_MARKETPLACE_INGEST_TOKEN`
 - `.data/mappo-db.env` exists (from `./scripts/iac_export_db_env.sh --stack <stack>`)
 
+## Preferred Command Surface
+
+Publish-only:
+
+```bash
+export MAPPO_IMAGE_PREFIX="<acr-login-server>"
+./mvnw deploy \
+  -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX" \
+  -Dmappo.image.tag="<image-tag>"
+```
+
+Azure rollout:
+
+```bash
+export MAPPO_IMAGE_PREFIX="<acr-login-server>"
+./mvnw -Pazure deploy \
+  -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX" \
+  -Dmappo.image.tag="<image-tag>" \
+  -Dpulumi.stack="<stack>"
+```
+
+The `azure` profile orchestrates:
+- `pulumi up`
+- migration job prepare/create
+- migration job execution
+- backend/frontend runtime update
+- forwarder deployment
+
+The scripts below remain the underlying operator primitives for targeted reruns or debugging.
+
 ## 1) Deploy Runtime
 
 ```bash
@@ -66,14 +96,14 @@ EasyAuth validation:
 
 ```bash
 ./scripts/marketplace_forwarder_deploy.sh \
-  --resource-group "rg-mappo-marketplace-forwarder" \
-  --function-app-name "fa-mappo-marketplace-forwarder-<suffix>" \
+  --stack <stack> \
   --subscription-id "<provider-subscription-id>" \
   --mappo-ingest-token "$MAPPO_MARKETPLACE_INGEST_TOKEN"
 ```
 
 Notes:
 - `MAPPO_API_BASE_URL` is optional in this command if `.data/mappo-runtime.env` exists; script auto-loads it.
+- `--stack` now supplies default names for the resource group and Function App.
 
 ## 4) Teardown Runtime
 

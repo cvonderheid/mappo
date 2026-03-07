@@ -5,6 +5,7 @@ import {
   ForwarderLogsDataTable,
   RegistrationsDataTable,
 } from "@/components/AdminTables";
+import ReleaseIngestDrawer from "@/components/ReleaseIngestDrawer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -21,6 +22,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
   AdminOnboardingSnapshotResponse,
+  ReleaseManifestIngestRequest,
+  ReleaseManifestIngestResponse,
   TargetRegistrationRecord,
   UpdateTargetRegistrationRequest,
 } from "@/lib/types";
@@ -28,6 +31,12 @@ import type {
 type AdminPanelProps = {
   adminErrorMessage: string;
   adminSnapshot: AdminOnboardingSnapshotResponse | null;
+  releaseIngestErrorMessage: string;
+  releaseIngestIsSubmitting: boolean;
+  releaseIngestResult: ReleaseManifestIngestResponse | null;
+  onIngestManagedAppReleases: (
+    request: ReleaseManifestIngestRequest
+  ) => Promise<void>;
   onUpdateTargetRegistration: (
     targetId: string,
     request: UpdateTargetRegistrationRequest
@@ -43,6 +52,10 @@ function normalizeTagValue(value: unknown, fallback: string): string {
 export default function AdminPanel({
   adminErrorMessage,
   adminSnapshot,
+  releaseIngestErrorMessage,
+  releaseIngestIsSubmitting,
+  releaseIngestResult,
+  onIngestManagedAppReleases,
   onUpdateTargetRegistration,
   onDeleteTargetRegistration,
   onRefreshSnapshot,
@@ -157,6 +170,11 @@ export default function AdminPanel({
           <Button type="button" variant="outline" onClick={() => void onRefreshSnapshot()}>
             Refresh Snapshot
           </Button>
+          <ReleaseIngestDrawer
+            isSubmitting={releaseIngestIsSubmitting}
+            result={releaseIngestResult}
+            onIngest={onIngestManagedAppReleases}
+          />
           <Drawer direction="top" open={editDrawerOpen} onOpenChange={setEditDrawerOpen}>
             <DrawerContent className="glass-card">
               <DrawerHeader>
@@ -291,9 +309,21 @@ export default function AdminPanel({
         </div>
       ) : null}
 
+      {releaseIngestErrorMessage ? (
+        <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive-foreground">
+          {releaseIngestErrorMessage}
+        </div>
+      ) : null}
+
       {registrationResultMessage ? (
         <div className="rounded-md border border-border/70 bg-card/70 p-3 text-sm text-foreground">
           {registrationResultMessage}
+        </div>
+      ) : null}
+
+      {releaseIngestResult ? (
+        <div className="rounded-md border border-border/70 bg-card/70 p-3 text-sm text-foreground">
+          {`Ingested ${releaseIngestResult.createdCount} new release(s), skipped ${releaseIngestResult.skippedCount}, manifest entries ${releaseIngestResult.manifestReleaseCount}.`}
         </div>
       ) : null}
 

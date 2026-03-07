@@ -5,6 +5,7 @@ import com.azure.core.management.AzureEnvironment;
 import com.azure.identity.ClientSecretCredential;
 import com.azure.identity.ClientSecretCredentialBuilder;
 import com.azure.resourcemanager.AzureResourceManager;
+import com.azure.resourcemanager.appcontainers.ContainerAppsApiManager;
 import com.mappo.controlplane.config.MappoProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -29,14 +30,31 @@ public class AzureExecutorClient {
             );
         }
 
-        ClientSecretCredential credential = new ClientSecretCredentialBuilder()
-            .tenantId(effectiveTenant)
+        ClientSecretCredential credential = createCredential(effectiveTenant);
+        AzureProfile profile = createProfile(effectiveTenant, subscriptionId);
+        return AzureResourceManager.authenticate(credential, profile).withSubscription(subscriptionId);
+    }
+
+    public ContainerAppsApiManager createContainerAppsManager(String tenantId, String subscriptionId) {
+        String effectiveTenant = blank(tenantId) ? properties.getAzureTenantId() : tenantId;
+        if (!isConfigured()) {
+            throw new IllegalStateException(
+                "Azure SDK is not configured. Set MAPPO_AZURE_TENANT_ID, MAPPO_AZURE_CLIENT_ID, MAPPO_AZURE_CLIENT_SECRET."
+            );
+        }
+        return ContainerAppsApiManager.authenticate(createCredential(effectiveTenant), createProfile(effectiveTenant, subscriptionId));
+    }
+
+    private ClientSecretCredential createCredential(String tenantId) {
+        return new ClientSecretCredentialBuilder()
+            .tenantId(tenantId)
             .clientId(properties.getAzureClientId())
             .clientSecret(properties.getAzureClientSecret())
             .build();
+    }
 
-        AzureProfile profile = new AzureProfile(effectiveTenant, subscriptionId, AzureEnvironment.AZURE);
-        return AzureResourceManager.authenticate(credential, profile).withSubscription(subscriptionId);
+    private AzureProfile createProfile(String tenantId, String subscriptionId) {
+        return new AzureProfile(tenantId, subscriptionId, AzureEnvironment.AZURE);
     }
 
     private boolean blank(String value) {

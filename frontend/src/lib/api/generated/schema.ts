@@ -68,6 +68,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/releases/ingest/github": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ingestGithubReleaseManifest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/onboarding/forwarder-logs": {
         parameters: {
             query?: never;
@@ -354,6 +370,24 @@ export interface components {
             verificationHints?: string[];
             /** Format: date-time */
             createdAt?: string;
+        };
+        ReleaseManifestIngestRequest: {
+            repo?: string;
+            path?: string;
+            ref?: string;
+            allowDuplicates?: boolean;
+        };
+        ReleaseManifestIngestResultRecord: {
+            repo?: string;
+            path?: string;
+            ref?: string;
+            /** Format: int32 */
+            manifestReleaseCount?: number;
+            /** Format: int32 */
+            createdCount?: number;
+            /** Format: int32 */
+            skippedCount?: number;
+            createdReleaseIds?: string[];
         };
         ForwarderLogDetailsRequest: {
             detail?: string;
@@ -725,6 +759,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ReleaseRecord"];
+                };
+            };
+        };
+    };
+    ingestGithubReleaseManifest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReleaseManifestIngestRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReleaseManifestIngestResultRecord"];
                 };
             };
         };

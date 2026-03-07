@@ -165,13 +165,15 @@ Structured error details on failure:
 
 Minimum for template-spec mode (per target):
 - Contributor on target managed resource group for deployment and resource writes.
-- Read access to template spec version (if in provider subscription and not publicly readable, ensure identity can read that resource).
+- Read access to template spec version.
+- If the deployed workload joins a shared Container Apps environment, permission to perform `Microsoft.App/managedEnvironments/join/action` on that managed environment scope.
 
 Optional:
 - Reader on subscription only for quota preflight and broader validation calls.
 
 Notes:
 - This is still publisher identity auth (cross-tenant SP model), not workload managed identity.
+- In the current two-tenant demo, customer-tenant ARM deployments cannot directly consume a provider-tenant Template Spec version ID. The demo workaround is target-local mirrored Template Spec versions under the same resource-group/name path, with MAPPO rewriting the subscription segment at execution time.
 
 ## Migration Plan
 
@@ -224,3 +226,6 @@ Live smoke:
 ## Recommendation
 - Implement `template_spec` mode now as the default path for real customer rollouts.
 - As of 2026-03-06, the Java backend executes `template_spec` releases at resource-group scope for real and keeps `bicep`, `deployment_stack`, and `template_spec` subscription-scope runs on simulator fallback with explicit guardrail warnings.
+- As of 2026-03-07, the Azure-hosted two-tenant demo successfully deployed the same release across both target subscriptions once:
+  - the Template Spec version was mirrored into each target subscription, and
+  - the customer-tenant runtime principal had both target-RG Contributor and shared managed-environment Contributor access.

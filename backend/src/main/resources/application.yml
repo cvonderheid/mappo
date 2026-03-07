@@ -41,3 +41,6 @@ mappo:
   azure-tenant-id: ${MAPPO_AZURE_TENANT_ID:}
   azure-client-id: ${MAPPO_AZURE_CLIENT_ID:}
   azure-client-secret: ${MAPPO_AZURE_CLIENT_SECRET:}
+  managed-app-release-repo: ${MAPPO_MANAGED_APP_RELEASE_REPO:cvonderheid/mappo-managed-app}
+  managed-app-release-path: ${MAPPO_MANAGED_APP_RELEASE_PATH:releases/releases.manifest.json}
+  managed-app-release-ref: ${MAPPO_MANAGED_APP_RELEASE_REF:main}

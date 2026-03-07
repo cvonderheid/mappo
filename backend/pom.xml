@@ -16,7 +16,6 @@
 
   <properties>
     <mappo.jooq.codegen.skip>false</mappo.jooq.codegen.skip>
-    <docker.image.prefix>mappo</docker.image.prefix>
   </properties>
 
   <dependencies>
@@ -58,6 +57,10 @@
       <artifactId>azure-resourcemanager</artifactId>
     </dependency>
     <dependency>
+      <groupId>com.azure.resourcemanager</groupId>
+      <artifactId>azure-resourcemanager-appcontainers</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
@@ -88,9 +91,22 @@
   <build>
     <plugins>
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-deploy-plugin</artifactId>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+      <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
         <executions>
+          <execution>
+            <id>repackage</id>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+          </execution>
           <execution>
             <id>openapi-start</id>
             <phase>pre-integration-test</phase>
@@ -246,14 +262,41 @@
         <configuration>
           <images>
             <image>
-              <name>${docker.image.prefix}/mappo-backend:${project.version}</name>
+              <name>${docker.image.prefix}/mappo-backend:${mappo.image.tag}</name>
               <build>
-                <contextDir>${project.basedir}/..</contextDir>
+                <contextDir>${project.basedir}</contextDir>
                 <dockerFile>${project.basedir}/Dockerfile</dockerFile>
+                <buildx>
+                  <platforms>
+                    <platform>${docker.platforms}</platform>
+                  </platforms>
+                </buildx>
+              </build>
+            </image>
+            <image>
+              <name>${docker.image.prefix}/mappo-flyway:${mappo.image.tag}</name>
+              <build>
+                <contextDir>${project.basedir}</contextDir>
+                <dockerFile>${project.basedir}/flyway/Dockerfile</dockerFile>
+                <buildx>
+                  <platforms>
+                    <platform>${docker.platforms}</platform>
+                  </platforms>
+                </buildx>
               </build>
             </image>
           </images>
         </configuration>
+        <executions>
+          <execution>
+            <id>publish-runtime-images</id>
+            <phase>deploy</phase>
+            <goals>
+              <goal>build</goal>
+              <goal>push</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
