@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 resource="https://api.partnercenter.microsoft.com"
 env_file=""
 raw="false"
@@ -56,20 +57,10 @@ if ! az account show --only-show-errors >/dev/null 2>&1; then
 fi
 
 payload="$(az account get-access-token --resource "${resource}" --query '{token:accessToken,expiresOn:expiresOn}' -o json)"
-token="$(python3 - <<'PY' "${payload}"
-import json
-import sys
-row = json.loads(sys.argv[1])
-print(str(row.get("token", "")).strip())
-PY
-)"
-expires_on="$(python3 - <<'PY' "${payload}"
-import json
-import sys
-row = json.loads(sys.argv[1])
-print(str(row.get("expiresOn", "")).strip())
-PY
-)"
+token_row="$("${ROOT_DIR}/scripts/run_tooling.sh" \
+  azure-script-support partner-token \
+  --json "${payload}")"
+IFS=$'\t' read -r token expires_on <<< "${token_row}"
 
 if [[ -z "${token}" ]]; then
   echo "partner-center-get-token: Azure CLI returned an empty token." >&2

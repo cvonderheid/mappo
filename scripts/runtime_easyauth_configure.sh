@@ -230,44 +230,12 @@ if [[ -z "${APP_CLIENT_ID}" || -z "${APP_OBJECT_ID}" ]]; then
   exit 1
 fi
 
-redirect_uris_json="$(
-  python3 - <<'PY' \
-    "$(az ad app show --id "${APP_CLIENT_ID}" --query 'web.redirectUris' -o json --only-show-errors)" \
-    "${callback_url}" \
-    "${EXTRA_REDIRECT_URIS}"
-import json
-import sys
-
-existing = json.loads(sys.argv[1]) or []
-callback = (sys.argv[2] or "").strip()
-extra_raw = sys.argv[3] or ""
-
-ordered = []
-seen = set()
-for value in existing:
-    item = str(value).strip()
-    if item and item not in seen:
-        ordered.append(item)
-        seen.add(item)
-if callback and callback not in seen:
-    ordered.append(callback)
-    seen.add(callback)
-for chunk in extra_raw.split(","):
-    item = chunk.strip()
-    if item and item not in seen:
-        ordered.append(item)
-        seen.add(item)
-print(json.dumps(ordered))
-PY
-)"
-
 mapfile -t redirect_uris < <(
-  python3 - <<'PY' "${redirect_uris_json}"
-import json
-import sys
-for value in json.loads(sys.argv[1]):
-    print(str(value))
-PY
+  "${ROOT_DIR}/scripts/run_tooling.sh" \
+    azure-script-support easyauth-redirect-uris \
+    --existing-json "$(az ad app show --id "${APP_CLIENT_ID}" --query 'web.redirectUris' -o json --only-show-errors)" \
+    --callback-url "${callback_url}" \
+    --extra-redirect-uris "${EXTRA_REDIRECT_URIS}"
 )
 
 update_args=(

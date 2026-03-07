@@ -125,19 +125,10 @@ echo "azure-onboard-multitenant-runtime: app signInAudience set to AzureADMultip
 ACCOUNT_LIST_JSON="$(az account list --all -o json)"
 
 for sub in "${TARGET_SUBS_NORMALIZED[@]}"; do
-  tenant_id="$(python3 - <<'PY' "${ACCOUNT_LIST_JSON}" "${sub}"
-import json
-import sys
-
-rows = json.loads(sys.argv[1])
-subscription_id = sys.argv[2]
-for row in rows:
-    if isinstance(row, dict) and str(row.get("id", "")).strip() == subscription_id:
-        print(str(row.get("tenantId", "")).strip())
-        raise SystemExit(0)
-print("")
-PY
-)"
+  tenant_id="$("${ROOT_DIR}/scripts/run_tooling.sh" \
+    azure-script-support subscription-tenant-id \
+    --account-list-json "${ACCOUNT_LIST_JSON}" \
+    --subscription-id "${sub}")"
   if [[ -z "${tenant_id}" ]]; then
     echo "azure-onboard-multitenant-runtime: subscription not found in az context: ${sub}" >&2
     exit 1
@@ -167,46 +158,10 @@ PY
       --scope "/subscriptions/${sub}" >/dev/null
   fi
 
-  RG_SCOPES_RAW="$(python3 - <<'PY' "${INVENTORY_FILE}" "${sub}"
-import json
-import re
-import sys
-from pathlib import Path
-
-inventory_path = Path(sys.argv[1])
-subscription_id = sys.argv[2]
-payload = json.loads(inventory_path.read_text(encoding="utf-8"))
-
-scopes: set[str] = set()
-resource_group_pattern = re.compile(
-    r"^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/",
-    re.IGNORECASE,
-)
-
-for row in payload:
-    if not isinstance(row, dict):
-        continue
-    if str(row.get("subscription_id", "")).strip() != subscription_id:
-        continue
-    metadata = row.get("metadata")
-    if isinstance(metadata, dict):
-        managed_rg_name = str(metadata.get("managed_resource_group_name", "")).strip()
-        managed_rg_id = str(metadata.get("managed_resource_group_id", "")).strip()
-        if managed_rg_id:
-            scopes.add(managed_rg_id)
-        elif managed_rg_name:
-            scopes.add(f"/subscriptions/{subscription_id}/resourceGroups/{managed_rg_name}")
-            continue
-
-    managed_app_id = str(row.get("managed_app_id", "")).strip()
-    match = resource_group_pattern.match(managed_app_id)
-    if match:
-        scopes.add(f"/subscriptions/{subscription_id}/resourceGroups/{match.group(1)}")
-
-for scope in sorted(scopes):
-    print(scope)
-PY
-)"
+  RG_SCOPES_RAW="$("${ROOT_DIR}/scripts/run_tooling.sh" \
+    azure-script-support inventory-rg-scopes \
+    --inventory-file "${INVENTORY_FILE}" \
+    --subscription-id "${sub}")"
 
   while IFS= read -r scope; do
     [[ -z "${scope}" ]] && continue

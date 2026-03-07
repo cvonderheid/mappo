@@ -36,6 +36,7 @@ public final class ToolingApplication {
                 case "marketplace-ingest-events" -> new MarketplaceIngestEventsCommand().run(commandArgs);
                 case "marketplace-forwarder-replay" -> new MarketplaceForwarderReplayInventoryCommand().run(commandArgs);
                 case "release-ingest-from-repo" -> new ReleaseIngestFromRepoCommand().run(commandArgs);
+                case "azure-script-support" -> new AzureScriptSupportCommand().run(commandArgs);
                 default -> throw new ToolingException("unknown command: " + command, 2);
             };
         } catch (ToolingException exception) {
@@ -62,6 +63,7 @@ public final class ToolingApplication {
               marketplace-ingest-events
               marketplace-forwarder-replay
               release-ingest-from-repo
+              azure-script-support
             """);
     }
 }

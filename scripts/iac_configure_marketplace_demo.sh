@@ -200,50 +200,20 @@ echo "iac-configure-marketplace-demo: resolving tenant/principal for ${CUSTOMER_
 customer_tenant_id="$(resolve_tenant_id "${CUSTOMER_SUBSCRIPTION_ID}")"
 customer_principal_object_id="$(resolve_sp_object_id "${CUSTOMER_SUBSCRIPTION_ID}")"
 
-targets_json="$(python3 - <<'PY' \
-  "${PROVIDER_SUBSCRIPTION_ID}" "${CUSTOMER_SUBSCRIPTION_ID}" \
-  "${provider_tenant_id}" "${customer_tenant_id}" "${MANAGED_APP_LOCATION}"
-import json
-import sys
+targets_json="$("${ROOT_DIR}/scripts/run_tooling.sh" \
+  azure-script-support marketplace-demo-targets-json \
+  --provider-subscription-id "${PROVIDER_SUBSCRIPTION_ID}" \
+  --customer-subscription-id "${CUSTOMER_SUBSCRIPTION_ID}" \
+  --provider-tenant-id "${provider_tenant_id}" \
+  --customer-tenant-id "${customer_tenant_id}" \
+  --region "${MANAGED_APP_LOCATION}")"
 
-provider_sub, customer_sub, provider_tenant, customer_tenant, region = sys.argv[1:6]
-
-rows = [
-    {
-        "id": "target-01",
-        "tenantId": provider_tenant,
-        "subscriptionId": provider_sub,
-        "targetGroup": "canary",
-        "region": region,
-        "tier": "gold",
-        "environment": "demo",
-        "tags": {"tier": "gold", "environment": "demo", "ring": "canary"},
-    },
-    {
-        "id": "target-02",
-        "tenantId": customer_tenant,
-        "subscriptionId": customer_sub,
-        "targetGroup": "prod",
-        "region": region,
-        "tier": "gold",
-        "environment": "demo",
-        "tags": {"tier": "gold", "environment": "demo", "ring": "prod"},
-    },
-]
-print(json.dumps(rows, separators=(",", ":")))
-PY
-)"
-
-principal_map_json="$(python3 - <<'PY' \
-  "${PROVIDER_SUBSCRIPTION_ID}" "${CUSTOMER_SUBSCRIPTION_ID}" \
-  "${provider_principal_object_id}" "${customer_principal_object_id}"
-import json
-import sys
-
-provider_sub, customer_sub, provider_id, customer_id = sys.argv[1:5]
-print(json.dumps({provider_sub: provider_id, customer_sub: customer_id}, separators=(",", ":")))
-PY
-)"
+principal_map_json="$("${ROOT_DIR}/scripts/run_tooling.sh" \
+  azure-script-support marketplace-demo-principal-map-json \
+  --provider-subscription-id "${PROVIDER_SUBSCRIPTION_ID}" \
+  --customer-subscription-id "${CUSTOMER_SUBSCRIPTION_ID}" \
+  --provider-principal-object-id "${provider_principal_object_id}" \
+  --customer-principal-object-id "${customer_principal_object_id}")"
 
 echo "iac-configure-marketplace-demo: configuring Pulumi stack ${STACK}"
 cd "${IAC_DIR}"
@@ -277,14 +247,9 @@ if [[ "${ENABLE_MANAGED_POSTGRES,,}" == "true" ]]; then
   fi
 
   if [[ -n "${allowed_ranges_csv}" ]]; then
-    allowed_ranges_json="$(python3 - <<'PY' "${allowed_ranges_csv}"
-import json
-import sys
-
-rows = [item.strip() for item in sys.argv[1].replace(";", ",").split(",") if item.strip()]
-print(json.dumps(rows, separators=(",", ":")))
-PY
-)"
+    allowed_ranges_json="$("${ROOT_DIR}/scripts/run_tooling.sh" \
+      azure-script-support csv-to-json-array \
+      --csv "${allowed_ranges_csv}")"
     pulumi config set --stack "${STACK}" mappo:controlPlanePostgresAllowedIpRanges "${allowed_ranges_json}" >/dev/null
   else
     pulumi config rm --stack "${STACK}" mappo:controlPlanePostgresAllowedIpRanges >/dev/null 2>&1 || true

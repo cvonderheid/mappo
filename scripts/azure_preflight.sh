@@ -83,21 +83,9 @@ tenant_count=0
 subscription_count=0
 if command -v az >/dev/null 2>&1 && az account show --only-show-errors >/dev/null 2>&1; then
   account_list_json="$(az account list --all -o json 2>/dev/null || echo "[]")"
-  stats="$(python3 - <<'PY' "${account_list_json}"
-import json
-import sys
-
-rows = json.loads(sys.argv[1])
-if not isinstance(rows, list):
-    print("0|0")
-    raise SystemExit(0)
-
-subs = len(rows)
-tenant_ids = {str(row.get("tenantId", "")) for row in rows if isinstance(row, dict)}
-tenant_ids.discard("")
-print(f"{len(tenant_ids)}|{subs}")
-PY
-)"
+  stats="$("${ROOT_DIR}/scripts/run_tooling.sh" \
+    azure-script-support account-stats \
+    --account-list-json "${account_list_json}")"
   tenant_count="$(echo "${stats}" | cut -d'|' -f1)"
   subscription_count="$(echo "${stats}" | cut -d'|' -f2)"
 fi
@@ -120,36 +108,9 @@ else
   fail "Missing MAPPO_AZURE_TENANT_ID / MAPPO_AZURE_CLIENT_ID / MAPPO_AZURE_CLIENT_SECRET."
 fi
 
-tenant_map_parse_error="$(
-  python3 - <<'PY' "${MAPPO_AZURE_TENANT_BY_SUBSCRIPTION:-}"
-import json
-import sys
-
-raw = (sys.argv[1] or "").strip()
-if raw == "":
-    print("")
-    raise SystemExit(0)
-
-try:
-    if raw.startswith("{"):
-        parsed = json.loads(raw)
-        if not isinstance(parsed, dict):
-            print("JSON map must be an object")
-            raise SystemExit(0)
-    else:
-        chunks = [chunk.strip() for chunk in raw.replace(";", ",").split(",")]
-        chunks = [chunk for chunk in chunks if chunk]
-        for chunk in chunks:
-            if "=" not in chunk and ":" not in chunk:
-                print("entries must use subscription=tenant format")
-                raise SystemExit(0)
-except Exception as error:
-    print(str(error))
-    raise SystemExit(0)
-
-print("")
-PY
-)"
+tenant_map_parse_error="$("${ROOT_DIR}/scripts/run_tooling.sh" \
+  azure-script-support validate-tenant-map \
+  --raw "${MAPPO_AZURE_TENANT_BY_SUBSCRIPTION:-}")"
 if [[ -n "${tenant_map_parse_error}" ]]; then
   fail "MAPPO_AZURE_TENANT_BY_SUBSCRIPTION parse error: ${tenant_map_parse_error}"
 elif [[ -n "${MAPPO_AZURE_TENANT_BY_SUBSCRIPTION:-}" ]]; then
@@ -166,51 +127,9 @@ fi
 
 if [[ -f "${INVENTORY_PATH}" ]]; then
   pass "Target inventory file exists: ${INVENTORY_PATH}"
-  inventory_stats="$(python3 - <<'PY' "${INVENTORY_PATH}"
-import json
-import re
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-payload = json.loads(path.read_text(encoding="utf-8"))
-if not isinstance(payload, list):
-    print("invalid")
-    raise SystemExit(1)
-
-targets = len(payload)
-tenant_ids = {str(row.get("tenant_id", "")) for row in payload if isinstance(row, dict)}
-subscription_ids = {str(row.get("subscription_id", "")) for row in payload if isinstance(row, dict)}
-tenant_ids.discard("")
-subscription_ids.discard("")
-
-managed_meta_count = 0
-invalid_target_resource_ids = 0
-pattern = re.compile(
-    r"^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\.App/containerApps/[^/]+$",
-    re.IGNORECASE,
-)
-
-for row in payload:
-    if not isinstance(row, dict):
-        continue
-    metadata = row.get("metadata")
-    if isinstance(metadata, dict):
-        managed_application_id = str(metadata.get("managed_application_id", "")).strip()
-        managed_resource_group_id = str(metadata.get("managed_resource_group_id", "")).strip()
-        if managed_application_id and managed_resource_group_id:
-            managed_meta_count += 1
-
-    target_resource_id = str(row.get("managed_app_id", "")).strip()
-    if not pattern.match(target_resource_id):
-        invalid_target_resource_ids += 1
-
-print(
-    f"{targets}|{len(tenant_ids)}|{len(subscription_ids)}|"
-    f"{managed_meta_count}|{invalid_target_resource_ids}"
-)
-PY
-)"
+  inventory_stats="$("${ROOT_DIR}/scripts/run_tooling.sh" \
+    azure-script-support inventory-stats \
+    --inventory-path "${INVENTORY_PATH}")"
   target_count="$(echo "${inventory_stats}" | cut -d'|' -f1)"
   inventory_tenant_count="$(echo "${inventory_stats}" | cut -d'|' -f2)"
   inventory_subscription_count="$(echo "${inventory_stats}" | cut -d'|' -f3)"
@@ -249,85 +168,10 @@ PY
     warn "Inventory has no managed app metadata. Re-export inventory from IaC and re-import targets."
   fi
 
-  tenant_resolution_stats="$(python3 - <<'PY' "${INVENTORY_PATH}" "${MAPPO_AZURE_TENANT_BY_SUBSCRIPTION:-}"
-import json
-import re
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-raw_map = (sys.argv[2] or "").strip()
-payload = json.loads(path.read_text(encoding="utf-8"))
-
-guid_re = re.compile(
-    r"^[0-9a-fA-F]{8}-"
-    r"[0-9a-fA-F]{4}-"
-    r"[0-9a-fA-F]{4}-"
-    r"[0-9a-fA-F]{4}-"
-    r"[0-9a-fA-F]{12}$"
-)
-
-subscriptions: dict[str, set[str]] = {}
-for row in payload:
-    if not isinstance(row, dict):
-        continue
-    sub = str(row.get("subscription_id", "")).strip()
-    tenant = str(row.get("tenant_id", "")).strip()
-    if not sub:
-        continue
-    subscriptions.setdefault(sub, set())
-    if tenant:
-        subscriptions[sub].add(tenant)
-
-unresolved_subscriptions: list[str] = []
-for sub, tenant_values in subscriptions.items():
-    if any(guid_re.fullmatch(value) for value in tenant_values):
-        continue
-    unresolved_subscriptions.append(sub)
-
-tenant_map: dict[str, str] = {}
-map_parse_error = ""
-if raw_map:
-    try:
-        if raw_map.startswith("{"):
-            parsed = json.loads(raw_map)
-            if isinstance(parsed, dict):
-                for key, value in parsed.items():
-                    sub = str(key).strip()
-                    tenant = str(value).strip()
-                    if sub and tenant:
-                        tenant_map[sub] = tenant
-            else:
-                map_parse_error = "JSON map must be an object"
-        else:
-            for chunk in raw_map.replace(";", ",").split(","):
-                pair = chunk.strip()
-                if not pair:
-                    continue
-                if "=" in pair:
-                    sub, tenant = pair.split("=", 1)
-                elif ":" in pair:
-                    sub, tenant = pair.split(":", 1)
-                else:
-                    map_parse_error = "entries must use subscription=tenant format"
-                    break
-                sub = sub.strip()
-                tenant = tenant.strip()
-                if sub and tenant:
-                    tenant_map[sub] = tenant
-    except Exception as error:
-        map_parse_error = str(error)
-
-missing = [
-    sub for sub in unresolved_subscriptions
-    if sub not in tenant_map
-]
-print(
-    f"{len(unresolved_subscriptions)}|{len(missing)}|"
-    f"{','.join(unresolved_subscriptions[:5])}|{','.join(missing[:5])}|{map_parse_error}"
-)
-PY
-)"
+  tenant_resolution_stats="$("${ROOT_DIR}/scripts/run_tooling.sh" \
+    azure-script-support tenant-resolution-stats \
+    --inventory-path "${INVENTORY_PATH}" \
+    --raw-map "${MAPPO_AZURE_TENANT_BY_SUBSCRIPTION:-}")"
   unresolved_tenant_count="$(echo "${tenant_resolution_stats}" | cut -d'|' -f1)"
   unresolved_tenant_missing_count="$(echo "${tenant_resolution_stats}" | cut -d'|' -f2)"
   unresolved_tenant_sample="$(echo "${tenant_resolution_stats}" | cut -d'|' -f3)"

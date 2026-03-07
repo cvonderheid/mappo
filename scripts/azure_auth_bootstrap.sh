@@ -82,28 +82,10 @@ sp_json="$(az ad sp create-for-rbac \
   --scopes "/subscriptions/${subscription_id}" \
   --query '{clientId:appId,clientSecret:password,tenantId:tenant}' \
   -o json)"
-
-client_id="$(python3 - <<'PY' "${sp_json}"
-import json
-import sys
-obj = json.loads(sys.argv[1])
-print(obj.get("clientId", ""))
-PY
-)"
-client_secret="$(python3 - <<'PY' "${sp_json}"
-import json
-import sys
-obj = json.loads(sys.argv[1])
-print(obj.get("clientSecret", ""))
-PY
-)"
-tenant_from_output="$(python3 - <<'PY' "${sp_json}"
-import json
-import sys
-obj = json.loads(sys.argv[1])
-print(obj.get("tenantId", ""))
-PY
-)"
+credential_row="$("${ROOT_DIR}/scripts/run_tooling.sh" \
+  azure-script-support sp-credentials \
+  --json "${sp_json}")"
+IFS=$'\t' read -r client_id client_secret tenant_from_output <<< "${credential_row}"
 
 if [[ -z "${client_id}" || -z "${client_secret}" ]]; then
   echo "azure-auth-bootstrap: failed to retrieve service principal credentials." >&2

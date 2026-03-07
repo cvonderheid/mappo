@@ -131,22 +131,9 @@ start_json="$(
     --only-show-errors \
     -o json
 )"
-execution_name="$(python3 - <<'PY' "${start_json}"
-import json
-import sys
-
-payload = json.loads(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].strip() else {}
-name = str(payload.get("name") or "").strip()
-if name:
-    print(name)
-    raise SystemExit(0)
-raw_id = str(payload.get("id") or "").strip().rstrip("/")
-if raw_id:
-    print(raw_id.split("/")[-1])
-    raise SystemExit(0)
-print("")
-PY
-)"
+execution_name="$("${ROOT_DIR}/scripts/run_tooling.sh" \
+  azure-script-support job-execution-name \
+  --json "${start_json}")"
 
 if [[ -z "${execution_name}" ]]; then
   execution_name="$(az containerapp job execution list --name "${JOB_NAME}" --resource-group "${RESOURCE_GROUP}" --query "sort_by(@, &properties.startTime)[-1].name" -o tsv --only-show-errors 2>/dev/null || true)"

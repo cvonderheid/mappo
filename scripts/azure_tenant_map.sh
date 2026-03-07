@@ -53,79 +53,18 @@ if ! az account show --only-show-errors >/dev/null 2>&1; then
 fi
 
 account_list_json="$(az account list --all -o json)"
-tenant_map_json="$(python3 - <<'PY' "${SUBSCRIPTION_IDS}" "${account_list_json}"
-import json
-import sys
-
-raw_subscriptions = sys.argv[1]
-account_rows = json.loads(sys.argv[2])
-
-if not isinstance(account_rows, list):
-    raise SystemExit("azure-tenant-map: unexpected az account list payload")
-
-requested_subscriptions = [
-    value.strip() for value in raw_subscriptions.split(",") if value.strip()
-]
-if not requested_subscriptions:
-    raise SystemExit("azure-tenant-map: no valid subscription IDs provided")
-
-tenant_by_subscription: dict[str, str] = {}
-for row in account_rows:
-    if not isinstance(row, dict):
-        continue
-    subscription_id = str(row.get("id", "")).strip()
-    tenant_id = str(row.get("tenantId", "")).strip()
-    if subscription_id and tenant_id:
-        tenant_by_subscription[subscription_id] = tenant_id
-
-missing = [sub for sub in requested_subscriptions if sub not in tenant_by_subscription]
-if missing:
-    raise SystemExit(
-        "azure-tenant-map: subscription(s) not present in az context: "
-        + ", ".join(missing)
-    )
-
-ordered = {
-    subscription_id: tenant_by_subscription[subscription_id]
-    for subscription_id in requested_subscriptions
-}
-print(json.dumps(ordered, separators=(",", ":")))
-PY
-)"
+tenant_map_json="$("${ROOT_DIR}/scripts/run_tooling.sh" \
+  azure-script-support tenant-map-json \
+  --subscriptions "${SUBSCRIPTION_IDS}" \
+  --account-list-json "${account_list_json}")"
 
 mkdir -p "$(dirname "${ENV_FILE}")"
-python3 - <<'PY' "${ENV_FILE}" "${tenant_map_json}"
-from pathlib import Path
-import sys
-
-env_path = Path(sys.argv[1]).expanduser()
-tenant_map_json = sys.argv[2]
-key = "MAPPO_AZURE_TENANT_BY_SUBSCRIPTION"
-line = f"export {key}='{tenant_map_json}'"
-
-if env_path.exists():
-    raw_lines = env_path.read_text(encoding="utf-8").splitlines()
-else:
-    raw_lines = []
-
-updated: list[str] = []
-replaced = False
-for raw_line in raw_lines:
-    stripped = raw_line.strip()
-    if stripped.startswith(f"{key}=") or stripped.startswith(f"export {key}="):
-        if not replaced:
-            updated.append(line)
-            replaced = True
-        continue
-    updated.append(raw_line)
-
-if not replaced:
-    if updated and updated[-1].strip() != "":
-        updated.append("")
-    updated.append(line)
-
-env_path.write_text("\n".join(updated) + "\n", encoding="utf-8")
-PY
+"${ROOT_DIR}/scripts/run_tooling.sh" \
+  azure-script-support upsert-export-line \
+  --env-file "${ENV_FILE}" \
+  --key MAPPO_AZURE_TENANT_BY_SUBSCRIPTION \
+  --value "${tenant_map_json}" \
+  >/dev/null
 
 echo "azure-tenant-map: wrote ${ENV_FILE}"
 echo "export MAPPO_AZURE_TENANT_BY_SUBSCRIPTION='${tenant_map_json}'"

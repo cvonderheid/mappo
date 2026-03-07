@@ -270,22 +270,9 @@ if az containerapp env show --name "${CONTAINER_ENV_NAME}" --resource-group "${R
   CONTAINER_ENV_ID="$(az containerapp env show --name "${CONTAINER_ENV_NAME}" --resource-group "${RESOURCE_GROUP}" --query id -o tsv)"
 else
   fallback_env_row="$(
-    python3 - <<'PY' "$(az containerapp env list --subscription "${SUBSCRIPTION_ID}" --query '[0]' -o json 2>/dev/null || echo 'null')"
-import json
-import sys
-
-raw = (sys.argv[1] if len(sys.argv) > 1 else "").strip()
-payload = None if raw in {"", "null"} else json.loads(raw)
-if payload is None:
-    print("")
-    raise SystemExit(0)
-
-name = str(payload.get("name") or "")
-resource_group = str(payload.get("resourceGroup") or "")
-location = str(payload.get("location") or "")
-resource_id = str(payload.get("id") or "")
-print("\t".join([name, resource_group, location, resource_id]))
-PY
+    "${ROOT_DIR}/scripts/run_tooling.sh" \
+      azure-script-support aca-env-row \
+      --json "$(az containerapp env list --subscription "${SUBSCRIPTION_ID}" --query '[0]' -o json 2>/dev/null || echo 'null')"
   )"
   IFS=$'\t' read -r fallback_env_name fallback_env_rg fallback_env_location fallback_env_id <<< "${fallback_env_row}"
   if [[ -n "${fallback_env_id}" ]]; then
@@ -304,22 +291,9 @@ PY
     >"${env_create_log}" 2>&1; then
     if grep -Eq "MaxNumberOfRegionalEnvironmentsInSubExceeded|MaxNumberOfGlobalEnvironmentsInSubExceeded" "${env_create_log}"; then
       fallback_env_row="$(
-        python3 - <<'PY' "$(az containerapp env list --subscription "${SUBSCRIPTION_ID}" --query '[0]' -o json 2>/dev/null || echo 'null')"
-import json
-import sys
-
-raw = (sys.argv[1] if len(sys.argv) > 1 else "").strip()
-payload = None if raw in {"", "null"} else json.loads(raw)
-if payload is None:
-    print("")
-    raise SystemExit(0)
-
-name = str(payload.get("name") or "")
-resource_group = str(payload.get("resourceGroup") or "")
-location = str(payload.get("location") or "")
-resource_id = str(payload.get("id") or "")
-print("\t".join([name, resource_group, location, resource_id]))
-PY
+        "${ROOT_DIR}/scripts/run_tooling.sh" \
+          azure-script-support aca-env-row \
+          --json "$(az containerapp env list --subscription "${SUBSCRIPTION_ID}" --query '[0]' -o json 2>/dev/null || echo 'null')"
       )"
       IFS=$'\t' read -r fallback_env_name fallback_env_rg fallback_env_location fallback_env_id <<< "${fallback_env_row}"
       if [[ -n "${fallback_env_id}" ]]; then
@@ -374,12 +348,9 @@ if ! az acr show --name "${ACR_NAME}" --resource-group "${RESOURCE_GROUP}" --onl
     --only-show-errors \
     >"${acr_create_log}" 2>&1; then
     if grep -q "AlreadyExists" "${acr_create_log}"; then
-      random_suffix="$(python3 - <<'PY'
-import random
-import string
-print("".join(random.choice(string.ascii_lowercase + string.digits) for _ in range(6)))
-PY
-)"
+      random_suffix="$("${ROOT_DIR}/scripts/run_tooling.sh" \
+        azure-script-support random-suffix \
+        --length 6)"
       ACR_NAME="$(printf "acrmappo%s%s" "${stack_token//-/}" "${random_suffix}" | cut -c1-50)"
       echo "runtime-aca-deploy: deterministic ACR name already taken globally, using fallback ${ACR_NAME}."
       az acr create \
@@ -550,22 +521,9 @@ if [[ ! "${RUN_MIGRATIONS}" =~ ^(0|false|no|off)$ ]]; then
       --only-show-errors \
       -o json
   )"
-  migration_execution_name="$(python3 - <<'PY' "${migration_start_json}"
-import json
-import sys
-
-payload = json.loads(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].strip() else {}
-name = str(payload.get("name") or "").strip()
-if name:
-    print(name)
-    raise SystemExit(0)
-raw_id = str(payload.get("id") or "").strip().rstrip("/")
-if raw_id:
-    print(raw_id.split("/")[-1])
-    raise SystemExit(0)
-print("")
-PY
-)"
+  migration_execution_name="$("${ROOT_DIR}/scripts/run_tooling.sh" \
+    azure-script-support job-execution-name \
+    --json "${migration_start_json}")"
   if [[ -z "${migration_execution_name}" ]]; then
     migration_execution_name="$(az containerapp job execution list --name "${MIGRATION_JOB_NAME}" --resource-group "${RESOURCE_GROUP}" --query "sort_by(@, &properties.startTime)[-1].name" -o tsv --only-show-errors 2>/dev/null || true)"
   fi
