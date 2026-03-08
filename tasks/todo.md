@@ -80,6 +80,10 @@ Post-demo production-path planning and execution setup:
 - 2026-03-08: Verified the publisher ACR pull-auth path end to end in Azure; both demo targets rolled to release `2026.03.07.2` and reported `dataModelVersion = 4`.
 - 2026-03-08: Added `scripts/github_release_webhook_bootstrap.sh`, configured the hosted backend with `MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET`, and reduced the remaining live GitHub step to repository-side webhook creation.
 - 2026-03-08: Removed the live demo's provider/customer Template Spec resources, deleted the customer legacy control-plane resource group, removed fake demo `managedApplicationId` config, and rewrote the topology docs around the active deployment-stack path.
+- 2026-03-08: Reworked Azure deployment failure normalization to pull the deepest available failed-operation/failed-resource message, preserve Azure request/correlation/deployment/resource metadata, and stop surfacing raw SDK object text in operator errors.
+- 2026-03-08: Simplified the shell header to `MAPPO Control Plane` + `MULTI-TENANT MANAGED APP ORCHESTRATOR`, removed the non-actionable `Attention Needed` KPI, and expanded run-detail Azure error rendering to show the normalized summary plus deployment metadata.
+- 2026-03-08: Added `/api/v1/runs/preview` and a Deployment Stack preview flow that runs ARM `what-if` against the exact resolved Blob-backed template + parameters for resource-group-scoped stack releases, then renders per-target change summaries and caveats in the deployment drawer.
+- 2026-03-08: Verified the live failure-path finding that Azure Deployment Stack SDK responses can still hide the actionable nested error until MAPPO re-reads the stack resource after failure; the executor now does that follow-up read so operator errors show the deepest available resource-specific detail.
 
 ## Milestones
 
@@ -152,6 +156,7 @@ Post-demo production-path planning and execution setup:
 - Decide whether to keep the current inline-template Deployment Stack path as the production implementation or invest in a lower-level Azure REST path for direct `templateLink` support.
 - Move more steady-state runtime/forwarder lifecycle into Pulumi where appropriate.
 - Keep the real Partner Center/private-offer path documented and ready for later validation when publisher-account prerequisites are available.
+- Extend the new preview path beyond `deployment_stack` + resource-group scope once the production execution surface expands to subscription-scope stacks or additional release source types.
 
 ## Current Focus
 - Wire the live GitHub webhook from `cvonderheid/mappo-managed-app` into the hosted MAPPO environment.

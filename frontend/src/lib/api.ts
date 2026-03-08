@@ -9,6 +9,7 @@ import type {
   ReleaseManifestIngestRequest,
   ReleaseManifestIngestResponse,
   RunDetail,
+  RunPreview,
   RunSummary,
   Target,
   TargetRegistrationRecord,
@@ -74,6 +75,13 @@ export async function createRun(request: CreateRunRequest): Promise<RunDetail> {
     body: request,
   });
   return requireData("createRun", { data, error, response });
+}
+
+export async function previewRun(request: CreateRunRequest): Promise<RunPreview> {
+  const { data, error, response } = await apiClient.POST("/api/v1/runs/preview", {
+    body: request,
+  });
+  return requireData("previewRun", { data, error, response });
 }
 
 export async function resumeRun(runId: string): Promise<RunDetail> {

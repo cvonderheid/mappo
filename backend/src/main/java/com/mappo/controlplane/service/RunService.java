@@ -7,15 +7,13 @@ import com.mappo.controlplane.jooq.enums.MappoRunStatus;
 import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.jooq.enums.MappoTargetStage;
 import com.mappo.controlplane.model.command.CreateRunCommand;
-import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.RunDetailRecord;
 import com.mappo.controlplane.model.RunSummaryRecord;
-import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.repository.RunRepository;
-import com.mappo.controlplane.repository.TargetRepository;
 import com.mappo.controlplane.service.run.RunExecutionService;
+import com.mappo.controlplane.service.run.RunRequestContext;
+import com.mappo.controlplane.service.run.RunRequestResolverService;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -26,10 +24,9 @@ import org.springframework.stereotype.Service;
 public class RunService {
 
     private final RunRepository runRepository;
-    private final TargetRepository targetRepository;
-    private final ReleaseService releaseService;
     private final AzureExecutorClient azureExecutorClient;
     private final RunExecutionService runExecutionService;
+    private final RunRequestResolverService runRequestResolverService;
 
     public List<RunSummaryRecord> listRuns() {
         return runRepository.listRunSummaries();
@@ -41,28 +38,16 @@ public class RunService {
     }
 
     public RunDetailRecord createRun(RunCreateRequest request) {
-        if (request == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "run request is required");
-        }
-        CreateRunCommand command = request.toCommand();
-        String releaseId = command.releaseId();
-        if (releaseId.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "releaseId is required");
-        }
-
-        ReleaseRecord release = releaseService.getRelease(releaseId);
-        List<TargetRecord> targets = resolveTargets(command);
-        if (targets.isEmpty()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "no matching targets found");
-        }
+        RunRequestContext context = runRequestResolverService.resolve(request);
+        CreateRunCommand command = context.command();
 
         String runId = "run-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
-        MappoReleaseSourceType executionSourceType = release.sourceType();
-        runRepository.createRun(runId, command, targets, executionSourceType);
+        MappoReleaseSourceType executionSourceType = context.release().sourceType();
+        runRepository.createRun(runId, command, context.targets(), executionSourceType);
         runExecutionService.executeRun(
             runId,
-            release,
-            targets,
+            context.release(),
+            context.targets(),
             azureExecutorClient.isConfigured(),
             getRun(runId).stopPolicy()
         );
@@ -89,17 +74,5 @@ public class RunService {
         }
         runRepository.markRunComplete(runId, MappoRunStatus.succeeded, null);
         return getRun(runId);
-    }
-
-    private List<TargetRecord> resolveTargets(CreateRunCommand request) {
-        if (!request.targetIds().isEmpty()) {
-            return targetRepository.getTargetsByIds(request.targetIds());
-        }
-
-        if (!request.targetTags().isEmpty()) {
-            return targetRepository.getTargetsByTagFilters(request.targetTags());
-        }
-
-        return targetRepository.listTargets(Map.of());
     }
 }

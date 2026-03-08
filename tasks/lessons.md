@@ -111,3 +111,27 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Preventative rule: Treat every new Azure execution mode as unproven until it completes one live end-to-end rollout, and document the exact scope/auth/SDK constraints discovered there.
 - Detection signal: integration tests pass, but Azure returns schema/scope errors such as missing `denySettings`, invalid `template: null`, or authorization failures at subscription-root scope.
 - Enforcement (test/lint/checklist): after implementing an Azure executor, run one real deployment against the hosted demo targets and write the live findings back into the runbook/plan before calling the milestone complete.
+
+- Date: 2026-03-08
+- Pattern: Operator-facing Azure failures become useless when the backend stores SDK object `toString()` output or only the top-level `DeploymentFailed` wrapper message.
+- Preventative rule: Normalize Azure deployment failures down to the most specific failed operation or failed resource message, and always preserve correlation, deployment, operation, and resource identifiers alongside the summary.
+- Detection signal: the UI shows values like `DefaultErrorResponseError@...` or only `At least one resource deployment operation failed` with no actionable context.
+- Enforcement (test/lint/checklist): failure-path tests should assert that Azure error summaries include the deepest available message plus deployment metadata instead of raw SDK object text.
+
+- Date: 2026-03-08
+- Pattern: Azure Deployment Stack create/update failures can return shallow SDK errors even when the stack resource itself contains a deeper failed-resource message.
+- Preventative rule: After any stack failure, read back the stack resource and prefer its failed-resource/operation detail over the original SDK wrapper before finalizing operator-visible errors.
+- Detection signal: the initial exception only says `DeploymentFailed` or prints a generic SDK error object, but `az stack group show` reveals a specific resource-level reason such as image-pull authorization failure.
+- Enforcement (test/lint/checklist): every live stack failure investigation should compare the immediate SDK error to a follow-up stack read and keep the richer path in the executor.
+
+- Date: 2026-03-08
+- Pattern: Deployment Stack updates do not expose native `what-if`, so operators lose preview confidence unless MAPPO provides an explicit ARM-level approximation.
+- Preventative rule: For stack-backed releases, implement preview as ARM `what-if` against the exact resolved template artifact and parameters, and label it clearly as an approximation of the next stack update rather than a full stack-semantic preview.
+- Detection signal: operators ask for rollout preview and the only answer is “Deployment Stack what-if doesn’t exist.”
+- Enforcement (test/lint/checklist): any new stack-backed execution surface should include a preview endpoint or UI action plus a caveat explaining the scope of the preview.
+
+- Date: 2026-03-08
+- Pattern: Dashboard KPIs that cannot be acted on or reset train operators to ignore them.
+- Preventative rule: Only surface top-level counters that support a clear operational action or state transition; otherwise remove them and keep the detail in the list/detail views.
+- Detection signal: users ask what a badge/counter means or why it never clears.
+- Enforcement (test/lint/checklist): when adding a top-level KPI, document the operator action it drives and remove it if there is no answer.

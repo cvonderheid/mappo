@@ -4,6 +4,8 @@ import com.azure.core.management.exception.ManagementError;
 import com.azure.core.management.exception.ManagementException;
 import com.azure.resourcemanager.appcontainers.ContainerAppsApiManager;
 import com.azure.resourcemanager.appcontainers.models.ContainerApp;
+import com.azure.resourcemanager.resources.ResourceManager;
+import com.azure.resourcemanager.resources.fluent.models.DeploymentOperationInner;
 import com.azure.resourcemanager.resources.fluentcore.arm.ResourceId;
 import com.azure.resourcemanager.resources.models.Deployment;
 import com.azure.resourcemanager.resources.models.DeploymentMode;
@@ -44,8 +46,9 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
         try {
             ContainerAppsApiManager containerAppsManager = azureExecutorClient.createContainerAppsManager(tenantId, subscriptionId);
             ContainerApp currentContainerApp = containerAppsManager.containerApps().getById(target.containerAppResourceId());
+            ResourceManager resourceManager = azureExecutorClient.createResourceManager(tenantId, subscriptionId);
 
-            Deployment deployment = azureExecutorClient.createManager(tenantId, subscriptionId)
+            Deployment deployment = resourceManager
                 .deployments()
                 .define(deploymentName)
                 .withExistingResourceGroup(resourceGroupName)
@@ -57,35 +60,42 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
             String correlationId = fallbackCorrelationId(deployment.correlationId(), runId, target.targetId());
             ManagementError error = deployment.error();
             if (error != null) {
+                DeploymentOperationInner failedOperation = loadFailedDeploymentOperation(resourceManager, resourceGroupName, deploymentName);
                 throw deploymentFailure(
                     "Azure deployment completed with an error state.",
                     error,
+                    null,
+                    null,
+                    null,
                     correlationId,
                     deploymentName,
-                    target.containerAppResourceId()
+                    target.containerAppResourceId(),
+                    failedOperation
                 );
             }
 
             String provisioningState = normalize(deployment.provisioningState());
             if (!"succeeded".equalsIgnoreCase(provisioningState)) {
-                throw new TargetDeploymentException(
+                DeploymentOperationInner failedOperation = loadFailedDeploymentOperation(resourceManager, resourceGroupName, deploymentName);
+                AzureFailureDiagnostics.AzureFailureSnapshot snapshot = AzureFailureDiagnostics.summarize(
                     "Azure deployment finished with provisioning state " + provisioningState + ".",
+                    error,
+                    null,
+                    null,
+                    null,
+                    correlationId,
+                    deploymentName,
+                    null,
+                    target.containerAppResourceId(),
+                    null,
+                    failedOperation
+                );
+                throw new TargetDeploymentException(
+                    snapshot.message(),
                     new StageErrorRecord(
                         "AZURE_DEPLOYMENT_NOT_SUCCEEDED",
-                        "Azure deployment finished with provisioning state " + provisioningState + ".",
-                        new StageErrorDetailsRecord(
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            correlationId,
-                            deploymentName,
-                            null,
-                            target.containerAppResourceId()
-                        )
+                        snapshot.message(),
+                        snapshot.details()
                     ),
                     correlationId,
                     ""
@@ -104,12 +114,18 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
                 runId,
                 target.targetId()
             );
+            ResourceManager resourceManager = azureExecutorClient.createResourceManager(tenantId, subscriptionId);
+            DeploymentOperationInner failedOperation = loadFailedDeploymentOperation(resourceManager, resourceGroupName, deploymentName);
             throw deploymentFailure(
                 "Azure deployment request failed.",
                 managementError,
+                error.getResponse() == null ? null : error.getResponse().getStatusCode(),
+                responseHeader(error, "x-ms-request-id"),
+                responseHeader(error, "x-ms-arm-service-request-id"),
                 correlationId,
                 deploymentName,
-                target.containerAppResourceId()
+                target.containerAppResourceId(),
+                failedOperation
             );
         } catch (IllegalArgumentException error) {
             throw new TargetDeploymentException(
@@ -204,38 +220,65 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
     private TargetDeploymentException deploymentFailure(
         String prefix,
         ManagementError error,
+        Integer statusCode,
+        String requestId,
+        String armServiceRequestId,
         String correlationId,
         String deploymentName,
-        String resourceId
+        String resourceId,
+        DeploymentOperationInner failedOperation
     ) {
-        String azureCode = error == null ? null : normalize(error.getCode());
-        String azureMessage = error == null ? null : normalize(error.getMessage());
-        String message = !azureMessage.isBlank()
-            ? azureMessage
-            : prefix;
+        AzureFailureDiagnostics.AzureFailureSnapshot snapshot = AzureFailureDiagnostics.summarize(
+            prefix,
+            error,
+            statusCode,
+            requestId,
+            armServiceRequestId,
+            correlationId,
+            deploymentName,
+            null,
+            resourceId,
+            null,
+            failedOperation
+        );
 
         return new TargetDeploymentException(
-            message,
+            snapshot.message(),
             new StageErrorRecord(
                 "AZURE_DEPLOYMENT_FAILED",
-                message,
-                new StageErrorDetailsRecord(
-                    null,
-                    error == null ? prefix : error.toString(),
-                    null,
-                    nullable(azureCode),
-                    nullable(azureMessage),
-                    null,
-                    null,
-                    nullable(correlationId),
-                    nullable(deploymentName),
-                    null,
-                    nullable(resourceId)
-                )
+                snapshot.message(),
+                snapshot.details()
             ),
             correlationId,
             ""
         );
+    }
+
+    private DeploymentOperationInner loadFailedDeploymentOperation(
+        ResourceManager resourceManager,
+        String resourceGroupName,
+        String deploymentName
+    ) {
+        if (resourceManager == null || resourceGroupName.isBlank() || deploymentName.isBlank()) {
+            return null;
+        }
+        try {
+            DeploymentOperationInner latestFailure = null;
+            for (DeploymentOperationInner operation : resourceManager.serviceClient()
+                .getDeploymentOperations()
+                .listByResourceGroup(resourceGroupName, deploymentName)) {
+                if (operation == null || operation.properties() == null) {
+                    continue;
+                }
+                if (operation.properties().statusMessage() != null
+                    && operation.properties().statusMessage().error() != null) {
+                    latestFailure = operation;
+                }
+            }
+            return latestFailure;
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     private String resolveTemplateSpecVersionId(ReleaseRecord release, String targetSubscriptionId) {

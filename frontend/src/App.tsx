@@ -19,6 +19,7 @@ import {
   listReleases,
   listRuns,
   listTargets,
+  previewRun,
   resumeRun,
   retryFailed,
 } from "@/lib/api";
@@ -31,6 +32,7 @@ import type {
   ReleaseManifestIngestRequest,
   ReleaseManifestIngestResponse,
   RunDetail,
+  RunPreview,
   RunSummary,
   Target,
   TargetExecutionRecord,
@@ -66,7 +68,10 @@ function AppShell() {
   const [runActionsMenuOpen, setRunActionsMenuOpen] = useState<boolean>(false);
   const [formState, setFormState] = useState<StartRunFormState>(DEFAULT_FORM);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isPreviewing, setIsPreviewing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [previewErrorMessage, setPreviewErrorMessage] = useState<string>("");
+  const [runPreview, setRunPreview] = useState<RunPreview | null>(null);
   const [adminSnapshot, setAdminSnapshot] = useState<AdminOnboardingSnapshotResponse | null>(null);
   const [adminIsSubmitting, setAdminIsSubmitting] = useState<boolean>(false);
   const [adminErrorMessage, setAdminErrorMessage] = useState<string>("");
@@ -188,18 +193,19 @@ function AppShell() {
     );
   }, [deploymentTargets]);
 
+  useEffect(() => {
+    setRunPreview(null);
+    setPreviewErrorMessage("");
+  }, [formState, selectedReleaseId, selectedTargetIds, targetGroupFilter]);
+
   const runStats = useMemo(() => {
     let running = 0;
-    let failedOrPartial = 0;
     for (const run of runs) {
       if (run.status === "running") {
         running += 1;
       }
-      if (run.status === "failed" || run.status === "partial" || run.status === "halted") {
-        failedOrPartial += 1;
-      }
     }
-    return { running, failedOrPartial };
+    return { running };
   }, [runs]);
 
   const selectedRelease = useMemo(
@@ -247,11 +253,51 @@ function AppShell() {
       }
       await refreshTargets();
       setErrorMessage("");
+      setRunPreview(null);
+      setPreviewErrorMessage("");
       setDeploymentControlsOpen(false);
     } catch (error) {
       setErrorMessage((error as Error).message);
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handlePreviewRun(): Promise<void> {
+    if (!selectedRelease) {
+      setPreviewErrorMessage("No releases are available yet.");
+      return;
+    }
+
+    const request: CreateRunRequest = {
+      releaseId: selectedRelease.id ?? selectedReleaseId,
+      strategyMode: formState.strategyMode,
+      waveTag: "ring",
+      waveOrder: ["canary", "prod"],
+      concurrency: formState.concurrency,
+      targetTags: targetGroupFilter === "all" ? {} : { ring: targetGroupFilter },
+      stopPolicy: {
+        maxFailureCount:
+          formState.maxFailureCount.trim() === "" ? undefined : Number(formState.maxFailureCount),
+        maxFailureRate:
+          formState.maxFailureRatePercent.trim() === ""
+            ? undefined
+            : Number(formState.maxFailureRatePercent) / 100,
+      },
+    };
+
+    if (selectedTargetIds.length > 0) {
+      request.targetIds = [...selectedTargetIds].sort();
+    }
+
+    setIsPreviewing(true);
+    try {
+      setRunPreview(await previewRun(request));
+      setPreviewErrorMessage("");
+    } catch (error) {
+      setPreviewErrorMessage((error as Error).message);
+    } finally {
+      setIsPreviewing(false);
     }
   }
 
@@ -382,18 +428,16 @@ function AppShell() {
         <CardHeader className="flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="space-y-2">
             <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-primary">
-              Multi-tenant Managed App Deployer
+              MAPPO Control Plane
             </p>
-            <CardTitle className="text-2xl md:text-3xl">MAPPO Control Plane</CardTitle>
-            <p className="max-w-3xl text-sm text-muted-foreground">
-              CodeDeploy-style release orchestration for Azure Managed Application fleets.
-            </p>
+            <CardTitle className="text-2xl uppercase md:text-3xl">
+              Multi-tenant Managed App Orchestrator
+            </CardTitle>
           </div>
           <div className="w-full space-y-2 md:max-w-md">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <Kpi label="Total Targets" value={String(targets.length)} />
               <Kpi label="Active Runs" value={String(runStats.running)} />
-              <Kpi label="Attention Needed" value={String(runStats.failedOrPartial)} />
             </div>
             <div className="grid grid-cols-4 gap-2">
               <TopNavLink label="Fleet" to="/fleet" />
@@ -415,7 +459,10 @@ function AppShell() {
               errorMessage={errorMessage}
               formState={formState}
               isSubmitting={isSubmitting}
+              isPreviewing={isPreviewing}
+              previewErrorMessage={previewErrorMessage}
               releases={releases}
+              runPreview={runPreview}
               runs={runs}
               selectedRelease={selectedRelease}
               selectedReleaseId={selectedReleaseId}
@@ -443,6 +490,7 @@ function AppShell() {
               onControlsOpenChange={setDeploymentControlsOpen}
               onTargetGroupFilterChange={setTargetGroupFilter}
               onRunActionsMenuOpenChange={setRunActionsMenuOpen}
+              onPreviewRun={handlePreviewRun}
             />
           }
         />

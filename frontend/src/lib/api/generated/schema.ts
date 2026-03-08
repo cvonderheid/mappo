@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/releases": {
         parameters: {
             query?: never;
@@ -341,6 +357,37 @@ export interface components {
             error?: components["schemas"]["StageErrorRecord"];
             correlationId?: string;
             portalLink?: string;
+        };
+        RunPreviewChangeRecord: {
+            resourceId?: string;
+            changeType?: string;
+            unsupportedReason?: string;
+            propertyChanges?: components["schemas"]["RunPreviewPropertyChangeRecord"][];
+        };
+        RunPreviewPropertyChangeRecord: {
+            path?: string;
+            changeType?: string;
+        };
+        RunPreviewRecord: {
+            releaseId?: string;
+            releaseVersion?: string;
+            /** @enum {string} */
+            mode?: "ARM_WHAT_IF" | "UNSUPPORTED";
+            caveat?: string;
+            warnings?: string[];
+            targets?: components["schemas"]["RunTargetPreviewRecord"][];
+        };
+        RunTargetPreviewRecord: {
+            targetId?: string;
+            displayName?: string;
+            targetGroup?: string;
+            managedResourceGroupId?: string;
+            /** @enum {string} */
+            status?: "PREVIEWED" | "UNSUPPORTED" | "FAILED";
+            summary?: string;
+            warnings?: string[];
+            error?: components["schemas"]["StageErrorRecord"];
+            changes?: components["schemas"]["RunPreviewChangeRecord"][];
         };
         ReleaseCreateRequest: {
             sourceRef: string;
@@ -745,6 +792,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["RunDetailRecord"];
+                };
+            };
+        };
+    };
+    previewRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RunPreviewRecord"];
                 };
             };
         };

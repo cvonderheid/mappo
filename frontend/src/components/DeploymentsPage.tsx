@@ -1,7 +1,10 @@
 import { FormEvent } from "react";
 
 import { RunList } from "@/components/RunPanels";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Drawer,
   DrawerClose,
@@ -16,13 +19,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { StartRunFormState } from "@/lib/deployment-form";
-import type { Release, RunSummary, StrategyMode, Target } from "@/lib/types";
+import type { Release, RunPreview, RunSummary, StrategyMode, Target } from "@/lib/types";
 
 type DeploymentsPageProps = {
   errorMessage: string;
   formState: StartRunFormState;
   isSubmitting: boolean;
+  isPreviewing: boolean;
+  previewErrorMessage: string;
   releases: Release[];
+  runPreview: RunPreview | null;
   runs: RunSummary[];
   selectedRelease: Release | null;
   selectedReleaseId: string;
@@ -41,13 +47,17 @@ type DeploymentsPageProps = {
   onStartRun: (event: FormEvent<HTMLFormElement>) => Promise<void>;
   onTargetGroupFilterChange: (targetGroup: string) => void;
   onRunActionsMenuOpenChange: (open: boolean) => void;
+  onPreviewRun: () => Promise<void>;
 };
 
 export default function DeploymentsPage({
   errorMessage,
   formState,
   isSubmitting,
+  isPreviewing,
+  previewErrorMessage,
   releases,
+  runPreview,
   runs,
   selectedRelease,
   selectedReleaseId,
@@ -66,6 +76,7 @@ export default function DeploymentsPage({
   onStartRun,
   onTargetGroupFilterChange,
   onRunActionsMenuOpenChange,
+  onPreviewRun,
 }: DeploymentsPageProps) {
   return (
     <>
@@ -107,7 +118,7 @@ export default function DeploymentsPage({
                   metadata.
                 </p>
               </div>
-              <form className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6" onSubmit={onStartRun}>
+              <form id="start-run-form" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5" onSubmit={onStartRun}>
                 <div className="space-y-1">
                   <Label htmlFor="release-version">Release version</Label>
                   <Select value={selectedReleaseId} onValueChange={onReleaseChange} disabled={releases.length === 0} required>
@@ -181,15 +192,30 @@ export default function DeploymentsPage({
                     }
                   />
                 </div>
-                <div className="flex items-end">
-                  <Button type="submit" className="w-full" disabled={isSubmitting || selectedRelease === null}>
-                    {isSubmitting ? "Starting..." : "Start Run"}
-                  </Button>
-                </div>
               </form>
               <p className="mt-2 text-xs text-muted-foreground">
                 Max failures and max failure rate are both active when provided. The run halts if either threshold is exceeded.
               </p>
+              <div className="mt-3 flex flex-wrap justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    void onPreviewRun();
+                  }}
+                  disabled={isPreviewing || selectedRelease === null}
+                >
+                  {isPreviewing ? "Previewing..." : "Preview Changes"}
+                </Button>
+                <Button
+                  type="submit"
+                  form="start-run-form"
+                  className="min-w-32"
+                  disabled={isSubmitting || selectedRelease === null}
+                >
+                  {isSubmitting ? "Starting..." : "Start Run"}
+                </Button>
+              </div>
               <div className="mt-3 rounded-md border border-border/70 bg-muted/20 p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <div>
@@ -256,6 +282,12 @@ export default function DeploymentsPage({
                   {errorMessage}
                 </div>
               ) : null}
+              {previewErrorMessage ? (
+                <div className="mt-3 rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive-foreground">
+                  {previewErrorMessage}
+                </div>
+              ) : null}
+              {runPreview ? <RunPreviewPanel preview={runPreview} /> : null}
             </div>
             <DrawerFooter className="border-t border-border/70">
               <DrawerClose asChild>
@@ -278,4 +310,118 @@ export default function DeploymentsPage({
       </div>
     </>
   );
+}
+
+function RunPreviewPanel({ preview }: { preview: RunPreview }) {
+  const modeLabel = preview.mode === "ARM_WHAT_IF" ? "ARM what-if" : "Unsupported";
+  return (
+    <Card className="mt-3 border-border/70 bg-card/70">
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <CardTitle>Preview Results</CardTitle>
+            <CardDescription>
+              Release {preview.releaseVersion ?? "unknown"} for {preview.targets?.length ?? 0} target
+              {preview.targets?.length === 1 ? "" : "s"}.
+            </CardDescription>
+          </div>
+          <Badge variant={preview.mode === "ARM_WHAT_IF" ? "default" : "outline"}>{modeLabel}</Badge>
+        </div>
+        {preview.caveat ? (
+          <p className="text-xs text-muted-foreground">{preview.caveat}</p>
+        ) : null}
+        {preview.warnings && preview.warnings.length > 0 ? (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-100">
+            {preview.warnings.map((warning) => (
+              <p key={warning}>{warning}</p>
+            ))}
+          </div>
+        ) : null}
+      </CardHeader>
+      <CardContent>
+        <Accordion type="single" collapsible className="w-full">
+          {preview.targets?.map((target) => (
+            <AccordionItem key={target.targetId ?? "unknown"} value={target.targetId ?? "unknown"}>
+              <AccordionTrigger className="py-3 no-underline hover:no-underline">
+                <div className="flex w-full flex-wrap items-center justify-between gap-2 pr-3">
+                  <div>
+                    <p className="font-mono text-sm">{target.targetId ?? "unknown-target"}</p>
+                    <p className="text-xs text-muted-foreground">{target.summary ?? "No preview summary."}</p>
+                  </div>
+                  <Badge variant={targetStatusVariant(target.status)}>{target.status ?? "UNKNOWN"}</Badge>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-3 text-xs">
+                  {target.managedResourceGroupId ? (
+                    <p className="font-mono text-muted-foreground">{target.managedResourceGroupId}</p>
+                  ) : null}
+                  {target.warnings && target.warnings.length > 0 ? (
+                    <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-amber-100">
+                      {target.warnings.map((warning) => (
+                        <p key={warning}>{warning}</p>
+                      ))}
+                    </div>
+                  ) : null}
+                  {target.error ? (
+                    <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-destructive-foreground">
+                      <p className="font-medium">{target.error.message ?? "Preview failed."}</p>
+                      {target.error.details?.error ? <p className="mt-1">{target.error.details.error}</p> : null}
+                    </div>
+                  ) : null}
+                  {target.changes && target.changes.length > 0 ? (
+                    <div className="space-y-2">
+                      {target.changes.map((change) => (
+                        <div
+                          key={`${change.resourceId ?? "unknown"}-${change.changeType ?? "change"}`}
+                          className="rounded-md border border-border/70 bg-muted/20 p-2"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-mono text-[11px]">{change.resourceId ?? "unknown-resource"}</p>
+                            <Badge variant="outline">{change.changeType ?? "Unknown"}</Badge>
+                          </div>
+                          {change.unsupportedReason ? (
+                            <p className="mt-1 text-muted-foreground">{change.unsupportedReason}</p>
+                          ) : null}
+                          {change.propertyChanges && change.propertyChanges.length > 0 ? (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {change.propertyChanges.slice(0, 8).map((propertyChange) => (
+                                <span
+                                  key={`${propertyChange.path ?? "unknown"}-${propertyChange.changeType ?? "change"}`}
+                                  className="rounded-full border border-border/70 px-2 py-0.5 font-mono text-[10px] text-muted-foreground"
+                                >
+                                  {propertyChange.changeType}: {propertyChange.path}
+                                </span>
+                              ))}
+                              {change.propertyChanges.length > 8 ? (
+                                <span className="rounded-full border border-border/70 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+                                  +{change.propertyChanges.length - 8} more
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">No resource changes returned for this target.</p>
+                  )}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      </CardContent>
+    </Card>
+  );
+}
+
+function targetStatusVariant(status: string | null | undefined) {
+  if (status === "PREVIEWED") {
+    return "default";
+  }
+  if (status === "FAILED") {
+    return "destructive";
+  }
+  return "outline";
 }

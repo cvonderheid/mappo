@@ -715,26 +715,37 @@ function AzureErrorSummary({
 }: {
   details: StageErrorDetails;
 }) {
+  const summary = asNonEmptyString(details.error);
   const azureCode = asNonEmptyString(details.azureErrorCode);
   const azureMessage = asNonEmptyString(details.azureErrorMessage);
   const requestId =
     asNonEmptyString(details.azureRequestId) ?? asNonEmptyString(details.azureArmServiceRequestId);
   const correlationId = asNonEmptyString(details.azureCorrelationId);
+  const deploymentName = asNonEmptyString(details.azureDeploymentName);
+  const operationId = asNonEmptyString(details.azureOperationId);
+  const resourceId = asNonEmptyString(details.azureResourceId);
+  const azureLine =
+    azureCode || azureMessage
+      ? `Azure: ${azureCode ? `[${azureCode}] ` : ""}${azureMessage ?? ""}`.trim()
+      : null;
+  const normalizedSummary = summary?.replace(/\r\n/g, "\n");
+  const normalizedAzureLine = azureLine?.replace(/\r\n/g, "\n");
+  const showSummary =
+    normalizedSummary && normalizedSummary !== normalizedAzureLine ? normalizedSummary : null;
 
-  if (!azureCode && !azureMessage && !requestId && !correlationId) {
+  if (!showSummary && !azureLine && !requestId && !correlationId && !deploymentName && !operationId && !resourceId) {
     return null;
   }
 
   return (
     <div className="mt-1 space-y-1 font-mono text-[10px] text-destructive/90">
-      {azureCode || azureMessage ? (
-        <p>
-          Azure: {azureCode ? `[${azureCode}] ` : ""}
-          {azureMessage ?? ""}
-        </p>
-      ) : null}
+      {showSummary ? <p className="whitespace-pre-wrap">{showSummary}</p> : null}
+      {azureLine ? <p>{azureLine}</p> : null}
       {requestId ? <p>request-id: {requestId}</p> : null}
       {correlationId ? <p>correlation-id: {correlationId}</p> : null}
+      {deploymentName ? <p>deployment: {deploymentName}</p> : null}
+      {operationId ? <p>operation-id: {operationId}</p> : null}
+      {resourceId ? <p className="break-all">resource-id: {resourceId}</p> : null}
     </div>
   );
 }

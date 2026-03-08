@@ -2,24 +2,19 @@ package com.mappo.controlplane.service.run;
 
 import com.azure.core.management.exception.ManagementError;
 import com.azure.core.management.exception.ManagementException;
-import com.azure.resourcemanager.appcontainers.ContainerAppsApiManager;
-import com.azure.resourcemanager.appcontainers.models.ContainerApp;
 import com.azure.resourcemanager.resources.ResourceManager;
+import com.azure.resourcemanager.resources.fluent.models.DeploymentOperationInner;
 import com.azure.resourcemanager.resources.fluent.models.DeploymentStackInner;
 import com.azure.resourcemanager.resources.models.ActionOnUnmanage;
-import com.azure.resourcemanager.resources.models.DeploymentParameter;
 import com.azure.resourcemanager.resources.models.DeploymentStacksDeleteDetachEnum;
 import com.azure.resourcemanager.resources.models.DenySettings;
 import com.azure.resourcemanager.resources.models.DenySettingsMode;
 import com.mappo.controlplane.azure.AzureExecutorClient;
-import com.mappo.controlplane.config.MappoProperties;
-import com.mappo.controlplane.jooq.enums.MappoRegistryAuthMode;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.StageErrorDetailsRecord;
 import com.mappo.controlplane.model.StageErrorRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -28,8 +23,7 @@ import org.springframework.stereotype.Component;
 public class AzureDeploymentStackExecutor implements DeploymentStackExecutor {
 
     private final AzureExecutorClient azureExecutorClient;
-    private final MappoProperties properties;
-    private final ReleaseArtifactTemplateLoader releaseArtifactTemplateLoader;
+    private final DeploymentStackTemplateInputsFactory templateInputsFactory;
 
     @Override
     public TargetDeploymentOutcome deploy(
@@ -44,48 +38,68 @@ public class AzureDeploymentStackExecutor implements DeploymentStackExecutor {
         String stackResourceGroupName = resourceGroupNameFromResourceId(deploymentScope);
 
         try {
-            ContainerAppsApiManager containerAppsManager = azureExecutorClient.createContainerAppsManager(tenantId, subscriptionId);
-            ContainerApp currentContainerApp = containerAppsManager.containerApps().getById(target.containerAppResourceId());
             ResourceManager resourceManager = azureExecutorClient.createResourceManager(tenantId, subscriptionId);
-
-            DeploymentStackInner deploymentStack = buildDeploymentStack(stackName, release, target, currentContainerApp, deploymentScope);
+            DeploymentStackTemplateInputs inputs = templateInputsFactory.resolve(release, target);
+            DeploymentStackInner deploymentStack = buildDeploymentStack(target.targetId(), inputs);
             DeploymentStackInner result = resourceManager.deploymentStackClient()
                 .getDeploymentStacks()
                 .createOrUpdateAtResourceGroup(stackResourceGroupName, stackName, deploymentStack);
 
-            String correlationId = fallbackCorrelationId(normalize(result.correlationId()), runId, target.targetId());
-            ManagementError error = result.error();
+            DeploymentStackInner diagnosticsStack = refreshStackState(resourceManager, stackResourceGroupName, stackName, result);
+            String diagnosticsDeploymentName = deploymentNameFromResourceId(diagnosticsStack.deploymentId());
+            String correlationId = fallbackCorrelationId(
+                firstNonBlank(normalize(diagnosticsStack.correlationId()), normalize(result.correlationId())),
+                runId,
+                target.targetId()
+            );
+            ManagementError error = diagnosticsStack.error();
             if (error != null) {
+                DeploymentOperationInner failedOperation = loadFailedDeploymentOperation(
+                    resourceManager,
+                    stackResourceGroupName,
+                    diagnosticsDeploymentName
+                );
                 throw deploymentFailure(
                     "Azure deployment stack completed with an error state.",
                     error,
+                    null,
+                    null,
+                    null,
                     correlationId,
-                    stackName,
-                    normalize(result.id()),
-                    normalize(result.deploymentId())
+                    firstNonBlank(diagnosticsDeploymentName, stackName),
+                    normalize(diagnosticsStack.id()),
+                    normalize(diagnosticsStack.deploymentId()),
+                    diagnosticsStack.failedResources(),
+                    failedOperation
                 );
             }
 
-            String provisioningState = normalize(result.provisioningState());
+            String provisioningState = normalize(diagnosticsStack.provisioningState());
             if (!"succeeded".equalsIgnoreCase(provisioningState)) {
-                throw new TargetDeploymentException(
+                DeploymentOperationInner failedOperation = loadFailedDeploymentOperation(
+                    resourceManager,
+                    stackResourceGroupName,
+                    diagnosticsDeploymentName
+                );
+                AzureFailureDiagnostics.AzureFailureSnapshot snapshot = AzureFailureDiagnostics.summarize(
                     "Azure deployment stack finished with provisioning state " + provisioningState + ".",
+                    error,
+                    null,
+                    null,
+                    null,
+                    correlationId,
+                    firstNonBlank(diagnosticsDeploymentName, stackName),
+                    normalize(diagnosticsStack.deploymentId()),
+                    normalize(diagnosticsStack.id()),
+                    diagnosticsStack.failedResources(),
+                    failedOperation
+                );
+                throw new TargetDeploymentException(
+                    snapshot.message(),
                     new StageErrorRecord(
                         "AZURE_DEPLOYMENT_STACK_NOT_SUCCEEDED",
-                        "Azure deployment stack finished with provisioning state " + provisioningState + ".",
-                        new StageErrorDetailsRecord(
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            correlationId,
-                            stackName,
-                            normalize(result.deploymentId()),
-                            normalize(result.id())
-                        )
+                        snapshot.message(),
+                        snapshot.details()
                     ),
                     correlationId,
                     ""
@@ -107,10 +121,15 @@ public class AzureDeploymentStackExecutor implements DeploymentStackExecutor {
             throw deploymentFailure(
                 "Azure deployment stack request failed.",
                 managementError,
+                error.getResponse() == null ? null : error.getResponse().getStatusCode(),
+                responseHeader(error, "x-ms-request-id"),
+                responseHeader(error, "x-ms-arm-service-request-id"),
                 correlationId,
                 stackName,
                 deploymentScope,
-                ""
+                "",
+                null,
+                null
             );
         } catch (IllegalArgumentException error) {
             throw new TargetDeploymentException(
@@ -138,18 +157,31 @@ public class AzureDeploymentStackExecutor implements DeploymentStackExecutor {
         }
     }
 
-    private DeploymentStackInner buildDeploymentStack(
+    private DeploymentStackInner refreshStackState(
+        ResourceManager resourceManager,
+        String resourceGroupName,
         String stackName,
-        ReleaseRecord release,
-        TargetExecutionContextRecord target,
-        ContainerApp currentContainerApp,
-        String deploymentScope
+        DeploymentStackInner fallback
     ) {
+        if (resourceManager == null || resourceGroupName.isBlank() || stackName.isBlank()) {
+            return fallback;
+        }
+        try {
+            DeploymentStackInner refreshed = resourceManager.deploymentStackClient()
+                .getDeploymentStacks()
+                .getByResourceGroup(resourceGroupName, stackName);
+            return refreshed == null ? fallback : refreshed;
+        } catch (RuntimeException ignored) {
+            return fallback;
+        }
+    }
+
+    private DeploymentStackInner buildDeploymentStack(String targetId, DeploymentStackTemplateInputs inputs) {
         return new DeploymentStackInner()
-            .withDescription("MAPPO deployment stack for target " + normalize(target.targetId()))
-            .withDeploymentScope(deploymentScope)
-            .withTemplate(releaseArtifactTemplateLoader.loadTemplateDefinition(release))
-            .withParameters(deploymentParameters(release.parameterDefaults(), target, currentContainerApp))
+            .withDescription("MAPPO deployment stack for target " + normalize(targetId))
+            .withDeploymentScope(inputs.deploymentScope())
+            .withTemplate(inputs.template())
+            .withParameters(inputs.parameters())
             .withDenySettings(defaultDenySettings())
             .withActionOnUnmanage(defaultActionOnUnmanage())
             .withBypassStackOutOfSyncError(Boolean.TRUE);
@@ -163,135 +195,6 @@ public class AzureDeploymentStackExecutor implements DeploymentStackExecutor {
 
     private DenySettings defaultDenySettings() {
         return new DenySettings().withMode(DenySettingsMode.NONE);
-    }
-
-    private Map<String, DeploymentParameter> deploymentParameters(
-        Map<String, String> defaults,
-        TargetExecutionContextRecord target,
-        ContainerApp currentContainerApp
-    ) {
-        Map<String, DeploymentParameter> parameters = new LinkedHashMap<>();
-        mergeParameterValues(parameters, defaults);
-        mergeParameterValues(parameters, targetParameterDefaults(defaults, target, currentContainerApp));
-        return parameters;
-    }
-
-    private void mergeParameterValues(Map<String, DeploymentParameter> targetParameters, Map<String, String> values) {
-        if (values == null || values.isEmpty()) {
-            return;
-        }
-        for (Map.Entry<String, String> entry : values.entrySet()) {
-            String key = normalize(entry.getKey());
-            if (key.isBlank()) {
-                continue;
-            }
-            targetParameters.put(key, new DeploymentParameter().withValue(entry.getValue()));
-        }
-    }
-
-    private Map<String, String> targetParameterDefaults(
-        Map<String, String> defaults,
-        TargetExecutionContextRecord target,
-        ContainerApp currentContainerApp
-    ) {
-        Map<String, String> values = new LinkedHashMap<>();
-        values.put("containerAppName", normalize(currentContainerApp.name()));
-        values.put(
-            "managedEnvironmentResourceId",
-            firstNonBlank(currentContainerApp.managedEnvironmentId(), currentContainerApp.environmentId())
-        );
-        values.put("location", normalize(currentContainerApp.regionName()));
-        values.put("targetGroup", firstNonBlank(target.tags().get("ring"), "prod"));
-        values.put("tenantId", uuidText(target.tenantId(), "tenantId"));
-        values.put("targetId", normalize(target.targetId()));
-        values.put("tier", firstNonBlank(target.tags().get("tier"), "standard"));
-        values.put("environment", firstNonBlank(target.tags().get("environment"), "prod"));
-        mergeStringValues(values, registryParameters(defaults, target));
-        return values;
-    }
-
-    private void mergeStringValues(Map<String, String> targetValues, Map<String, String> values) {
-        if (values == null || values.isEmpty()) {
-            return;
-        }
-        targetValues.putAll(values);
-    }
-
-    private Map<String, String> registryParameters(Map<String, String> defaults, TargetExecutionContextRecord target) {
-        String containerImage = defaults == null ? "" : normalize(defaults.get("containerImage"));
-        MappoRegistryAuthMode authMode = target.registryAuthMode() == null
-            ? defaultRegistryAuthMode(containerImage)
-            : target.registryAuthMode();
-
-        if (authMode == null || authMode == MappoRegistryAuthMode.none) {
-            if (imageRequiresRegistryAuth(containerImage)) {
-                throw new IllegalArgumentException(
-                    "Target " + target.targetId() + " requires registry auth for image " + containerImage + "."
-                );
-            }
-            return Map.of();
-        }
-
-        if (authMode == MappoRegistryAuthMode.customer_managed_secret) {
-            throw new IllegalArgumentException(
-                "registry_auth_mode customer_managed_secret is not implemented yet for deployment_stack execution"
-            );
-        }
-
-        String registryServer = firstNonBlank(
-            target.registryServer(),
-            defaults == null ? null : defaults.get("registryServer"),
-            deriveRegistryServer(containerImage),
-            properties.getPublisherAcrServer()
-        );
-        String registryUsername = firstNonBlank(
-            target.registryUsername(),
-            defaults == null ? null : defaults.get("registryUsername"),
-            properties.getPublisherAcrPullClientId()
-        );
-        String registryPasswordSecretName = firstNonBlank(
-            target.registryPasswordSecretName(),
-            defaults == null ? null : defaults.get("registryPasswordSecretName"),
-            properties.getPublisherAcrPullSecretName()
-        );
-        String registryPassword = normalize(properties.getPublisherAcrPullClientSecret());
-
-        if (registryServer.isBlank() || registryUsername.isBlank() || registryPassword.isBlank()) {
-            throw new IllegalArgumentException(
-                "publisher ACR pull credentials are incomplete for deployment_stack execution"
-            );
-        }
-
-        Map<String, String> values = new LinkedHashMap<>();
-        values.put("registryServer", registryServer);
-        values.put("registryUsername", registryUsername);
-        values.put("registryPasswordSecretName", registryPasswordSecretName);
-        values.put("registryPassword", registryPassword);
-        return values;
-    }
-
-    private boolean imageRequiresRegistryAuth(String containerImage) {
-        String registryServer = deriveRegistryServer(containerImage);
-        if (registryServer.isBlank()) {
-            return false;
-        }
-        return registryServer.endsWith(".azurecr.io");
-    }
-
-    private MappoRegistryAuthMode defaultRegistryAuthMode(String containerImage) {
-        return imageRequiresRegistryAuth(containerImage)
-            ? MappoRegistryAuthMode.shared_service_principal_secret
-            : MappoRegistryAuthMode.none;
-    }
-
-    private String deriveRegistryServer(String containerImage) {
-        String normalized = normalize(containerImage);
-        int slashIndex = normalized.indexOf('/');
-        if (slashIndex <= 0) {
-            return "";
-        }
-        String candidate = normalized.substring(0, slashIndex);
-        return candidate.contains(".") ? candidate : "";
     }
 
     private String resourceGroupNameFromResourceId(String resourceId) {
@@ -309,39 +212,77 @@ public class AzureDeploymentStackExecutor implements DeploymentStackExecutor {
     private TargetDeploymentException deploymentFailure(
         String prefix,
         ManagementError error,
+        Integer statusCode,
+        String requestId,
+        String armServiceRequestId,
         String correlationId,
         String stackName,
         String resourceId,
-        String operationId
+        String operationId,
+        List<? extends com.azure.resourcemanager.resources.models.ResourceReferenceExtended> failedResources,
+        DeploymentOperationInner failedOperation
     ) {
-        String azureCode = error == null ? null : normalize(error.getCode());
-        String azureMessage = error == null ? null : normalize(error.getMessage());
-        String message = !azureMessage.isBlank()
-            ? azureMessage
-            : prefix;
+        AzureFailureDiagnostics.AzureFailureSnapshot snapshot = AzureFailureDiagnostics.summarize(
+            prefix,
+            error,
+            statusCode,
+            requestId,
+            armServiceRequestId,
+            correlationId,
+            stackName,
+            operationId,
+            resourceId,
+            failedResources,
+            failedOperation
+        );
 
         return new TargetDeploymentException(
-            message,
+            snapshot.message(),
             new StageErrorRecord(
                 "AZURE_DEPLOYMENT_STACK_FAILED",
-                message,
-                new StageErrorDetailsRecord(
-                    null,
-                    error == null ? prefix : error.toString(),
-                    null,
-                    nullable(azureCode),
-                    nullable(azureMessage),
-                    null,
-                    null,
-                    nullable(correlationId),
-                    nullable(stackName),
-                    nullable(operationId),
-                    nullable(resourceId)
-                )
+                snapshot.message(),
+                snapshot.details()
             ),
             correlationId,
             ""
         );
+    }
+
+    private DeploymentOperationInner loadFailedDeploymentOperation(
+        ResourceManager resourceManager,
+        String resourceGroupName,
+        String deploymentName
+    ) {
+        if (resourceManager == null || deploymentName.isBlank() || resourceGroupName.isBlank()) {
+            return null;
+        }
+        try {
+            DeploymentOperationInner latestFailure = null;
+            for (DeploymentOperationInner operation : resourceManager.serviceClient()
+                .getDeploymentOperations()
+                .listByResourceGroup(resourceGroupName, deploymentName)) {
+                if (operation == null || operation.properties() == null) {
+                    continue;
+                }
+                if (operation.properties().statusMessage() != null
+                    && operation.properties().statusMessage().error() != null) {
+                    latestFailure = operation;
+                }
+            }
+            return latestFailure;
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private String deploymentNameFromResourceId(String deploymentId) {
+        String normalized = normalize(deploymentId);
+        String marker = "/deployments/";
+        int markerIndex = normalized.lastIndexOf(marker);
+        if (markerIndex < 0) {
+            return "";
+        }
+        return normalized.substring(markerIndex + marker.length());
     }
 
     private String resolveStackName(TargetExecutionContextRecord target) {
