@@ -12,6 +12,7 @@ Owner: Codex
   `deployment_stack` at resource-group scope.
 - MAPPO runtime + forwarder live in `/Users/cvonderheid/workspace/mappo`.
 - The customer workload/release-definition repo lives in `/Users/cvonderheid/workspace/mappo-managed-app`.
+- The hosted Azure demo now uses Deployment Stacks only; provider/customer Template Spec resources have been removed.
 
 ## Scope (Current Slice)
 Post-demo production-path planning and execution setup:
@@ -78,6 +79,7 @@ Post-demo production-path planning and execution setup:
   - MAPPO's Azure principal needed `Storage Blob Data Reader` on the release-artifact storage account.
 - 2026-03-08: Verified the publisher ACR pull-auth path end to end in Azure; both demo targets rolled to release `2026.03.07.2` and reported `dataModelVersion = 4`.
 - 2026-03-08: Added `scripts/github_release_webhook_bootstrap.sh`, configured the hosted backend with `MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET`, and reduced the remaining live GitHub step to repository-side webhook creation.
+- 2026-03-08: Removed the live demo's provider/customer Template Spec resources, deleted the customer legacy control-plane resource group, removed fake demo `managedApplicationId` config, and rewrote the topology docs around the active deployment-stack path.
 
 ## Milestones
 
@@ -154,7 +156,6 @@ Post-demo production-path planning and execution setup:
 ## Current Focus
 - Wire the live GitHub webhook from `cvonderheid/mappo-managed-app` into the hosted MAPPO environment.
 - Capture the final operator runbook for the deployment-stack demo path.
-- Keep the Template Spec path as a fallback demo mode only.
 
 ## Detailed Plan Reference
 - `/Users/cvonderheid/workspace/mappo/docs/azure-production-execution-plan.md`

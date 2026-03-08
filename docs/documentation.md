@@ -51,7 +51,7 @@
 
 ## Terminology Contract
 - Target: customer subscription deployment unit.
-- Release: versioned Template Spec deployment payload.
+- Release: versioned deployment artifact plus rollout metadata.
 - Deployment Run: one rollout execution over selected targets.
 
 ## Bug-to-Test Loop

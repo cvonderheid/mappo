@@ -10,7 +10,6 @@ config:
       environment: prod
       tier: gold
       customerName: Demo Customer A
-      managedApplicationId: /subscriptions/c0d51042-7d0a-41f7-b270-151e4c4ea263/resourceGroups/rg-demo-ma-apps-a/providers/Microsoft.Solutions/applications/mappo-ma-target-01
     - id: demo-target-02
       tenantId: 5476530d-fba1-4cd5-b2c0-fa118c5ff36e
       subscriptionId: 1adaaa48-139a-477b-a8c8-0e6289d6d199
@@ -19,6 +18,5 @@ config:
       environment: prod
       tier: gold
       customerName: Demo Customer B
-      managedApplicationId: /subscriptions/1adaaa48-139a-477b-a8c8-0e6289d6d199/resourceGroups/rg-demo-ma-apps-b/providers/Microsoft.Solutions/applications/mappo-ma-target-02
   demoFleet:existingManagedEnvironmentIdsBySubscription:
     c0d51042-7d0a-41f7-b270-151e4c4ea263: /subscriptions/c0d51042-7d0a-41f7-b270-151e4c4ea263/resourceGroups/rg-mappo-runtime-demo/providers/Microsoft.App/managedEnvironments/cae-mappo-runtime-demo

@@ -1,11 +1,21 @@
 # MAPPO Architecture
 
 ## Overview
-MAPPO is a provider-tenant control plane that orchestrates release rollouts across customer subscriptions in multiple tenants using Azure Managed Application onboarding.
+MAPPO is a provider-tenant control plane that orchestrates release rollouts across customer subscriptions in multiple tenants.
+
+Production intent:
+- Marketplace lifecycle events register customer targets.
+- Publisher management access authorizes MAPPO to mutate customer resources.
+
+Current hosted demo:
+- uses simulated Marketplace lifecycle events,
+- uses Deployment Stacks,
+- does not use live `Microsoft.Solutions/applications`,
+- does not use Template Specs.
 
 ## Core Model
-- Target: a customer-tenant subscription + managed app instance.
-- Release: a Template Spec version and deployment metadata.
+- Target: a customer-tenant subscription + workload deployment context.
+- Release: a versioned deployment artifact reference and rollout metadata.
 - Deployment Run: execution of one release across selected targets.
 
 ## Control Plane Components
@@ -56,18 +66,19 @@ MAPPO is a provider-tenant control plane that orchestrates release rollouts acro
 ## Deployment Direction
 - App services hosted on Azure Container Apps.
 - Frontend sign-in is protected with Azure EasyAuth (Microsoft Entra ID) on the frontend Container App.
-- Azure APIs accessed through provider identity authorization on managed resource groups created by managed application instances.
+- Azure APIs are accessed through the MAPPO runtime principal, including cross-tenant customer-side RBAC where needed.
 - Runtime Azure credentials are resolved per subscription tenant authority (via target tenant ID and/or `MAPPO_AZURE_TENANT_BY_SUBSCRIPTION`) to support cross-tenant deployments.
 - Target discovery is registration-driven (marketplace lifecycle events), not runtime subscription scanning.
 - UI and API are separate deployable containers.
 - Demo automation boundary:
-  - Pulumi IaC provisions managed app definitions, managed app instances, shared ACA environments, and exports MAPPO inventory.
+  - Pulumi IaC provisions Postgres plus the demo-fleet target resource groups, shared ACA environments, and exports target inventory.
   - Runtime ACA deployment is scripted outside Pulumi (`./scripts/runtime_aca_deploy.sh`) into a dedicated runtime resource group to keep Pulumi destroy deterministic.
   - Runtime deploy also manages an ACA Job for Flyway migrations and runs it before app revision rollout (`./scripts/runtime_db_migrate_job_run.sh` for on-demand reruns).
   - EasyAuth app registration + frontend auth wiring is handled by script (`./scripts/runtime_easyauth_configure.sh`) for deterministic post-deploy callback URL binding.
   - CLI scripts provision/deploy the Function App webhook forwarder and replay inventory events through the webhook path.
   - Partner Center offer lifecycle is handled via API/CLI helper scripts.
   - Portal-only steps are documented in `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`.
+  - Current topology is documented in `/Users/cvonderheid/workspace/mappo/docs/demo-azure-topology.md`.
 
 ## Production Auth Model (Marketplace)
 MAPPO production auth is based on managed-application publisher authorization, not ad-hoc customer-side RBAC scripts.
@@ -97,19 +108,20 @@ MAPPO production auth is based on managed-application publisher authorization, n
 
 ## Deployment Scope
 Azure execution is modeled around release source types:
-- `template_spec`: ARM deployment from a Template Spec version per target.
+- `template_spec`: legacy ARM deployment path from a Template Spec version per target.
 - `bicep`: direct Bicep-based deployment source.
 - `deployment_stack`: deployment stack-driven rollout source.
 
 Behavior:
 - Current implementation:
-  - `template_spec` + `resource_group`: executed for real through the Azure Java SDK by wrapping the Template Spec version ID in a nested ARM deployment.
+  - `deployment_stack` + `resource_group`: current live demo path; executed for real through the Azure Java SDK.
+  - `template_spec` + `resource_group`: legacy execution path kept in code, but not used in the current hosted demo.
   - `template_spec` + `subscription`: not implemented yet; MAPPO falls back to simulator mode and records a guardrail warning.
-  - `bicep` / `deployment_stack`: not implemented yet; MAPPO falls back to simulator mode and records a guardrail warning.
+  - `bicep`: not implemented yet; MAPPO falls back to simulator mode and records a guardrail warning.
 - Run orchestration, waves, retries/resume, and stop policies are unchanged.
 - `DeploymentRun.execution_source_type` snapshots the selected release source type for immutable history.
 - Execution settings remain release-scoped (`deployment_scope`, ARM mode, what-if on canary, verify-after-deploy).
-- Template-spec execution records deployment metadata (deployment name/scope/template-spec version id) and surfaces normalized operation/error details in target logs.
+- Deployment-stack execution records stack metadata and surfaces normalized operation/error details in target logs.
 
 ## Determinism + Legibility Contract
 - Stage transitions are append-only and timestamped.
@@ -117,4 +129,5 @@ Behavior:
 - Run-level summaries derive from per-target stage truth.
 
 ## Related Design Docs
-- Template Spec rollout mode: `/Users/cvonderheid/workspace/mappo/docs/template-spec-executor-design.md`
+- Current Azure demo topology: `/Users/cvonderheid/workspace/mappo/docs/demo-azure-topology.md`
+- Legacy template-spec rollout design: `/Users/cvonderheid/workspace/mappo/docs/template-spec-executor-design.md`

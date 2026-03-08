@@ -3,10 +3,16 @@
 This runbook provisions a target fleet separate from MAPPO control-plane infra and simulates
 marketplace lifecycle events without Partner Center.
 
+Current demo truth:
+- no live `Microsoft.Solutions/applications` resources are created,
+- no Template Specs are required,
+- the active release path is `deployment_stack` + Blob artifact + publisher ACR.
+
 ## Purpose
 
 - `infra/pulumi`: MAPPO control plane.
 - `infra/demo-fleet`: target resource groups + Container Apps across customer subscriptions.
+- Live topology reference: `/Users/cvonderheid/workspace/mappo/docs/demo-azure-topology.md`
 
 MAPPO discovers/manages targets through simulated lifecycle events:
 - `subscription_purchased`
@@ -173,21 +179,3 @@ Live-validated constraints for this path:
 - Deployment Stacks are created at resource-group scope.
 - `denySettings.mode` must be set explicitly; MAPPO uses `none`.
 - MAPPO's Azure principal must have `Storage Blob Data Reader` on the artifact storage account.
-
-## 7) Fallback: cross-tenant Template Spec note
-
-The older Template Spec demo path is still available as a fallback. For that path, each release's
-Template Spec version must exist in every target subscription under the same path shape:
-- resource group: `rg-mappo-control-plane-c0d51042`
-- Template Spec name: `mappo-webapp-managed-app`
-- version: release `source_version`
-
-Reason:
-- ARM deployments in the customer tenant cannot link directly to a provider-tenant Template Spec version ID.
-- MAPPO's Java executor rewrites the subscription segment of the provider-side `source_version_ref` to the target subscription and expects a mirrored Template Spec version to exist there.
-
-Practical workflow for a new demo release:
-1. publish the Template Spec version in the provider subscription,
-2. publish the same version in the customer subscription under the mirrored resource group/name,
-3. ingest the release manifest from `cvonderheid/mappo-managed-app`,
-4. start the MAPPO deployment run.

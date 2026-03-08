@@ -1,5 +1,11 @@
 # MAPPO Live Demo Checklist (Marketplace-Accurate Managed App)
 
+Current state note:
+- This checklist describes the future real Marketplace validation path.
+- The current hosted demo does **not** create live `Microsoft.Solutions/applications` managed application instances.
+- The current hosted demo uses simulated lifecycle events plus Deployment Stacks.
+- Current hosted demo topology: `/Users/cvonderheid/workspace/mappo/docs/demo-azure-topology.md`
+
 Use this checklist for a demo aligned to the Marketplace managed application model:
 - MAPPO control plane in provider tenant,
 - managed application instances deployed in customer subscriptions,
@@ -49,7 +55,7 @@ Use this checklist for a demo aligned to the Marketplace managed application mod
   - Register releases through the MAPPO UI or `POST /api/v1/releases`
 - [ ] Optional simulation-only inventory export (for fake webhook replay):
   - `cd infra/pulumi && pulumi stack output mappoTargetInventory --stack <stack> --json > ../../.data/mappo-target-inventory.json`
-- [ ] Verify managed application resource exists (`Microsoft.Solutions/applications`) and points to a managed resource group.
+- [ ] Future marketplace validation only: verify the managed application resource exists (`Microsoft.Solutions/applications`) and points to a managed resource group.
 - [ ] Verify intended target Container App exists in each managed resource group.
 
 ## 4) Marketplace Offering Setup (API/CLI + Portal)

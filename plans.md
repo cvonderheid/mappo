@@ -27,7 +27,7 @@
 
 ## V1 Scope
 1. Target inventory + tagging + current version tracking.
-2. Release registry for Template Spec versions and notes.
+2. Release registry for versioned deployment artifacts and notes.
 3. Deployment runs with all-at-once and basic waves.
 4. Per-target stage/status/logs with correlation IDs.
 5. Retry/resume failed executions.

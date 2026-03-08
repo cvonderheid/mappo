@@ -8,8 +8,7 @@ Status: active execution plan
 The Azure-hosted demo is now working with real deployments across two subscriptions/tenants using
 `deployment_stack` releases.
 
-The older mirrored-Template-Spec path still exists as a fallback demo path, but the validated
-production-shaped direction is now:
+The validated production-shaped direction is now:
 - use Deployment Stacks as the deployment unit,
 - store deployment artifacts in a shared versioned Blob location,
 - keep container images in the publisher ACR,

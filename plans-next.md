@@ -112,7 +112,6 @@ Status: implemented and Azure validated
 
 **Scope**
 - Implement real `deployment_stack` execution using shared Blob-hosted artifacts.
-- Keep the working Template Spec path available until the new path is validated.
 
 **Acceptance criteria**
 - MAPPO can roll out a `deployment_stack` release across the current demo targets.
@@ -180,7 +179,6 @@ Status: demo green; live GitHub webhook delivery setup pending
 ## Deferred Until After Demo
 - Real Partner Center/private-offer validation once publisher prerequisites exist.
 - Alternative customer-local artifact strategy beyond Blob + Deployment Stacks, if needed.
-- Any later pivot to customer-local Template Specs only as a fallback path.
 
 ## Verification Checklist
 - `./mvnw clean install`

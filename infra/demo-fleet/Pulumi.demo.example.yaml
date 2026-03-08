@@ -9,7 +9,6 @@ config:
       environment: prod
       tier: gold
       customerName: "Demo Customer A"
-      managedApplicationId: "/subscriptions/<provider-subscription-guid>/resourceGroups/rg-ma-apps-a/providers/Microsoft.Solutions/applications/mappo-ma-target-01"
     - id: demo-target-02
       tenantId: "<customer-tenant-guid>"
       subscriptionId: "<customer-subscription-guid>"
@@ -18,5 +17,3 @@ config:
       environment: prod
       tier: gold
       customerName: "Demo Customer B"
-      managedApplicationId: "/subscriptions/<customer-subscription-guid>/resourceGroups/rg-ma-apps-b/providers/Microsoft.Solutions/applications/mappo-ma-target-02"
-

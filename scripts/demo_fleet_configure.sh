@@ -159,7 +159,6 @@ pulumi config set --stack "${STACK}" --path "demoFleet:targets[0].region" "${PRO
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[0].environment" "prod"
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[0].tier" "gold"
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[0].customerName" "Demo Customer A"
-pulumi config set --stack "${STACK}" --path "demoFleet:targets[0].managedApplicationId" "/subscriptions/${PROVIDER_SUBSCRIPTION_ID}/resourceGroups/rg-demo-ma-apps-a/providers/Microsoft.Solutions/applications/mappo-ma-target-01"
 
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[1].id" "demo-target-02"
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[1].tenantId" "${CUSTOMER_TENANT_ID}"
@@ -169,7 +168,6 @@ pulumi config set --stack "${STACK}" --path "demoFleet:targets[1].region" "${CUS
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[1].environment" "prod"
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[1].tier" "gold"
 pulumi config set --stack "${STACK}" --path "demoFleet:targets[1].customerName" "Demo Customer B"
-pulumi config set --stack "${STACK}" --path "demoFleet:targets[1].managedApplicationId" "/subscriptions/${CUSTOMER_SUBSCRIPTION_ID}/resourceGroups/rg-demo-ma-apps-b/providers/Microsoft.Solutions/applications/mappo-ma-target-02"
 if [[ -n "${PROVIDER_EXISTING_ENVIRONMENT_ID}" ]]; then
   pulumi config set --stack "${STACK}" --path "demoFleet:existingManagedEnvironmentIdsBySubscription.${PROVIDER_SUBSCRIPTION_ID}" "${PROVIDER_EXISTING_ENVIRONMENT_ID}"
 fi
