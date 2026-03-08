@@ -23,6 +23,8 @@ type RegistrationRow = {
   targetId: string;
   displayName: string;
   customerName: string;
+  deploymentStackName: string;
+  registryAuthMode: string;
   targetGroup: string;
   region: string;
   tier: string;
@@ -101,6 +103,8 @@ export function RegistrationsDataTable({
         targetId: record.targetId ?? "unknown",
         displayName: record.displayName ?? "unknown",
         customerName: record.customerName ?? "unknown",
+        deploymentStackName: record.metadata?.deploymentStackName ?? "auto",
+        registryAuthMode: record.metadata?.registryAuthMode ?? "none",
         targetGroup: normalizeTagValue(record.tags?.ring, "unassigned"),
         region: normalizeTagValue(record.tags?.region, "unknown"),
         tier: normalizeTagValue(record.tags?.tier, "unknown"),
@@ -120,6 +124,8 @@ export function RegistrationsDataTable({
       { accessorKey: "targetId", header: "Target" },
       { accessorKey: "displayName", header: "Display Name" },
       { accessorKey: "customerName", header: "Customer" },
+      { accessorKey: "deploymentStackName", header: "Stack" },
+      { accessorKey: "registryAuthMode", header: "Registry Auth" },
       {
         accessorKey: "targetGroup",
         header: "Group",

@@ -4,8 +4,10 @@ import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ForwarderLogIngestRequest;
 import com.mappo.controlplane.api.request.OnboardingEventRequest;
 import com.mappo.controlplane.api.request.TargetRegistrationPatchRequest;
+import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.jooq.enums.MappoHealthStatus;
 import com.mappo.controlplane.jooq.enums.MappoMarketplaceEventStatus;
+import com.mappo.controlplane.jooq.enums.MappoRegistryAuthMode;
 import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
 import com.mappo.controlplane.model.EventIngestResultRecord;
 import com.mappo.controlplane.model.ForwarderLogIngestResultRecord;
@@ -36,6 +38,7 @@ public class AdminService {
 
     private final AdminRepository adminRepository;
     private final TargetRepository targetRepository;
+    private final MappoProperties properties;
 
     public OnboardingSnapshotRecord getOnboardingSnapshot(int eventLimit) {
         return new OnboardingSnapshotRecord(
@@ -117,6 +120,11 @@ public class AdminService {
                 containerAppResourceId,
                 nullable(request.containerAppName()),
                 defaultIfBlank(request.registrationSource(), "manual"),
+                defaultDeploymentStackName(targetId),
+                defaultRegistryAuthMode(),
+                nullable(properties.getPublisherAcrServer()),
+                nullable(properties.getPublisherAcrPullClientId()),
+                nullable(properties.getPublisherAcrPullSecretName()),
                 eventId,
                 now
             );
@@ -261,6 +269,26 @@ public class AdminService {
             return containerAppId.substring(0, idx);
         }
         return "";
+    }
+
+    private String defaultDeploymentStackName(String targetId) {
+        String normalized = normalizeId(targetId);
+        if (normalized.length() > 48) {
+            normalized = normalized.substring(0, 48);
+        }
+        return "mappo-stack-" + normalized;
+    }
+
+    private MappoRegistryAuthMode defaultRegistryAuthMode() {
+        return hasSharedPublisherAcrConfig()
+            ? MappoRegistryAuthMode.shared_service_principal_secret
+            : MappoRegistryAuthMode.none;
+    }
+
+    private boolean hasSharedPublisherAcrConfig() {
+        return !normalize(properties.getPublisherAcrServer()).isBlank()
+            && !normalize(properties.getPublisherAcrPullClientId()).isBlank()
+            && !normalize(properties.getPublisherAcrPullSecretName()).isBlank();
     }
 
     private String normalize(Object value) {

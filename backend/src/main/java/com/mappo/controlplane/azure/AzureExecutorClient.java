@@ -2,9 +2,11 @@ package com.mappo.controlplane.azure;
 
 import com.azure.core.management.profile.AzureProfile;
 import com.azure.core.management.AzureEnvironment;
+import com.azure.core.credential.TokenCredential;
 import com.azure.identity.ClientSecretCredential;
 import com.azure.identity.ClientSecretCredentialBuilder;
 import com.azure.resourcemanager.AzureResourceManager;
+import com.azure.resourcemanager.resources.ResourceManager;
 import com.azure.resourcemanager.appcontainers.ContainerAppsApiManager;
 import com.mappo.controlplane.config.MappoProperties;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +37,16 @@ public class AzureExecutorClient {
         return AzureResourceManager.authenticate(credential, profile).withSubscription(subscriptionId);
     }
 
+    public TokenCredential createTokenCredential(String tenantId) {
+        String effectiveTenant = blank(tenantId) ? properties.getAzureTenantId() : tenantId;
+        if (!isConfigured()) {
+            throw new IllegalStateException(
+                "Azure SDK is not configured. Set MAPPO_AZURE_TENANT_ID, MAPPO_AZURE_CLIENT_ID, MAPPO_AZURE_CLIENT_SECRET."
+            );
+        }
+        return createCredential(effectiveTenant);
+    }
+
     public ContainerAppsApiManager createContainerAppsManager(String tenantId, String subscriptionId) {
         String effectiveTenant = blank(tenantId) ? properties.getAzureTenantId() : tenantId;
         if (!isConfigured()) {
@@ -43,6 +55,17 @@ public class AzureExecutorClient {
             );
         }
         return ContainerAppsApiManager.authenticate(createCredential(effectiveTenant), createProfile(effectiveTenant, subscriptionId));
+    }
+
+    public ResourceManager createResourceManager(String tenantId, String subscriptionId) {
+        String effectiveTenant = blank(tenantId) ? properties.getAzureTenantId() : tenantId;
+        if (!isConfigured()) {
+            throw new IllegalStateException(
+                "Azure SDK is not configured. Set MAPPO_AZURE_TENANT_ID, MAPPO_AZURE_CLIENT_ID, MAPPO_AZURE_CLIENT_SECRET."
+            );
+        }
+        return ResourceManager.authenticate(createCredential(effectiveTenant), createProfile(effectiveTenant, subscriptionId))
+            .withSubscription(subscriptionId);
     }
 
     private ClientSecretCredential createCredential(String tenantId) {

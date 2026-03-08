@@ -44,3 +44,8 @@ mappo:
   managed-app-release-repo: ${MAPPO_MANAGED_APP_RELEASE_REPO:cvonderheid/mappo-managed-app}
   managed-app-release-path: ${MAPPO_MANAGED_APP_RELEASE_PATH:releases/releases.manifest.json}
   managed-app-release-ref: ${MAPPO_MANAGED_APP_RELEASE_REF:main}
+  managed-app-release-webhook-secret: ${MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET:}
+  publisher-acr-server: ${MAPPO_PUBLISHER_ACR_SERVER:}
+  publisher-acr-pull-client-id: ${MAPPO_PUBLISHER_ACR_PULL_CLIENT_ID:}
+  publisher-acr-pull-client-secret: ${MAPPO_PUBLISHER_ACR_PULL_CLIENT_SECRET:}
+  publisher-acr-pull-secret-name: ${MAPPO_PUBLISHER_ACR_PULL_SECRET_NAME:publisher-acr-pull}

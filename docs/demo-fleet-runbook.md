@@ -52,8 +52,9 @@ What this does:
 
 Required demo RBAC for the MAPPO runtime service principal:
 - Contributor on each target resource group.
-- Reader on the mirrored Template Spec resource group in each target subscription.
 - Contributor on each subscription's shared demo-fleet managed environment resource group so ARM can perform `Microsoft.App/managedEnvironments/join/action` during Container App deployment.
+- `Storage Blob Data Reader` on the release-artifact storage account when using the
+  `deployment_stack` release path.
 
 ## 3) Simulate suspend/delete lifecycle
 
@@ -131,34 +132,52 @@ source .data/mappo-runtime.env
   --ado-ref "main"
 ```
 
-Supported manifest shape:
+Supported manifest shape for the current preferred `deployment_stack` path:
 
 ```json
 {
   "releases": [
     {
-      "source_ref": "/subscriptions/<provider-sub>/resourceGroups/<rg>/providers/Microsoft.Resources/templateSpecs/<name>",
-      "source_version": "2026.03.04.1",
-      "source_type": "template_spec",
+      "source_ref": "https://<storage-account>.blob.core.windows.net/releases/releases/2026.03.07.2/mainTemplate.json",
+      "source_version": "2026.03.07.2",
+      "source_type": "deployment_stack",
       "deployment_scope": "resource_group",
-      "source_version_ref": "/subscriptions/<provider-sub>/resourceGroups/<rg>/providers/Microsoft.Resources/templateSpecs/<name>/versions/2026.03.04.1",
+      "source_version_ref": "https://<storage-account>.blob.core.windows.net/releases/releases/2026.03.07.2/mainTemplate.json",
       "parameter_defaults": {
-        "softwareVersion": "2026.03.04.1",
-        "dataModelVersion": "3"
+        "softwareVersion": "2026.03.07.2",
+        "dataModelVersion": "4",
+        "containerImage": "<publisher-acr>.azurecr.io/mappo-managed-app:2026.03.07.2"
       },
       "release_notes": "Example release",
       "verification_hints": [
-        "GET / returns softwareVersion 2026.03.04.1",
-        "GET / returns dataModelVersion 3"
+        "GET / returns softwareVersion 2026.03.07.2",
+        "GET / returns dataModelVersion 4"
       ]
     }
   ]
 }
 ```
 
-## 6) Cross-tenant Template Spec note
+## 6) Deployment Stack artifact note
 
-For this demo, each release's Template Spec version must exist in every target subscription under the same path shape:
+For the current Java implementation, MAPPO reads the Blob-hosted release artifact with its own
+Azure principal and submits the template inline to the Deployment Stack API.
+
+Reason:
+- the Azure Java SDK currently emits an invalid payload for this use case when `templateLink` is
+  used directly,
+- the current implementation therefore depends on MAPPO having Blob data-plane read access rather
+  than Azure ARM reading the artifact itself.
+
+Live-validated constraints for this path:
+- Deployment Stacks are created at resource-group scope.
+- `denySettings.mode` must be set explicitly; MAPPO uses `none`.
+- MAPPO's Azure principal must have `Storage Blob Data Reader` on the artifact storage account.
+
+## 7) Fallback: cross-tenant Template Spec note
+
+The older Template Spec demo path is still available as a fallback. For that path, each release's
+Template Spec version must exist in every target subscription under the same path shape:
 - resource group: `rg-mappo-control-plane-c0d51042`
 - Template Spec name: `mappo-webapp-managed-app`
 - version: release `source_version`

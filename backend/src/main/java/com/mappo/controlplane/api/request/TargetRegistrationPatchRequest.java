@@ -28,6 +28,11 @@ public record TargetRegistrationPatchRequest(
             nullable(containerAppResourceId),
             metadata == null ? null : nullable(metadata.containerAppName()),
             metadata == null ? null : nullable(metadata.source()),
+            metadata == null ? null : nullable(metadata.deploymentStackName()),
+            metadata == null ? null : metadata.registryAuthMode(),
+            metadata == null ? null : nullable(metadata.registryServer()),
+            metadata == null ? null : nullable(metadata.registryUsername()),
+            metadata == null ? null : nullable(metadata.registryPasswordSecretName()),
             nullable(lastDeployedRelease),
             healthStatus,
             sanitizeTags(tags)

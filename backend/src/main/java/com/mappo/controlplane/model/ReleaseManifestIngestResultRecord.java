@@ -9,6 +9,7 @@ public record ReleaseManifestIngestResultRecord(
     int manifestReleaseCount,
     int createdCount,
     int skippedCount,
+    int ignoredCount,
     List<String> createdReleaseIds
 ) {
 }

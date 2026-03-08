@@ -14,6 +14,8 @@ ACR_NAME=""
 IMAGE_TAG="$(date -u +"%Y%m%d%H%M%S")"
 AZURE_ENV_FILE="${ROOT_DIR}/.data/mappo-azure.env"
 DB_ENV_FILE="${ROOT_DIR}/.data/mappo-db.env"
+PUBLISHER_ACR_ENV_FILE="${ROOT_DIR}/.data/mappo-publisher-acr.env"
+GITHUB_ENV_FILE="${ROOT_DIR}/.data/mappo-github.env"
 OUTPUT_ENV_FILE="${ROOT_DIR}/.data/mappo-runtime.env"
 BACKEND_CPU="0.5"
 BACKEND_MEMORY="1.0Gi"
@@ -45,6 +47,9 @@ Options:
   --image-tag <tag>            Image tag (default: UTC timestamp)
   --azure-env-file <path>      Azure env file (default: .data/mappo-azure.env)
   --db-env-file <path>         DB env file (default: .data/mappo-db.env)
+  --publisher-acr-env-file <path>
+                               Optional publisher ACR env file (default: .data/mappo-publisher-acr.env)
+  --github-env-file <path>     Optional GitHub/webhook env file (default: .data/mappo-github.env)
   --output-env-file <path>     Output env file with deployed URLs (default: .data/mappo-runtime.env)
   --min-replicas <int>         Min replicas per app (default: 1)
   --max-replicas <int>         Max replicas per app (default: 2)
@@ -101,6 +106,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --db-env-file)
       DB_ENV_FILE="${2:-}"
+      shift 2
+      ;;
+    --publisher-acr-env-file)
+      PUBLISHER_ACR_ENV_FILE="${2:-}"
+      shift 2
+      ;;
+    --github-env-file)
+      GITHUB_ENV_FILE="${2:-}"
       shift 2
       ;;
     --output-env-file)
@@ -171,6 +184,12 @@ fi
 set -a
 source "${AZURE_ENV_FILE}"
 source "${DB_ENV_FILE}"
+if [[ -f "${PUBLISHER_ACR_ENV_FILE}" ]]; then
+  source "${PUBLISHER_ACR_ENV_FILE}"
+fi
+if [[ -f "${GITHUB_ENV_FILE}" ]]; then
+  source "${GITHUB_ENV_FILE}"
+fi
 set +a
 
 required_vars=(
@@ -605,6 +624,24 @@ backend_secrets=(
   "azure-client-secret=${MAPPO_AZURE_CLIENT_SECRET}"
   "marketplace-ingest-token=${MAPPO_MARKETPLACE_INGEST_TOKEN}"
 )
+
+if [[ -n "${MAPPO_PUBLISHER_ACR_SERVER:-}" ]]; then
+  backend_env_vars+=("MAPPO_PUBLISHER_ACR_SERVER=${MAPPO_PUBLISHER_ACR_SERVER}")
+fi
+if [[ -n "${MAPPO_PUBLISHER_ACR_PULL_CLIENT_ID:-}" ]]; then
+  backend_env_vars+=("MAPPO_PUBLISHER_ACR_PULL_CLIENT_ID=${MAPPO_PUBLISHER_ACR_PULL_CLIENT_ID}")
+fi
+if [[ -n "${MAPPO_PUBLISHER_ACR_PULL_SECRET_NAME:-}" ]]; then
+  backend_env_vars+=("MAPPO_PUBLISHER_ACR_PULL_SECRET_NAME=${MAPPO_PUBLISHER_ACR_PULL_SECRET_NAME}")
+fi
+if [[ -n "${MAPPO_PUBLISHER_ACR_PULL_CLIENT_SECRET:-}" ]]; then
+  backend_env_vars+=("MAPPO_PUBLISHER_ACR_PULL_CLIENT_SECRET=secretref:publisher-acr-pull-client-secret")
+  backend_secrets+=("publisher-acr-pull-client-secret=${MAPPO_PUBLISHER_ACR_PULL_CLIENT_SECRET}")
+fi
+if [[ -n "${MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET:-}" ]]; then
+  backend_env_vars+=("MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET=secretref:managed-app-release-webhook-secret")
+  backend_secrets+=("managed-app-release-webhook-secret=${MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET}")
+fi
 
 backend_base_url=""
 frontend_base_url=""

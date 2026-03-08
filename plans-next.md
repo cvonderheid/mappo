@@ -3,14 +3,15 @@
 Date: 2026-03-07
 
 ## Phase
-Demo readiness
+Post-demo production-path execution
 
 ## Theme
-Production-shaped Azure demo with explicit repo boundaries:
+Production-shaped Azure rollout model with explicit repo boundaries:
 - this repo deploys MAPPO itself,
 - `/Users/cvonderheid/workspace/mappo-managed-app` defines the customer workload releases,
-- Maven owns build and artifact publish,
-- Azure rollout stays explicit and deterministic.
+- Maven owns MAPPO build and artifact publish,
+- customer workload releases move toward Deployment Stacks + Blob artifacts + publisher ACR,
+- GitHub webhook ingestion becomes the default release trigger into MAPPO.
 
 ## Status Snapshot
 - [x] Java backend cutover completed.
@@ -20,8 +21,12 @@ Production-shaped Azure demo with explicit repo boundaries:
 - [x] Real `template_spec` resource-group execution exists behind a testable strategy seam.
 - [x] Maven deploy contract implemented and dry-verified (`deploy` vs `deploy -Pazure`)
 - [x] Release ingest wired cleanly against `/Users/cvonderheid/workspace/mappo-managed-app`
-- [ ] Azure full demo rebuilt from clean baseline
-- [ ] End-to-end demo validation completed
+- [x] Azure-hosted two-subscription demo validated end to end
+- [x] Production release artifact contract defined in `mappo-managed-app`
+- [x] GitHub webhook-triggered release ingest implemented
+- [x] Real `deployment_stack` execution implemented in the Java backend
+- [x] Publisher ACR pull-auth path modeled into customer runtime rollout
+- [x] Deployment-stack + publisher ACR path validated end to end in Azure
 
 ## Milestone A: MAPPO Deploy Contract
 **Scope**
@@ -57,50 +62,133 @@ Production-shaped Azure demo with explicit repo boundaries:
 - Ingest from `/Users/cvonderheid/workspace/mappo-managed-app/releases/releases.manifest.json`
 - Confirm releases appear in MAPPO UI/API
 
-## Milestone C: Azure Demo Rebuild
+## Milestone C: Production Release Publication Contract
+Status: implemented
+
 **Scope**
-- Recreate runtime, forwarder, DB, and demo-fleet from the cleaned Java baseline.
-- Use simulated Marketplace events through the real forwarder/onboarding path.
-- Start from a clean DB/runtime state.
+- Define the production release manifest and publication workflow in `mappo-managed-app`.
+- Publish immutable deployment artifacts to Blob.
+- Publish immutable workload images to publisher ACR.
 
 **Acceptance criteria**
-- Clean bring-up works without hidden seed data.
-- Targets appear from onboarding events, not manual import as the default path.
-- Hosted MAPPO UI is fully usable against Azure-backed state.
+- A new release can be created with one workflow.
+- Manifest metadata points at Blob + ACR artifacts, not provider-tenant Template Specs.
+- MAPPO can ingest the published manifest without MAPPO code changes.
 
 **Verification**
-- `./scripts/azure_preflight.sh`
-- runtime/forwarder deploy
-- demo-fleet up
-- simulated onboarding import through the forwarder/backend path
+- Release publication flow in `mappo-managed-app`
+- Manifest ingest into MAPPO
+- Artifact references validated before rollout
 
-## Milestone D: Full Demo Validation
+**Implemented**
+- `mappo-managed-app/scripts/create_release.mjs`
+- `mappo-managed-app/scripts/publish_release.mjs`
+- production-shaped manifest fields in `releases/releases.manifest.json`
+
+## Milestone D: GitHub Webhook Release Ingest
+Status: implemented
+
 **Scope**
-- Execute the full demo the current account model supports.
-- Validate the same control-plane behavior we would rely on in production, minus Partner Center delivery.
+- Add GitHub webhook-triggered release ingest to MAPPO.
+- Verify webhook signatures and fetch the manifest from GitHub after the event.
 
 **Acceptance criteria**
-- Demo proves:
-  - onboarding events,
-  - target registration,
-  - release ingest,
-  - canary rollout,
-  - broader rollout,
-  - logs/status/health/version updates.
-- Remaining gaps are recorded as product backlog, not implicit operator knowledge.
+- MAPPO does not trust raw webhook payloads as release definitions.
+- New manifests in `cvonderheid/mappo-managed-app` can be ingested automatically.
+- Delivery dedupe and repo/ref allowlisting are in place.
+
+**Verification**
+- GitHub webhook event -> MAPPO fetch -> release ingest
+- Duplicate delivery suppression
+
+**Implemented**
+- `POST /api/v1/admin/releases/webhooks/github`
+- HMAC verification
+- repo/ref/path allowlisting
+- published-release ingest with draft suppression
+
+## Milestone E: Deployment Stack Execution
+Status: implemented and Azure validated
+
+**Scope**
+- Implement real `deployment_stack` execution using shared Blob-hosted artifacts.
+- Keep the working Template Spec path available until the new path is validated.
+
+**Acceptance criteria**
+- MAPPO can roll out a `deployment_stack` release across the current demo targets.
+- Run detail includes stack-level logs, correlation, and failure normalization.
+
+**Verification**
+- End-to-end stack update in both demo subscriptions
+- Version/data-model verification in both target workloads
+
+**Current state**
+- Java deployment-stack executor is wired through the existing run orchestration seam.
+- Backend integration coverage exists for the execution strategy.
+- Azure-hosted execution is validated end to end across both demo targets.
+- Current design constraints from live Azure execution:
+  - use resource-group-scoped Deployment Stacks for the current MRG permission model,
+  - set explicit `denySettings`,
+  - fetch Blob artifacts in MAPPO and submit inline templates because the Azure SDK
+    `templateLink` path emitted invalid payloads.
+
+## Milestone F: Customer Runtime Registry Auth
+Status: implemented and Azure validated
+**Scope**
+- Add the production image-pull auth model for customer workloads using publisher ACR.
+
+**Acceptance criteria**
+- Deployed customer workloads can pull publisher-hosted images without manual customer action.
+- Pull credential storage and rotation are explicit operator workflows.
+
+**Verification**
+- ACR pull credential injection
+- Successful customer workload pull after release rollout
+
+**Current state**
+- Target registration metadata captures deployment-stack and registry auth settings.
+- Onboarding derives shared publisher-ACR auth defaults from MAPPO runtime config.
+- The managed workload template accepts registry credentials and secret-name parameters.
+- The deployment-stack executor injects shared-service-principal registry parameters.
+- Live Azure validation proved customer pull success across both demo targets.
+
+## Milestone G: End-To-End Production-Shaped Validation
+Status: demo green; live GitHub webhook delivery setup pending
+**Scope**
+- Validate the full post-demo architecture in the current two-subscription environment.
+
+**Acceptance criteria**
+- Simulated onboarding
+- GitHub-triggered release ingest
+- Deployment Stack rollout
+- Publisher ACR image pull
+- Version/data-model verification in both customer targets
 
 **Verification**
 - Full walkthrough from clean Azure state
-- Runbook updated from actual execution
+- Runbooks updated from actual execution
+
+**Current state**
+- Simulated Marketplace onboarding is working in the hosted environment.
+- `deployment_stack` release execution is green across both demo targets.
+- Both target workloads report the expected software/data-model versions after rollout.
+- The hosted backend has its GitHub webhook secret configured via
+  `./scripts/github_release_webhook_bootstrap.sh`.
+- The remaining live step is wiring the real GitHub webhook from
+  `cvonderheid/mappo-managed-app` into the hosted MAPPO endpoint.
 
 ## Deferred Until After Demo
-- Real `template_spec` execution at subscription scope.
-- Real `deployment_stack` execution.
-- Real `bicep` execution.
 - Real Partner Center/private-offer validation once publisher prerequisites exist.
+- Alternative customer-local artifact strategy beyond Blob + Deployment Stacks, if needed.
+- Any later pivot to customer-local Template Specs only as a fallback path.
 
 ## Verification Checklist
 - `./mvnw clean install`
 - `./mvnw deploy -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX" -Dmappo.image.tag="<image-tag>"`
 - `./mvnw -Pazure deploy -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX" -Dmappo.image.tag="<image-tag>" -Dpulumi.stack="<stack>"`
-- Azure demo smoke: onboarding -> release ingest -> canary rollout -> broader rollout
+- GitHub webhook -> release ingest
+- Deployment Stack rollout across both demo targets
+- Workload version/data-model verification across both demo targets
+
+## Detailed Plan
+- `/Users/cvonderheid/workspace/mappo/docs/azure-production-execution-plan.md`

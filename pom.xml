@@ -26,6 +26,8 @@
     <testcontainers.jooq.codegen.maven.plugin.version>0.0.4</testcontainers.jooq.codegen.maven.plugin.version>
     <docker.maven.plugin.version>0.45.0</docker.maven.plugin.version>
     <docker.image.prefix>${env.MAPPO_IMAGE_PREFIX}</docker.image.prefix>
+    <docker.registry.username>${env.MAPPO_DOCKER_USERNAME}</docker.registry.username>
+    <docker.registry.password>${env.MAPPO_DOCKER_PASSWORD}</docker.registry.password>
     <docker.platforms>linux/amd64</docker.platforms>
     <mappo.image.tag>${project.version}</mappo.image.tag>
     <pulumi.stack>dev</pulumi.stack>
@@ -128,7 +130,7 @@
               <executable>bash</executable>
               <arguments>
                 <argument>-lc</argument>
-                <argument>if [[ -z "${docker.image.prefix}" ]]; then echo "mappo deploy: set MAPPO_IMAGE_PREFIX or -Ddocker.image.prefix=&lt;registry-login-server&gt; before running mvn deploy." >&amp;2; exit 1; fi</argument>
+                <argument>if [[ -z "${docker.image.prefix}" ]]; then echo "mappo deploy: set MAPPO_IMAGE_PREFIX or -Ddocker.image.prefix=&lt;registry-login-server&gt; before running mvn deploy." >&amp;2; exit 1; fi; if [[ -z "${docker.registry.username}" || -z "${docker.registry.password}" ]]; then echo "mappo deploy: set MAPPO_DOCKER_USERNAME and MAPPO_DOCKER_PASSWORD (or -Ddocker.registry.username/-Ddocker.registry.password) before running mvn deploy." >&amp;2; exit 1; fi</argument>
               </arguments>
             </configuration>
           </execution>

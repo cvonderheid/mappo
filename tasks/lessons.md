@@ -105,3 +105,9 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Preventative rule: When fixing duplicated data ownership, audit and correct the full duplicated field set in one slice.
 - Detection signal: Fleet and Admin views show different values for the same registered target after an edit.
 - Enforcement (test/lint/checklist): keep one regression test that tampers duplicated registration-owned fields and verifies projection consistency.
+
+- Date: 2026-03-08
+- Pattern: Azure control-plane features that look straightforward in SDK examples can still fail at live runtime because scope rules and SDK serialization quirks differ from the intended architecture.
+- Preventative rule: Treat every new Azure execution mode as unproven until it completes one live end-to-end rollout, and document the exact scope/auth/SDK constraints discovered there.
+- Detection signal: integration tests pass, but Azure returns schema/scope errors such as missing `denySettings`, invalid `template: null`, or authorization failures at subscription-root scope.
+- Enforcement (test/lint/checklist): after implementing an Azure executor, run one real deployment against the hosted demo targets and write the live findings back into the runbook/plan before calling the milestone complete.

@@ -1,5 +1,6 @@
 package com.mappo.controlplane.model.command;
 
+import com.mappo.controlplane.jooq.enums.MappoRegistryAuthMode;
 import java.time.OffsetDateTime;
 
 public record TargetRegistrationUpsertCommand(
@@ -11,6 +12,11 @@ public record TargetRegistrationUpsertCommand(
     String containerAppResourceId,
     String containerAppName,
     String registrationSource,
+    String deploymentStackName,
+    MappoRegistryAuthMode registryAuthMode,
+    String registryServer,
+    String registryUsername,
+    String registryPasswordSecretName,
     String lastEventId,
     OffsetDateTime createdAt
 ) {

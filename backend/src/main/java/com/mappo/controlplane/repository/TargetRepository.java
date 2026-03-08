@@ -156,6 +156,11 @@ public class TargetRepository {
                 TARGETS.TENANT_ID,
                 TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID,
                 TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID,
+                TARGET_REGISTRATIONS.DEPLOYMENT_STACK_NAME,
+                TARGET_REGISTRATIONS.REGISTRY_AUTH_MODE,
+                TARGET_REGISTRATIONS.REGISTRY_SERVER,
+                TARGET_REGISTRATIONS.REGISTRY_USERNAME,
+                TARGET_REGISTRATIONS.REGISTRY_PASSWORD_SECRET_NAME,
                 TARGETS.SIMULATED_FAILURE_MODE
             )
             .from(TARGETS)
@@ -175,6 +180,11 @@ public class TargetRepository {
                 row.get(TARGETS.TENANT_ID),
                 row.get(TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID),
                 row.get(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID),
+                row.get(TARGET_REGISTRATIONS.DEPLOYMENT_STACK_NAME),
+                row.get(TARGET_REGISTRATIONS.REGISTRY_AUTH_MODE),
+                row.get(TARGET_REGISTRATIONS.REGISTRY_SERVER),
+                row.get(TARGET_REGISTRATIONS.REGISTRY_USERNAME),
+                row.get(TARGET_REGISTRATIONS.REGISTRY_PASSWORD_SECRET_NAME),
                 tagsByTarget.getOrDefault(targetId, Map.of()),
                 row.get(TARGETS.SIMULATED_FAILURE_MODE)
             ));

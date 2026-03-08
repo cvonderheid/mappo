@@ -8,28 +8,38 @@ Owner: Codex
 - Frontend build/test/codegen lifecycle is owned by `/Users/cvonderheid/workspace/mappo/frontend/pom.xml`.
 - Active operator docs use Maven for build lifecycles and direct scripts/Pulumi for runtime operations.
 - The legacy backend implementation has been removed from the active repo surface.
-- Real Azure execution currently exists for `template_spec` at resource-group scope.
+- Real Azure execution currently exists for `template_spec` at resource-group scope and
+  `deployment_stack` at resource-group scope.
 - MAPPO runtime + forwarder live in `/Users/cvonderheid/workspace/mappo`.
 - The customer workload/release-definition repo lives in `/Users/cvonderheid/workspace/mappo-managed-app`.
 
 ## Scope (Current Slice)
-Azure full-demo readiness with the final repo split:
-- keep this repo focused on MAPPO runtime, forwarder, and operator workflows,
-- treat `mappo-managed-app` as the release-definition repo that MAPPO ingests and deploys,
-- finish the Maven deploy model so artifact publish and Azure rollout are explicit,
-- bring the Azure-hosted demo to a production-shaped state using simulated Marketplace events.
+Post-demo production-path planning and execution setup:
+- keep this repo focused on MAPPO runtime, forwarder, and rollout orchestration,
+- treat `mappo-managed-app` as the release-definition repo that publishes workload artifacts,
+- pivot from the demo-only mirrored Template Spec model toward Deployment Stacks +
+  Blob-hosted artifacts + publisher ACR image pulls,
+- make GitHub webhook-triggered release ingest the default release registration path.
 
 ## Plan (Current Slice)
 - [x] Milestone 1: Finalize the deploy contract for this repo.
-- [ ] Milestone 2: Wire release ingestion against `/Users/cvonderheid/workspace/mappo-managed-app`.
-- [ ] Milestone 3: Rebuild the Azure demo from the clean Java/Maven baseline.
-- [ ] Milestone 4: Run the full Azure-hosted demo end to end and record operator runbooks/gaps.
+- [x] Milestone 2: Wire release ingestion against `/Users/cvonderheid/workspace/mappo-managed-app`.
+- [x] Milestone 3: Rebuild the Azure demo from the clean Java/Maven baseline.
+- [x] Milestone 4: Run the full Azure-hosted demo end to end and record operator runbooks/gaps.
+- [x] Milestone 5: Define the production release artifact contract for Deployment Stacks.
+- [x] Milestone 6: Implement GitHub webhook-triggered release ingest.
+- [x] Milestone 7: Implement real `deployment_stack` execution with Blob-hosted artifacts.
+- [x] Milestone 8: Add publisher ACR pull-auth flow to the customer runtime model.
+- [x] Milestone 9: Validate deployment-stack + publisher ACR rollout in Azure.
 
 ## Verification Commands (Current Slice)
 - [x] `./mvnw clean install`
 - [x] `./mvnw deploy` (dry-verified with `-Ddocker.skip=true`)
 - [x] `./mvnw deploy -Pazure` (dry-verified with `-Ddocker.skip=true -Dexec.skip=true`)
 - [x] Azure demo smoke: release ingest -> cross-tenant rollout -> workload version/data-model verification
+- [x] GitHub webhook -> manifest fetch -> release ingest
+- [x] Deployment Stack rollout across both demo targets
+- [x] Publisher ACR image pull validation in both demo targets
 
 ## Results Log (Current Slice)
 - 2026-03-06: Cleaned active docs to remove removed Makefile and Python-backend workflow references.
@@ -56,6 +66,18 @@ Azure full-demo readiness with the final repo split:
 - 2026-03-07: Reconciled the demo-fleet stack after drift removed the provider target resource group, refreshed Pulumi state, and recreated the missing provider target resources.
 - 2026-03-07: Resolved the remaining customer-target deployment failures by granting the customer-tenant runtime principal Reader on the mirrored Template Spec resource group and Contributor on the shared demo-fleet managed environment resource group.
 - 2026-03-07: Verified an end-to-end hosted run (`run-ee6b20eff2`) succeeded across both target subscriptions and confirmed both target endpoints now return `softwareVersion=2026.03.07.1` and `dataModelVersion=3`.
+- 2026-03-07: Wrote the post-demo production execution plan in `docs/azure-production-execution-plan.md`, capturing the Deployment Stack + Blob + publisher ACR + GitHub webhook direction that replaces the demo-only mirrored Template Spec model.
+- 2026-03-07: Reworked `/Users/cvonderheid/workspace/mappo-managed-app/releases/releases.manifest.json` around a production-shaped release contract and added `scripts/create_release.mjs` plus `scripts/publish_release.mjs` to create draft releases and publish Blob/ACR-backed artifacts.
+- 2026-03-07: Added GitHub webhook-triggered release ingest at `/api/v1/admin/releases/webhooks/github`, including HMAC verification, repo/ref/path allowlisting, manifest refetch, and draft-release suppression.
+- 2026-03-07: Added a real Java `deployment_stack` executor strategy behind the existing run orchestration seam and verified it with targeted backend integration coverage.
+- 2026-03-07: Modeled publisher ACR pull-auth into target registration metadata, onboarding defaults, deployment-stack parameter injection, and the managed workload template so the remaining work is Azure-side validation rather than schema/runtime design.
+- 2026-03-08: Validated the `deployment_stack` path live across both Azure demo targets and fixed the real Azure constraints the code hit:
+  - Deployment Stacks must be created at resource-group scope for the current managed-resource-group permission model.
+  - The Azure Java SDK emitted an invalid `template: null` payload when using `templateLink`, so MAPPO now reads Blob artifacts directly and submits inline templates.
+  - Deployment Stacks require explicit `denySettings`; MAPPO now sets `mode = none`.
+  - MAPPO's Azure principal needed `Storage Blob Data Reader` on the release-artifact storage account.
+- 2026-03-08: Verified the publisher ACR pull-auth path end to end in Azure; both demo targets rolled to release `2026.03.07.2` and reported `dataModelVersion = 4`.
+- 2026-03-08: Added `scripts/github_release_webhook_bootstrap.sh`, configured the hosted backend with `MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET`, and reduced the remaining live GitHub step to repository-side webhook creation.
 
 ## Milestones
 
@@ -124,8 +146,15 @@ Azure full-demo readiness with the final repo split:
 - [ ] Clean-slate rerun of the hosted forwarder path in this slice
 
 ## Active Backlog After Demo
-- Implement real `template_spec` execution at subscription scope.
-- Implement real `deployment_stack` execution.
-- Implement real `bicep` execution.
+- Configure live GitHub webhook delivery from `cvonderheid/mappo-managed-app` into the hosted MAPPO environment.
+- Decide whether to keep the current inline-template Deployment Stack path as the production implementation or invest in a lower-level Azure REST path for direct `templateLink` support.
 - Move more steady-state runtime/forwarder lifecycle into Pulumi where appropriate.
 - Keep the real Partner Center/private-offer path documented and ready for later validation when publisher-account prerequisites are available.
+
+## Current Focus
+- Wire the live GitHub webhook from `cvonderheid/mappo-managed-app` into the hosted MAPPO environment.
+- Capture the final operator runbook for the deployment-stack demo path.
+- Keep the Template Spec path as a fallback demo mode only.
+
+## Detailed Plan Reference
+- `/Users/cvonderheid/workspace/mappo/docs/azure-production-execution-plan.md`

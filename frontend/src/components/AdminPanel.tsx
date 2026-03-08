@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
   AdminOnboardingSnapshotResponse,
@@ -45,6 +46,11 @@ type AdminPanelProps = {
   onRefreshSnapshot: () => Promise<void>;
 };
 
+type RegistryAuthMode =
+  | "none"
+  | "shared_service_principal_secret"
+  | "customer_managed_secret";
+
 function normalizeTagValue(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() !== "" ? value : fallback;
 }
@@ -68,6 +74,13 @@ export default function AdminPanel({
   const [editManagedApplicationId, setEditManagedApplicationId] = useState<string>("");
   const [editManagedResourceGroupId, setEditManagedResourceGroupId] = useState<string>("");
   const [editContainerAppResourceId, setEditContainerAppResourceId] = useState<string>("");
+  const [editDeploymentStackName, setEditDeploymentStackName] = useState<string>("");
+  const [editRegistryAuthMode, setEditRegistryAuthMode] =
+    useState<RegistryAuthMode>("none");
+  const [editRegistryServer, setEditRegistryServer] = useState<string>("");
+  const [editRegistryUsername, setEditRegistryUsername] = useState<string>("");
+  const [editRegistryPasswordSecretName, setEditRegistryPasswordSecretName] =
+    useState<string>("");
   const [editTargetGroup, setEditTargetGroup] = useState<string>("prod");
   const [editRegion, setEditRegion] = useState<string>("eastus");
   const [editEnvironment, setEditEnvironment] = useState<string>("prod");
@@ -94,6 +107,13 @@ export default function AdminPanel({
     setEditManagedApplicationId(registration.managedApplicationId ?? "");
     setEditManagedResourceGroupId(registration.managedResourceGroupId ?? "");
     setEditContainerAppResourceId(registration.containerAppResourceId ?? "");
+    setEditDeploymentStackName(registration.metadata?.deploymentStackName ?? "");
+    setEditRegistryAuthMode(registration.metadata?.registryAuthMode ?? "none");
+    setEditRegistryServer(registration.metadata?.registryServer ?? "");
+    setEditRegistryUsername(registration.metadata?.registryUsername ?? "");
+    setEditRegistryPasswordSecretName(
+      registration.metadata?.registryPasswordSecretName ?? ""
+    );
     setEditTargetGroup(normalizeTagValue(registration.tags?.ring, "prod"));
     setEditRegion(normalizeTagValue(registration.tags?.region, "unknown"));
     setEditEnvironment(normalizeTagValue(registration.tags?.environment, "prod"));
@@ -136,6 +156,15 @@ export default function AdminPanel({
       customerName: editCustomerName.trim() || undefined,
       managedApplicationId: editManagedApplicationId.trim() || undefined,
       containerAppResourceId: editContainerAppResourceId.trim(),
+      metadata: {
+        deploymentStackName: editDeploymentStackName.trim() || undefined,
+        registryAuthMode:
+          editRegistryAuthMode === "none" ? "none" : editRegistryAuthMode,
+        registryServer: editRegistryServer.trim() || undefined,
+        registryUsername: editRegistryUsername.trim() || undefined,
+        registryPasswordSecretName:
+          editRegistryPasswordSecretName.trim() || undefined,
+      },
       tags: {
         ring: editTargetGroup.trim() || "prod",
         region: editRegion.trim() || "unknown",
@@ -241,6 +270,68 @@ export default function AdminPanel({
                     />
                   </div>
                   <div className="space-y-1">
+                    <Label htmlFor="edit-deployment-stack-name">Deployment Stack Name</Label>
+                    <Input
+                      id="edit-deployment-stack-name"
+                      value={editDeploymentStackName}
+                      onChange={(item) => setEditDeploymentStackName(item.target.value)}
+                      placeholder="mappo-stack-target-01"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-registry-auth-mode">Registry Auth Mode</Label>
+                    <Select
+                      value={editRegistryAuthMode}
+                      onValueChange={(value) =>
+                        setEditRegistryAuthMode(value as RegistryAuthMode)
+                      }
+                    >
+                      <SelectTrigger id="edit-registry-auth-mode">
+                        <SelectValue placeholder="Select auth mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="shared_service_principal_secret">
+                          Shared Service Principal
+                        </SelectItem>
+                        <SelectItem value="customer_managed_secret">
+                          Customer Managed Secret
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-registry-server">Registry Server</Label>
+                    <Input
+                      id="edit-registry-server"
+                      value={editRegistryServer}
+                      onChange={(item) => setEditRegistryServer(item.target.value)}
+                      placeholder="acr.example.azurecr.io"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-registry-username">Registry Username</Label>
+                    <Input
+                      id="edit-registry-username"
+                      value={editRegistryUsername}
+                      onChange={(item) => setEditRegistryUsername(item.target.value)}
+                      placeholder="service-principal-client-id"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-registry-password-secret-name">
+                      Registry Password Secret Name
+                    </Label>
+                    <Input
+                      id="edit-registry-password-secret-name"
+                      value={editRegistryPasswordSecretName}
+                      onChange={(item) =>
+                        setEditRegistryPasswordSecretName(item.target.value)
+                      }
+                      placeholder="publisher-acr-pull"
+                    />
+                  </div>
+                  <div className="space-y-1">
                     <Label htmlFor="edit-target-group">Target Group</Label>
                     <Input
                       id="edit-target-group"
@@ -323,7 +414,7 @@ export default function AdminPanel({
 
       {releaseIngestResult ? (
         <div className="rounded-md border border-border/70 bg-card/70 p-3 text-sm text-foreground">
-          {`Ingested ${releaseIngestResult.createdCount} new release(s), skipped ${releaseIngestResult.skippedCount}, manifest entries ${releaseIngestResult.manifestReleaseCount}.`}
+          {`Ingested ${releaseIngestResult.createdCount} new release(s), skipped ${releaseIngestResult.skippedCount}, ignored drafts ${releaseIngestResult.ignoredCount ?? 0}, manifest entries ${releaseIngestResult.manifestReleaseCount}.`}
         </div>
       ) : null}
 

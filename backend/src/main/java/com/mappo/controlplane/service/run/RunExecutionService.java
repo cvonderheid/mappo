@@ -30,6 +30,7 @@ public class RunExecutionService {
     private final RunRepository runRepository;
     private final TargetRepository targetRepository;
     private final TemplateSpecExecutor templateSpecExecutor;
+    private final DeploymentStackExecutor deploymentStackExecutor;
 
     public void executeRun(
         String runId,
@@ -183,6 +184,34 @@ public class RunExecutionService {
             );
         }
 
+        if (useRealDeploymentStackExecution(release, azureConfigured)
+            && (blank(context.managedResourceGroupId()) || blank(context.containerAppResourceId()))) {
+            return failStage(
+                runId,
+                target.id(),
+                MappoTargetStage.VALIDATING,
+                correlationId,
+                "Target is missing execution metadata required for deployment_stack execution.",
+                new StageErrorRecord(
+                    "TARGET_CONFIGURATION_INVALID",
+                    "Target is missing execution metadata required for deployment_stack execution.",
+                    new StageErrorDetailsRecord(
+                        null,
+                        "managedResourceGroupId or containerAppResourceId is blank",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        correlationId,
+                        null,
+                        null,
+                        context.containerAppResourceId()
+                    )
+                )
+            );
+        }
+
         OffsetDateTime endedAt = now();
         String message = validationMessage(release, target, context, azureConfigured);
         runRepository.appendTargetStage(
@@ -230,9 +259,7 @@ public class RunExecutionService {
         );
 
         try {
-            TargetDeploymentOutcome outcome = useRealTemplateSpecExecution(release, azureConfigured)
-                ? templateSpecExecutor.deploy(runId, release, context)
-                : simulateDeployment(runId, release, context);
+            TargetDeploymentOutcome outcome = deployOutcome(runId, release, context, azureConfigured);
 
             OffsetDateTime endedAt = now();
             runRepository.appendTargetStage(
@@ -488,10 +515,10 @@ public class RunExecutionService {
 
     private List<String> buildWarnings(ReleaseRecord release, List<TargetRecord> targets, boolean azureConfigured) {
         List<String> warnings = new ArrayList<>();
-        if (useRealTemplateSpecExecution(release, azureConfigured) && release.executionSettings().whatIfOnCanary()) {
+        if (useRealExecution(release, azureConfigured) && release.executionSettings().whatIfOnCanary()) {
             warnings.add("whatIfOnCanary is configured but not implemented yet; live deployment will proceed directly.");
         }
-        if (useRealTemplateSpecExecution(release, azureConfigured)) {
+        if (useRealExecution(release, azureConfigured)) {
             return warnings;
         }
 
@@ -522,8 +549,19 @@ public class RunExecutionService {
             && release.deploymentScope().getLiteral().equals("resource_group");
     }
 
+    private boolean useRealDeploymentStackExecution(ReleaseRecord release, boolean azureConfigured) {
+        return azureConfigured
+            && release.sourceType() == MappoReleaseSourceType.deployment_stack
+            && release.deploymentScope().getLiteral().equals("resource_group");
+    }
+
+    private boolean useRealExecution(ReleaseRecord release, boolean azureConfigured) {
+        return useRealTemplateSpecExecution(release, azureConfigured)
+            || useRealDeploymentStackExecution(release, azureConfigured);
+    }
+
     private boolean isSimulatorMode(ReleaseRecord release, boolean azureConfigured) {
-        return !useRealTemplateSpecExecution(release, azureConfigured);
+        return !useRealExecution(release, azureConfigured);
     }
 
     private boolean hasTagValue(List<TargetRecord> targets, String key, String expected) {
@@ -545,6 +583,9 @@ public class RunExecutionService {
         if (useRealTemplateSpecExecution(release, azureConfigured)) {
             return "Validated target " + target.id() + "; deploying into resource group " + resourceGroupName(context.managedResourceGroupId()) + ".";
         }
+        if (useRealDeploymentStackExecution(release, azureConfigured)) {
+            return "Validated target " + target.id() + "; updating deployment stack scope " + context.managedResourceGroupId() + ".";
+        }
         return "Validated target " + target.id() + " for simulator execution.";
     }
 
@@ -552,7 +593,25 @@ public class RunExecutionService {
         if (useRealTemplateSpecExecution(release, azureConfigured)) {
             return "Verification passed: ARM deployment completed successfully.";
         }
+        if (useRealDeploymentStackExecution(release, azureConfigured)) {
+            return "Verification passed: deployment stack completed successfully.";
+        }
         return "Verification passed in simulator mode.";
+    }
+
+    private TargetDeploymentOutcome deployOutcome(
+        String runId,
+        ReleaseRecord release,
+        TargetExecutionContextRecord context,
+        boolean azureConfigured
+    ) {
+        if (useRealTemplateSpecExecution(release, azureConfigured)) {
+            return templateSpecExecutor.deploy(runId, release, context);
+        }
+        if (useRealDeploymentStackExecution(release, azureConfigured)) {
+            return deploymentStackExecutor.deploy(runId, release, context);
+        }
+        return simulateDeployment(runId, release, context);
     }
 
     private String haltReasonFor(RunStopPolicyRecord stopPolicy, int failedCount, int processedCount, int totalTargets) {

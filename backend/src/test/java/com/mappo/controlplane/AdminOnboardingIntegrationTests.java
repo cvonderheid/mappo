@@ -64,10 +64,23 @@ class AdminOnboardingIntegrationTests extends PostgresIntegrationTestBase {
 
         mockMvc.perform(patch("/api/v1/admin/onboarding/registrations/target-admin-01")
                 .contentType(APPLICATION_JSON)
-                .content("{\"customerName\":\"Acme Updated\"}"))
+                .content("""
+                    {
+                      "customerName": "Acme Updated",
+                      "metadata": {
+                        "deploymentStackName": "mappo-stack-acme-01",
+                        "registryAuthMode": "shared_service_principal_secret",
+                        "registryServer": "acrmappodemo.azurecr.io",
+                        "registryUsername": "00000000-0000-0000-0000-000000000123",
+                        "registryPasswordSecretName": "publisher-acr-pull"
+                      }
+                    }
+                    """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.targetId").value("target-admin-01"))
-            .andExpect(jsonPath("$.customerName").value("Acme Updated"));
+            .andExpect(jsonPath("$.customerName").value("Acme Updated"))
+            .andExpect(jsonPath("$.metadata.deploymentStackName").value("mappo-stack-acme-01"))
+            .andExpect(jsonPath("$.metadata.registryAuthMode").value("shared_service_principal_secret"));
 
         mockMvc.perform(get("/api/v1/targets"))
             .andExpect(status().isOk())
@@ -90,6 +103,11 @@ class AdminOnboardingIntegrationTests extends PostgresIntegrationTestBase {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.registrations[0].metadata.containerAppName").value("ca-target-admin-01"))
             .andExpect(jsonPath("$.registrations[0].metadata.source").value("marketplace-forwarder"))
+            .andExpect(jsonPath("$.registrations[0].metadata.deploymentStackName").value("mappo-stack-acme-01"))
+            .andExpect(jsonPath("$.registrations[0].metadata.registryAuthMode").value("shared_service_principal_secret"))
+            .andExpect(jsonPath("$.registrations[0].metadata.registryServer").value("acrmappodemo.azurecr.io"))
+            .andExpect(jsonPath("$.registrations[0].metadata.registryUsername").value("00000000-0000-0000-0000-000000000123"))
+            .andExpect(jsonPath("$.registrations[0].metadata.registryPasswordSecretName").value("publisher-acr-pull"))
             .andExpect(jsonPath("$.events[0].payload.registrationSource").value("marketplace-forwarder"))
             .andExpect(jsonPath("$.events[0].payload.marketplacePayloadId").value("mp-evt-001"))
             .andExpect(jsonPath("$.forwarderLogs[0].details.detail").value("customer mapping missing"))

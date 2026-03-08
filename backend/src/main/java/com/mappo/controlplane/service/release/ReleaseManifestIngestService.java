@@ -11,12 +11,16 @@ import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.service.ReleaseService;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -25,6 +29,10 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 @RequiredArgsConstructor
 public class ReleaseManifestIngestService {
+
+    private static final String GITHUB_PUSH_EVENT = "push";
+    private static final String GITHUB_PING_EVENT = "ping";
+    private static final String GITHUB_SIGNATURE_PREFIX = "sha256=";
 
     private final ReleaseService releaseService;
     private final ReleaseManifestSourceClient sourceClient;
@@ -42,7 +50,63 @@ public class ReleaseManifestIngestService {
         }
 
         String manifest = sourceClient.fetchGithubManifest(repo, path, ref);
-        List<ReleaseCreateRequest> requests = parseManifest(manifest);
+        return ingestManifest(repo, path, ref, allowDuplicates, manifest);
+    }
+
+    public ReleaseManifestIngestResultRecord ingestGithubWebhook(
+        String rawPayload,
+        String githubEvent,
+        String signatureHeader
+    ) {
+        String configuredSecret = normalize(properties.getManagedAppReleaseWebhookSecret());
+        if (configuredSecret.isBlank()) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "managed app release webhook secret is not configured");
+        }
+        if (normalize(rawPayload).isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "github webhook payload is required");
+        }
+
+        verifyGithubSignature(rawPayload, signatureHeader, configuredSecret);
+        Map<?, ?> payload = readJsonObject(rawPayload, "github webhook payload is not valid JSON");
+        String repo = normalize(readNestedValue(payload, "repository", "full_name"));
+        if (repo.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "github webhook payload missing repository.full_name");
+        }
+
+        String expectedRepo = normalize(properties.getManagedAppReleaseRepo());
+        if (!expectedRepo.isBlank() && !expectedRepo.equals(repo)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "github webhook repo is not allowed: " + repo);
+        }
+
+        String normalizedEvent = normalize(githubEvent).toLowerCase();
+        String manifestPath = normalize(properties.getManagedAppReleasePath()).replaceFirst("^/+", "");
+        if (GITHUB_PING_EVENT.equals(normalizedEvent)) {
+            return new ReleaseManifestIngestResultRecord(repo, manifestPath, properties.getManagedAppReleaseRef(), 0, 0, 0, 0, List.of());
+        }
+        if (!GITHUB_PUSH_EVENT.equals(normalizedEvent)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "unsupported github webhook event: " + githubEvent);
+        }
+
+        String ref = normalizeGithubRef(normalize(payload.get("ref")));
+        String expectedRef = normalize(properties.getManagedAppReleaseRef());
+        if (!expectedRef.isBlank() && !expectedRef.equals(ref)) {
+            return new ReleaseManifestIngestResultRecord(repo, manifestPath, ref, 0, 0, 0, 0, List.of());
+        }
+        if (!pushTouchesPath(payload, manifestPath)) {
+            return new ReleaseManifestIngestResultRecord(repo, manifestPath, ref, 0, 0, 0, 0, List.of());
+        }
+
+        return ingestGithubManifest(new ReleaseManifestIngestRequest(repo, manifestPath, ref, false));
+    }
+
+    private ReleaseManifestIngestResultRecord ingestManifest(
+        String repo,
+        String path,
+        String ref,
+        boolean allowDuplicates,
+        String manifestPayload
+    ) {
+        ParsedManifest parsedManifest = parseManifest(manifestPayload);
 
         Set<String> existingKeys = new LinkedHashSet<>();
         if (!allowDuplicates) {
@@ -54,7 +118,7 @@ public class ReleaseManifestIngestService {
         int created = 0;
         int skipped = 0;
         List<String> createdReleaseIds = new ArrayList<>();
-        for (ReleaseCreateRequest candidate : requests) {
+        for (ReleaseCreateRequest candidate : parsedManifest.requests()) {
             String key = releaseKey(candidate.sourceRef(), candidate.sourceVersion());
             if (!allowDuplicates && existingKeys.contains(key)) {
                 skipped += 1;
@@ -70,14 +134,15 @@ public class ReleaseManifestIngestService {
             repo,
             path,
             ref,
-            requests.size(),
+            parsedManifest.manifestReleaseCount(),
             created,
             skipped,
+            parsedManifest.ignoredCount(),
             List.copyOf(createdReleaseIds)
         );
     }
 
-    private List<ReleaseCreateRequest> parseManifest(String rawPayload) {
+    private ParsedManifest parseManifest(String rawPayload) {
         Object parsed;
         try {
             parsed = objectMapper.readValue(rawPayload, Object.class);
@@ -102,10 +167,15 @@ public class ReleaseManifestIngestService {
         }
 
         List<ReleaseCreateRequest> normalized = new ArrayList<>();
-        for (int index = 0; index < releases.size(); index++) {
+        int ignoredCount = 0;
+        for (int index = 0; index < releases.size(); index += 1) {
             Object item = releases.get(index);
             if (!(item instanceof Map<?, ?> row)) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "release manifest row #%d is not an object".formatted(index + 1));
+            }
+            if (!shouldIngestRow(row, index)) {
+                ignoredCount += 1;
+                continue;
             }
 
             String sourceRef = firstNonBlank(
@@ -122,6 +192,27 @@ public class ReleaseManifestIngestService {
                 throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "release manifest row #%d missing required fields: source_ref and source_version".formatted(index + 1)
+                );
+            }
+
+            MappoReleaseSourceType sourceType = enumValue(
+                firstNonNull(row.get("source_type"), row.get("sourceType")),
+                MappoReleaseSourceType.class,
+                MappoReleaseSourceType.template_spec,
+                index,
+                "source_type"
+            );
+            String sourceVersionRef = nullable(
+                firstNonBlank(
+                    stringValue(row.get("source_version_ref")),
+                    stringValue(row.get("sourceVersionRef")),
+                    stringValue(row.get("template_spec_version_id"))
+                )
+            );
+            if (sourceType != MappoReleaseSourceType.template_spec && sourceVersionRef == null) {
+                throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "release manifest row #%d missing required field: source_version_ref".formatted(index + 1)
                 );
             }
 
@@ -152,16 +243,37 @@ public class ReleaseManifestIngestService {
             normalized.add(new ReleaseCreateRequest(
                 sourceRef,
                 sourceVersion,
-                enumValue(firstNonNull(row.get("source_type"), row.get("sourceType")), MappoReleaseSourceType.class, MappoReleaseSourceType.template_spec, index, "source_type"),
-                nullable(firstNonBlank(stringValue(row.get("source_version_ref")), stringValue(row.get("sourceVersionRef")))),
-                enumValue(firstNonNull(row.get("deployment_scope"), row.get("deploymentScope")), MappoDeploymentScope.class, MappoDeploymentScope.resource_group, index, "deployment_scope"),
+                sourceType,
+                sourceVersionRef,
+                enumValue(
+                    firstNonNull(row.get("deployment_scope"), row.get("deploymentScope")),
+                    MappoDeploymentScope.class,
+                    MappoDeploymentScope.resource_group,
+                    index,
+                    "deployment_scope"
+                ),
                 executionSettings,
                 parameterDefaults,
                 normalize(firstNonBlank(stringValue(row.get("release_notes")), stringValue(row.get("releaseNotes")))),
                 verificationHints
             ));
         }
-        return normalized;
+
+        return new ParsedManifest(releases.size(), ignoredCount, List.copyOf(normalized));
+    }
+
+    private boolean shouldIngestRow(Map<?, ?> row, int index) {
+        String publicationStatus = normalize(firstNonNull(row.get("publication_status"), row.get("publicationStatus")));
+        if (publicationStatus.isBlank() || "published".equals(publicationStatus)) {
+            return true;
+        }
+        if ("draft".equals(publicationStatus)) {
+            return false;
+        }
+        throw new ApiException(
+            HttpStatus.BAD_REQUEST,
+            "release manifest row #%d has invalid publication_status: %s".formatted(index + 1, publicationStatus)
+        );
     }
 
     private Map<String, String> sanitizeStringMap(Map<?, ?> source) {
@@ -214,6 +326,88 @@ public class ReleaseManifestIngestService {
         return list;
     }
 
+    @SuppressWarnings("unchecked")
+    private Map<?, ?> readJsonObject(String rawPayload, String errorPrefix) {
+        Object parsed;
+        try {
+            parsed = objectMapper.readValue(rawPayload, Object.class);
+        } catch (Exception exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, errorPrefix + ": " + exception.getMessage());
+        }
+        if (!(parsed instanceof Map<?, ?> map)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, errorPrefix + ": expected a JSON object");
+        }
+        return map;
+    }
+
+    private Object readNestedValue(Map<?, ?> source, String parentKey, String childKey) {
+        Object parent = source.get(parentKey);
+        if (!(parent instanceof Map<?, ?> parentMap)) {
+            return null;
+        }
+        return parentMap.get(childKey);
+    }
+
+    private boolean pushTouchesPath(Map<?, ?> payload, String manifestPath) {
+        Object commitsValue = payload.get("commits");
+        if (!(commitsValue instanceof List<?> commits)) {
+            return false;
+        }
+        for (Object commit : commits) {
+            if (!(commit instanceof Map<?, ?> commitMap)) {
+                continue;
+            }
+            if (pathsContain(commitMap.get("added"), manifestPath)
+                || pathsContain(commitMap.get("modified"), manifestPath)
+                || pathsContain(commitMap.get("removed"), manifestPath)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean pathsContain(Object value, String targetPath) {
+        if (!(value instanceof List<?> list)) {
+            return false;
+        }
+        for (Object item : list) {
+            if (targetPath.equals(normalize(item).replaceFirst("^/+", ""))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void verifyGithubSignature(String rawPayload, String signatureHeader, String secret) {
+        String provided = normalize(signatureHeader);
+        if (!provided.startsWith(GITHUB_SIGNATURE_PREFIX)) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "missing github webhook signature");
+        }
+
+        String expected = GITHUB_SIGNATURE_PREFIX + hmacSha256Hex(secret, rawPayload);
+        if (!MessageDigest.isEqual(
+            expected.getBytes(StandardCharsets.UTF_8),
+            provided.getBytes(StandardCharsets.UTF_8)
+        )) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "invalid github webhook signature");
+        }
+    }
+
+    private String hmacSha256Hex(String secret, String payload) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] digest = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(digest.length * 2);
+            for (byte value : digest) {
+                builder.append(String.format("%02x", value));
+            }
+            return builder.toString();
+        } catch (Exception exception) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "failed to verify github webhook signature");
+        }
+    }
+
     private Boolean booleanValue(Object value, boolean fallback) {
         if (value == null) {
             return fallback;
@@ -250,6 +444,17 @@ public class ReleaseManifestIngestService {
         return normalize(sourceRef) + "::" + normalize(sourceVersion);
     }
 
+    private String normalizeGithubRef(String ref) {
+        String normalized = normalize(ref);
+        if (normalized.startsWith("refs/heads/")) {
+            return normalized.substring("refs/heads/".length());
+        }
+        if (normalized.startsWith("refs/tags/")) {
+            return normalized.substring("refs/tags/".length());
+        }
+        return normalized;
+    }
+
     private Object firstNonNull(Object... values) {
         for (Object value : values) {
             if (value != null) {
@@ -281,4 +486,6 @@ public class ReleaseManifestIngestService {
     private String normalize(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
     }
+
+    private record ParsedManifest(int manifestReleaseCount, int ignoredCount, List<ReleaseCreateRequest> requests) {}
 }

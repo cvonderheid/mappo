@@ -16,6 +16,7 @@
     <azure.identity.version>1.14.2</azure.identity.version>
     <azure.resourcemanager.version>2.45.0</azure.resourcemanager.version>
     <azure.resourcemanager.appcontainers.version>1.0.0-beta.8</azure.resourcemanager.appcontainers.version>
+    <azure.storage.blob.version>12.29.0</azure.storage.blob.version>
     <azure.functions.java.library.version>3.2.4</azure.functions.java.library.version>
     <azure.functions.maven.plugin.version>1.40.0</azure.functions.maven.plugin.version>
     <pulumi.sdk.version>1.21.2</pulumi.sdk.version>
@@ -49,6 +50,11 @@
         <groupId>com.azure.resourcemanager</groupId>
         <artifactId>azure-resourcemanager-appcontainers</artifactId>
         <version>${azure.resourcemanager.appcontainers.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.azure</groupId>
+        <artifactId>azure-storage-blob</artifactId>
+        <version>${azure.storage.blob.version}</version>
       </dependency>
       <dependency>
         <groupId>com.microsoft.azure.functions</groupId>
@@ -129,6 +135,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-deploy-plugin</artifactId>
+        <version>3.1.4</version>
         <configuration>
           <skip>true</skip>
         </configuration>

@@ -77,6 +77,15 @@ public class AdminController {
         return releaseManifestIngestService.ingestGithubManifest(request);
     }
 
+    @PostMapping("/releases/webhooks/github")
+    public ReleaseManifestIngestResultRecord ingestGithubReleaseWebhook(
+        @RequestBody String payload,
+        @RequestHeader(value = "x-github-event", required = false) String githubEvent,
+        @RequestHeader(value = "x-hub-signature-256", required = false) String signatureHeader
+    ) {
+        return releaseManifestIngestService.ingestGithubWebhook(payload, githubEvent, signatureHeader);
+    }
+
     @PatchMapping("/onboarding/registrations/{targetId}")
     public TargetRegistrationRecord updateRegistration(
         @PathVariable("targetId") String targetId,

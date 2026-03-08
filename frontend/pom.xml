@@ -104,6 +104,10 @@
         <groupId>io.fabric8</groupId>
         <artifactId>docker-maven-plugin</artifactId>
         <configuration>
+          <authConfig>
+            <username>${docker.registry.username}</username>
+            <password>${docker.registry.password}</password>
+          </authConfig>
           <images>
             <image>
               <name>${docker.image.prefix}/mappo-frontend:${mappo.image.tag}</name>

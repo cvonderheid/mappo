@@ -68,6 +68,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/releases/webhooks/github": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ingestGithubReleaseWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/releases/ingest/github": {
         parameters: {
             query?: never;
@@ -371,12 +387,6 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
         };
-        ReleaseManifestIngestRequest: {
-            repo?: string;
-            path?: string;
-            ref?: string;
-            allowDuplicates?: boolean;
-        };
         ReleaseManifestIngestResultRecord: {
             repo?: string;
             path?: string;
@@ -387,7 +397,15 @@ export interface components {
             createdCount?: number;
             /** Format: int32 */
             skippedCount?: number;
+            /** Format: int32 */
+            ignoredCount?: number;
             createdReleaseIds?: string[];
+        };
+        ReleaseManifestIngestRequest: {
+            repo?: string;
+            path?: string;
+            ref?: string;
+            allowDuplicates?: boolean;
         };
         ForwarderLogDetailsRequest: {
             detail?: string;
@@ -461,6 +479,12 @@ export interface components {
         TargetRegistrationMetadataRequest: {
             containerAppName?: string;
             source?: string;
+            deploymentStackName?: string;
+            /** @enum {string} */
+            registryAuthMode?: "none" | "shared_service_principal_secret" | "customer_managed_secret";
+            registryServer?: string;
+            registryUsername?: string;
+            registryPasswordSecretName?: string;
         };
         TargetRegistrationPatchRequest: {
             displayName?: string;
@@ -479,6 +503,12 @@ export interface components {
         TargetRegistrationMetadataRecord: {
             containerAppName?: string;
             source?: string;
+            deploymentStackName?: string;
+            /** @enum {string} */
+            registryAuthMode?: "none" | "shared_service_principal_secret" | "customer_managed_secret";
+            registryServer?: string;
+            registryUsername?: string;
+            registryPasswordSecretName?: string;
         };
         TargetRegistrationRecord: {
             targetId?: string;
@@ -759,6 +789,33 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ReleaseRecord"];
+                };
+            };
+        };
+    };
+    ingestGithubReleaseWebhook: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-github-event"?: string;
+                "x-hub-signature-256"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": string;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReleaseManifestIngestResultRecord"];
                 };
             };
         };

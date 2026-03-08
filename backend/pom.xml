@@ -61,6 +61,10 @@
       <artifactId>azure-resourcemanager-appcontainers</artifactId>
     </dependency>
     <dependency>
+      <groupId>com.azure</groupId>
+      <artifactId>azure-storage-blob</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
@@ -260,6 +264,10 @@
         <groupId>io.fabric8</groupId>
         <artifactId>docker-maven-plugin</artifactId>
         <configuration>
+          <authConfig>
+            <username>${docker.registry.username}</username>
+            <password>${docker.registry.password}</password>
+          </authConfig>
           <images>
             <image>
               <name>${docker.image.prefix}/mappo-backend:${mappo.image.tag}</name>

@@ -9,6 +9,7 @@ import static com.mappo.controlplane.jooq.Tables.TARGET_TAGS;
 import com.mappo.controlplane.jooq.enums.MappoForwarderLogLevel;
 import com.mappo.controlplane.jooq.enums.MappoHealthStatus;
 import com.mappo.controlplane.jooq.enums.MappoMarketplaceEventStatus;
+import com.mappo.controlplane.jooq.enums.MappoRegistryAuthMode;
 import com.mappo.controlplane.model.ForwarderLogDetailsRecord;
 import com.mappo.controlplane.model.ForwarderLogRecord;
 import com.mappo.controlplane.model.MarketplaceEventPayloadRecord;
@@ -233,6 +234,11 @@ public class AdminRepository {
                 TARGET_REGISTRATIONS.DISPLAY_NAME,
                 TARGET_REGISTRATIONS.CUSTOMER_NAME,
                 TARGET_REGISTRATIONS.CONTAINER_APP_NAME,
+                TARGET_REGISTRATIONS.DEPLOYMENT_STACK_NAME,
+                TARGET_REGISTRATIONS.REGISTRY_AUTH_MODE,
+                TARGET_REGISTRATIONS.REGISTRY_SERVER,
+                TARGET_REGISTRATIONS.REGISTRY_USERNAME,
+                TARGET_REGISTRATIONS.REGISTRY_PASSWORD_SECRET_NAME,
                 TARGET_REGISTRATIONS.REGISTRATION_SOURCE,
                 TARGET_REGISTRATIONS.LAST_EVENT_ID,
                 TARGETS.LAST_DEPLOYED_RELEASE,
@@ -268,6 +274,11 @@ public class AdminRepository {
                 TARGET_REGISTRATIONS.DISPLAY_NAME,
                 TARGET_REGISTRATIONS.CUSTOMER_NAME,
                 TARGET_REGISTRATIONS.CONTAINER_APP_NAME,
+                TARGET_REGISTRATIONS.DEPLOYMENT_STACK_NAME,
+                TARGET_REGISTRATIONS.REGISTRY_AUTH_MODE,
+                TARGET_REGISTRATIONS.REGISTRY_SERVER,
+                TARGET_REGISTRATIONS.REGISTRY_USERNAME,
+                TARGET_REGISTRATIONS.REGISTRY_PASSWORD_SECRET_NAME,
                 TARGET_REGISTRATIONS.REGISTRATION_SOURCE,
                 TARGET_REGISTRATIONS.LAST_EVENT_ID,
                 TARGETS.LAST_DEPLOYED_RELEASE,
@@ -301,6 +312,11 @@ public class AdminRepository {
             .set(TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID, normalize(registration.managedResourceGroupId()))
             .set(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID, normalize(registration.containerAppResourceId()))
             .set(TARGET_REGISTRATIONS.CONTAINER_APP_NAME, nullableText(registration.containerAppName()))
+            .set(TARGET_REGISTRATIONS.DEPLOYMENT_STACK_NAME, nullableText(registration.deploymentStackName()))
+            .set(TARGET_REGISTRATIONS.REGISTRY_AUTH_MODE, registration.registryAuthMode())
+            .set(TARGET_REGISTRATIONS.REGISTRY_SERVER, nullableText(registration.registryServer()))
+            .set(TARGET_REGISTRATIONS.REGISTRY_USERNAME, nullableText(registration.registryUsername()))
+            .set(TARGET_REGISTRATIONS.REGISTRY_PASSWORD_SECRET_NAME, nullableText(registration.registryPasswordSecretName()))
             .set(TARGET_REGISTRATIONS.REGISTRATION_SOURCE, nullableText(registration.registrationSource()))
             .set(TARGET_REGISTRATIONS.LAST_EVENT_ID, nullableText(registration.lastEventId()))
             .set(TARGET_REGISTRATIONS.CREATED_AT, createdAt)
@@ -313,6 +329,11 @@ public class AdminRepository {
             .set(TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID, normalize(registration.managedResourceGroupId()))
             .set(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID, normalize(registration.containerAppResourceId()))
             .set(TARGET_REGISTRATIONS.CONTAINER_APP_NAME, nullableText(registration.containerAppName()))
+            .set(TARGET_REGISTRATIONS.DEPLOYMENT_STACK_NAME, nullableText(registration.deploymentStackName()))
+            .set(TARGET_REGISTRATIONS.REGISTRY_AUTH_MODE, registration.registryAuthMode())
+            .set(TARGET_REGISTRATIONS.REGISTRY_SERVER, nullableText(registration.registryServer()))
+            .set(TARGET_REGISTRATIONS.REGISTRY_USERNAME, nullableText(registration.registryUsername()))
+            .set(TARGET_REGISTRATIONS.REGISTRY_PASSWORD_SECRET_NAME, nullableText(registration.registryPasswordSecretName()))
             .set(TARGET_REGISTRATIONS.REGISTRATION_SOURCE, nullableText(registration.registrationSource()))
             .set(TARGET_REGISTRATIONS.LAST_EVENT_ID, nullableText(registration.lastEventId()))
             .set(TARGET_REGISTRATIONS.UPDATED_AT, now)
@@ -351,6 +372,25 @@ public class AdminRepository {
             patch.containerAppName(),
             current.metadata() == null ? null : current.metadata().containerAppName()
         );
+        String deploymentStackName = firstNullableText(
+            patch.deploymentStackName(),
+            current.metadata() == null ? null : current.metadata().deploymentStackName()
+        );
+        MappoRegistryAuthMode registryAuthMode = patch.registryAuthMode() == null
+            ? current.metadata() == null ? null : current.metadata().registryAuthMode()
+            : patch.registryAuthMode();
+        String registryServer = firstNullableText(
+            patch.registryServer(),
+            current.metadata() == null ? null : current.metadata().registryServer()
+        );
+        String registryUsername = firstNullableText(
+            patch.registryUsername(),
+            current.metadata() == null ? null : current.metadata().registryUsername()
+        );
+        String registryPasswordSecretName = firstNullableText(
+            patch.registryPasswordSecretName(),
+            current.metadata() == null ? null : current.metadata().registryPasswordSecretName()
+        );
         String registrationSource = firstNullableText(
             patch.registrationSource(),
             current.metadata() == null ? null : current.metadata().source()
@@ -363,6 +403,11 @@ public class AdminRepository {
             .set(TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID, managedResourceGroupId)
             .set(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID, containerAppResourceId)
             .set(TARGET_REGISTRATIONS.CONTAINER_APP_NAME, containerAppName)
+            .set(TARGET_REGISTRATIONS.DEPLOYMENT_STACK_NAME, deploymentStackName)
+            .set(TARGET_REGISTRATIONS.REGISTRY_AUTH_MODE, registryAuthMode)
+            .set(TARGET_REGISTRATIONS.REGISTRY_SERVER, registryServer)
+            .set(TARGET_REGISTRATIONS.REGISTRY_USERNAME, registryUsername)
+            .set(TARGET_REGISTRATIONS.REGISTRY_PASSWORD_SECRET_NAME, registryPasswordSecretName)
             .set(TARGET_REGISTRATIONS.REGISTRATION_SOURCE, registrationSource)
             .set(TARGET_REGISTRATIONS.UPDATED_AT, now)
             .where(TARGET_REGISTRATIONS.TARGET_ID.eq(targetId))
@@ -473,7 +518,12 @@ public class AdminRepository {
     private TargetRegistrationMetadataRecord registrationMetadata(Record row) {
         return new TargetRegistrationMetadataRecord(
             nullableText(row.get(TARGET_REGISTRATIONS.CONTAINER_APP_NAME)),
-            nullableText(row.get(TARGET_REGISTRATIONS.REGISTRATION_SOURCE))
+            nullableText(row.get(TARGET_REGISTRATIONS.REGISTRATION_SOURCE)),
+            nullableText(row.get(TARGET_REGISTRATIONS.DEPLOYMENT_STACK_NAME)),
+            row.get(TARGET_REGISTRATIONS.REGISTRY_AUTH_MODE),
+            nullableText(row.get(TARGET_REGISTRATIONS.REGISTRY_SERVER)),
+            nullableText(row.get(TARGET_REGISTRATIONS.REGISTRY_USERNAME)),
+            nullableText(row.get(TARGET_REGISTRATIONS.REGISTRY_PASSWORD_SECRET_NAME))
         );
     }
 
