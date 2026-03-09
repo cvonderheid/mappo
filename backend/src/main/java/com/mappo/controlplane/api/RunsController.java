@@ -32,7 +32,7 @@ public class RunsController {
     }
 
     @GetMapping("/{runId}")
-    public RunDetailRecord getRun(@PathVariable String runId) {
+    public RunDetailRecord getRun(@PathVariable("runId") String runId) {
         return runService.getRun(runId);
     }
 
@@ -48,12 +48,12 @@ public class RunsController {
     }
 
     @PostMapping("/{runId}/resume")
-    public RunDetailRecord resumeRun(@PathVariable String runId) {
+    public RunDetailRecord resumeRun(@PathVariable("runId") String runId) {
         return runService.resumeRun(runId);
     }
 
     @PostMapping("/{runId}/retry-failed")
-    public RunDetailRecord retryFailed(@PathVariable String runId) {
+    public RunDetailRecord retryFailed(@PathVariable("runId") String runId) {
         return runService.retryFailed(runId);
     }
 }

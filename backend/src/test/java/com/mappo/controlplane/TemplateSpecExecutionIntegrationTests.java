@@ -2,6 +2,7 @@ package com.mappo.controlplane;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -71,17 +72,39 @@ class TemplateSpecExecutionIntegrationTests extends PostgresIntegrationTestBase 
         runRequest.put("strategyMode", "all_at_once");
         runRequest.put("concurrency", 1);
 
-        mockMvc.perform(post("/api/v1/runs")
+        var runResponse = mockMvc.perform(post("/api/v1/runs")
                 .contentType(APPLICATION_JSON)
                 .content(objectMapper.writeValueAsBytes(runRequest)))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.status").value("succeeded"))
-            .andExpect(jsonPath("$.guardrailWarnings").isEmpty())
-            .andExpect(jsonPath("$.targetRecords[0].status").value("SUCCEEDED"))
-            .andExpect(jsonPath("$.targetRecords[0].stages[1].message").value(containsString("deploying into resource group")))
-            .andExpect(jsonPath("$.targetRecords[0].stages[2].message").value("Template Spec deployment stub-template-spec-deployment succeeded."))
-            .andExpect(jsonPath("$.targetRecords[0].stages[3].message").value("Verification passed: ARM deployment completed successfully."))
-            .andExpect(jsonPath("$.targetRecords[0].stages[4].stage").value("SUCCEEDED"));
+            .andExpect(jsonPath("$.status").value("running"))
+            .andExpect(jsonPath("$.targetRecords[0].status").value("QUEUED"))
+            .andReturn();
+
+        String runId = objectMapper.readTree(runResponse.getResponse().getContentAsByteArray()).get("id").asText();
+        awaitTerminalRun(runId);
+    }
+
+    private void awaitTerminalRun(String runId) throws Exception {
+        for (int attempt = 0; attempt < 40; attempt++) {
+            var runResult = mockMvc.perform(get("/api/v1/runs/{runId}", runId))
+                .andExpect(status().isOk())
+                .andReturn();
+            String runStatus = objectMapper.readTree(runResult.getResponse().getContentAsByteArray()).get("status").asText();
+            if (!"running".equals(runStatus)) {
+                mockMvc.perform(get("/api/v1/runs/{runId}", runId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("succeeded"))
+                    .andExpect(jsonPath("$.guardrailWarnings").isEmpty())
+                    .andExpect(jsonPath("$.targetRecords[0].status").value("SUCCEEDED"))
+                    .andExpect(jsonPath("$.targetRecords[0].stages[1].message").value(containsString("deploying into resource group")))
+                    .andExpect(jsonPath("$.targetRecords[0].stages[2].message").value("Template Spec deployment stub-template-spec-deployment succeeded."))
+                    .andExpect(jsonPath("$.targetRecords[0].stages[3].message").value("Verification passed: ARM deployment completed successfully."))
+                    .andExpect(jsonPath("$.targetRecords[0].stages[4].stage").value("SUCCEEDED"));
+                return;
+            }
+            Thread.sleep(50);
+        }
+        throw new AssertionError("template spec run did not reach terminal state");
     }
 
     private void registerTarget(String targetId, String tenantId, String subscriptionId) throws Exception {

@@ -159,3 +159,9 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Preventative rule: Place refresh actions inside the data context they mutate, and use Sonner-style transient notifications for short-lived action outcomes instead of persistent summary banners.
 - Detection signal: operators ask what a button is refreshing, or a one-time result message remains on screen after the action is complete and competes with durable tables/logs.
 - Enforcement (test/lint/checklist): for every new operator action, decide whether the feedback is durable or transient; if transient, send it to the toast system and keep the page reserved for persistent state.
+
+- Date: 2026-03-09
+- Pattern: Execution strategy controls in the API/UI are misleading if the backend stores them but still runs synchronously and serially.
+- Preventative rule: When a rollout control such as `all_at_once`, `waves`, or `concurrency` is exposed to operators, backend execution and integration tests must prove the semantics are actually honored.
+- Detection signal: the run-creation request blocks until completion, the deployment drawer never closes, or “all at once” rollouts visibly execute one target at a time.
+- Enforcement (test/lint/checklist): keep integration coverage that asserts immediate `running` run creation, bounded parallel execution, and wave-order execution before shipping rollout UX changes.

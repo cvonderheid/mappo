@@ -355,6 +355,14 @@ public class RunRepository {
             .execute();
     }
 
+    public void appendRunWarning(String runId, String warning) {
+        Integer current = dsl.select(DSL.max(RUN_GUARDRAIL_WARNINGS.POSITION))
+            .from(RUN_GUARDRAIL_WARNINGS)
+            .where(RUN_GUARDRAIL_WARNINGS.RUN_ID.eq(runId))
+            .fetchOne(0, Integer.class);
+        addRunWarning(runId, current == null ? 0 : current + 1, warning);
+    }
+
     private int nextStagePosition(String runId, String targetId) {
         Integer current = dsl.select(DSL.max(TARGET_STAGE_RECORDS.POSITION))
             .from(TARGET_STAGE_RECORDS)

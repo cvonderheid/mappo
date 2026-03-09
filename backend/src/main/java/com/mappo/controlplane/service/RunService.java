@@ -10,6 +10,7 @@ import com.mappo.controlplane.model.command.CreateRunCommand;
 import com.mappo.controlplane.model.RunDetailRecord;
 import com.mappo.controlplane.model.RunSummaryRecord;
 import com.mappo.controlplane.repository.RunRepository;
+import com.mappo.controlplane.service.run.RunDispatchService;
 import com.mappo.controlplane.service.run.RunExecutionService;
 import com.mappo.controlplane.service.run.RunRequestContext;
 import com.mappo.controlplane.service.run.RunRequestResolverService;
@@ -25,7 +26,7 @@ public class RunService {
 
     private final RunRepository runRepository;
     private final AzureExecutorClient azureExecutorClient;
-    private final RunExecutionService runExecutionService;
+    private final RunDispatchService runDispatchService;
     private final RunRequestResolverService runRequestResolverService;
 
     public List<RunSummaryRecord> listRuns() {
@@ -44,15 +45,14 @@ public class RunService {
         String runId = "run-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
         MappoReleaseSourceType executionSourceType = context.release().sourceType();
         runRepository.createRun(runId, command, context.targets(), executionSourceType);
-        runExecutionService.executeRun(
-            runId,
+        RunDetailRecord initialRun = getRun(runId);
+        runDispatchService.dispatchRun(
+            initialRun,
             context.release(),
             context.targets(),
-            azureExecutorClient.isConfigured(),
-            getRun(runId).stopPolicy()
+            azureExecutorClient.isConfigured()
         );
-
-        return getRun(runId);
+        return initialRun;
     }
 
     public RunDetailRecord resumeRun(String runId) {

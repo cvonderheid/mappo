@@ -96,7 +96,7 @@ public class AdminController {
     }
 
     @DeleteMapping("/onboarding/registrations/{targetId}")
-    public DeleteRegistrationResultRecord deleteRegistration(@PathVariable String targetId) {
+    public DeleteRegistrationResultRecord deleteRegistration(@PathVariable("targetId") String targetId) {
         adminService.deleteTargetRegistration(targetId);
         return new DeleteRegistrationResultRecord(targetId, true);
     }

@@ -171,6 +171,8 @@ Post-demo production-path planning and execution setup:
 - [x] Reframe preview output around release impact + infrastructure risk, with raw ARM paths demoted to technical details.
 - [x] Redeploy the hosted runtime so `www.mappopoc.com` talks to `api.mappopoc.com` with working CORS.
 - [x] Move `Refresh Snapshot` into the Registered Targets tab context and replace transient Admin action banners with Sonner toasts.
+- [x] Make run creation asynchronous so the Deployments drawer can close immediately after the run is accepted instead of blocking on full execution.
+- [x] Honor `strategyMode` and `concurrency` in run execution so `all_at_once` can execute multiple targets in parallel and `waves` respects wave ordering.
 - [ ] Replace stored `healthStatus` as the long-term runtime signal with an explicit probe/check model so Fleet runtime state is no longer dependent on historical deployment status or manual correction.
 
 ## Detailed Plan Reference

@@ -2,11 +2,10 @@ package com.mappo.controlplane.service.run;
 
 import com.mappo.controlplane.jooq.enums.MappoForwarderLogLevel;
 import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
-import com.mappo.controlplane.jooq.enums.MappoRunStatus;
 import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
 import com.mappo.controlplane.jooq.enums.MappoTargetStage;
 import com.mappo.controlplane.model.ReleaseRecord;
-import com.mappo.controlplane.model.RunStopPolicyRecord;
+import com.mappo.controlplane.model.RunDetailRecord;
 import com.mappo.controlplane.model.StageErrorDetailsRecord;
 import com.mappo.controlplane.model.StageErrorRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
@@ -19,6 +18,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -30,17 +32,18 @@ public class RunExecutionService {
     private final TargetRepository targetRepository;
     private final TemplateSpecExecutor templateSpecExecutor;
     private final DeploymentStackExecutor deploymentStackExecutor;
+    private final RunExecutionPolicyService runExecutionPolicyService;
 
     public void executeRun(
-        String runId,
+        RunDetailRecord run,
         ReleaseRecord release,
         List<TargetRecord> targets,
-        boolean azureConfigured,
-        RunStopPolicyRecord stopPolicy
+        boolean azureConfigured
     ) {
+        String runId = run.id();
         List<TargetExecutionContextRecord> contexts = loadExecutionContexts(targets);
         Map<String, TargetExecutionContextRecord> contextsByTarget = indexContexts(contexts);
-        List<String> warnings = buildWarnings(release, targets, azureConfigured);
+        List<String> warnings = runExecutionPolicyService.buildWarnings(release, targets, azureConfigured);
 
         runRepository.deleteRunWarnings(runId);
         for (int i = 0; i < warnings.size(); i++) {
@@ -50,19 +53,36 @@ public class RunExecutionService {
         int failedCount = 0;
         int succeededCount = 0;
         String haltReason = null;
+        int processedCount = 0;
 
-        for (int i = 0; i < targets.size(); i++) {
-            TargetRecord target = targets.get(i);
-            TargetExecutionContextRecord context = contextsByTarget.get(target.id());
-            TargetRunOutcome outcome = executeTarget(runId, release, target, context, azureConfigured);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<List<TargetRecord>> batches = runExecutionPolicyService.planBatches(run, targets);
+            for (List<TargetRecord> batch : batches) {
+                List<TargetRunResult> batchResults = executeBatch(
+                    executor,
+                    runId,
+                    release,
+                    batch,
+                    contextsByTarget,
+                    azureConfigured
+                );
+                processedCount += batchResults.size();
+                for (TargetRunResult result : batchResults) {
+                    if (result.succeeded()) {
+                        succeededCount += 1;
+                        targetRepository.updateLastDeployedRelease(result.targetId(), release.sourceVersion());
+                    } else {
+                        failedCount += 1;
+                    }
+                }
 
-            if (outcome.succeeded()) {
-                succeededCount += 1;
-                targetRepository.updateLastDeployedRelease(target.id(), release.sourceVersion());
-            } else {
-                failedCount += 1;
-                haltReason = haltReasonFor(stopPolicy, failedCount, i + 1, targets.size());
-                if (haltReason != null && i + 1 < targets.size()) {
+                haltReason = runExecutionPolicyService.haltReasonFor(
+                    run.stopPolicy(),
+                    failedCount,
+                    processedCount,
+                    targets.size()
+                );
+                if (haltReason != null && processedCount < targets.size()) {
                     break;
                 }
             }
@@ -70,9 +90,46 @@ public class RunExecutionService {
 
         runRepository.markRunComplete(
             runId,
-            finalRunStatus(targets.size(), succeededCount, failedCount, haltReason),
+            runExecutionPolicyService.finalRunStatus(
+                targets.size(),
+                succeededCount,
+                failedCount,
+                haltReason,
+                processedCount
+            ),
             haltReason
         );
+    }
+
+    private List<TargetRunResult> executeBatch(
+        java.util.concurrent.ExecutorService executor,
+        String runId,
+        ReleaseRecord release,
+        List<TargetRecord> batch,
+        Map<String, TargetExecutionContextRecord> contextsByTarget,
+        boolean azureConfigured
+    ) {
+        List<Future<TargetRunResult>> futures = new ArrayList<>(batch.size());
+        for (TargetRecord target : batch) {
+            futures.add(executor.submit(() -> {
+                TargetExecutionContextRecord context = contextsByTarget.get(target.id());
+                TargetRunOutcome outcome = executeTarget(runId, release, target, context, azureConfigured);
+                return new TargetRunResult(target.id(), outcome.succeeded());
+            }));
+        }
+
+        List<TargetRunResult> results = new ArrayList<>(batch.size());
+        for (Future<TargetRunResult> future : futures) {
+            try {
+                results.add(future.get());
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Run execution interrupted", error);
+            } catch (ExecutionException error) {
+                throw new IllegalStateException("Run execution worker failed", error.getCause());
+            }
+        }
+        return results;
     }
 
     private TargetRunOutcome executeTarget(
@@ -126,7 +183,7 @@ public class RunExecutionService {
             correlationId
         );
 
-        if (isSimulatorMode(release, azureConfigured)
+        if (runExecutionPolicyService.isSimulatorMode(release, azureConfigured)
             && context.simulatedFailureMode() == MappoSimulatedFailureMode.validate_once) {
             return failStage(
                 runId,
@@ -154,7 +211,7 @@ public class RunExecutionService {
             );
         }
 
-        if (useRealTemplateSpecExecution(release, azureConfigured)
+        if (runExecutionPolicyService.useRealTemplateSpecExecution(release, azureConfigured)
             && blank(context.managedResourceGroupId())) {
             return failStage(
                 runId,
@@ -182,7 +239,7 @@ public class RunExecutionService {
             );
         }
 
-        if (useRealDeploymentStackExecution(release, azureConfigured)
+        if (runExecutionPolicyService.useRealDeploymentStackExecution(release, azureConfigured)
             && (blank(context.managedResourceGroupId()) || blank(context.containerAppResourceId()))) {
             return failStage(
                 runId,
@@ -211,7 +268,7 @@ public class RunExecutionService {
         }
 
         OffsetDateTime endedAt = now();
-        String message = validationMessage(release, target, context, azureConfigured);
+        String message = runExecutionPolicyService.validationMessage(release, target, context, azureConfigured);
         runRepository.appendTargetStage(
             runId,
             target.id(),
@@ -314,7 +371,7 @@ public class RunExecutionService {
             correlationId
         );
 
-        if (isSimulatorMode(release, azureConfigured)
+        if (runExecutionPolicyService.isSimulatorMode(release, azureConfigured)
             && target.simulatedFailureMode() == MappoSimulatedFailureMode.verify_once) {
             failStage(
                 runId,
@@ -345,7 +402,7 @@ public class RunExecutionService {
 
         OffsetDateTime endedAt = now();
         String message = release.executionSettings().verifyAfterDeploy()
-            ? verificationMessage(release, azureConfigured)
+            ? runExecutionPolicyService.verificationMessage(release, azureConfigured)
             : "Verification skipped by release settings.";
         runRepository.appendTargetStage(
             runId,
@@ -511,134 +568,19 @@ public class RunExecutionService {
         return index;
     }
 
-    private List<String> buildWarnings(ReleaseRecord release, List<TargetRecord> targets, boolean azureConfigured) {
-        List<String> warnings = new ArrayList<>();
-        if (useRealExecution(release, azureConfigured) && release.executionSettings().whatIfOnCanary()) {
-            warnings.add("whatIfOnCanary is configured but not implemented yet; live deployment will proceed directly.");
-        }
-        if (useRealExecution(release, azureConfigured)) {
-            return warnings;
-        }
-
-        if (!azureConfigured) {
-            warnings.add("Azure execution is not configured; run completed in simulator mode for source type " + sourceTypeLiteral(release) + ".");
-            return warnings;
-        }
-
-        if (release.sourceType() == MappoReleaseSourceType.template_spec) {
-            warnings.add(
-                "Azure execution for source type template_spec with deployment scope "
-                    + release.deploymentScope().getLiteral()
-                    + " is not implemented yet; run completed in simulator mode."
-            );
-            return warnings;
-        }
-
-        warnings.add("Azure execution for source type " + sourceTypeLiteral(release) + " is not implemented yet; run completed in simulator mode.");
-        if (hasTagValue(targets, "ring", "canary") && release.executionSettings().whatIfOnCanary()) {
-            warnings.add("whatIfOnCanary is configured but not implemented in simulator mode.");
-        }
-        return warnings;
-    }
-
-    private boolean useRealTemplateSpecExecution(ReleaseRecord release, boolean azureConfigured) {
-        return azureConfigured
-            && release.sourceType() == MappoReleaseSourceType.template_spec
-            && release.deploymentScope().getLiteral().equals("resource_group");
-    }
-
-    private boolean useRealDeploymentStackExecution(ReleaseRecord release, boolean azureConfigured) {
-        return azureConfigured
-            && release.sourceType() == MappoReleaseSourceType.deployment_stack
-            && release.deploymentScope().getLiteral().equals("resource_group");
-    }
-
-    private boolean useRealExecution(ReleaseRecord release, boolean azureConfigured) {
-        return useRealTemplateSpecExecution(release, azureConfigured)
-            || useRealDeploymentStackExecution(release, azureConfigured);
-    }
-
-    private boolean isSimulatorMode(ReleaseRecord release, boolean azureConfigured) {
-        return !useRealExecution(release, azureConfigured);
-    }
-
-    private boolean hasTagValue(List<TargetRecord> targets, String key, String expected) {
-        for (TargetRecord target : targets) {
-            String value = target.tags().get(key);
-            if (expected.equalsIgnoreCase(blankToEmpty(value))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private String validationMessage(
-        ReleaseRecord release,
-        TargetRecord target,
-        TargetExecutionContextRecord context,
-        boolean azureConfigured
-    ) {
-        if (useRealTemplateSpecExecution(release, azureConfigured)) {
-            return "Validated target " + target.id() + "; deploying into resource group " + resourceGroupName(context.managedResourceGroupId()) + ".";
-        }
-        if (useRealDeploymentStackExecution(release, azureConfigured)) {
-            return "Validated target " + target.id() + "; updating deployment stack scope " + context.managedResourceGroupId() + ".";
-        }
-        return "Validated target " + target.id() + " for simulator execution.";
-    }
-
-    private String verificationMessage(ReleaseRecord release, boolean azureConfigured) {
-        if (useRealTemplateSpecExecution(release, azureConfigured)) {
-            return "Verification passed: ARM deployment completed successfully.";
-        }
-        if (useRealDeploymentStackExecution(release, azureConfigured)) {
-            return "Verification passed: deployment stack completed successfully.";
-        }
-        return "Verification passed in simulator mode.";
-    }
-
     private TargetDeploymentOutcome deployOutcome(
         String runId,
         ReleaseRecord release,
         TargetExecutionContextRecord context,
         boolean azureConfigured
     ) {
-        if (useRealTemplateSpecExecution(release, azureConfigured)) {
+        if (runExecutionPolicyService.useRealTemplateSpecExecution(release, azureConfigured)) {
             return templateSpecExecutor.deploy(runId, release, context);
         }
-        if (useRealDeploymentStackExecution(release, azureConfigured)) {
+        if (runExecutionPolicyService.useRealDeploymentStackExecution(release, azureConfigured)) {
             return deploymentStackExecutor.deploy(runId, release, context);
         }
         return simulateDeployment(runId, release, context);
-    }
-
-    private String haltReasonFor(RunStopPolicyRecord stopPolicy, int failedCount, int processedCount, int totalTargets) {
-        if (stopPolicy == null) {
-            return null;
-        }
-        if (stopPolicy.maxFailureCount() != null && failedCount >= stopPolicy.maxFailureCount()) {
-            return "failed targets " + failedCount + " reached threshold " + stopPolicy.maxFailureCount() + ".";
-        }
-        if (stopPolicy.maxFailureRate() != null && processedCount > 0) {
-            double rate = (double) failedCount / (double) processedCount;
-            if (rate >= stopPolicy.maxFailureRate()) {
-                return "failure rate " + failedCount + "/" + processedCount + " reached threshold " + stopPolicy.maxFailureRate() + ".";
-            }
-        }
-        return null;
-    }
-
-    private MappoRunStatus finalRunStatus(int targetCount, int succeededCount, int failedCount, String haltReason) {
-        if (haltReason != null) {
-            return MappoRunStatus.halted;
-        }
-        if (failedCount == 0) {
-            return MappoRunStatus.succeeded;
-        }
-        if (succeededCount == 0 && failedCount >= targetCount) {
-            return MappoRunStatus.failed;
-        }
-        return MappoRunStatus.partial;
     }
 
     private String correlationId(String runId, String targetId, MappoTargetStage stage) {
@@ -649,27 +591,8 @@ public class RunExecutionService {
         return OffsetDateTime.now(ZoneOffset.UTC);
     }
 
-    private String resourceGroupName(String resourceId) {
-        String value = blankToEmpty(resourceId);
-        int index = value.toLowerCase().indexOf("/resourcegroups/");
-        if (index < 0) {
-            return value;
-        }
-        String suffix = value.substring(index + "/resourceGroups/".length());
-        int slash = suffix.indexOf('/');
-        return slash < 0 ? suffix : suffix.substring(0, slash);
-    }
-
-    private String sourceTypeLiteral(ReleaseRecord release) {
-        return release.sourceType() == null ? "template_spec" : release.sourceType().getLiteral();
-    }
-
     private boolean blank(String value) {
         return value == null || value.trim().isEmpty();
-    }
-
-    private String blankToEmpty(String value) {
-        return value == null ? "" : value.trim();
     }
 
     private record TargetRunOutcome(boolean succeeded) {
@@ -680,6 +603,9 @@ public class RunExecutionService {
         static TargetRunOutcome failure() {
             return new TargetRunOutcome(false);
         }
+    }
+
+    private record TargetRunResult(String targetId, boolean succeeded) {
     }
 
     private record ValidationOutcome(boolean succeeded) {

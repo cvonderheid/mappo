@@ -83,13 +83,9 @@ class RunLifecycleIntegrationTests extends PostgresIntegrationTestBase {
                 .contentType(APPLICATION_JSON)
                 .content(objectMapper.writeValueAsBytes(runRequest)))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.status").value("succeeded"))
+            .andExpect(jsonPath("$.status").value("running"))
             .andExpect(jsonPath("$.executionSourceType").value("template_spec"))
-            .andExpect(jsonPath("$.targetRecords[0].status").value("SUCCEEDED"))
-            .andExpect(jsonPath("$.guardrailWarnings[0]").value(allOf(
-                containsString("run completed in simulator mode"),
-                containsString("template_spec")
-            )))
+            .andExpect(jsonPath("$.targetRecords[0].status").value("QUEUED"))
             .andReturn();
 
         Map<String, Object> runPayload = objectMapper.readValue(
@@ -98,6 +94,18 @@ class RunLifecycleIntegrationTests extends PostgresIntegrationTestBase {
             }
         );
         String runId = String.valueOf(runPayload.get("id"));
+
+        mockMvc.perform(get("/api/v1/runs/{runId}", runId))
+            .andExpect(status().isOk());
+
+        awaitTerminalRun(runId)
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("succeeded"))
+            .andExpect(jsonPath("$.guardrailWarnings[0]").value(allOf(
+                containsString("run completed in simulator mode"),
+                containsString("template_spec")
+            )))
+            .andExpect(jsonPath("$.targetRecords[0].status").value("SUCCEEDED"));
 
         mockMvc.perform(get("/api/v1/targets"))
             .andExpect(status().isOk())
@@ -111,6 +119,21 @@ class RunLifecycleIntegrationTests extends PostgresIntegrationTestBase {
         mockMvc.perform(post("/api/v1/runs/{runId}/retry-failed", runId))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.detail").value("run has no failed targets to retry"));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions awaitTerminalRun(String runId) throws Exception {
+        for (int attempt = 0; attempt < 40; attempt++) {
+            MvcResult result = mockMvc.perform(get("/api/v1/runs/{runId}", runId))
+                .andExpect(status().isOk())
+                .andReturn();
+            String payload = result.getResponse().getContentAsString();
+            String status = objectMapper.readTree(payload).get("status").asText();
+            if (!"running".equals(status)) {
+                return mockMvc.perform(get("/api/v1/runs/{runId}", runId));
+            }
+            Thread.sleep(100);
+        }
+        throw new AssertionError("run did not reach a terminal state: " + runId);
     }
 
     private void registerTarget(String targetId, String tenantId, String subscriptionId) throws Exception {
