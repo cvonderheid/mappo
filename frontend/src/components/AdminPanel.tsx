@@ -1,8 +1,10 @@
 import { FormEvent, useState } from "react";
+import { toast } from "sonner";
 
 import {
   EventsDataTable,
   ForwarderLogsDataTable,
+  ReleaseWebhookDeliveriesDataTable,
   RegistrationsDataTable,
 } from "@/components/AdminTables";
 import ReleaseIngestDrawer from "@/components/ReleaseIngestDrawer";
@@ -32,12 +34,10 @@ import type {
 type AdminPanelProps = {
   adminErrorMessage: string;
   adminSnapshot: AdminOnboardingSnapshotResponse | null;
-  releaseIngestErrorMessage: string;
   releaseIngestIsSubmitting: boolean;
-  releaseIngestResult: ReleaseManifestIngestResponse | null;
   onIngestManagedAppReleases: (
     request: ReleaseManifestIngestRequest
-  ) => Promise<void>;
+  ) => Promise<ReleaseManifestIngestResponse>;
   onUpdateTargetRegistration: (
     targetId: string,
     request: UpdateTargetRegistrationRequest
@@ -58,9 +58,7 @@ function normalizeTagValue(value: unknown, fallback: string): string {
 export default function AdminPanel({
   adminErrorMessage,
   adminSnapshot,
-  releaseIngestErrorMessage,
   releaseIngestIsSubmitting,
-  releaseIngestResult,
   onIngestManagedAppReleases,
   onUpdateTargetRegistration,
   onDeleteTargetRegistration,
@@ -86,14 +84,14 @@ export default function AdminPanel({
   const [editEnvironment, setEditEnvironment] = useState<string>("prod");
   const [editTier, setEditTier] = useState<string>("standard");
   const [editIsSubmitting, setEditIsSubmitting] = useState<boolean>(false);
+  const [isRefreshingSnapshot, setIsRefreshingSnapshot] = useState<boolean>(false);
 
   const [deletingTargetId, setDeletingTargetId] = useState<string | null>(null);
-  const [registrationErrorMessage, setRegistrationErrorMessage] = useState<string>("");
-  const [registrationResultMessage, setRegistrationResultMessage] = useState<string>("");
 
   const registrations = adminSnapshot?.registrations ?? [];
   const events = adminSnapshot?.events ?? [];
   const forwarderLogs = adminSnapshot?.forwarderLogs ?? [];
+  const releaseWebhookDeliveries = adminSnapshot?.releaseWebhookDeliveries ?? [];
 
   const canSubmitEdit =
     editingTargetId.trim() !== "" &&
@@ -118,8 +116,6 @@ export default function AdminPanel({
     setEditRegion(normalizeTagValue(registration.tags?.region, "unknown"));
     setEditEnvironment(normalizeTagValue(registration.tags?.environment, "prod"));
     setEditTier(normalizeTagValue(registration.tags?.tier, "standard"));
-    setRegistrationErrorMessage("");
-    setRegistrationResultMessage("");
     setEditDrawerOpen(true);
   }
 
@@ -136,10 +132,9 @@ export default function AdminPanel({
     setDeletingTargetId(registration.targetId ?? "");
     try {
       await onDeleteTargetRegistration(registration.targetId ?? "");
-      setRegistrationResultMessage(`Deleted target ${registration.targetId}.`);
-      setRegistrationErrorMessage("");
+      toast.success(`Deleted target ${registration.targetId}.`);
     } catch (error) {
-      setRegistrationErrorMessage((error as Error).message);
+      toast.error((error as Error).message);
     } finally {
       setDeletingTargetId(null);
     }
@@ -179,13 +174,41 @@ export default function AdminPanel({
     setEditIsSubmitting(true);
     try {
       await onUpdateTargetRegistration(editingTargetId, request);
-      setRegistrationResultMessage(`Updated target ${editingTargetId}.`);
-      setRegistrationErrorMessage("");
+      toast.success(`Updated target ${editingTargetId}.`);
       setEditDrawerOpen(false);
     } catch (error) {
-      setRegistrationErrorMessage((error as Error).message);
+      toast.error((error as Error).message);
     } finally {
       setEditIsSubmitting(false);
+    }
+  }
+
+  async function handleRefreshRegistrations(): Promise<void> {
+    setIsRefreshingSnapshot(true);
+    try {
+      await onRefreshSnapshot();
+      toast.success("Registered targets refreshed.");
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setIsRefreshingSnapshot(false);
+    }
+  }
+
+  async function handleIngestManagedAppReleases(
+    request: ReleaseManifestIngestRequest
+  ): Promise<void> {
+    try {
+      const result = await onIngestManagedAppReleases(request);
+      const baseMessage = `Ingested ${result.createdCount} new release(s), skipped ${result.skippedCount}, ignored drafts ${result.ignoredCount ?? 0}, manifest entries ${result.manifestReleaseCount}.`;
+      if ((result.createdCount ?? 0) > 0) {
+        toast.success(baseMessage);
+      } else {
+        toast(baseMessage);
+      }
+    } catch (error) {
+      toast.error((error as Error).message);
+      throw error;
     }
   }
 
@@ -196,13 +219,9 @@ export default function AdminPanel({
           Marketplace onboarding registrations and operational logs.
         </p>
         <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" onClick={() => void onRefreshSnapshot()}>
-            Refresh Snapshot
-          </Button>
           <ReleaseIngestDrawer
             isSubmitting={releaseIngestIsSubmitting}
-            result={releaseIngestResult}
-            onIngest={onIngestManagedAppReleases}
+            onIngest={handleIngestManagedAppReleases}
           />
           <Drawer direction="top" open={editDrawerOpen} onOpenChange={setEditDrawerOpen}>
             <DrawerContent className="glass-card">
@@ -394,30 +413,6 @@ export default function AdminPanel({
         </div>
       ) : null}
 
-      {registrationErrorMessage ? (
-        <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive-foreground">
-          {registrationErrorMessage}
-        </div>
-      ) : null}
-
-      {releaseIngestErrorMessage ? (
-        <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive-foreground">
-          {releaseIngestErrorMessage}
-        </div>
-      ) : null}
-
-      {registrationResultMessage ? (
-        <div className="rounded-md border border-border/70 bg-card/70 p-3 text-sm text-foreground">
-          {registrationResultMessage}
-        </div>
-      ) : null}
-
-      {releaseIngestResult ? (
-        <div className="rounded-md border border-border/70 bg-card/70 p-3 text-sm text-foreground">
-          {`Ingested ${releaseIngestResult.createdCount} new release(s), skipped ${releaseIngestResult.skippedCount}, ignored drafts ${releaseIngestResult.ignoredCount ?? 0}, manifest entries ${releaseIngestResult.manifestReleaseCount}.`}
-        </div>
-      ) : null}
-
       <Card className="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]">
         <CardHeader>
           <CardTitle>Admin</CardTitle>
@@ -434,10 +429,24 @@ export default function AdminPanel({
               <TabsTrigger value="forwarder-logs">
                 Forwarder Logs ({forwarderLogs.length})
               </TabsTrigger>
+              <TabsTrigger value="release-webhooks">
+                Release Webhooks ({releaseWebhookDeliveries.length})
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="registrations">
               <RegistrationsDataTable
                 registrations={registrations}
+                headerActions={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isRefreshingSnapshot}
+                    onClick={() => void handleRefreshRegistrations()}
+                  >
+                    {isRefreshingSnapshot ? "Refreshing..." : "Refresh Registered Targets"}
+                  </Button>
+                }
                 onEditRegistration={openEditDrawer}
                 onDeleteRegistration={(registration) => {
                   void handleDeleteRegistration(registration);
@@ -450,6 +459,9 @@ export default function AdminPanel({
             </TabsContent>
             <TabsContent value="forwarder-logs">
               <ForwarderLogsDataTable logs={forwarderLogs} />
+            </TabsContent>
+            <TabsContent value="release-webhooks">
+              <ReleaseWebhookDeliveriesDataTable deliveries={releaseWebhookDeliveries} />
             </TabsContent>
           </Tabs>
         </CardContent>

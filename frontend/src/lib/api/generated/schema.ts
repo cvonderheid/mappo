@@ -595,6 +595,10 @@ export interface components {
             lastDeployedRelease?: string;
             /** @enum {string} */
             healthStatus?: "registered" | "healthy" | "degraded";
+            /** @enum {string} */
+            lastDeploymentStatus?: "QUEUED" | "VALIDATING" | "DEPLOYING" | "VERIFYING" | "SUCCEEDED" | "FAILED";
+            /** Format: date-time */
+            lastDeploymentAt?: string;
             /** Format: date-time */
             lastCheckInAt?: string;
             /** @enum {string} */
@@ -694,6 +698,30 @@ export interface components {
             registrations?: components["schemas"]["TargetRegistrationRecord"][];
             events?: components["schemas"]["MarketplaceEventRecord"][];
             forwarderLogs?: components["schemas"]["ForwarderLogRecord"][];
+            releaseWebhookDeliveries?: components["schemas"]["ReleaseWebhookDeliveryRecord"][];
+        };
+        ReleaseWebhookDeliveryRecord: {
+            id?: string;
+            externalDeliveryId?: string;
+            eventType?: string;
+            repo?: string;
+            ref?: string;
+            manifestPath?: string;
+            /** @enum {string} */
+            status?: "applied" | "skipped" | "failed";
+            message?: string;
+            changedPaths?: string[];
+            /** Format: int32 */
+            manifestReleaseCount?: number;
+            /** Format: int32 */
+            createdCount?: number;
+            /** Format: int32 */
+            skippedCount?: number;
+            /** Format: int32 */
+            ignoredCount?: number;
+            createdReleaseIds?: string[];
+            /** Format: date-time */
+            receivedAt?: string;
         };
         DeleteRegistrationResultRecord: {
             targetId?: string;
@@ -870,6 +898,7 @@ export interface operations {
             header?: {
                 "x-github-event"?: string;
                 "x-hub-signature-256"?: string;
+                "x-github-delivery"?: string;
             };
             path?: never;
             cookie?: never;

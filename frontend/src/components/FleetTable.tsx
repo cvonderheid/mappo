@@ -18,14 +18,17 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import ColumnVisibilityMenu from "@/components/ColumnVisibilityMenu";
-import { compareReleaseVersionsDesc } from "@/lib/releases";
+import {
+  targetLastDeploymentTone,
+  targetLatestReleaseStatus,
+  targetRuntimeStatus,
+} from "@/lib/fleet";
 import { usePersistentColumnVisibility } from "@/lib/table-visibility";
 import type { Release, Target } from "@/lib/types";
 
 type FleetTableProps = {
   targets: Target[];
   latestRelease: Release | null;
-  onDeployLatestRelease: (releaseId: string) => void;
 };
 
 type FleetRow = {
@@ -37,21 +40,74 @@ type FleetRow = {
   region: string;
   tier: string;
   version: string;
-  health: string;
+  runtimeStatus: string;
+  runtimeCheckedAt: string;
+  lastDeploymentStatus: string;
+  lastDeploymentAt: string;
   latestStatus: "current" | "outdated" | "unknown";
 };
 
-function healthVariant(healthStatus: string): "default" | "secondary" | "destructive" | "outline" {
-  if (healthStatus === "healthy") {
+function runtimeVariant(runtimeStatus: string): "default" | "secondary" | "destructive" | "outline" {
+  if (runtimeStatus === "healthy") {
     return "default";
   }
-  if (healthStatus === "degraded") {
+  if (runtimeStatus === "degraded") {
     return "secondary";
+  }
+  if (runtimeStatus === "registered" || runtimeStatus === "unknown") {
+    return "outline";
   }
   return "destructive";
 }
 
-export default function FleetTable({ targets, latestRelease, onDeployLatestRelease }: FleetTableProps) {
+function lastDeploymentVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
+  if (status === "succeeded") {
+    return "default";
+  }
+  if (status === "running" || status === "queued") {
+    return "secondary";
+  }
+  if (status === "failed") {
+    return "destructive";
+  }
+  return "outline";
+}
+
+function latestStatusLabel(status: FleetRow["latestStatus"]): string {
+  if (status === "current") {
+    return "Latest";
+  }
+  if (status === "outdated") {
+    return "Update available";
+  }
+  return "Unknown vs latest";
+}
+
+function lastDeploymentLabel(status: string): string {
+  if (status === "unknown") {
+    return "No recent run";
+  }
+  if (status === "running") {
+    return "In progress";
+  }
+  if (status === "queued") {
+    return "Queued";
+  }
+  return status;
+}
+
+function formatTimestamp(value: string): string {
+  if (!value) {
+    return "";
+  }
+  const timestamp = new Date(value);
+  if (Number.isNaN(timestamp.getTime())) {
+    return "";
+  }
+  return timestamp.toLocaleString();
+}
+
+export default function FleetTable({ targets, latestRelease }: FleetTableProps) {
   const latestVersion = latestRelease?.sourceVersion ?? "";
   const rows = useMemo<FleetRow[]>(
     () =>
@@ -64,26 +120,13 @@ export default function FleetTable({ targets, latestRelease, onDeployLatestRelea
         region: target.tags?.region ?? "unknown",
         tier: target.tags?.tier ?? "unknown",
         version: target.lastDeployedRelease ?? "unknown",
-        health: target.healthStatus ?? "registered",
-        latestStatus:
-          latestVersion.trim() === ""
-            ? "unknown"
-            : !target.lastDeployedRelease
-              ? "unknown"
-              : compareReleaseVersionsDesc(target.lastDeployedRelease, latestVersion) === 0
-                ? "current"
-                : "outdated",
+        runtimeStatus: targetRuntimeStatus(target),
+        runtimeCheckedAt: target.lastCheckInAt ?? "",
+        lastDeploymentStatus: targetLastDeploymentTone(target),
+        lastDeploymentAt: target.lastDeploymentAt ?? "",
+        latestStatus: targetLatestReleaseStatus(target, latestVersion),
       })),
     [latestVersion, targets]
-  );
-
-  const outdatedTargets = useMemo(
-    () => rows.filter((row) => row.latestStatus === "outdated"),
-    [rows]
-  );
-  const unknownVersionTargets = useMemo(
-    () => rows.filter((row) => row.latestStatus === "unknown"),
-    [rows]
   );
 
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -100,64 +143,73 @@ export default function FleetTable({ targets, latestRelease, onDeployLatestRelea
       {
         accessorKey: "targetGroup",
         header: "Target Group",
-        filterFn: (row, id, value) => {
-          if (!value) {
-            return true;
-          }
-          return row.getValue<string>(id) === value;
-        },
+        filterFn: (row, id, value) => !value || row.getValue<string>(id) === value,
       },
       {
         accessorKey: "region",
         header: "Region",
-        filterFn: (row, id, value) => {
-          if (!value) {
-            return true;
-          }
-          return row.getValue<string>(id) === value;
-        },
+        filterFn: (row, id, value) => !value || row.getValue<string>(id) === value,
       },
       {
         accessorKey: "tier",
         header: "Tier",
-        filterFn: (row, id, value) => {
-          if (!value) {
-            return true;
-          }
-          return row.getValue<string>(id) === value;
-        },
+        filterFn: (row, id, value) => !value || row.getValue<string>(id) === value,
       },
       {
         accessorKey: "version",
         header: "Version",
         cell: ({ row }) => (
-          <div className="flex flex-wrap items-center gap-2">
-            <span>{row.original.version}</span>
-            {row.original.latestStatus === "current" ? (
-              <Badge variant="default">Latest</Badge>
-            ) : null}
-            {row.original.latestStatus === "outdated" ? (
-              <Badge variant="secondary">Update available</Badge>
-            ) : null}
-            {row.original.latestStatus === "unknown" && latestVersion ? (
-              <Badge variant="outline">Unknown vs latest</Badge>
+          <div className="space-y-1">
+            <p>{row.original.version}</p>
+            <Badge
+              variant={
+                row.original.latestStatus === "current"
+                  ? "default"
+                  : row.original.latestStatus === "outdated"
+                    ? "secondary"
+                    : "outline"
+              }
+            >
+              {latestStatusLabel(row.original.latestStatus)}
+            </Badge>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "runtimeStatus",
+        header: "Runtime",
+        filterFn: (row, id, value) => !value || row.getValue<string>(id) === value,
+        cell: ({ row }) => (
+          <div className="space-y-1">
+            <Badge variant={runtimeVariant(row.original.runtimeStatus)} className="capitalize">
+              {row.original.runtimeStatus}
+            </Badge>
+            {row.original.runtimeCheckedAt ? (
+              <p className="text-[11px] text-muted-foreground">
+                {formatTimestamp(row.original.runtimeCheckedAt)}
+              </p>
             ) : null}
           </div>
         ),
       },
       {
-        accessorKey: "health",
-        header: "Health",
-        filterFn: (row, id, value) => {
-          if (!value) {
-            return true;
-          }
-          return row.getValue<string>(id) === value;
-        },
+        accessorKey: "lastDeploymentStatus",
+        header: "Last Deployment",
+        filterFn: (row, id, value) => !value || row.getValue<string>(id) === value,
         cell: ({ row }) => (
-          <Badge variant={healthVariant(row.original.health)} className="capitalize">
-            {row.original.health}
-          </Badge>
+          <div className="space-y-1">
+            <Badge
+              variant={lastDeploymentVariant(row.original.lastDeploymentStatus)}
+              className="capitalize"
+            >
+              {lastDeploymentLabel(row.original.lastDeploymentStatus)}
+            </Badge>
+            {row.original.lastDeploymentAt ? (
+              <p className="text-[11px] text-muted-foreground">
+                {formatTimestamp(row.original.lastDeploymentAt)}
+              </p>
+            ) : null}
+          </div>
         ),
       },
     ],
@@ -193,8 +245,12 @@ export default function FleetTable({ targets, latestRelease, onDeployLatestRelea
     () => [...new Set(rows.map((row) => row.tier))].sort(),
     [rows]
   );
-  const uniqueHealth = useMemo(
-    () => [...new Set(rows.map((row) => row.health))].sort(),
+  const uniqueRuntimeStatuses = useMemo(
+    () => [...new Set(rows.map((row) => row.runtimeStatus))].sort(),
+    [rows]
+  );
+  const uniqueLastDeploymentStatuses = useMemo(
+    () => [...new Set(rows.map((row) => row.lastDeploymentStatus))].sort(),
     [rows]
   );
 
@@ -204,11 +260,15 @@ export default function FleetTable({ targets, latestRelease, onDeployLatestRelea
   const tenantIdFilter = (table.getColumn("tenantId")?.getFilterValue() as string | undefined) ?? "";
   const subscriptionIdFilter =
     (table.getColumn("subscriptionId")?.getFilterValue() as string | undefined) ?? "";
-  const targetGroupFilter = (table.getColumn("targetGroup")?.getFilterValue() as string | undefined) ?? "";
+  const targetGroupFilter =
+    (table.getColumn("targetGroup")?.getFilterValue() as string | undefined) ?? "";
   const regionFilter = (table.getColumn("region")?.getFilterValue() as string | undefined) ?? "";
   const tierFilter = (table.getColumn("tier")?.getFilterValue() as string | undefined) ?? "";
   const versionFilter = (table.getColumn("version")?.getFilterValue() as string | undefined) ?? "";
-  const healthFilter = (table.getColumn("health")?.getFilterValue() as string | undefined) ?? "";
+  const runtimeFilter =
+    (table.getColumn("runtimeStatus")?.getFilterValue() as string | undefined) ?? "";
+  const lastDeploymentFilter =
+    (table.getColumn("lastDeploymentStatus")?.getFilterValue() as string | undefined) ?? "";
   const visibleColumnCount = table.getVisibleLeafColumns().length;
 
   function renderFilterCell(columnId: string): ReactNode {
@@ -226,9 +286,7 @@ export default function FleetTable({ targets, latestRelease, onDeployLatestRelea
       return (
         <Input
           value={customerNameFilter}
-          onChange={(event) =>
-            table.getColumn("customerName")?.setFilterValue(event.target.value)
-          }
+          onChange={(event) => table.getColumn("customerName")?.setFilterValue(event.target.value)}
           placeholder="Filter customer"
           className="h-8"
         />
@@ -332,22 +390,46 @@ export default function FleetTable({ targets, latestRelease, onDeployLatestRelea
         />
       );
     }
-    if (columnId === "health") {
+    if (columnId === "runtimeStatus") {
       return (
         <Select
-          value={healthFilter || "all"}
+          value={runtimeFilter || "all"}
           onValueChange={(value) =>
-            table.getColumn("health")?.setFilterValue(value === "all" ? undefined : value)
+            table.getColumn("runtimeStatus")?.setFilterValue(value === "all" ? undefined : value)
           }
         >
           <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All health</SelectItem>
-            {uniqueHealth.map((value) => (
+            <SelectItem value="all">All runtimes</SelectItem>
+            {uniqueRuntimeStatuses.map((value) => (
               <SelectItem key={value} value={value}>
                 {value}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+    if (columnId === "lastDeploymentStatus") {
+      return (
+        <Select
+          value={lastDeploymentFilter || "all"}
+          onValueChange={(value) =>
+            table
+              .getColumn("lastDeploymentStatus")
+              ?.setFilterValue(value === "all" ? undefined : value)
+          }
+        >
+          <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All deployments</SelectItem>
+            {uniqueLastDeploymentStatuses.map((value) => (
+              <SelectItem key={value} value={value}>
+                {lastDeploymentLabel(value)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -377,34 +459,6 @@ export default function FleetTable({ targets, latestRelease, onDeployLatestRelea
         </div>
       </CardHeader>
       <CardContent>
-        {latestRelease && outdatedTargets.length > 0 ? (
-          <div className="mb-4 rounded-lg border border-primary/40 bg-primary/10 p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-semibold">
-                  New release {latestRelease.sourceVersion} is available.
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {outdatedTargets.length} target{outdatedTargets.length === 1 ? "" : "s"} are behind the latest release.
-                  {unknownVersionTargets.length > 0
-                    ? ` ${unknownVersionTargets.length} target${unknownVersionTargets.length === 1 ? "" : "s"} have no known version yet.`
-                    : ""}
-                </p>
-              </div>
-              <Button
-                type="button"
-                onClick={() => {
-                  if (latestRelease.id) {
-                    onDeployLatestRelease(latestRelease.id);
-                  }
-                }}
-                disabled={!latestRelease.id}
-              >
-                Deploy {latestRelease.sourceVersion}
-              </Button>
-            </div>
-          </div>
-        ) : null}
         <Table>
           <TableHeader>
             <TableRow>

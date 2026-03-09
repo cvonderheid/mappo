@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Toaster } from "sonner";
 import AdminPanel from "@/components/AdminPanel";
 import DemoPanel from "@/components/DemoPanel";
 import DeploymentsPage from "@/components/DeploymentsPage";
@@ -8,6 +9,7 @@ import { RunDetailPanel } from "@/components/RunPanels";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { DEFAULT_FORM, type StartRunFormState } from "@/lib/deployment-form";
+import { releaseAvailabilitySummary } from "@/lib/fleet";
 import { canonicalizeReleases } from "@/lib/releases";
 import {
   adminDeleteTargetRegistration,
@@ -80,8 +82,6 @@ function AppShell() {
   const [adminErrorMessage, setAdminErrorMessage] = useState<string>("");
   const [adminResult, setAdminResult] = useState<MarketplaceEventIngestResponse | null>(null);
   const [releaseIngestIsSubmitting, setReleaseIngestIsSubmitting] = useState<boolean>(false);
-  const [releaseIngestErrorMessage, setReleaseIngestErrorMessage] = useState<string>("");
-  const [releaseIngestResult, setReleaseIngestResult] = useState<ReleaseManifestIngestResponse | null>(null);
   const previewAbortControllerRef = useRef<AbortController | null>(null);
 
   const refreshTargets = useCallback(async () => {
@@ -237,6 +237,10 @@ function AppShell() {
     [releases, selectedReleaseId]
   );
   const latestRelease = useMemo(() => releases[0] ?? null, [releases]);
+  const releaseSummary = useMemo(
+    () => releaseAvailabilitySummary(targets, latestRelease),
+    [latestRelease, targets]
+  );
 
   const previewProgressPercent = useMemo(() => {
     if (!isPreviewing) {
@@ -497,15 +501,15 @@ function AppShell() {
 
   async function handleIngestManagedAppReleases(
     request: ReleaseManifestIngestRequest
-  ): Promise<void> {
+  ): Promise<ReleaseManifestIngestResponse> {
     setReleaseIngestIsSubmitting(true);
     try {
       const result = await adminIngestGithubReleaseManifest(request);
-      setReleaseIngestResult(result);
-      setReleaseIngestErrorMessage("");
       await refreshReleases();
+      await refreshAdminSnapshot();
+      return result;
     } catch (error) {
-      setReleaseIngestErrorMessage((error as Error).message);
+      throw error;
     } finally {
       setReleaseIngestIsSubmitting(false);
     }
@@ -513,6 +517,7 @@ function AppShell() {
 
   return (
     <main className="mx-auto flex w-[min(1400px,96vw)] flex-col gap-4 py-6">
+      <Toaster richColors position="top-right" />
       <Card className="glass-card hero-gradient animate-fade-up [animation-fill-mode:forwards]">
         <CardHeader className="flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="space-y-2">
@@ -538,6 +543,32 @@ function AppShell() {
         </CardHeader>
       </Card>
 
+      {releaseSummary.hasBanner && latestRelease ? (
+        <div className="rounded-lg border border-primary/40 bg-primary/10 p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold">
+                New release {releaseSummary.latestVersion} is available.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {releaseSummary.outdatedCount} target
+                {releaseSummary.outdatedCount === 1 ? "" : "s"} are behind the latest release.
+                {releaseSummary.unknownCount > 0
+                  ? ` ${releaseSummary.unknownCount} target${releaseSummary.unknownCount === 1 ? "" : "s"} have no known version yet.`
+                  : ""}
+              </p>
+            </div>
+            <Button
+              type="button"
+              onClick={() => latestRelease.id && handleOpenDeploymentForRelease(latestRelease.id)}
+              disabled={!latestRelease.id}
+            >
+              Deploy {releaseSummary.latestVersion}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       <Routes>
         <Route path="/" element={<Navigate to="/fleet" replace />} />
         <Route
@@ -545,7 +576,6 @@ function AppShell() {
           element={
             <FleetTable
               latestRelease={latestRelease}
-              onDeployLatestRelease={handleOpenDeploymentForRelease}
               targets={targets}
             />
           }
@@ -626,9 +656,7 @@ function AppShell() {
             <AdminPanel
               adminErrorMessage={adminErrorMessage}
               adminSnapshot={adminSnapshot}
-              releaseIngestErrorMessage={releaseIngestErrorMessage}
               releaseIngestIsSubmitting={releaseIngestIsSubmitting}
-              releaseIngestResult={releaseIngestResult}
               onIngestManagedAppReleases={handleIngestManagedAppReleases}
               onUpdateTargetRegistration={handleAdminUpdateRegistration}
               onDeleteTargetRegistration={handleAdminDeleteRegistration}

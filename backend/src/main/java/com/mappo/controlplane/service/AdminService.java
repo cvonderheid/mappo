@@ -21,6 +21,7 @@ import com.mappo.controlplane.model.command.TargetRegistrationPatchCommand;
 import com.mappo.controlplane.model.command.TargetRegistrationUpsertCommand;
 import com.mappo.controlplane.model.command.TargetUpsertCommand;
 import com.mappo.controlplane.repository.AdminRepository;
+import com.mappo.controlplane.repository.ReleaseWebhookRepository;
 import com.mappo.controlplane.repository.TargetRepository;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -37,6 +38,7 @@ import org.springframework.stereotype.Service;
 public class AdminService {
 
     private final AdminRepository adminRepository;
+    private final ReleaseWebhookRepository releaseWebhookRepository;
     private final TargetRepository targetRepository;
     private final MappoProperties properties;
 
@@ -44,7 +46,8 @@ public class AdminService {
         return new OnboardingSnapshotRecord(
             adminRepository.listRegistrations(),
             adminRepository.listMarketplaceEvents(eventLimit),
-            adminRepository.listForwarderLogs(eventLimit)
+            adminRepository.listForwarderLogs(eventLimit),
+            releaseWebhookRepository.listReleaseWebhookDeliveries(eventLimit)
         );
     }
 

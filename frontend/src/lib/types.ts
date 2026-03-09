@@ -16,6 +16,7 @@ export type MarketplaceEventIngestResponse = Schemas["EventIngestResultRecord"];
 export type MarketplaceEventRecord = Schemas["MarketplaceEventRecord"];
 export type MarketplaceEventStatus = NonNullable<Schemas["MarketplaceEventRecord"]["status"]>;
 export type Release = Schemas["ReleaseRecord"];
+export type ReleaseWebhookDeliveryRecord = Schemas["ReleaseWebhookDeliveryRecord"];
 export type ReleaseManifestIngestRequest = Schemas["ReleaseManifestIngestRequest"];
 export type ReleaseManifestIngestResponse = Schemas["ReleaseManifestIngestResultRecord"];
 export type RunDetail = Schemas["RunDetailRecord"];

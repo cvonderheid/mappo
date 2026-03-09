@@ -4,14 +4,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import type {
+  Release,
   RunPreview,
   RunPreviewChange,
   RunPreviewPropertyChange,
   RunTargetPreview,
+  Target,
 } from "@/lib/types";
 
 type RunPreviewPanelProps = {
   preview: RunPreview;
+  selectedRelease: Release | null;
+  targets: Target[];
 };
 
 type PreviewProgressCardProps = {
@@ -22,6 +26,11 @@ type PreviewProgressCardProps = {
   onCancelPreview: () => void;
 };
 
+type PreviewFinding = {
+  severity: "critical" | "warning" | "info";
+  message: string;
+};
+
 const NOISE_PATH_PATTERNS = [
   /^properties\.configuration\.ingress\.exposedPort$/i,
   /^properties\.configuration\.ingress\.traffic$/i,
@@ -29,19 +38,19 @@ const NOISE_PATH_PATTERNS = [
   /^properties\.workloadProfileName$/i,
 ];
 
-const PRIMARY_IMPACT_CATEGORIES: Array<{ label: string; pattern: RegExp }> = [
-  { label: "Container image", pattern: /^properties\.template\.containers(\[\d+\])?\.image$/i },
-  { label: "Environment variables", pattern: /^properties\.template\.containers(\[\d+\])?\.env/i },
-  { label: "Ingress", pattern: /^properties\.configuration\.ingress/i },
-  { label: "Scale settings", pattern: /^properties\.template\.scale/i },
-  { label: "Container command", pattern: /^properties\.template\.containers(\[\d+\])?\.command/i },
-  { label: "Container arguments", pattern: /^properties\.template\.containers(\[\d+\])?\.args/i },
-  { label: "Container resources", pattern: /^properties\.template\.containers(\[\d+\])?\.resources/i },
-];
+const EXPECTED_RESOURCE_TYPES = new Set([
+  "Microsoft.App/containerApps",
+  "Microsoft.Resources/deploymentStacks",
+]);
 
-const SECONDARY_IMPACT_CATEGORIES: Array<{ label: string; pattern: RegExp }> = [
-  { label: "Registry credentials", pattern: /^properties\.configuration\.registries/i },
-  { label: "Secrets", pattern: /^properties\.configuration\.secrets/i },
+const CRITICAL_RESOURCE_TYPE_PATTERNS = [
+  /^Microsoft\.DBforPostgreSQL\//i,
+  /^Microsoft\.Sql\//i,
+  /^Microsoft\.Storage\//i,
+  /^Microsoft\.Network\//i,
+  /^Microsoft\.KeyVault\//i,
+  /^Microsoft\.ManagedIdentity\//i,
+  /^Microsoft\.Authorization\//i,
 ];
 
 export function PreviewProgressCard({
@@ -85,8 +94,13 @@ export function PreviewProgressCard({
   );
 }
 
-export function RunPreviewPanel({ preview }: RunPreviewPanelProps) {
+export function RunPreviewPanel({ preview, selectedRelease, targets }: RunPreviewPanelProps) {
   const modeLabel = preview.mode === "ARM_WHAT_IF" ? "ARM what-if" : "Unsupported";
+  const targetMap = new Map(targets.map((target) => [target.id ?? "", target]));
+  const targetAnalyses = (preview.targets ?? []).map((targetPreview) =>
+    analyzeTargetPreview(targetPreview, targetMap, selectedRelease)
+  );
+  const overallRisk = summarizeOverallRisk(targetAnalyses);
 
   return (
     <Card className="mt-3 border-border/70 bg-card/70">
@@ -110,111 +124,205 @@ export function RunPreviewPanel({ preview }: RunPreviewPanelProps) {
           </div>
         ) : null}
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        <section className="rounded-md border border-border/70 bg-muted/20 p-4">
+          <h3 className="text-sm font-semibold">Release Impact</h3>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {targetAnalyses.map((analysis) => (
+              <div key={analysis.targetId} className="rounded-md border border-border/70 bg-card/70 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-mono text-sm">{analysis.targetId}</p>
+                  <Badge variant="outline">
+                    {analysis.currentVersion} {"->"} {analysis.nextVersion}
+                  </Badge>
+                </div>
+                <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                  {analysis.releaseImpact.map((item) => (
+                    <li key={`${analysis.targetId}-${item}`}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section
+          className={
+            overallRisk.critical.length > 0
+              ? "rounded-md border border-destructive/60 bg-destructive/10 p-4"
+              : overallRisk.warning.length > 0
+                ? "rounded-md border border-amber-500/40 bg-amber-500/10 p-4"
+                : "rounded-md border border-emerald-500/40 bg-emerald-500/10 p-4"
+          }
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold">Infrastructure Risk</h3>
+            <div className="flex flex-wrap gap-2">
+              {overallRisk.critical.length > 0 ? (
+                <Badge variant="destructive">{overallRisk.critical.length} critical</Badge>
+              ) : null}
+              {overallRisk.warning.length > 0 ? (
+                <Badge variant="secondary">{overallRisk.warning.length} warning</Badge>
+              ) : null}
+              {overallRisk.critical.length === 0 && overallRisk.warning.length === 0 ? (
+                <Badge variant="default">No destructive or unexpected changes</Badge>
+              ) : null}
+            </div>
+          </div>
+          {overallRisk.critical.length > 0 || overallRisk.warning.length > 0 ? (
+            <ul className="mt-3 space-y-1 text-xs">
+              {overallRisk.critical.map((finding) => (
+                <li key={`critical-${finding}`}>{finding}</li>
+              ))}
+              {overallRisk.warning.map((finding) => (
+                <li key={`warning-${finding}`}>{finding}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Azure what-if did not report deletes or unexpected infrastructure mutations. The
+              remaining technical details are mostly Container App configuration drift and secure
+              field churn.
+            </p>
+          )}
+        </section>
+
         <Accordion type="single" collapsible className="w-full">
-          {preview.targets?.map((target) => (
-            <AccordionItem key={target.targetId ?? "unknown"} value={target.targetId ?? "unknown"}>
+          {targetAnalyses.map((analysis) => (
+            <AccordionItem key={analysis.targetId} value={analysis.targetId}>
               <AccordionTrigger className="py-3 no-underline hover:no-underline">
                 <div className="flex w-full flex-wrap items-center justify-between gap-2 pr-3">
                   <div>
-                    <p className="font-mono text-sm">{target.targetId ?? "unknown-target"}</p>
-                    <p className="text-xs text-muted-foreground">{targetSummary(target)}</p>
+                    <p className="font-mono text-sm">{analysis.targetId}</p>
+                    <p className="text-xs text-muted-foreground">{analysis.summary}</p>
                   </div>
-                  <Badge variant={targetStatusVariant(target.status)}>{target.status ?? "UNKNOWN"}</Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {analysis.risk.critical.length > 0 ? (
+                      <Badge variant="destructive">Critical risk</Badge>
+                    ) : analysis.risk.warning.length > 0 ? (
+                      <Badge variant="secondary">Review warnings</Badge>
+                    ) : (
+                      <Badge variant="default">Low risk</Badge>
+                    )}
+                    <Badge variant={targetStatusVariant(analysis.target.status)}>
+                      {analysis.target.status ?? "UNKNOWN"}
+                    </Badge>
+                  </div>
                 </div>
               </AccordionTrigger>
               <AccordionContent>
                 <div className="space-y-3 text-xs">
-                  {target.managedResourceGroupId ? (
-                    <p className="font-mono text-muted-foreground">{target.managedResourceGroupId}</p>
+                  {analysis.target.managedResourceGroupId ? (
+                    <p className="font-mono text-muted-foreground">
+                      {analysis.target.managedResourceGroupId}
+                    </p>
                   ) : null}
-                  {target.warnings && target.warnings.length > 0 ? (
-                    <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-amber-100">
-                      {target.warnings.map((warning) => (
-                        <p key={warning}>{warning}</p>
+
+                  <div className="rounded-md border border-border/70 bg-background/50 p-3">
+                    <p className="font-medium">Release impact</p>
+                    <ul className="mt-2 space-y-1 text-muted-foreground">
+                      {analysis.releaseImpact.map((item) => (
+                        <li key={`${analysis.targetId}-impact-${item}`}>{item}</li>
                       ))}
-                    </div>
-                  ) : null}
-                  {target.error ? (
-                    <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-destructive-foreground">
-                      <p className="font-medium">{target.error.message ?? "Preview failed."}</p>
-                      {target.error.details?.error ? <p className="mt-1">{target.error.details.error}</p> : null}
-                    </div>
-                  ) : null}
-                  {target.changes && target.changes.length > 0 ? (
-                    <div className="space-y-2">
-                      {target.changes.map((change) => {
-                        const propertyChanges = change.propertyChanges ?? [];
-                        const primaryChanges = primaryPropertyChanges(propertyChanges);
-                        const secondaryChanges = secondaryPropertyChanges(propertyChanges);
-                        const hiddenChangeCount =
-                          propertyChanges.length - primaryChanges.length - secondaryChanges.length;
-                        return (
-                          <div
-                            key={`${change.resourceId ?? "unknown"}-${change.changeType ?? "change"}`}
-                            className="rounded-md border border-border/70 bg-muted/20 p-3"
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div>
-                                <p className="font-medium">{resourceLabel(change.resourceId)}</p>
-                                <p className="font-mono text-[11px] text-muted-foreground">
-                                  {change.resourceId ?? "unknown-resource"}
-                                </p>
+                    </ul>
+                  </div>
+
+                  <div
+                    className={
+                      analysis.risk.critical.length > 0
+                        ? "rounded-md border border-destructive/60 bg-destructive/10 p-3"
+                        : analysis.risk.warning.length > 0
+                          ? "rounded-md border border-amber-500/40 bg-amber-500/10 p-3"
+                          : "rounded-md border border-border/70 bg-background/50 p-3"
+                    }
+                  >
+                    <p className="font-medium">Infrastructure risk</p>
+                    {analysis.risk.critical.length > 0 || analysis.risk.warning.length > 0 ? (
+                      <ul className="mt-2 space-y-1">
+                        {analysis.risk.critical.map((finding) => (
+                          <li key={`${analysis.targetId}-critical-${finding}`}>{finding}</li>
+                        ))}
+                        {analysis.risk.warning.map((finding) => (
+                          <li key={`${analysis.targetId}-warning-${finding}`}>{finding}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-2 text-muted-foreground">
+                        No destructive or unexpected infrastructure changes were detected for this target.
+                      </p>
+                    )}
+                    {analysis.risk.info.length > 0 ? (
+                      <div className="mt-3 rounded-md border border-border/70 bg-background/50 p-2 text-muted-foreground">
+                        {analysis.risk.info.map((finding) => (
+                          <p key={`${analysis.targetId}-info-${finding}`}>{finding}</p>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <details className="rounded-md border border-border/70 bg-background/50 p-3">
+                    <summary className="cursor-pointer text-[11px] text-muted-foreground">
+                      Technical details
+                    </summary>
+                    <div className="mt-3 space-y-3">
+                      {analysis.target.error ? (
+                        <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-destructive-foreground">
+                          <p className="font-medium">
+                            {analysis.target.error.message ?? "Preview failed."}
+                          </p>
+                          {analysis.target.error.details?.error ? (
+                            <p className="mt-1">{analysis.target.error.details.error}</p>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      {analysis.target.warnings && analysis.target.warnings.length > 0 ? (
+                        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-amber-100">
+                          {analysis.target.warnings.map((warning) => (
+                            <p key={warning}>{warning}</p>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      {analysis.target.changes && analysis.target.changes.length > 0 ? (
+                        <div className="space-y-2">
+                          {analysis.target.changes.map((change) => (
+                            <div
+                              key={`${change.resourceId ?? "unknown"}-${change.changeType ?? "change"}`}
+                              className="rounded-md border border-border/70 bg-muted/20 p-3"
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <p className="font-medium">{resourceLabel(change.resourceId)}</p>
+                                  <p className="font-mono text-[11px] text-muted-foreground">
+                                    {change.resourceId ?? "unknown-resource"}
+                                  </p>
+                                </div>
+                                <Badge variant="outline">{change.changeType ?? "Unknown"}</Badge>
                               </div>
-                              <Badge variant="outline">{change.changeType ?? "Unknown"}</Badge>
-                            </div>
-                            <p className="mt-2 text-muted-foreground">{changeSummary(change)}</p>
-                            {change.unsupportedReason ? (
-                              <p className="mt-2 text-muted-foreground">{change.unsupportedReason}</p>
-                            ) : null}
-                            {primaryChanges.length > 0 ? (
-                              <div className="mt-3 flex flex-wrap gap-1.5">
-                                {primaryChanges.map((propertyChange) => (
-                                  <span
-                                    key={`${propertyChange.changeType}-${propertyChange.path}`}
-                                    className="rounded-full border border-border/70 px-2 py-0.5 text-[10px] font-medium text-foreground"
-                                  >
-                                    {impactLabel(propertyChange.path)}
-                                  </span>
-                                ))}
-                              </div>
-                            ) : null}
-                            {secondaryChanges.length > 0 ? (
-                              <div className="mt-3 rounded-md border border-border/70 bg-background/50 p-2 text-[11px] text-muted-foreground">
-                                <p>
-                                  Azure also reports auth/runtime drift for{" "}
-                                  {joinLabels(uniqueImpactLabels(secondaryChanges))}. Secure values and
-                                  runtime-populated fields often appear modified even when the release only
-                                  changes the image or release metadata.
-                                </p>
-                              </div>
-                            ) : null}
-                            {hiddenChangeCount > 0 ? (
-                              <details className="mt-3 rounded-md border border-border/70 bg-background/50 p-2">
-                                <summary className="cursor-pointer text-[11px] text-muted-foreground">
-                                  Show raw ARM property paths ({hiddenChangeCount} hidden)
-                                </summary>
-                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                  {propertyChanges
-                                    .filter((propertyChange) => !isPrimaryImpact(propertyChange) && !isSecondaryImpact(propertyChange))
-                                    .map((propertyChange) => (
+                              <p className="mt-2 text-muted-foreground">{technicalChangeSummary(change)}</p>
+                              {change.propertyChanges && change.propertyChanges.length > 0 ? (
+                                <div className="mt-3 flex flex-wrap gap-1.5">
+                                  {change.propertyChanges.map((propertyChange) => (
                                     <span
-                                      key={`${propertyChange.changeType}-${propertyChange.path}`}
+                                      key={`${change.resourceId ?? "unknown"}-${propertyChange.changeType}-${propertyChange.path}`}
                                       className="rounded-full border border-border/70 px-2 py-0.5 font-mono text-[10px] text-muted-foreground"
                                     >
                                       {propertyChange.changeType}: {propertyChange.path}
                                     </span>
-                                    ))}
+                                  ))}
                                 </div>
-                              </details>
-                            ) : null}
-                          </div>
-                        );
-                      })}
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          No Azure resource changes were returned for this target.
+                        </p>
+                      )}
                     </div>
-                  ) : (
-                    <p className="text-muted-foreground">No resource changes returned for this target.</p>
-                  )}
+                  </details>
                 </div>
               </AccordionContent>
             </AccordionItem>
@@ -235,18 +343,218 @@ function targetStatusVariant(status: string | null | undefined) {
   return "outline";
 }
 
-function resourceLabel(resourceId: string | null | undefined) {
+function analyzeTargetPreview(
+  targetPreview: RunTargetPreview,
+  targetMap: Map<string, Target>,
+  selectedRelease: Release | null
+) {
+  const target = targetMap.get(targetPreview.targetId ?? "") ?? null;
+  const currentVersion = target?.lastDeployedRelease ?? "unknown";
+  const nextVersion = selectedRelease?.sourceVersion ?? "unknown";
+  const releaseImpact = releaseImpactItems(currentVersion, nextVersion, selectedRelease, targetPreview);
+  const risk = summarizeTargetRisk(targetPreview.changes ?? []);
+  const summary =
+    risk.critical.length > 0
+      ? `${currentVersion} -> ${nextVersion}. Critical infrastructure changes detected.`
+      : risk.warning.length > 0
+        ? `${currentVersion} -> ${nextVersion}. Review infrastructure warnings.`
+        : `${currentVersion} -> ${nextVersion}. No destructive or unexpected infrastructure changes detected.`;
+
+  return {
+    target: targetPreview,
+    targetId: targetPreview.targetId ?? "unknown-target",
+    currentVersion,
+    nextVersion,
+    releaseImpact,
+    risk,
+    summary,
+  };
+}
+
+function summarizeOverallRisk(
+  analyses: Array<ReturnType<typeof analyzeTargetPreview>>
+): { critical: string[]; warning: string[] } {
+  const critical = new Set<string>();
+  const warning = new Set<string>();
+
+  for (const analysis of analyses) {
+    for (const finding of analysis.risk.critical) {
+      critical.add(`${analysis.targetId}: ${finding}`);
+    }
+    for (const finding of analysis.risk.warning) {
+      warning.add(`${analysis.targetId}: ${finding}`);
+    }
+  }
+
+  return {
+    critical: Array.from(critical),
+    warning: Array.from(warning),
+  };
+}
+
+function releaseImpactItems(
+  currentVersion: string,
+  nextVersion: string,
+  selectedRelease: Release | null,
+  targetPreview: RunTargetPreview
+): string[] {
+  const items = [`Release version ${currentVersion} -> ${nextVersion}.`];
+  const softwareVersion = releaseParameterDefault(selectedRelease, "softwareVersion");
+  if (softwareVersion) {
+    items.push(`Software version output will move to ${softwareVersion}.`);
+  }
+  const dataModelVersion = releaseParameterDefault(selectedRelease, "dataModelVersion");
+  if (dataModelVersion) {
+    items.push(`Data model version output will move to ${dataModelVersion}.`);
+  }
+  const changeCount = targetPreview.changes?.length ?? 0;
+  items.push(
+    changeCount === 0
+      ? "Azure what-if returned no infrastructure changes."
+      : `Azure what-if reported ${changeCount} resource change${changeCount === 1 ? "" : "s"}.`
+  );
+  return items;
+}
+
+function releaseParameterDefault(
+  release: Release | null,
+  key: string
+): string | null {
+  const defaults = release?.parameterDefaults as Record<string, unknown> | null | undefined;
+  const value = defaults?.[key];
+  if (typeof value === "string" && value.trim() !== "") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return null;
+}
+
+function summarizeTargetRisk(changes: RunPreviewChange[]) {
+  const critical = new Set<string>();
+  const warning = new Set<string>();
+  const info = new Set<string>();
+
+  for (const change of changes) {
+    for (const finding of analyzeChangeRisk(change)) {
+      if (finding.severity === "critical") {
+        critical.add(finding.message);
+      } else if (finding.severity === "warning") {
+        warning.add(finding.message);
+      } else {
+        info.add(finding.message);
+      }
+    }
+  }
+
+  return {
+    critical: Array.from(critical),
+    warning: Array.from(warning),
+    info: Array.from(info),
+  };
+}
+
+function analyzeChangeRisk(change: RunPreviewChange): PreviewFinding[] {
+  const findings: PreviewFinding[] = [];
+  const resourceType = resourceTypeFromId(change.resourceId);
+  const label = resourceLabel(change.resourceId);
+  const changeType = String(change.changeType ?? "").trim().toLowerCase();
+  const propertyChanges = change.propertyChanges ?? [];
+
+  if (changeType === "delete") {
+    findings.push({
+      severity: "critical",
+      message: `${label} would be deleted.`,
+    });
+  } else if (resourceType && !EXPECTED_RESOURCE_TYPES.has(resourceType)) {
+    findings.push({
+      severity: isCriticalResourceType(resourceType) ? "critical" : "warning",
+      message: `${label} (${resourceType}) would be ${changeType || "updated"}.`,
+    });
+  }
+
+  if (isCriticalResourceType(resourceType)) {
+    findings.push({
+      severity: changeType === "delete" ? "critical" : "warning",
+      message: `${label} touches a high-risk Azure resource type.`,
+    });
+  }
+
+  if (resourceType === "Microsoft.App/containerApps") {
+    if (hasMeaningfulPath(propertyChanges, /^properties\.configuration\.ingress/i)) {
+      findings.push({
+        severity: "warning",
+        message: "Container App ingress settings would change.",
+      });
+    }
+    if (hasMeaningfulPath(propertyChanges, /^properties\.template\.scale/i)) {
+      findings.push({
+        severity: "warning",
+        message: "Container App scale settings would change.",
+      });
+    }
+    if (hasMeaningfulPath(propertyChanges, /^properties\.configuration\.registries/i)) {
+      findings.push({
+        severity: "info",
+        message:
+          "Azure reports registry credential drift. Secure and runtime-managed fields often appear modified in what-if.",
+      });
+    }
+    if (hasMeaningfulPath(propertyChanges, /^properties\.configuration\.secrets/i)) {
+      findings.push({
+        severity: "info",
+        message:
+          "Azure reports secret drift. Secure values are commonly surfaced as changes even when the release only updates image or release metadata.",
+      });
+    }
+  }
+
+  return dedupeFindings(findings);
+}
+
+function hasMeaningfulPath(
+  propertyChanges: RunPreviewPropertyChange[],
+  pattern: RegExp
+) {
+  return propertyChanges.some((propertyChange) => {
+    const path = normalizePreviewPath(propertyChange.path);
+    return path !== "" && !NOISE_PATH_PATTERNS.some((noise) => noise.test(path)) && pattern.test(path);
+  });
+}
+
+function dedupeFindings(findings: PreviewFinding[]) {
+  const seen = new Set<string>();
+  return findings.filter((finding) => {
+    const key = `${finding.severity}:${finding.message}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function resourceTypeFromId(resourceId: string | null | undefined) {
   if (!resourceId) {
-    return "Azure resource";
+    return "";
   }
   const providersIndex = resourceId.indexOf("/providers/");
   if (providersIndex < 0) {
-    return "Azure resource";
+    return "";
   }
-  const providerPath = resourceId.slice(providersIndex + "/providers/".length).split("/");
-  const namespace = providerPath[0] ?? "";
-  const type = providerPath[1] ?? "";
-  const kind = `${namespace}/${type}`;
+  const parts = resourceId.slice(providersIndex + "/providers/".length).split("/");
+  const namespace = parts[0] ?? "";
+  const type = parts[1] ?? "";
+  return namespace && type ? `${namespace}/${type}` : "";
+}
+
+function isCriticalResourceType(resourceType: string) {
+  return CRITICAL_RESOURCE_TYPE_PATTERNS.some((pattern) => pattern.test(resourceType));
+}
+
+function resourceLabel(resourceId: string | null | undefined) {
+  const kind = resourceTypeFromId(resourceId);
   if (kind === "Microsoft.App/containerApps") {
     return "Container App";
   }
@@ -259,106 +567,27 @@ function resourceLabel(resourceId: string | null | undefined) {
   return kind || "Azure resource";
 }
 
-function changeSummary(change: RunPreviewChange) {
-  const resource = resourceLabel(change.resourceId);
-  const changeType = (change.changeType ?? "").toLowerCase();
+function technicalChangeSummary(change: RunPreviewChange) {
+  const label = resourceLabel(change.resourceId);
+  const changeType = String(change.changeType ?? "").trim().toLowerCase();
   if (changeType === "create") {
-    return `${resource} will be created.`;
+    return `${label} would be created.`;
   }
   if (changeType === "delete") {
-    return `${resource} will be deleted.`;
+    return `${label} would be deleted.`;
   }
   const propertyChanges = change.propertyChanges ?? [];
-  const primaryHighlights = uniqueImpactLabels(primaryPropertyChanges(propertyChanges));
-  const secondaryHighlights = uniqueImpactLabels(secondaryPropertyChanges(propertyChanges));
-  if (primaryHighlights.length > 0 && secondaryHighlights.length > 0) {
-    return `${resource} will update ${joinLabels(primaryHighlights)}. Azure also reports ${joinLabels(secondaryHighlights)} drift.`;
+  if (propertyChanges.length === 0) {
+    return `${label} would be updated.`;
   }
-  if (primaryHighlights.length > 0) {
-    return `${resource} will update ${joinLabels(primaryHighlights)}.`;
-  }
-  if (secondaryHighlights.length > 0) {
-    return `${resource} mainly shows Azure-reported ${joinLabels(secondaryHighlights)} drift.`;
-  }
-  if (propertyChanges.length > 0) {
-    return `${resource} only shows platform or runtime metadata differences in Azure what-if.`;
-  }
-  return `${resource} will be updated.`;
-}
-
-function targetSummary(target: RunTargetPreview) {
-  if (target.status === "FAILED") {
-    return target.summary ?? "Preview failed.";
-  }
-  const summaries = (target.changes ?? []).map(changeSummary).filter(Boolean);
-  if (summaries.length === 0) {
-    return target.summary ?? "No preview summary.";
-  }
-  if (summaries.length === 1) {
-    return summaries[0] ?? "No preview summary.";
-  }
-  return `${summaries[0]} ${summaries.length - 1} more resource change${summaries.length - 1 === 1 ? "" : "s"} pending.`;
-}
-
-function primaryPropertyChanges(propertyChanges: RunPreviewPropertyChange[]) {
-  return propertyChanges.filter(isPrimaryImpact);
-}
-
-function secondaryPropertyChanges(propertyChanges: RunPreviewPropertyChange[]) {
-  return propertyChanges.filter(isSecondaryImpact);
-}
-
-function isPrimaryImpact(propertyChange: RunPreviewPropertyChange) {
-  const path = normalizePreviewPath(propertyChange.path);
-  return path !== "" && !NOISE_PATH_PATTERNS.some((pattern) => pattern.test(path))
-    && PRIMARY_IMPACT_CATEGORIES.some((category) => category.pattern.test(path));
-}
-
-function isSecondaryImpact(propertyChange: RunPreviewPropertyChange) {
-  const path = normalizePreviewPath(propertyChange.path);
-  return path !== "" && !NOISE_PATH_PATTERNS.some((pattern) => pattern.test(path))
-    && SECONDARY_IMPACT_CATEGORIES.some((category) => category.pattern.test(path));
-}
-
-function uniqueImpactLabels(propertyChanges: RunPreviewPropertyChange[]) {
-  return Array.from(new Set(propertyChanges.map((propertyChange) => impactLabel(propertyChange.path))));
-}
-
-function impactLabel(path: string | null | undefined) {
-  const value = normalizePreviewPath(path);
-  for (const category of PRIMARY_IMPACT_CATEGORIES) {
-    if (category.pattern.test(value)) {
-      return category.label;
-    }
-  }
-  for (const category of SECONDARY_IMPACT_CATEGORIES) {
-    if (category.pattern.test(value)) {
-      return category.label;
-    }
-  }
-  return value.startsWith("properties.template.") ? "Container template" : value;
+  return `${label} has ${propertyChanges.length} Azure-reported property change${
+    propertyChanges.length === 1 ? "" : "s"
+  }.`;
 }
 
 function normalizePreviewPath(path: string | null | undefined) {
-  const value = path?.trim() ?? "";
-  if (value.startsWith("$.")) {
-    return value.slice(2);
-  }
-  if (value === "$") {
-    return "";
-  }
-  if (value.startsWith("$")) {
-    return value.slice(1);
-  }
-  return value;
-}
-
-function joinLabels(labels: string[]) {
-  if (labels.length === 1) {
-    return labels[0] ?? "";
-  }
-  if (labels.length === 2) {
-    return `${labels[0]} and ${labels[1]}`;
-  }
-  return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
+  return String(path ?? "")
+    .replace(/\[(\d+)\]/g, ".$1")
+    .replace(/^\.+/, "")
+    .trim();
 }

@@ -1,7 +1,6 @@
 package com.mappo.controlplane.service.run;
 
 import com.mappo.controlplane.jooq.enums.MappoForwarderLogLevel;
-import com.mappo.controlplane.jooq.enums.MappoHealthStatus;
 import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.jooq.enums.MappoRunStatus;
 import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
@@ -62,7 +61,6 @@ public class RunExecutionService {
                 targetRepository.updateLastDeployedRelease(target.id(), release.sourceVersion());
             } else {
                 failedCount += 1;
-                targetRepository.updateTargetHealth(target.id(), MappoHealthStatus.degraded);
                 haltReason = haltReasonFor(stopPolicy, failedCount, i + 1, targets.size());
                 if (haltReason != null && i + 1 < targets.size()) {
                     break;

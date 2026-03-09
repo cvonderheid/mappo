@@ -147,3 +147,15 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Preventative rule: Persist webhook delivery audit records with repo, ref, delivery id, and created/skipped/failed outcome instead of relying on secondary effects like release-count changes.
 - Detection signal: a push reaches the hosted endpoint, but there is no UI/API surface showing whether MAPPO fetched the manifest and skipped or failed ingest.
 - Enforcement (test/lint/checklist): every external webhook integration should expose an operator-visible delivery log before it is considered production-ready.
+
+- Date: 2026-03-09
+- Pattern: A dashboard label can become misleading when the UI meaning changes faster than the underlying data model.
+- Preventative rule: Do not label a field as runtime health unless it comes from an actual health probe or an explicitly refreshed runtime check; historical deployment state must stay in a separate field.
+- Detection signal: the service endpoint is healthy, but Fleet still shows a degraded runtime badge because the stored health field was inherited from older deployment semantics.
+- Enforcement (test/lint/checklist): when splitting operational concepts in the UI, verify the backing data source represents the same concept or rename the field until the data model catches up.
+
+- Date: 2026-03-09
+- Pattern: Page-level action buttons and sticky inline result banners create ambiguity when the action really belongs to one sub-tab and the feedback is transient.
+- Preventative rule: Place refresh actions inside the data context they mutate, and use Sonner-style transient notifications for short-lived action outcomes instead of persistent summary banners.
+- Detection signal: operators ask what a button is refreshing, or a one-time result message remains on screen after the action is complete and competes with durable tables/logs.
+- Enforcement (test/lint/checklist): for every new operator action, decide whether the feedback is durable or transient; if transient, send it to the toast system and keep the page reserved for persistent state.

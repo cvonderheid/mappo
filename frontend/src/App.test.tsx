@@ -9,9 +9,12 @@ const mockTargets = [
     tenantId: "tenant-001",
     subscriptionId: "sub-0001",
     managedAppId: "managed-app-1",
+    customerName: "Demo Customer A",
     tags: { ring: "canary", region: "eastus", tier: "gold", environment: "prod" },
     lastDeployedRelease: "2026.02.20.1",
     healthStatus: "healthy",
+    lastDeploymentStatus: "SUCCEEDED",
+    lastDeploymentAt: "2026-02-25T00:05:00Z",
     lastCheckInAt: "2026-02-25T00:00:00Z",
     simulatedFailureMode: "none",
   },
@@ -91,6 +94,7 @@ const mockAdminSnapshot = {
   registrations: [],
   events: [],
   forwarderLogs: [],
+  releaseWebhookDeliveries: [],
 };
 
 const apiMock = vi.hoisted(() => ({

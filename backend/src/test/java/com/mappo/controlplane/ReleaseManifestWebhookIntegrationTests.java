@@ -1,6 +1,7 @@
 package com.mappo.controlplane;
 
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -41,6 +42,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
 
     @Test
     void webhookPushIngstsPublishedRowsOnlyWhenManifestChanges() throws Exception {
+        String deliveryId = "delivery-created-001";
         String payload = """
             {
               "ref": "refs/heads/main",
@@ -61,16 +63,27 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
                 .contentType(APPLICATION_JSON)
                 .content(payload)
                 .header("x-github-event", "push")
+                .header("x-github-delivery", deliveryId)
                 .header("x-hub-signature-256", githubSignature(payload)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.manifestReleaseCount").value(3))
             .andExpect(jsonPath("$.createdCount").value(2))
             .andExpect(jsonPath("$.skippedCount").value(0))
             .andExpect(jsonPath("$.ignoredCount").value(1));
+
+        mockMvc.perform(get("/api/v1/admin/onboarding"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].externalDeliveryId").value(deliveryId))
+            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].status").value("applied"))
+            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].repo").value("cvonderheid/mappo-managed-app"))
+            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].ref").value("main"))
+            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].createdCount").value(2))
+            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].changedPaths[0]").value("releases/releases.manifest.json"));
     }
 
     @Test
     void webhookPushIgnoresIrrelevantFileChanges() throws Exception {
+        String deliveryId = "delivery-skipped-001";
         String payload = """
             {
               "ref": "refs/heads/main",
@@ -91,12 +104,20 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
                 .contentType(APPLICATION_JSON)
                 .content(payload)
                 .header("x-github-event", "push")
+                .header("x-github-delivery", deliveryId)
                 .header("x-hub-signature-256", githubSignature(payload)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.manifestReleaseCount").value(0))
             .andExpect(jsonPath("$.createdCount").value(0))
             .andExpect(jsonPath("$.skippedCount").value(0))
             .andExpect(jsonPath("$.ignoredCount").value(0));
+
+        mockMvc.perform(get("/api/v1/admin/onboarding"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].externalDeliveryId").value(deliveryId))
+            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].status").value("skipped"))
+            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].message")
+                .value("Ignored webhook push because the managed-app release manifest did not change."));
     }
 
     @Test

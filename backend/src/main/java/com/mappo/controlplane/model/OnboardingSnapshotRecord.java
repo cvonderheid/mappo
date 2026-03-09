@@ -5,6 +5,7 @@ import java.util.List;
 public record OnboardingSnapshotRecord(
     List<TargetRegistrationRecord> registrations,
     List<MarketplaceEventRecord> events,
-    List<ForwarderLogRecord> forwarderLogs
+    List<ForwarderLogRecord> forwarderLogs,
+    List<ReleaseWebhookDeliveryRecord> releaseWebhookDeliveries
 ) {
 }

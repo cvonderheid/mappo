@@ -300,7 +300,13 @@ export default function DeploymentsPage({
                 targetCount={previewTargetCount}
                 onCancelPreview={onCancelPreview}
               />
-              {runPreview ? <RunPreviewPanel preview={runPreview} /> : null}
+              {runPreview ? (
+                <RunPreviewPanel
+                  preview={runPreview}
+                  selectedRelease={selectedRelease}
+                  targets={targets}
+                />
+              ) : null}
             </div>
             <DrawerFooter className="border-t border-border/70">
               <DrawerClose asChild>

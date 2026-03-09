@@ -165,6 +165,13 @@ Post-demo production-path planning and execution setup:
   - backend webhook URL at `api.mappopoc.com`
   - frontend UI at `www.mappopoc.com`
 - Improve preview readability and delivery observability based on the hosted demo feedback.
+- [x] Add Admin-visible GitHub release webhook delivery logs.
+- [x] Move the “new release available” banner into the shared app shell.
+- [x] Split Fleet target state into version freshness + runtime health + last deployment outcome.
+- [x] Reframe preview output around release impact + infrastructure risk, with raw ARM paths demoted to technical details.
+- [x] Redeploy the hosted runtime so `www.mappopoc.com` talks to `api.mappopoc.com` with working CORS.
+- [x] Move `Refresh Snapshot` into the Registered Targets tab context and replace transient Admin action banners with Sonner toasts.
+- [ ] Replace stored `healthStatus` as the long-term runtime signal with an explicit probe/check model so Fleet runtime state is no longer dependent on historical deployment status or manual correction.
 
 ## Detailed Plan Reference
 - `/Users/cvonderheid/workspace/mappo/docs/azure-production-execution-plan.md`

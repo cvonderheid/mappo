@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -25,13 +25,11 @@ const DEFAULT_REF = "main";
 
 type ReleaseIngestDrawerProps = {
   isSubmitting: boolean;
-  result: ReleaseManifestIngestResponse | null;
   onIngest: (request: ReleaseManifestIngestRequest) => Promise<void>;
 };
 
 export default function ReleaseIngestDrawer({
   isSubmitting,
-  result,
   onIngest,
 }: ReleaseIngestDrawerProps) {
   const [open, setOpen] = useState(false);
@@ -39,12 +37,6 @@ export default function ReleaseIngestDrawer({
   const [path, setPath] = useState(DEFAULT_PATH);
   const [ref, setRef] = useState(DEFAULT_REF);
   const [duplicateMode, setDuplicateMode] = useState<"skip" | "allow">("skip");
-
-  useEffect(() => {
-    if (!isSubmitting && result) {
-      setOpen(false);
-    }
-  }, [isSubmitting, result]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -54,6 +46,7 @@ export default function ReleaseIngestDrawer({
       ref: ref.trim(),
       allowDuplicates: duplicateMode === "allow",
     });
+    setOpen(false);
   }
 
   return (

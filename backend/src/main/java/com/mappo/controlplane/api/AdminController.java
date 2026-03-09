@@ -81,9 +81,10 @@ public class AdminController {
     public ReleaseManifestIngestResultRecord ingestGithubReleaseWebhook(
         @RequestBody String payload,
         @RequestHeader(value = "x-github-event", required = false) String githubEvent,
-        @RequestHeader(value = "x-hub-signature-256", required = false) String signatureHeader
+        @RequestHeader(value = "x-hub-signature-256", required = false) String signatureHeader,
+        @RequestHeader(value = "x-github-delivery", required = false) String githubDeliveryId
     ) {
-        return releaseManifestIngestService.ingestGithubWebhook(payload, githubEvent, signatureHeader);
+        return releaseManifestIngestService.ingestGithubWebhook(payload, githubEvent, signatureHeader, githubDeliveryId);
     }
 
     @PatchMapping("/onboarding/registrations/{targetId}")
@@ -95,7 +96,7 @@ public class AdminController {
     }
 
     @DeleteMapping("/onboarding/registrations/{targetId}")
-    public DeleteRegistrationResultRecord deleteRegistration(@PathVariable("targetId") String targetId) {
+    public DeleteRegistrationResultRecord deleteRegistration(@PathVariable String targetId) {
         adminService.deleteTargetRegistration(targetId);
         return new DeleteRegistrationResultRecord(targetId, true);
     }

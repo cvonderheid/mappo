@@ -1,11 +1,13 @@
 package com.mappo.controlplane.repository;
 
 import static com.mappo.controlplane.jooq.Tables.TARGETS;
+import static com.mappo.controlplane.jooq.Tables.TARGET_EXECUTION_RECORDS;
 import static com.mappo.controlplane.jooq.Tables.TARGET_REGISTRATIONS;
 import static com.mappo.controlplane.jooq.Tables.TARGET_TAGS;
 
 import com.mappo.controlplane.jooq.enums.MappoHealthStatus;
 import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
+import com.mappo.controlplane.jooq.enums.MappoTargetStage;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import com.mappo.controlplane.model.command.TargetUpsertCommand;
 import com.mappo.controlplane.model.TargetRecord;
@@ -31,6 +33,7 @@ public class TargetRepository {
     private final DSLContext dsl;
 
     public List<TargetRecord> listTargets(Map<String, String> filters) {
+        var latestExecution = latestExecutionTable();
         Condition condition = DSL.trueCondition();
         if (filters != null) {
             var tagFilterTable = TARGET_TAGS.as("tt");
@@ -58,12 +61,16 @@ public class TargetRepository {
                 TARGET_REGISTRATIONS.CUSTOMER_NAME,
                 TARGETS.LAST_DEPLOYED_RELEASE,
                 TARGETS.HEALTH_STATUS,
+                latestExecution.field("latest_status", MappoTargetStage.class),
+                latestExecution.field("latest_updated_at", OffsetDateTime.class),
                 TARGETS.LAST_CHECK_IN_AT,
                 TARGETS.SIMULATED_FAILURE_MODE
             )
             .from(TARGETS)
             .leftJoin(TARGET_REGISTRATIONS)
             .on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
+            .leftJoin(latestExecution)
+            .on(latestExecution.field("target_id", String.class).eq(TARGETS.ID))
             .where(condition)
             .orderBy(TARGETS.ID.asc())
             .fetch();
@@ -84,6 +91,7 @@ public class TargetRepository {
     }
 
     public Optional<TargetRecord> getTarget(String targetId) {
+        var latestExecution = latestExecutionTable();
         Record row = dsl.select(
                 TARGETS.ID,
                 TARGETS.TENANT_ID,
@@ -92,12 +100,16 @@ public class TargetRepository {
                 TARGET_REGISTRATIONS.CUSTOMER_NAME,
                 TARGETS.LAST_DEPLOYED_RELEASE,
                 TARGETS.HEALTH_STATUS,
+                latestExecution.field("latest_status", MappoTargetStage.class),
+                latestExecution.field("latest_updated_at", OffsetDateTime.class),
                 TARGETS.LAST_CHECK_IN_AT,
                 TARGETS.SIMULATED_FAILURE_MODE
             )
             .from(TARGETS)
             .leftJoin(TARGET_REGISTRATIONS)
             .on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
+            .leftJoin(latestExecution)
+            .on(latestExecution.field("target_id", String.class).eq(TARGETS.ID))
             .where(TARGETS.ID.eq(targetId))
             .fetchOne();
 
@@ -114,6 +126,7 @@ public class TargetRepository {
             return List.of();
         }
 
+        var latestExecution = latestExecutionTable();
         var rows = dsl.select(
                 TARGETS.ID,
                 TARGETS.TENANT_ID,
@@ -122,12 +135,16 @@ public class TargetRepository {
                 TARGET_REGISTRATIONS.CUSTOMER_NAME,
                 TARGETS.LAST_DEPLOYED_RELEASE,
                 TARGETS.HEALTH_STATUS,
+                latestExecution.field("latest_status", MappoTargetStage.class),
+                latestExecution.field("latest_updated_at", OffsetDateTime.class),
                 TARGETS.LAST_CHECK_IN_AT,
                 TARGETS.SIMULATED_FAILURE_MODE
             )
             .from(TARGETS)
             .leftJoin(TARGET_REGISTRATIONS)
             .on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
+            .leftJoin(latestExecution)
+            .on(latestExecution.field("target_id", String.class).eq(TARGETS.ID))
             .where(TARGETS.ID.in(targetIds))
             .orderBy(TARGETS.ID.asc())
             .fetch();
@@ -296,9 +313,35 @@ public class TargetRepository {
             tags,
             row.get(TARGETS.LAST_DEPLOYED_RELEASE),
             row.get(TARGETS.HEALTH_STATUS),
+            row.get("latest_status", MappoTargetStage.class),
+            row.get("latest_updated_at", OffsetDateTime.class),
             row.get(TARGETS.LAST_CHECK_IN_AT),
             row.get(TARGETS.SIMULATED_FAILURE_MODE)
         );
+    }
+
+    private org.jooq.Table<?> latestExecutionTimestampTable() {
+        return dsl.select(
+                TARGET_EXECUTION_RECORDS.TARGET_ID.as("target_id"),
+                DSL.max(TARGET_EXECUTION_RECORDS.UPDATED_AT).as("latest_updated_at")
+            )
+            .from(TARGET_EXECUTION_RECORDS)
+            .groupBy(TARGET_EXECUTION_RECORDS.TARGET_ID)
+            .asTable("latest_target_execution_ts");
+    }
+
+    private org.jooq.Table<?> latestExecutionTable() {
+        var latestExecutionTimestamp = latestExecutionTimestampTable();
+        return dsl.select(
+                TARGET_EXECUTION_RECORDS.TARGET_ID.as("target_id"),
+                TARGET_EXECUTION_RECORDS.STATUS.as("latest_status"),
+                TARGET_EXECUTION_RECORDS.UPDATED_AT.as("latest_updated_at")
+            )
+            .from(TARGET_EXECUTION_RECORDS)
+            .join(latestExecutionTimestamp)
+            .on(TARGET_EXECUTION_RECORDS.TARGET_ID.eq(latestExecutionTimestamp.field("target_id", String.class)))
+            .and(TARGET_EXECUTION_RECORDS.UPDATED_AT.eq(latestExecutionTimestamp.field("latest_updated_at", OffsetDateTime.class)))
+            .asTable("latest_target_execution");
     }
 
     private OffsetDateTime toTimestamp(Object value, OffsetDateTime fallback) {

@@ -7,10 +7,15 @@ import com.mappo.controlplane.api.request.ReleaseManifestIngestRequest;
 import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.jooq.enums.MappoArmDeploymentMode;
 import com.mappo.controlplane.jooq.enums.MappoDeploymentScope;
+import com.mappo.controlplane.jooq.enums.MappoReleaseWebhookStatus;
 import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
 import com.mappo.controlplane.model.ReleaseRecord;
+import com.mappo.controlplane.model.command.ReleaseWebhookDeliveryCommand;
+import com.mappo.controlplane.repository.ReleaseWebhookRepository;
 import com.mappo.controlplane.service.ReleaseService;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -36,6 +41,7 @@ public class ReleaseManifestIngestService {
 
     private final ReleaseService releaseService;
     private final ReleaseManifestSourceClient sourceClient;
+    private final ReleaseWebhookRepository releaseWebhookRepository;
     private final MappoProperties properties;
     private final ObjectMapper objectMapper;
 
@@ -56,8 +62,17 @@ public class ReleaseManifestIngestService {
     public ReleaseManifestIngestResultRecord ingestGithubWebhook(
         String rawPayload,
         String githubEvent,
-        String signatureHeader
+        String signatureHeader,
+        String githubDeliveryId
     ) {
+        OffsetDateTime receivedAt = OffsetDateTime.now(ZoneOffset.UTC);
+        String deliveryLogId = newDeliveryLogId(githubDeliveryId, githubEvent, rawPayload, receivedAt);
+        String normalizedEvent = normalize(githubEvent).toLowerCase();
+        String manifestPath = normalize(properties.getManagedAppReleasePath()).replaceFirst("^/+", "");
+        String repo = "";
+        String ref = "";
+        List<String> changedPaths = List.of();
+
         String configuredSecret = normalize(properties.getManagedAppReleaseWebhookSecret());
         if (configuredSecret.isBlank()) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "managed app release webhook secret is not configured");
@@ -65,38 +80,145 @@ public class ReleaseManifestIngestService {
         if (normalize(rawPayload).isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "github webhook payload is required");
         }
+        try {
+            verifyGithubSignature(rawPayload, signatureHeader, configuredSecret);
+            Map<?, ?> payload = readJsonObject(rawPayload, "github webhook payload is not valid JSON");
+            repo = normalize(readNestedValue(payload, "repository", "full_name"));
+            if (repo.isBlank()) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "github webhook payload missing repository.full_name");
+            }
 
-        verifyGithubSignature(rawPayload, signatureHeader, configuredSecret);
-        Map<?, ?> payload = readJsonObject(rawPayload, "github webhook payload is not valid JSON");
-        String repo = normalize(readNestedValue(payload, "repository", "full_name"));
-        if (repo.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "github webhook payload missing repository.full_name");
-        }
+            String expectedRepo = normalize(properties.getManagedAppReleaseRepo());
+            if (!expectedRepo.isBlank() && !expectedRepo.equals(repo)) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "github webhook repo is not allowed: " + repo);
+            }
 
-        String expectedRepo = normalize(properties.getManagedAppReleaseRepo());
-        if (!expectedRepo.isBlank() && !expectedRepo.equals(repo)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "github webhook repo is not allowed: " + repo);
-        }
+            ref = normalizeGithubRef(normalize(payload.get("ref")));
+            changedPaths = extractChangedPaths(payload);
 
-        String normalizedEvent = normalize(githubEvent).toLowerCase();
-        String manifestPath = normalize(properties.getManagedAppReleasePath()).replaceFirst("^/+", "");
-        if (GITHUB_PING_EVENT.equals(normalizedEvent)) {
-            return new ReleaseManifestIngestResultRecord(repo, manifestPath, properties.getManagedAppReleaseRef(), 0, 0, 0, 0, List.of());
-        }
-        if (!GITHUB_PUSH_EVENT.equals(normalizedEvent)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "unsupported github webhook event: " + githubEvent);
-        }
+            if (GITHUB_PING_EVENT.equals(normalizedEvent)) {
+                ReleaseManifestIngestResultRecord result = new ReleaseManifestIngestResultRecord(
+                    repo,
+                    manifestPath,
+                    properties.getManagedAppReleaseRef(),
+                    0,
+                    0,
+                    0,
+                    0,
+                    List.of()
+                );
+                logWebhookDelivery(
+                    deliveryLogId,
+                    githubDeliveryId,
+                    normalizedEvent,
+                    repo,
+                    ref,
+                    manifestPath,
+                    MappoReleaseWebhookStatus.skipped,
+                    "GitHub webhook ping acknowledged.",
+                    changedPaths,
+                    result,
+                    receivedAt
+                );
+                return result;
+            }
+            if (!GITHUB_PUSH_EVENT.equals(normalizedEvent)) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "unsupported github webhook event: " + githubEvent);
+            }
 
-        String ref = normalizeGithubRef(normalize(payload.get("ref")));
-        String expectedRef = normalize(properties.getManagedAppReleaseRef());
-        if (!expectedRef.isBlank() && !expectedRef.equals(ref)) {
-            return new ReleaseManifestIngestResultRecord(repo, manifestPath, ref, 0, 0, 0, 0, List.of());
-        }
-        if (!pushTouchesPath(payload, manifestPath)) {
-            return new ReleaseManifestIngestResultRecord(repo, manifestPath, ref, 0, 0, 0, 0, List.of());
-        }
+            String expectedRef = normalize(properties.getManagedAppReleaseRef());
+            if (!expectedRef.isBlank() && !expectedRef.equals(ref)) {
+                ReleaseManifestIngestResultRecord result = new ReleaseManifestIngestResultRecord(
+                    repo,
+                    manifestPath,
+                    ref,
+                    0,
+                    0,
+                    0,
+                    0,
+                    List.of()
+                );
+                logWebhookDelivery(
+                    deliveryLogId,
+                    githubDeliveryId,
+                    normalizedEvent,
+                    repo,
+                    ref,
+                    manifestPath,
+                    MappoReleaseWebhookStatus.skipped,
+                    "Ignored webhook push on non-configured ref " + ref + ".",
+                    changedPaths,
+                    result,
+                    receivedAt
+                );
+                return result;
+            }
+            if (!pushTouchesPath(payload, manifestPath)) {
+                ReleaseManifestIngestResultRecord result = new ReleaseManifestIngestResultRecord(
+                    repo,
+                    manifestPath,
+                    ref,
+                    0,
+                    0,
+                    0,
+                    0,
+                    List.of()
+                );
+                logWebhookDelivery(
+                    deliveryLogId,
+                    githubDeliveryId,
+                    normalizedEvent,
+                    repo,
+                    ref,
+                    manifestPath,
+                    MappoReleaseWebhookStatus.skipped,
+                    "Ignored webhook push because the managed-app release manifest did not change.",
+                    changedPaths,
+                    result,
+                    receivedAt
+                );
+                return result;
+            }
 
-        return ingestGithubManifest(new ReleaseManifestIngestRequest(repo, manifestPath, ref, false));
+            ReleaseManifestIngestResultRecord result = ingestGithubManifest(
+                new ReleaseManifestIngestRequest(repo, manifestPath, ref, false)
+            );
+            MappoReleaseWebhookStatus status = result.createdCount() > 0
+                ? MappoReleaseWebhookStatus.applied
+                : MappoReleaseWebhookStatus.skipped;
+            String message = result.createdCount() > 0
+                ? "Processed GitHub release webhook and created " + result.createdCount() + " release(s)."
+                : "Processed GitHub release webhook; no new releases were created.";
+            logWebhookDelivery(
+                deliveryLogId,
+                githubDeliveryId,
+                normalizedEvent,
+                repo,
+                ref,
+                manifestPath,
+                status,
+                message,
+                changedPaths,
+                result,
+                receivedAt
+            );
+            return result;
+        } catch (RuntimeException exception) {
+            logWebhookDelivery(
+                deliveryLogId,
+                githubDeliveryId,
+                normalizedEvent,
+                repo,
+                ref,
+                manifestPath,
+                MappoReleaseWebhookStatus.failed,
+                normalize(exception.getMessage()),
+                changedPaths,
+                null,
+                receivedAt
+            );
+            throw exception;
+        }
     }
 
     private ReleaseManifestIngestResultRecord ingestManifest(
@@ -366,6 +488,35 @@ public class ReleaseManifestIngestService {
         return false;
     }
 
+    private List<String> extractChangedPaths(Map<?, ?> payload) {
+        Object commitsValue = payload.get("commits");
+        if (!(commitsValue instanceof List<?> commits)) {
+            return List.of();
+        }
+        LinkedHashSet<String> paths = new LinkedHashSet<>();
+        for (Object commit : commits) {
+            if (!(commit instanceof Map<?, ?> commitMap)) {
+                continue;
+            }
+            addPaths(paths, commitMap.get("added"));
+            addPaths(paths, commitMap.get("modified"));
+            addPaths(paths, commitMap.get("removed"));
+        }
+        return List.copyOf(paths);
+    }
+
+    private void addPaths(Set<String> target, Object value) {
+        if (!(value instanceof List<?> list)) {
+            return;
+        }
+        for (Object item : list) {
+            String path = normalize(item).replaceFirst("^/+", "");
+            if (!path.isBlank()) {
+                target.add(path);
+            }
+        }
+    }
+
     private boolean pathsContain(Object value, String targetPath) {
         if (!(value instanceof List<?> list)) {
             return false;
@@ -405,6 +556,58 @@ public class ReleaseManifestIngestService {
             return builder.toString();
         } catch (Exception exception) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "failed to verify github webhook signature");
+        }
+    }
+
+    private void logWebhookDelivery(
+        String deliveryLogId,
+        String externalDeliveryId,
+        String eventType,
+        String repo,
+        String ref,
+        String manifestPath,
+        MappoReleaseWebhookStatus status,
+        String message,
+        List<String> changedPaths,
+        ReleaseManifestIngestResultRecord result,
+        OffsetDateTime receivedAt
+    ) {
+        releaseWebhookRepository.saveDelivery(new ReleaseWebhookDeliveryCommand(
+            deliveryLogId,
+            nullable(externalDeliveryId),
+            defaultIfBlank(eventType, "unknown"),
+            nullable(repo),
+            nullable(ref),
+            nullable(manifestPath),
+            status,
+            defaultIfBlank(message, "GitHub release webhook processed."),
+            changedPaths == null ? List.of() : List.copyOf(changedPaths),
+            result == null ? 0 : result.manifestReleaseCount(),
+            result == null ? 0 : result.createdCount(),
+            result == null ? 0 : result.skippedCount(),
+            result == null ? 0 : result.ignoredCount(),
+            result == null ? List.of() : result.createdReleaseIds(),
+            receivedAt
+        ));
+    }
+
+    private String newDeliveryLogId(String externalDeliveryId, String eventType, String payload, OffsetDateTime receivedAt) {
+        String basis = firstNonBlank(normalize(externalDeliveryId), normalize(eventType), "github")
+            + "::" + normalize(payload)
+            + "::" + receivedAt.toInstant().toEpochMilli();
+        return "rwh-" + sha256Hex(basis).substring(0, 12);
+    }
+
+    private String sha256Hex(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(digest.length * 2);
+            for (byte item : digest) {
+                builder.append(String.format("%02x", item));
+            }
+            return builder.toString();
+        } catch (Exception exception) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "failed to hash webhook delivery");
         }
     }
 
@@ -481,6 +684,11 @@ public class ReleaseManifestIngestService {
     private String nullable(String value) {
         String normalized = normalize(value);
         return normalized.isBlank() ? null : normalized;
+    }
+
+    private String defaultIfBlank(String value, String fallback) {
+        String normalized = normalize(value);
+        return normalized.isBlank() ? fallback : normalized;
     }
 
     private String normalize(Object value) {
