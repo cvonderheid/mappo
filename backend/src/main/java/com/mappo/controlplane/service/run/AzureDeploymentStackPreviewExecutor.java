@@ -116,7 +116,7 @@ public class AzureDeploymentStackPreviewExecutor implements DeploymentStackPrevi
         LinkedHashSet<String> seen = new LinkedHashSet<>();
         List<RunPreviewPropertyChangeRecord> records = new ArrayList<>();
         for (WhatIfPropertyChange propertyChange : delta) {
-            collectPropertyChanges(records, seen, propertyChange);
+            collectPropertyChanges(records, seen, propertyChange, "");
         }
         return records;
     }
@@ -124,15 +124,17 @@ public class AzureDeploymentStackPreviewExecutor implements DeploymentStackPrevi
     private void collectPropertyChanges(
         List<RunPreviewPropertyChangeRecord> records,
         LinkedHashSet<String> seen,
-        WhatIfPropertyChange propertyChange
+        WhatIfPropertyChange propertyChange,
+        String parentPath
     ) {
         if (propertyChange == null) {
             return;
         }
-        String key = normalize(propertyChange.path()) + "|" + normalize(propertyChange.propertyChangeType());
-        if (!normalize(propertyChange.path()).isBlank() && seen.add(key)) {
+        String qualifiedPath = qualifyPropertyPath(parentPath, propertyChange.path());
+        String key = qualifiedPath + "|" + normalize(propertyChange.propertyChangeType());
+        if (!qualifiedPath.isBlank() && seen.add(key)) {
             records.add(new RunPreviewPropertyChangeRecord(
-                normalize(propertyChange.path()),
+                qualifiedPath,
                 normalize(propertyChange.propertyChangeType())
             ));
         }
@@ -140,8 +142,32 @@ public class AzureDeploymentStackPreviewExecutor implements DeploymentStackPrevi
             return;
         }
         for (WhatIfPropertyChange child : propertyChange.children()) {
-            collectPropertyChanges(records, seen, child);
+            collectPropertyChanges(records, seen, child, qualifiedPath);
         }
+    }
+
+    private String qualifyPropertyPath(String parentPath, String path) {
+        String normalizedParent = normalize(parentPath);
+        String normalizedPath = normalize(path);
+        if (normalizedPath.isBlank()) {
+            return normalizedParent;
+        }
+        if (normalizedPath.startsWith("$")) {
+            return normalizedPath;
+        }
+        if (normalizedParent.isBlank()) {
+            return normalizedPath;
+        }
+        if (normalizedPath.startsWith("[")) {
+            return normalizedParent + normalizedPath;
+        }
+        if (normalizedPath.matches("\\d+")) {
+            return normalizedParent + "[" + normalizedPath + "]";
+        }
+        if (normalizedPath.startsWith(".")) {
+            return normalizedParent + normalizedPath;
+        }
+        return normalizedParent + "." + normalizedPath;
     }
 
     private List<String> previewWarnings(List<RunPreviewChangeRecord> changes) {

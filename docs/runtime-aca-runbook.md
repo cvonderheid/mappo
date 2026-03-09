@@ -116,3 +116,17 @@ Or explicit:
 ```bash
 ./scripts/runtime_aca_destroy.sh --resource-group "<runtime-rg>" --subscription-id "<provider-subscription-id>"
 ```
+
+## 5) Stable GitHub Webhook URL
+
+If you want the GitHub release webhook to survive ACA hostname changes, put Azure Front Door in front of the backend.
+
+Front Door runbook:
+- [frontdoor-webhook-runbook.md](/Users/cvonderheid/workspace/mappo/docs/frontdoor-webhook-runbook.md)
+
+The stable webhook URL comes from Pulumi output:
+
+```bash
+cd /Users/cvonderheid/workspace/mappo/infra/pulumi
+pulumi stack output managedAppReleaseWebhookUrl --stack <stack>
+```

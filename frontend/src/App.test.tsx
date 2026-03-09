@@ -102,6 +102,7 @@ const apiMock = vi.hoisted(() => ({
   listReleases: vi.fn(),
   listRuns: vi.fn(),
   listTargets: vi.fn(),
+  previewRun: vi.fn(),
   resumeRun: vi.fn(),
   retryFailed: vi.fn(),
 }));
@@ -110,16 +111,24 @@ vi.mock("@/lib/api", () => apiMock);
 
 describe("App", () => {
   beforeEach(() => {
+    apiMock.adminIngestGithubReleaseManifest.mockReset();
+    apiMock.adminIngestMarketplaceEvent.mockReset();
+    apiMock.createRun.mockReset();
+    apiMock.previewRun.mockReset();
+    apiMock.resumeRun.mockReset();
+    apiMock.retryFailed.mockReset();
     apiMock.listTargets.mockResolvedValue(mockTargets);
     apiMock.listReleases.mockResolvedValue(mockReleases);
     apiMock.listRuns.mockResolvedValue(mockRuns);
     apiMock.getRun.mockResolvedValue(mockRunDetail);
     apiMock.getAdminOnboardingSnapshot.mockResolvedValue(mockAdminSnapshot);
-    apiMock.adminIngestGithubReleaseManifest.mockReset();
-    apiMock.adminIngestMarketplaceEvent.mockReset();
-    apiMock.createRun.mockReset();
-    apiMock.resumeRun.mockReset();
-    apiMock.retryFailed.mockReset();
+    apiMock.previewRun.mockResolvedValue({
+      releaseVersion: "2026.02.25.3",
+      mode: "ARM_WHAT_IF",
+      warnings: [],
+      caveat: "",
+      targets: [],
+    });
   });
 
   it("renders dashboard data from API", async () => {
@@ -134,18 +143,27 @@ describe("App", () => {
       expect(screen.getByRole("link", { name: /Fleet/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Deployments/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Admin/i })).toBeInTheDocument();
+      expect(screen.getByText(/New release 2026.02.25.3 is available/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Deploy 2026.02.25.3/i })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getAllByRole("link", { name: /Deployments/i })[0]);
+    fireEvent.click(screen.getByRole("button", { name: /Deploy 2026.02.25.3/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /New Deployment/i })).toBeInTheDocument();
+      expect(screen.getByLabelText("Release version")).toBeInTheDocument();
+      expect(screen.getByText(/Specific targets selected: 0/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Close/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("open-deployment-controls")).toBeInTheDocument();
       expect(screen.getByText("run-1")).toBeInTheDocument();
       expect(screen.getByTestId("run-row-run-1")).toBeInTheDocument();
       expect(screen.getByTestId("run-actions-trigger-run-1")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /New Deployment/i }));
+    fireEvent.click(screen.getByTestId("open-deployment-controls"));
 
     await waitFor(() => {
       expect(screen.getByLabelText("Release version")).toBeInTheDocument();

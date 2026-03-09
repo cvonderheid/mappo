@@ -1,10 +1,8 @@
 import { FormEvent } from "react";
 
 import { RunList } from "@/components/RunPanels";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Badge } from "@/components/ui/badge";
+import { PreviewProgressCard, RunPreviewPanel } from "@/components/RunPreviewPanel";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Drawer,
   DrawerClose,
@@ -26,7 +24,10 @@ type DeploymentsPageProps = {
   formState: StartRunFormState;
   isSubmitting: boolean;
   isPreviewing: boolean;
+  previewElapsedSeconds: number;
   previewErrorMessage: string;
+  previewProgressPercent: number;
+  previewTargetCount: number;
   releases: Release[];
   runPreview: RunPreview | null;
   runs: RunSummary[];
@@ -48,6 +49,7 @@ type DeploymentsPageProps = {
   onTargetGroupFilterChange: (targetGroup: string) => void;
   onRunActionsMenuOpenChange: (open: boolean) => void;
   onPreviewRun: () => Promise<void>;
+  onCancelPreview: () => void;
 };
 
 export default function DeploymentsPage({
@@ -55,7 +57,10 @@ export default function DeploymentsPage({
   formState,
   isSubmitting,
   isPreviewing,
+  previewElapsedSeconds,
   previewErrorMessage,
+  previewProgressPercent,
+  previewTargetCount,
   releases,
   runPreview,
   runs,
@@ -77,6 +82,7 @@ export default function DeploymentsPage({
   onTargetGroupFilterChange,
   onRunActionsMenuOpenChange,
   onPreviewRun,
+  onCancelPreview,
 }: DeploymentsPageProps) {
   return (
     <>
@@ -287,6 +293,13 @@ export default function DeploymentsPage({
                   {previewErrorMessage}
                 </div>
               ) : null}
+              <PreviewProgressCard
+                elapsedSeconds={previewElapsedSeconds}
+                isPreviewing={isPreviewing}
+                progressPercent={previewProgressPercent}
+                targetCount={previewTargetCount}
+                onCancelPreview={onCancelPreview}
+              />
               {runPreview ? <RunPreviewPanel preview={runPreview} /> : null}
             </div>
             <DrawerFooter className="border-t border-border/70">
@@ -310,118 +323,4 @@ export default function DeploymentsPage({
       </div>
     </>
   );
-}
-
-function RunPreviewPanel({ preview }: { preview: RunPreview }) {
-  const modeLabel = preview.mode === "ARM_WHAT_IF" ? "ARM what-if" : "Unsupported";
-  return (
-    <Card className="mt-3 border-border/70 bg-card/70">
-      <CardHeader className="pb-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <CardTitle>Preview Results</CardTitle>
-            <CardDescription>
-              Release {preview.releaseVersion ?? "unknown"} for {preview.targets?.length ?? 0} target
-              {preview.targets?.length === 1 ? "" : "s"}.
-            </CardDescription>
-          </div>
-          <Badge variant={preview.mode === "ARM_WHAT_IF" ? "default" : "outline"}>{modeLabel}</Badge>
-        </div>
-        {preview.caveat ? (
-          <p className="text-xs text-muted-foreground">{preview.caveat}</p>
-        ) : null}
-        {preview.warnings && preview.warnings.length > 0 ? (
-          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-100">
-            {preview.warnings.map((warning) => (
-              <p key={warning}>{warning}</p>
-            ))}
-          </div>
-        ) : null}
-      </CardHeader>
-      <CardContent>
-        <Accordion type="single" collapsible className="w-full">
-          {preview.targets?.map((target) => (
-            <AccordionItem key={target.targetId ?? "unknown"} value={target.targetId ?? "unknown"}>
-              <AccordionTrigger className="py-3 no-underline hover:no-underline">
-                <div className="flex w-full flex-wrap items-center justify-between gap-2 pr-3">
-                  <div>
-                    <p className="font-mono text-sm">{target.targetId ?? "unknown-target"}</p>
-                    <p className="text-xs text-muted-foreground">{target.summary ?? "No preview summary."}</p>
-                  </div>
-                  <Badge variant={targetStatusVariant(target.status)}>{target.status ?? "UNKNOWN"}</Badge>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent>
-                <div className="space-y-3 text-xs">
-                  {target.managedResourceGroupId ? (
-                    <p className="font-mono text-muted-foreground">{target.managedResourceGroupId}</p>
-                  ) : null}
-                  {target.warnings && target.warnings.length > 0 ? (
-                    <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-amber-100">
-                      {target.warnings.map((warning) => (
-                        <p key={warning}>{warning}</p>
-                      ))}
-                    </div>
-                  ) : null}
-                  {target.error ? (
-                    <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-destructive-foreground">
-                      <p className="font-medium">{target.error.message ?? "Preview failed."}</p>
-                      {target.error.details?.error ? <p className="mt-1">{target.error.details.error}</p> : null}
-                    </div>
-                  ) : null}
-                  {target.changes && target.changes.length > 0 ? (
-                    <div className="space-y-2">
-                      {target.changes.map((change) => (
-                        <div
-                          key={`${change.resourceId ?? "unknown"}-${change.changeType ?? "change"}`}
-                          className="rounded-md border border-border/70 bg-muted/20 p-2"
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="font-mono text-[11px]">{change.resourceId ?? "unknown-resource"}</p>
-                            <Badge variant="outline">{change.changeType ?? "Unknown"}</Badge>
-                          </div>
-                          {change.unsupportedReason ? (
-                            <p className="mt-1 text-muted-foreground">{change.unsupportedReason}</p>
-                          ) : null}
-                          {change.propertyChanges && change.propertyChanges.length > 0 ? (
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {change.propertyChanges.slice(0, 8).map((propertyChange) => (
-                                <span
-                                  key={`${propertyChange.path ?? "unknown"}-${propertyChange.changeType ?? "change"}`}
-                                  className="rounded-full border border-border/70 px-2 py-0.5 font-mono text-[10px] text-muted-foreground"
-                                >
-                                  {propertyChange.changeType}: {propertyChange.path}
-                                </span>
-                              ))}
-                              {change.propertyChanges.length > 8 ? (
-                                <span className="rounded-full border border-border/70 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
-                                  +{change.propertyChanges.length - 8} more
-                                </span>
-                              ) : null}
-                            </div>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground">No resource changes returned for this target.</p>
-                  )}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
-      </CardContent>
-    </Card>
-  );
-}
-
-function targetStatusVariant(status: string | null | undefined) {
-  if (status === "PREVIEWED") {
-    return "default";
-  }
-  if (status === "FAILED") {
-    return "destructive";
-  }
-  return "outline";
 }

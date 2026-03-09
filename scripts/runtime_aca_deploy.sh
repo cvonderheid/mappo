@@ -164,6 +164,43 @@ is_falsey() {
   [[ "$1" =~ ^(0|false|no|off)$ ]]
 }
 
+resolve_containerapp_public_host() {
+  local app_name="$1"
+  local fallback_fqdn="$2"
+  local custom_host=""
+  local bound_host=""
+
+  custom_host="$(
+    az containerapp hostname list \
+      --name "${app_name}" \
+      --resource-group "${RESOURCE_GROUP}" \
+      --query "[?bindingType=='SniEnabled' && contains(name, 'azurecontainerapps.io') == \`false\`].name | [0]" \
+      -o tsv \
+      --only-show-errors \
+      2>/dev/null || true
+  )"
+  if [[ -n "${custom_host}" && "${custom_host}" != "null" ]]; then
+    printf '%s\n' "${custom_host}"
+    return 0
+  fi
+
+  bound_host="$(
+    az containerapp hostname list \
+      --name "${app_name}" \
+      --resource-group "${RESOURCE_GROUP}" \
+      --query "[?bindingType=='SniEnabled'].name | [0]" \
+      -o tsv \
+      --only-show-errors \
+      2>/dev/null || true
+  )"
+  if [[ -n "${bound_host}" && "${bound_host}" != "null" ]]; then
+    printf '%s\n' "${bound_host}"
+    return 0
+  fi
+
+  printf '%s\n' "${fallback_fqdn}"
+}
+
 if [[ ! -f "${AZURE_ENV_FILE}" ]]; then
   echo "runtime-aca-deploy: missing Azure env file: ${AZURE_ENV_FILE}" >&2
   exit 1
@@ -642,6 +679,10 @@ if [[ -n "${MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET:-}" ]]; then
   backend_env_vars+=("MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET=secretref:managed-app-release-webhook-secret")
   backend_secrets+=("managed-app-release-webhook-secret=${MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET}")
 fi
+if [[ -n "${MAPPO_MANAGED_APP_RELEASE_GITHUB_TOKEN:-}" ]]; then
+  backend_env_vars+=("MAPPO_MANAGED_APP_RELEASE_GITHUB_TOKEN=secretref:managed-app-release-github-token")
+  backend_secrets+=("managed-app-release-github-token=${MAPPO_MANAGED_APP_RELEASE_GITHUB_TOKEN}")
+fi
 
 backend_base_url=""
 frontend_base_url=""
@@ -712,7 +753,8 @@ if is_falsey "${SKIP_APP_DEPLOY}"; then
     echo "runtime-aca-deploy: failed to resolve backend FQDN for ${BACKEND_APP_NAME}" >&2
     exit 1
   fi
-  backend_base_url="https://${backend_fqdn}"
+  backend_public_host="$(resolve_containerapp_public_host "${BACKEND_APP_NAME}" "${backend_fqdn}")"
+  backend_base_url="https://${backend_public_host}"
 
   if is_falsey "${SKIP_BUILD}"; then
     echo "runtime-aca-deploy: building frontend image ${frontend_image}"
@@ -780,9 +822,13 @@ if is_falsey "${SKIP_APP_DEPLOY}"; then
     echo "runtime-aca-deploy: failed to resolve frontend FQDN for ${FRONTEND_APP_NAME}" >&2
     exit 1
   fi
-  frontend_base_url="https://${frontend_fqdn}"
+  frontend_public_host="$(resolve_containerapp_public_host "${FRONTEND_APP_NAME}" "${frontend_fqdn}")"
+  frontend_base_url="https://${frontend_public_host}"
 
-  backend_cors="http://localhost:5174,http://127.0.0.1:5174,${frontend_base_url}"
+  backend_cors="http://localhost:5174,http://127.0.0.1:5174,https://${frontend_fqdn}"
+  if [[ "${frontend_base_url}" != "https://${frontend_fqdn}" ]]; then
+    backend_cors="${backend_cors},${frontend_base_url}"
+  fi
   az containerapp update \
     --name "${BACKEND_APP_NAME}" \
     --resource-group "${RESOURCE_GROUP}" \
@@ -794,10 +840,12 @@ else
   backend_fqdn="$(az containerapp show --name "${BACKEND_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors 2>/dev/null || true)"
   frontend_fqdn="$(az containerapp show --name "${FRONTEND_APP_NAME}" --resource-group "${RESOURCE_GROUP}" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors 2>/dev/null || true)"
   if [[ -n "${backend_fqdn}" ]]; then
-    backend_base_url="https://${backend_fqdn}"
+    backend_public_host="$(resolve_containerapp_public_host "${BACKEND_APP_NAME}" "${backend_fqdn}")"
+    backend_base_url="https://${backend_public_host}"
   fi
   if [[ -n "${frontend_fqdn}" ]]; then
-    frontend_base_url="https://${frontend_fqdn}"
+    frontend_public_host="$(resolve_containerapp_public_host "${FRONTEND_APP_NAME}" "${frontend_fqdn}")"
+    frontend_base_url="https://${frontend_public_host}"
   fi
 fi
 

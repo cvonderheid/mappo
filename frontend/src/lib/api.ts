@@ -77,9 +77,10 @@ export async function createRun(request: CreateRunRequest): Promise<RunDetail> {
   return requireData("createRun", { data, error, response });
 }
 
-export async function previewRun(request: CreateRunRequest): Promise<RunPreview> {
+export async function previewRun(request: CreateRunRequest, signal?: AbortSignal): Promise<RunPreview> {
   const { data, error, response } = await apiClient.POST("/api/v1/runs/preview", {
     body: request,
+    signal,
   });
   return requireData("previewRun", { data, error, response });
 }

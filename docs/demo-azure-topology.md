@@ -23,6 +23,7 @@ Important boundary:
 
 | Resource group | Created by | Purpose | Active resources |
 |---|---|---|---|
+| `rg-mappo-edge-demo` | `infra/pulumi` | Stable public ingress for release webhooks | Azure Front Door profile, endpoint, origin group/origin, route, optional custom domain |
 | `rg-mappo-runtime-demo` | `./scripts/runtime_aca_deploy.sh` | Hosted MAPPO runtime | ACA environment, backend ACA, frontend ACA, DB migration job, publisher/runtime ACR, Log Analytics |
 | `rg-mappo-marketplace-forwarder-demo` | `./scripts/marketplace_forwarder_deploy.sh` | Marketplace event ingress | Function App, storage account, hosting plan, App Insights |
 | `rg-mappo-control-plane-c0d51042` | `infra/pulumi` | Control-plane data services | Azure Database for PostgreSQL Flexible Server |
@@ -39,6 +40,7 @@ Important boundary:
 
 ### Pulumi-created
 - Control-plane Postgres in `rg-mappo-control-plane-c0d51042`
+- Front Door edge ingress in `rg-mappo-edge-<stack>` when enabled
 - Demo target RGs
 - Demo customer shared ACA environment RG
 - Target Container Apps and Deployment Stack scaffolding in the demo fleet
@@ -67,6 +69,13 @@ flowchart LR
   subgraph Provider["Provider subscription c0d51042-..."]
     subgraph ControlPlane["rg-mappo-control-plane-c0d51042\n(Pulumi)"]
       Pg["Postgres\npg-mappo-c0d51042"]
+    end
+
+    subgraph Edge["rg-mappo-edge-demo\n(Pulumi)"]
+      FdProfile["Front Door profile"]
+      FdEndpoint["Front Door endpoint"]
+      FdRoute["Front Door route"]
+      FdDomain["Custom domain\noptional"]
     end
 
     subgraph Runtime["rg-mappo-runtime-demo\n(script)"]
@@ -104,9 +113,11 @@ flowchart LR
 
   Repo -->|"publish_release.mjs\npublishes template artifact"| ArtifactBlob
   Repo -->|"publish_release.mjs\npublishes workload image"| RuntimeAcr
-  Repo -.->|"GitHub webhook"| Api
+  Repo -.->|"GitHub webhook"| FdEndpoint
 
   Func -.->|"simulated marketplace events"| Api
+  FdEndpoint --> FdRoute
+  FdRoute --> Api
   Api -->|"reads release manifest from GitHub"| Repo
   Api -->|"reads Blob artifact"| ArtifactBlob
   Api -->|"updates stack"| Stack01
@@ -159,6 +170,7 @@ flowchart TB
 
 ## Current Demo Truths
 
+- GitHub release webhooks should target the Front Door URL once configured, not the raw ACA backend hostname.
 - The provider target reuses the provider ACA environment in `rg-mappo-runtime-demo`.
 - The customer target uses its own shared ACA environment in `rg-mappo-demo-fleet-demo-fleet-1adaaa48`.
 - Simulated Marketplace events register targets in MAPPO.
@@ -170,8 +182,7 @@ Removed from the live demo environment on 2026-03-08:
 - Provider-side Template Specs from `rg-mappo-control-plane-c0d51042`
 - Customer legacy control-plane resource group `rg-mappo-control-plane-c0d51042`
 
-## Optional Remaining Cleanup
+## Stable Webhook Ingress
 
-These Entra objects appear to be stale from older demo iterations and are not part of the current topology:
-- `mappo-runtime-20260227192823`
-- `mappo-runtime-20260227193604`
+Front Door custom-domain setup is documented in:
+- [frontdoor-webhook-runbook.md](/Users/cvonderheid/workspace/mappo/docs/frontdoor-webhook-runbook.md)

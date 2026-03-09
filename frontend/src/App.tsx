@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import AdminPanel from "@/components/AdminPanel";
 import DemoPanel from "@/components/DemoPanel";
@@ -8,6 +8,7 @@ import { RunDetailPanel } from "@/components/RunPanels";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { DEFAULT_FORM, type StartRunFormState } from "@/lib/deployment-form";
+import { canonicalizeReleases } from "@/lib/releases";
 import {
   adminDeleteTargetRegistration,
   adminIngestGithubReleaseManifest,
@@ -69,6 +70,8 @@ function AppShell() {
   const [formState, setFormState] = useState<StartRunFormState>(DEFAULT_FORM);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isPreviewing, setIsPreviewing] = useState<boolean>(false);
+  const [previewElapsedSeconds, setPreviewElapsedSeconds] = useState<number>(0);
+  const [previewTargetCount, setPreviewTargetCount] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [previewErrorMessage, setPreviewErrorMessage] = useState<string>("");
   const [runPreview, setRunPreview] = useState<RunPreview | null>(null);
@@ -79,6 +82,7 @@ function AppShell() {
   const [releaseIngestIsSubmitting, setReleaseIngestIsSubmitting] = useState<boolean>(false);
   const [releaseIngestErrorMessage, setReleaseIngestErrorMessage] = useState<string>("");
   const [releaseIngestResult, setReleaseIngestResult] = useState<ReleaseManifestIngestResponse | null>(null);
+  const previewAbortControllerRef = useRef<AbortController | null>(null);
 
   const refreshTargets = useCallback(async () => {
     try {
@@ -91,7 +95,7 @@ function AppShell() {
 
   const refreshReleases = useCallback(async () => {
     try {
-      const payload = await listReleases();
+      const payload = canonicalizeReleases(await listReleases());
       setReleases(payload);
       setSelectedReleaseId((current) => {
         if (payload.length === 0) {
@@ -198,6 +202,26 @@ function AppShell() {
     setPreviewErrorMessage("");
   }, [formState, selectedReleaseId, selectedTargetIds, targetGroupFilter]);
 
+  useEffect(() => {
+    if (!isPreviewing) {
+      setPreviewElapsedSeconds(0);
+      return;
+    }
+    const startedAt = Date.now();
+    setPreviewElapsedSeconds(0);
+    const intervalId = window.setInterval(() => {
+      setPreviewElapsedSeconds(Math.max(1, Math.floor((Date.now() - startedAt) / 1000)));
+    }, 250);
+    return () => window.clearInterval(intervalId);
+  }, [isPreviewing]);
+
+  useEffect(
+    () => () => {
+      previewAbortControllerRef.current?.abort();
+    },
+    []
+  );
+
   const runStats = useMemo(() => {
     let running = 0;
     for (const run of runs) {
@@ -212,6 +236,51 @@ function AppShell() {
     () => releases.find((release) => release.id === selectedReleaseId) ?? null,
     [releases, selectedReleaseId]
   );
+  const latestRelease = useMemo(() => releases[0] ?? null, [releases]);
+
+  const previewProgressPercent = useMemo(() => {
+    if (!isPreviewing) {
+      return 0;
+    }
+    const targetWeight = Math.max(1, previewTargetCount);
+    const progress = 12 + (1 - Math.exp(-(previewElapsedSeconds + 1) / (targetWeight * 3.5))) * 78;
+    return Math.min(90, Math.round(progress));
+  }, [isPreviewing, previewElapsedSeconds, previewTargetCount]);
+
+  useEffect(() => {
+    if (location.pathname !== "/deployments") {
+      return;
+    }
+
+    const searchParams = new URLSearchParams(location.search);
+    const requestedReleaseId = searchParams.get("releaseId");
+    const shouldOpenControls = searchParams.get("controls") === "open";
+
+    if (requestedReleaseId && releases.length === 0) {
+      return;
+    }
+
+    if (requestedReleaseId && releases.some((release) => release.id === requestedReleaseId)) {
+      setSelectedReleaseId(requestedReleaseId);
+    }
+    if (shouldOpenControls) {
+      setDeploymentControlsOpen(true);
+    }
+
+    if (requestedReleaseId || searchParams.has("controls")) {
+      const cleaned = new URLSearchParams(location.search);
+      cleaned.delete("releaseId");
+      cleaned.delete("controls");
+      const nextSearch = cleaned.toString();
+      navigate(
+        {
+          pathname: location.pathname,
+          search: nextSearch ? `?${nextSearch}` : "",
+        },
+        { replace: true }
+      );
+    }
+  }, [location.pathname, location.search, navigate, releases]);
 
   async function handleStartRun(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -290,15 +359,31 @@ function AppShell() {
       request.targetIds = [...selectedTargetIds].sort();
     }
 
+    previewAbortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    previewAbortControllerRef.current = abortController;
+    setPreviewTargetCount(request.targetIds?.length ?? deploymentTargets.length);
     setIsPreviewing(true);
     try {
-      setRunPreview(await previewRun(request));
+      setRunPreview(null);
       setPreviewErrorMessage("");
+      setRunPreview(await previewRun(request, abortController.signal));
     } catch (error) {
-      setPreviewErrorMessage((error as Error).message);
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setPreviewErrorMessage("Preview canceled before Azure returned a result.");
+      } else {
+        setPreviewErrorMessage((error as Error).message);
+      }
     } finally {
+      if (previewAbortControllerRef.current === abortController) {
+        previewAbortControllerRef.current = null;
+      }
       setIsPreviewing(false);
     }
+  }
+
+  function handleCancelPreview(): void {
+    previewAbortControllerRef.current?.abort();
   }
 
   async function handleResumeRun(runId: string): Promise<void> {
@@ -371,6 +456,10 @@ function AppShell() {
     } catch (error) {
       setErrorMessage((error as Error).message);
     }
+  }
+
+  function handleOpenDeploymentForRelease(releaseId: string): void {
+    navigate(`/deployments?releaseId=${encodeURIComponent(releaseId)}&controls=open`);
   }
 
   async function handleAdminIngestMarketplaceEvent(
@@ -451,7 +540,16 @@ function AppShell() {
 
       <Routes>
         <Route path="/" element={<Navigate to="/fleet" replace />} />
-        <Route path="/fleet" element={<FleetTable targets={targets} />} />
+        <Route
+          path="/fleet"
+          element={
+            <FleetTable
+              latestRelease={latestRelease}
+              onDeployLatestRelease={handleOpenDeploymentForRelease}
+              targets={targets}
+            />
+          }
+        />
         <Route
           path="/deployments"
           element={
@@ -460,7 +558,10 @@ function AppShell() {
               formState={formState}
               isSubmitting={isSubmitting}
               isPreviewing={isPreviewing}
+              previewElapsedSeconds={previewElapsedSeconds}
               previewErrorMessage={previewErrorMessage}
+              previewProgressPercent={previewProgressPercent}
+              previewTargetCount={previewTargetCount}
               releases={releases}
               runPreview={runPreview}
               runs={runs}
@@ -491,6 +592,7 @@ function AppShell() {
               onTargetGroupFilterChange={setTargetGroupFilter}
               onRunActionsMenuOpenChange={setRunActionsMenuOpen}
               onPreviewRun={handlePreviewRun}
+              onCancelPreview={handleCancelPreview}
             />
           }
         />

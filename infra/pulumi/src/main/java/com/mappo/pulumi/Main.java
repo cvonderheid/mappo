@@ -123,6 +123,7 @@ public final class Main {
     private final String publisherPrincipalObjectId;
     private final Map<String, String> publisherPrincipalObjectIds;
     private final String publisherRoleDefinitionId;
+    private final FrontDoorConfig frontDoorConfig;
 
     private final Map<String, Provider> providersBySubscription = new HashMap<>();
     private final Map<String, SubscriptionContext> contextBySubscription = new HashMap<>();
@@ -180,6 +181,36 @@ public final class Main {
         this.publisherPrincipalObjectId = optionalConfigWithEnvFallback(config, "publisherPrincipalObjectId", "MAPPO_PUBLISHER_PRINCIPAL_OBJECT_ID").orElse(null);
         this.publisherPrincipalObjectIds = normalizePrincipalMap(parseConfigStringMap(config, "publisherPrincipalObjectIds"));
         this.publisherRoleDefinitionId = config.get("publisherRoleDefinitionId").orElse(CONTRIBUTOR_ROLE_DEFINITION_ID);
+        this.frontDoorConfig = new FrontDoorConfig(
+            booleanConfigWithEnvFallback(config, "frontDoorEnabled", "MAPPO_FRONT_DOOR_ENABLED", false),
+            optionalConfigWithEnvFallback(config, "frontDoorSubscriptionId", "MAPPO_FRONT_DOOR_SUBSCRIPTION_ID").orElse(this.controlPlaneSubscriptionId),
+            optionalConfigWithEnvFallback(config, "frontDoorResourceGroupName", "MAPPO_FRONT_DOOR_RESOURCE_GROUP")
+                .orElse("rg-mappo-edge-" + normalizeName(ctx.stackName(), "demo", 16)),
+            optionalConfigWithEnvFallback(config, "frontDoorResourceGroupLocation", "MAPPO_FRONT_DOOR_RESOURCE_GROUP_LOCATION")
+                .orElse(this.controlPlaneLocation),
+            optionalConfigWithEnvFallback(config, "frontDoorProfileSku", "MAPPO_FRONT_DOOR_PROFILE_SKU").orElse("Standard_AzureFrontDoor"),
+            optionalConfigWithEnvFallback(config, "frontDoorProfileName", "MAPPO_FRONT_DOOR_PROFILE_NAME")
+                .orElse(normalizeName("afd-mappo-" + ctx.stackName(), "afd-mappo-demo", 60)),
+            optionalConfigWithEnvFallback(config, "frontDoorEndpointName", "MAPPO_FRONT_DOOR_ENDPOINT_NAME")
+                .orElse(normalizeName("ep-mappo-" + ctx.stackName(), "ep-mappo-demo", 46)),
+            optionalConfigWithEnvFallback(config, "frontDoorOriginGroupName", "MAPPO_FRONT_DOOR_ORIGIN_GROUP_NAME")
+                .orElse(normalizeName("og-mappo-api-" + ctx.stackName(), "og-mappo-api-demo", 60)),
+            optionalConfigWithEnvFallback(config, "frontDoorOriginName", "MAPPO_FRONT_DOOR_ORIGIN_NAME")
+                .orElse(normalizeName("origin-mappo-api-" + ctx.stackName(), "origin-mappo-api-demo", 60)),
+            optionalConfigWithEnvFallback(config, "frontDoorRouteName", "MAPPO_FRONT_DOOR_ROUTE_NAME")
+                .orElse(normalizeName("route-mappo-api-" + ctx.stackName(), "route-mappo-api-demo", 60)),
+            optionalConfigWithEnvFallback(config, "frontDoorOriginHost", "MAPPO_FRONT_DOOR_ORIGIN_HOST")
+                .or(() -> optionalConfigWithEnvFallback(config, "frontDoorOriginUrl", "MAPPO_FRONT_DOOR_ORIGIN_URL").map(FrontDoorResources::extractHost))
+                .or(() -> optionalConfigWithEnvFallback(config, "runtimeBackendUrl", "MAPPO_RUNTIME_BACKEND_URL").map(FrontDoorResources::extractHost))
+                .orElse(""),
+            optionalConfigWithEnvFallback(config, "frontDoorHealthProbePath", "MAPPO_FRONT_DOOR_HEALTH_PROBE_PATH")
+                .orElse("/api/v1/health/live"),
+            optionalConfigWithEnvFallback(config, "frontDoorCustomDomainHostName", "MAPPO_FRONT_DOOR_CUSTOM_DOMAIN").orElse(null),
+            optionalConfigWithEnvFallback(config, "frontDoorDnsZoneSubscriptionId", "MAPPO_FRONT_DOOR_DNS_ZONE_SUBSCRIPTION_ID")
+                .orElse(optionalConfigWithEnvFallback(config, "frontDoorSubscriptionId", "MAPPO_FRONT_DOOR_SUBSCRIPTION_ID").orElse(this.controlPlaneSubscriptionId)),
+            optionalConfigWithEnvFallback(config, "frontDoorDnsZoneResourceGroupName", "MAPPO_FRONT_DOOR_DNS_ZONE_RESOURCE_GROUP").orElse(null),
+            optionalConfigWithEnvFallback(config, "frontDoorDnsZoneName", "MAPPO_FRONT_DOOR_DNS_ZONE_NAME").orElse(null)
+        );
 
         this.managedAppMainTemplate = buildManagedAppMainTemplate(defaultCpu, defaultMemory);
         this.createUiDefinition = buildCreateUiDefinition();
@@ -199,6 +230,7 @@ public final class Main {
             : targetsFromProfile(parseProfileName(targetProfileRaw), defaultLocation, demoSubscriptionId);
 
         assertUniqueTargetIds(targets);
+        FrontDoorResources frontDoorResources = createFrontDoorResources();
 
         if (targets.isEmpty()) {
             ctx.log().info("No targets configured. Set mappo:targetProfile=demo10 or provide mappo:targets.");
@@ -268,6 +300,31 @@ public final class Main {
             "controlPlaneDatabaseUrl",
             controlPlanePostgres == null ? Output.ofNullable(null) : controlPlanePostgres.databaseUrl
         );
+        ctx.export("frontDoorEnabled", frontDoorResources != null);
+        ctx.export("frontDoorSubscriptionId", frontDoorResources == null ? Output.ofNullable(null) : Output.of(frontDoorConfig.subscriptionId()));
+        ctx.export("frontDoorResourceGroupName", frontDoorResources == null ? Output.ofNullable(null) : frontDoorResources.resourceGroup().name());
+        ctx.export("frontDoorProfileName", frontDoorResources == null ? Output.ofNullable(null) : frontDoorResources.profile().name());
+        ctx.export("frontDoorEndpointName", frontDoorResources == null ? Output.ofNullable(null) : frontDoorResources.endpoint().name());
+        ctx.export("frontDoorDefaultHostname", frontDoorResources == null ? Output.ofNullable(null) : frontDoorResources.defaultHostname());
+        ctx.export("frontDoorDefaultWebhookUrl", frontDoorResources == null ? Output.ofNullable(null) : frontDoorResources.defaultWebhookUrl());
+        ctx.export("frontDoorOriginHost", frontDoorResources == null ? Output.ofNullable(null) : Output.of(frontDoorConfig.originHost()));
+        ctx.export("frontDoorCustomDomainHostName", frontDoorResources == null ? Output.ofNullable(null) : frontDoorResources.customDomainHostname());
+        ctx.export("frontDoorCustomDomainValidationState", frontDoorResources == null ? Output.ofNullable(null) : frontDoorResources.customDomainValidationState());
+        ctx.export("frontDoorCustomDomainValidationToken", frontDoorResources == null ? Output.ofNullable(null) : frontDoorResources.customDomainValidationToken());
+        ctx.export("frontDoorDnsTxtRecordName", frontDoorResources == null ? Output.ofNullable(null) : frontDoorResources.dnsTxtRecordName());
+        ctx.export("frontDoorDnsTxtRecordValue", frontDoorResources == null ? Output.ofNullable(null) : frontDoorResources.dnsTxtRecordValue());
+        ctx.export("frontDoorDnsCnameRecordName", frontDoorResources == null ? Output.ofNullable(null) : frontDoorResources.dnsCnameRecordName());
+        ctx.export("frontDoorDnsCnameRecordValue", frontDoorResources == null ? Output.ofNullable(null) : frontDoorResources.dnsCnameRecordValue());
+        ctx.export("managedAppReleaseWebhookUrl", frontDoorResources == null ? Output.ofNullable(null) : frontDoorResources.finalWebhookUrl());
+    }
+
+    private FrontDoorResources createFrontDoorResources() {
+        if (!frontDoorConfig.enabled()) {
+            return null;
+        }
+        Provider edgeProvider = getProvider(frontDoorConfig.subscriptionId());
+        Provider dnsProvider = frontDoorConfig.hasAzureDnsZone() ? getProvider(frontDoorConfig.dnsZoneSubscriptionId()) : null;
+        return FrontDoorResources.create(ctx, frontDoorConfig, edgeProvider, dnsProvider);
     }
 
     private DeploymentOutput createTargetDeployment(TargetConfig target, int index) {

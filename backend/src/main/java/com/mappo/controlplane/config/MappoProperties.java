@@ -22,6 +22,7 @@ public class MappoProperties {
     private String managedAppReleasePath = "releases/releases.manifest.json";
     private String managedAppReleaseRef = "main";
     private String managedAppReleaseWebhookSecret = "";
+    private String managedAppReleaseGithubToken = "";
     private String publisherAcrServer = "";
     private String publisherAcrPullClientId = "";
     private String publisherAcrPullClientSecret = "";

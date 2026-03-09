@@ -18,11 +18,14 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import ColumnVisibilityMenu from "@/components/ColumnVisibilityMenu";
+import { compareReleaseVersionsDesc } from "@/lib/releases";
 import { usePersistentColumnVisibility } from "@/lib/table-visibility";
-import type { Target } from "@/lib/types";
+import type { Release, Target } from "@/lib/types";
 
 type FleetTableProps = {
   targets: Target[];
+  latestRelease: Release | null;
+  onDeployLatestRelease: (releaseId: string) => void;
 };
 
 type FleetRow = {
@@ -35,6 +38,7 @@ type FleetRow = {
   tier: string;
   version: string;
   health: string;
+  latestStatus: "current" | "outdated" | "unknown";
 };
 
 function healthVariant(healthStatus: string): "default" | "secondary" | "destructive" | "outline" {
@@ -47,7 +51,8 @@ function healthVariant(healthStatus: string): "default" | "secondary" | "destruc
   return "destructive";
 }
 
-export default function FleetTable({ targets }: FleetTableProps) {
+export default function FleetTable({ targets, latestRelease, onDeployLatestRelease }: FleetTableProps) {
+  const latestVersion = latestRelease?.sourceVersion ?? "";
   const rows = useMemo<FleetRow[]>(
     () =>
       targets.map((target) => ({
@@ -60,8 +65,25 @@ export default function FleetTable({ targets }: FleetTableProps) {
         tier: target.tags?.tier ?? "unknown",
         version: target.lastDeployedRelease ?? "unknown",
         health: target.healthStatus ?? "registered",
+        latestStatus:
+          latestVersion.trim() === ""
+            ? "unknown"
+            : !target.lastDeployedRelease
+              ? "unknown"
+              : compareReleaseVersionsDesc(target.lastDeployedRelease, latestVersion) === 0
+                ? "current"
+                : "outdated",
       })),
-    [targets]
+    [latestVersion, targets]
+  );
+
+  const outdatedTargets = useMemo(
+    () => rows.filter((row) => row.latestStatus === "outdated"),
+    [rows]
+  );
+  const unknownVersionTargets = useMemo(
+    () => rows.filter((row) => row.latestStatus === "unknown"),
+    [rows]
   );
 
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -105,7 +127,24 @@ export default function FleetTable({ targets }: FleetTableProps) {
           return row.getValue<string>(id) === value;
         },
       },
-      { accessorKey: "version", header: "Version" },
+      {
+        accessorKey: "version",
+        header: "Version",
+        cell: ({ row }) => (
+          <div className="flex flex-wrap items-center gap-2">
+            <span>{row.original.version}</span>
+            {row.original.latestStatus === "current" ? (
+              <Badge variant="default">Latest</Badge>
+            ) : null}
+            {row.original.latestStatus === "outdated" ? (
+              <Badge variant="secondary">Update available</Badge>
+            ) : null}
+            {row.original.latestStatus === "unknown" && latestVersion ? (
+              <Badge variant="outline">Unknown vs latest</Badge>
+            ) : null}
+          </div>
+        ),
+      },
       {
         accessorKey: "health",
         header: "Health",
@@ -338,6 +377,34 @@ export default function FleetTable({ targets }: FleetTableProps) {
         </div>
       </CardHeader>
       <CardContent>
+        {latestRelease && outdatedTargets.length > 0 ? (
+          <div className="mb-4 rounded-lg border border-primary/40 bg-primary/10 p-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold">
+                  New release {latestRelease.sourceVersion} is available.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {outdatedTargets.length} target{outdatedTargets.length === 1 ? "" : "s"} are behind the latest release.
+                  {unknownVersionTargets.length > 0
+                    ? ` ${unknownVersionTargets.length} target${unknownVersionTargets.length === 1 ? "" : "s"} have no known version yet.`
+                    : ""}
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={() => {
+                  if (latestRelease.id) {
+                    onDeployLatestRelease(latestRelease.id);
+                  }
+                }}
+                disabled={!latestRelease.id}
+              >
+                Deploy {latestRelease.sourceVersion}
+              </Button>
+            </div>
+          </div>
+        ) : null}
         <Table>
           <TableHeader>
             <TableRow>

@@ -10,6 +10,8 @@ This Pulumi project provisions a marketplace-accurate managed application demo s
 
 ## What it creates
 
+- Optional stable ingress:
+- Azure Front Door profile, endpoint, route, and optional custom domain for the MAPPO webhook/API edge
 - Per target subscription:
 - Managed app definition resource group (`Microsoft.Solutions/applicationDefinitions`)
 - Managed app instances resource group (`Microsoft.Solutions/applications`)
@@ -36,6 +38,15 @@ Common optional keys:
 - `mappo:controlPlanePostgresEnabled` (`false`)
 - `mappo:controlPlaneSubscriptionId`
 - `mappo:controlPlaneLocation`
+- `mappo:frontDoorEnabled` (`false`)
+- `mappo:frontDoorOriginHost` (required when Front Door is enabled)
+- `mappo:frontDoorCustomDomainHostName`
+- `mappo:frontDoorDnsZoneSubscriptionId`
+- `mappo:frontDoorDnsZoneResourceGroupName`
+- `mappo:frontDoorDnsZoneName`
+
+Detailed Front Door setup:
+- [frontdoor-webhook-runbook.md](/Users/cvonderheid/workspace/mappo/docs/frontdoor-webhook-runbook.md)
 
 ## Commands
 

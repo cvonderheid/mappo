@@ -152,15 +152,19 @@ Post-demo production-path planning and execution setup:
 - [ ] Clean-slate rerun of the hosted forwarder path in this slice
 
 ## Active Backlog After Demo
-- Configure live GitHub webhook delivery from `cvonderheid/mappo-managed-app` into the hosted MAPPO environment.
+- Add operator-visible GitHub webhook delivery audit records so release-webhook success, skip, and failure paths are visible without inferring from side effects.
 - Decide whether to keep the current inline-template Deployment Stack path as the production implementation or invest in a lower-level Azure REST path for direct `templateLink` support.
 - Move more steady-state runtime/forwarder lifecycle into Pulumi where appropriate.
 - Keep the real Partner Center/private-offer path documented and ready for later validation when publisher-account prerequisites are available.
 - Extend the new preview path beyond `deployment_stack` + resource-group scope once the production execution surface expands to subscription-scope stacks or additional release source types.
+- Decide whether preview cancellation should remain client-side request abort only or become a first-class backend cancelable job model.
 
 ## Current Focus
-- Wire the live GitHub webhook from `cvonderheid/mappo-managed-app` into the hosted MAPPO environment.
 - Capture the final operator runbook for the deployment-stack demo path.
+- Follow through on the new hosted custom domains:
+  - backend webhook URL at `api.mappopoc.com`
+  - frontend UI at `www.mappopoc.com`
+- Improve preview readability and delivery observability based on the hosted demo feedback.
 
 ## Detailed Plan Reference
 - `/Users/cvonderheid/workspace/mappo/docs/azure-production-execution-plan.md`

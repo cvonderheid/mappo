@@ -135,3 +135,15 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Preventative rule: Only surface top-level counters that support a clear operational action or state transition; otherwise remove them and keep the detail in the list/detail views.
 - Detection signal: users ask what a badge/counter means or why it never clears.
 - Enforcement (test/lint/checklist): when adding a top-level KPI, document the operator action it drives and remove it if there is no answer.
+
+- Date: 2026-03-08
+- Pattern: Stable external integration URLs matter more than the specific Azure edge product; subscription constraints can invalidate an otherwise cleaner design.
+- Preventative rule: Choose the simplest stable public URL strategy the current account can actually support, and fall back to direct ACA custom domains when Azure Front Door is unavailable on the subscription.
+- Detection signal: infrastructure rollout fails with subscription-level SKU restrictions even though the desired URL strategy is sound in principle.
+- Enforcement (test/lint/checklist): verify edge-service subscription eligibility before committing the public URL design, and document the fallback path in the runbook.
+
+- Date: 2026-03-08
+- Pattern: Real webhook transport can be healthy while operators still cannot prove what happened if a delivery results in a no-op ingest.
+- Preventative rule: Persist webhook delivery audit records with repo, ref, delivery id, and created/skipped/failed outcome instead of relying on secondary effects like release-count changes.
+- Detection signal: a push reaches the hosted endpoint, but there is no UI/API surface showing whether MAPPO fetched the manifest and skipped or failed ingest.
+- Enforcement (test/lint/checklist): every external webhook integration should expose an operator-visible delivery log before it is considered production-ready.
