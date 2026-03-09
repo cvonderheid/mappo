@@ -1,11 +1,6 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Toaster } from "sonner";
-import AdminPanel from "@/components/AdminPanel";
-import DemoPanel from "@/components/DemoPanel";
-import DeploymentsPage from "@/components/DeploymentsPage";
-import FleetTable from "@/components/FleetTable";
-import { RunDetailPanel } from "@/components/RunPanels";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { DEFAULT_FORM, type StartRunFormState } from "@/lib/deployment-form";
@@ -51,6 +46,14 @@ const ROUTER_FUTURE_FLAGS = {
   v7_relativeSplatPath: true,
   v7_startTransition: true,
 } as const;
+
+const AdminPanel = lazy(() => import("@/components/AdminPanel"));
+const DemoPanel = lazy(() => import("@/components/DemoPanel"));
+const DeploymentsPage = lazy(() => import("@/components/DeploymentsPage"));
+const FleetTable = lazy(() => import("@/components/FleetTable"));
+const RunDetailPanel = lazy(() =>
+  import("@/components/RunPanels").then((module) => ({ default: module.RunDetailPanel }))
+);
 
 export default function App() {
   return (
@@ -673,128 +676,130 @@ function AppShell() {
         </div>
       ) : null}
 
-      <Routes>
-        <Route path="/" element={<Navigate to="/fleet" replace />} />
-        <Route
-          path="/fleet"
-          element={
-            <FleetTable
-              latestRelease={latestRelease}
-              refreshKey={targetsRefreshVersion}
-            />
-          }
-        />
-        <Route
-          path="/deployments"
-          element={
-            <DeploymentsPage
-              errorMessage={errorMessage}
-              formState={formState}
-              isSubmitting={isSubmitting}
-              isPreviewing={isPreviewing}
-              previewElapsedSeconds={previewElapsedSeconds}
-              previewErrorMessage={previewErrorMessage}
-              previewProgressPercent={previewProgressPercent}
-              previewTargetCount={previewTargetCount}
-              releases={releases}
-              runPreview={runPreview}
-              runs={runs}
-              runPage={runPageMetadata.page ?? 0}
-              runPageSize={runPageMetadata.size ?? runPageSize}
-              runTotalItems={runPageMetadata.totalItems ?? 0}
-              runTotalPages={runPageMetadata.totalPages ?? 0}
-              runIdFilter={runIdFilter}
-              runReleaseFilter={runReleaseFilter}
-              runStatusFilter={runStatusFilter}
-              selectedRelease={selectedRelease}
-              selectedReleaseId={selectedReleaseId}
-              selectedTargetIds={selectedTargetIds}
-              targetGroupFilter={targetGroupFilter}
-              targets={deploymentTargets}
-              controlsOpen={deploymentControlsOpen}
-              onFormStateChange={setFormState}
-              onOpenRun={(runId) => {
-                setSelectedRunId(runId);
-                navigate(`/deployments/${encodeURIComponent(runId)}`);
-              }}
-              onReleaseChange={setSelectedReleaseId}
-              onCloneRun={(runId) => {
-                void handleCloneRun(runId);
-              }}
-              onRetryFailed={(runId) => {
-                void handleRetryFailed(runId);
-              }}
-              onRunIdFilterChange={(value) => {
-                setRunIdFilter(value);
-                setRunPage(0);
-              }}
-              onRunReleaseFilterChange={(value) => {
-                setRunReleaseFilter(value);
-                setRunPage(0);
-              }}
-              onRunStatusFilterChange={(value) => {
-                setRunStatusFilter(value as RunStatus | "");
-                setRunPage(0);
-              }}
-              onRunsPageChange={setRunPage}
-              onRunsPageSizeChange={(size) => {
-                setRunPageSize(size);
-                setRunPage(0);
-              }}
-              onResumeRun={(runId) => {
-                void handleResumeRun(runId);
-              }}
-              onSelectedTargetIdsChange={setSelectedTargetIds}
-              onStartRun={handleStartRun}
-              onControlsOpenChange={setDeploymentControlsOpen}
-              onTargetGroupFilterChange={setTargetGroupFilter}
-              onRunActionsMenuOpenChange={setRunActionsMenuOpen}
-              onPreviewRun={handlePreviewRun}
-              onCancelPreview={handleCancelPreview}
-            />
-          }
-        />
-        <Route
-          path="/deployments/:runId"
-          element={
-            <DeploymentRunDetailRoute
-              errorMessage={errorMessage}
-              runDetail={runDetail}
-              onBack={() => navigate("/deployments")}
-              onRunChange={setSelectedRunId}
-            />
-          }
-        />
-        <Route
-          path="/demo"
-          element={
-            <DemoPanel
-              adminErrorMessage={adminErrorMessage}
-              adminIsSubmitting={adminIsSubmitting}
-              adminResult={adminResult}
-              adminSnapshot={adminSnapshot}
-              onIngestMarketplaceEvent={handleAdminIngestMarketplaceEvent}
-              onRefreshSnapshot={refreshAdminSnapshot}
-            />
-          }
-        />
-        <Route
-          path="/admin"
-          element={
-            <AdminPanel
-              adminErrorMessage={adminErrorMessage}
-              adminSnapshot={adminSnapshot}
-              refreshKey={adminRefreshVersion}
-              releaseIngestIsSubmitting={releaseIngestIsSubmitting}
-              onIngestManagedAppReleases={handleIngestManagedAppReleases}
-              onUpdateTargetRegistration={handleAdminUpdateRegistration}
-              onDeleteTargetRegistration={handleAdminDeleteRegistration}
-              onRefreshSnapshot={refreshAdminSnapshot}
-            />
-          }
-        />
-        <Route path="*" element={<Navigate to="/fleet" replace />} />
-      </Routes>
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <Routes>
+          <Route path="/" element={<Navigate to="/fleet" replace />} />
+          <Route
+            path="/fleet"
+            element={
+              <FleetTable
+                latestRelease={latestRelease}
+                refreshKey={targetsRefreshVersion}
+              />
+            }
+          />
+          <Route
+            path="/deployments"
+            element={
+              <DeploymentsPage
+                errorMessage={errorMessage}
+                formState={formState}
+                isSubmitting={isSubmitting}
+                isPreviewing={isPreviewing}
+                previewElapsedSeconds={previewElapsedSeconds}
+                previewErrorMessage={previewErrorMessage}
+                previewProgressPercent={previewProgressPercent}
+                previewTargetCount={previewTargetCount}
+                releases={releases}
+                runPreview={runPreview}
+                runs={runs}
+                runPage={runPageMetadata.page ?? 0}
+                runPageSize={runPageMetadata.size ?? runPageSize}
+                runTotalItems={runPageMetadata.totalItems ?? 0}
+                runTotalPages={runPageMetadata.totalPages ?? 0}
+                runIdFilter={runIdFilter}
+                runReleaseFilter={runReleaseFilter}
+                runStatusFilter={runStatusFilter}
+                selectedRelease={selectedRelease}
+                selectedReleaseId={selectedReleaseId}
+                selectedTargetIds={selectedTargetIds}
+                targetGroupFilter={targetGroupFilter}
+                targets={deploymentTargets}
+                controlsOpen={deploymentControlsOpen}
+                onFormStateChange={setFormState}
+                onOpenRun={(runId) => {
+                  setSelectedRunId(runId);
+                  navigate(`/deployments/${encodeURIComponent(runId)}`);
+                }}
+                onReleaseChange={setSelectedReleaseId}
+                onCloneRun={(runId) => {
+                  void handleCloneRun(runId);
+                }}
+                onRetryFailed={(runId) => {
+                  void handleRetryFailed(runId);
+                }}
+                onRunIdFilterChange={(value) => {
+                  setRunIdFilter(value);
+                  setRunPage(0);
+                }}
+                onRunReleaseFilterChange={(value) => {
+                  setRunReleaseFilter(value);
+                  setRunPage(0);
+                }}
+                onRunStatusFilterChange={(value) => {
+                  setRunStatusFilter(value as RunStatus | "");
+                  setRunPage(0);
+                }}
+                onRunsPageChange={setRunPage}
+                onRunsPageSizeChange={(size) => {
+                  setRunPageSize(size);
+                  setRunPage(0);
+                }}
+                onResumeRun={(runId) => {
+                  void handleResumeRun(runId);
+                }}
+                onSelectedTargetIdsChange={setSelectedTargetIds}
+                onStartRun={handleStartRun}
+                onControlsOpenChange={setDeploymentControlsOpen}
+                onTargetGroupFilterChange={setTargetGroupFilter}
+                onRunActionsMenuOpenChange={setRunActionsMenuOpen}
+                onPreviewRun={handlePreviewRun}
+                onCancelPreview={handleCancelPreview}
+              />
+            }
+          />
+          <Route
+            path="/deployments/:runId"
+            element={
+              <DeploymentRunDetailRoute
+                errorMessage={errorMessage}
+                runDetail={runDetail}
+                onBack={() => navigate("/deployments")}
+                onRunChange={setSelectedRunId}
+              />
+            }
+          />
+          <Route
+            path="/demo"
+            element={
+              <DemoPanel
+                adminErrorMessage={adminErrorMessage}
+                adminIsSubmitting={adminIsSubmitting}
+                adminResult={adminResult}
+                adminSnapshot={adminSnapshot}
+                onIngestMarketplaceEvent={handleAdminIngestMarketplaceEvent}
+                onRefreshSnapshot={refreshAdminSnapshot}
+              />
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <AdminPanel
+                adminErrorMessage={adminErrorMessage}
+                adminSnapshot={adminSnapshot}
+                refreshKey={adminRefreshVersion}
+                releaseIngestIsSubmitting={releaseIngestIsSubmitting}
+                onIngestManagedAppReleases={handleIngestManagedAppReleases}
+                onUpdateTargetRegistration={handleAdminUpdateRegistration}
+                onDeleteTargetRegistration={handleAdminDeleteRegistration}
+                onRefreshSnapshot={refreshAdminSnapshot}
+              />
+            }
+          />
+          <Route path="*" element={<Navigate to="/fleet" replace />} />
+        </Routes>
+      </Suspense>
     </main>
   );
 }
@@ -860,6 +865,14 @@ function Kpi({ label, value }: { label: string; value: string }) {
     <div className="rounded-md border border-border/70 bg-card/80 px-3 py-2">
       <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
       <p className="text-xl font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function RouteLoadingFallback() {
+  return (
+    <div className="rounded-lg border border-border/70 bg-card/80 p-4 text-sm text-muted-foreground">
+      Loading view...
     </div>
   );
 }

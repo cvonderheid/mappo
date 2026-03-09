@@ -56,3 +56,7 @@ mappo:
   runtime-probe-timeout-ms: ${MAPPO_RUNTIME_PROBE_TIMEOUT_MS:5000}
   sse-enabled: ${MAPPO_SSE_ENABLED:true}
   sse-heartbeat-interval-ms: ${MAPPO_SSE_HEARTBEAT_INTERVAL_MS:15000}
+  retention-enabled: ${MAPPO_RETENTION_ENABLED:true}
+  retention-interval-ms: ${MAPPO_RETENTION_INTERVAL_MS:86400000}
+  run-retention-days: ${MAPPO_RUN_RETENTION_DAYS:30}
+  audit-retention-days: ${MAPPO_AUDIT_RETENTION_DAYS:30}

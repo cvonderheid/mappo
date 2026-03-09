@@ -31,6 +31,8 @@ Stabilize the platform under the production-shaped Azure model that is already r
 - [x] Runs table pagination implemented end to end with backend filters and page metadata
 - [x] Fleet/Admin pagination implemented end to end with backend filters, page metadata, and shared frontend pagination controls
 - [x] Runtime health now has a dedicated probe-backed model separate from deployment outcome
+- [x] Main frontend bundle has been route-split enough to remove the standing Vite chunk-size warning
+- [x] Explicit retention cleanup and supporting indexes are in place for terminal runs and admin audit tables
 
 ## Milestone H: OpenAPI Contract Hardening
 **Scope**
@@ -130,6 +132,12 @@ Stabilize the platform under the production-shaped Azure model that is already r
 - Run/log/webhook tables remain responsive under larger demo/prod volumes.
 - Retention policy is explicit and documented.
 - Admin/audit views keep enough detail without forcing full-table scans.
+
+**Status**
+- [x] Explicit retention policy/config exists in the backend runtime
+- [x] Scheduled cleanup purges old terminal runs and old admin audit rows
+- [x] Supporting indexes exist for paginated run/admin query hot paths
+- [ ] Hosted/data-volume soak test with larger synthetic history
 
 **Verification**
 - explain/analyze or equivalent query review for hot paths

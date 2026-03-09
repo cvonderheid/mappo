@@ -33,4 +33,8 @@ public class MappoProperties {
     private long runtimeProbeTimeoutMs = 5_000L;
     private boolean sseEnabled = true;
     private long sseHeartbeatIntervalMs = 15_000L;
+    private boolean retentionEnabled = true;
+    private long retentionIntervalMs = 86_400_000L;
+    private int runRetentionDays = 30;
+    private int auditRetentionDays = 30;
 }

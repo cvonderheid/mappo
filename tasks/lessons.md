@@ -207,3 +207,15 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Preventative rule: For Springdoc contract tests, assert parameter presence, required schema markers, and key enum/value fragments without depending on exact object serialization order.
 - Detection signal: the generated OpenAPI clearly contains the expected enum/query shape, but the regression test still fails on nested JSONPath indexing or exact raw-JSON substring matches.
 - Enforcement (test/lint/checklist): whenever a contract test fails unexpectedly, inspect the generated `backend/target/openapi/openapi.json` before changing the implementation and tighten the test around semantic contract guarantees only.
+
+- Date: 2026-03-09
+- Pattern: Frontend route shells can remain deceptively heavy even after feature work is done if every major page is imported eagerly into the app root.
+- Preventative rule: When a dashboard grows past a few major route surfaces, lazy-load route modules before accepting bundle-size warnings as normal.
+- Detection signal: Vite warns about a large main chunk and the root app imports every page component directly.
+- Enforcement (test/lint/checklist): after adding a major route or panel cluster, run a production build once and split obvious route boundaries if the main chunk regresses badly.
+
+- Date: 2026-03-09
+- Pattern: Pagination alone does not prevent operator tables from degrading if completed runs and audit rows accumulate forever.
+- Preventative rule: Add explicit retention and hot-path indexes as soon as paginated operator tables become the default access path for run/admin history.
+- Detection signal: paginated queries rely on descending timestamp scans over ever-growing terminal/audit tables with no cleanup policy.
+- Enforcement (test/lint/checklist): when promoting a table to backend pagination, verify it has a retention story and at least one supporting index for its dominant filter/order path.

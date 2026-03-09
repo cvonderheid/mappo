@@ -88,6 +88,8 @@ Post-demo production-path planning and execution setup:
 - 2026-03-09: Extended backend-backed pagination to Fleet and Admin surfaces (`targets`, registrations, onboarding events, forwarder logs, release webhook deliveries), wired the frontend tables to shared pagination controls and generated contracts, and verified the full reactor build stays green.
 - 2026-03-09: Hardened the paginated OpenAPI surface by moving controller collection queries onto typed `@ParameterObject` DTOs with validation/schema metadata, switching frontend wrappers to generated query types, and adding an OpenAPI export regression test for the main operator collections.
 - 2026-03-09: Added persisted runtime probe storage plus a scheduled Azure Container App probe loop, split Fleet runtime status from deployment outcome, stopped deployments from mutating runtime health, and verified the updated backend/frontend contract through the full reactor build.
+- 2026-03-09: Added route-level lazy loading for the major frontend surfaces, cutting the main production bundle chunk from ~594 kB to ~311 kB and eliminating the standing Vite chunk-size warning without changing the operator workflow.
+- 2026-03-09: Added explicit operational retention settings plus scheduled cleanup for old terminal runs, marketplace events, forwarder logs, and release-webhook deliveries, and added supporting indexes for the paginated run/admin query hot paths.
 
 ## Milestones
 
@@ -221,6 +223,12 @@ Post-demo production-path planning and execution setup:
 - Fleet `Runtime` is backed by probe data.
 - Fleet/Admin list APIs no longer return full snapshots by default.
 - Large tables remain responsive under realistic demo/prod volumes.
+
+**Status**
+- [x] Probe-backed runtime state
+- [x] Fleet/Admin paginated collection APIs
+- [x] Explicit retention and hot-path indexes for runs/admin audit tables
+- [ ] Hosted/demo soak with larger synthetic history volumes
 
 ### Sprint 3: Live Updates
 **Goal**
