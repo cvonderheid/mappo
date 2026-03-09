@@ -12,6 +12,7 @@ import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.repository.RunRepository;
 import com.mappo.controlplane.repository.TargetRepository;
+import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -33,6 +34,7 @@ public class RunExecutionService {
     private final TemplateSpecExecutor templateSpecExecutor;
     private final DeploymentStackExecutor deploymentStackExecutor;
     private final RunExecutionPolicyService runExecutionPolicyService;
+    private final LiveUpdateService liveUpdateService;
 
     public void executeRun(
         RunDetailRecord run,
@@ -49,6 +51,7 @@ public class RunExecutionService {
         for (int i = 0; i < warnings.size(); i++) {
             runRepository.addRunWarning(runId, i, warnings.get(i));
         }
+        publishRunChange(runId);
 
         int failedCount = 0;
         int succeededCount = 0;
@@ -71,6 +74,7 @@ public class RunExecutionService {
                     if (result.succeeded()) {
                         succeededCount += 1;
                         targetRepository.updateLastDeployedRelease(result.targetId(), release.sourceVersion());
+                        liveUpdateService.emitTargetsUpdated();
                     } else {
                         failedCount += 1;
                     }
@@ -99,6 +103,7 @@ public class RunExecutionService {
             ),
             haltReason
         );
+        publishRunChange(runId);
     }
 
     private List<TargetRunResult> executeBatch(
@@ -182,6 +187,7 @@ public class RunExecutionService {
             "Validating started.",
             correlationId
         );
+        publishRunChange(runId);
 
         if (runExecutionPolicyService.isSimulatorMode(release, azureConfigured)
             && context.simulatedFailureMode() == MappoSimulatedFailureMode.validate_once) {
@@ -289,6 +295,7 @@ public class RunExecutionService {
             message,
             correlationId
         );
+        publishRunChange(runId);
         return ValidationOutcome.success();
     }
 
@@ -312,6 +319,7 @@ public class RunExecutionService {
             "Deploying started.",
             correlationId
         );
+        publishRunChange(runId);
 
         try {
             TargetDeploymentOutcome outcome = deployOutcome(runId, release, context, azureConfigured);
@@ -337,6 +345,7 @@ public class RunExecutionService {
                 outcome.message(),
                 outcome.correlationId()
             );
+            publishRunChange(runId);
             return DeploymentOutcome.success(outcome.correlationId());
         } catch (TargetDeploymentException error) {
             failStage(
@@ -370,6 +379,7 @@ public class RunExecutionService {
             "Verifying started.",
             correlationId
         );
+        publishRunChange(runId);
 
         if (runExecutionPolicyService.isSimulatorMode(release, azureConfigured)
             && target.simulatedFailureMode() == MappoSimulatedFailureMode.verify_once) {
@@ -424,6 +434,7 @@ public class RunExecutionService {
             message,
             correlationId
         );
+        publishRunChange(runId);
         return VerificationOutcome.success();
     }
 
@@ -450,6 +461,7 @@ public class RunExecutionService {
             "Target deployment succeeded.",
             correlationId
         );
+        publishRunChange(runId);
     }
 
     private TargetRunOutcome failValidation(String runId, String targetId, String message) {
@@ -511,7 +523,13 @@ public class RunExecutionService {
             message,
             correlationId
         );
+        publishRunChange(runId);
         return ValidationOutcome.failure();
+    }
+
+    private void publishRunChange(String runId) {
+        liveUpdateService.emitRunsUpdated();
+        liveUpdateService.emitRunUpdated(runId);
     }
 
     private TargetDeploymentOutcome simulateDeployment(

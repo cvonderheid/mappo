@@ -4,10 +4,12 @@ import java.util.concurrent.Executor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 @Configuration
 @EnableConfigurationProperties(MappoProperties.class)
+@EnableScheduling
 public class AppConfig {
 
     @Bean(name = "runDispatchExecutor")

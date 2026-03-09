@@ -12,7 +12,8 @@ import org.testcontainers.containers.PostgreSQLContainer;
 
 @TestPropertySource(properties = {
     "mappo.marketplace-ingest-token=",
-    "MAPPO_MARKETPLACE_INGEST_TOKEN="
+    "MAPPO_MARKETPLACE_INGEST_TOKEN=",
+    "mappo.runtime-probe-enabled=false"
 })
 abstract class PostgresIntegrationTestBase {
 
@@ -32,6 +33,7 @@ abstract class PostgresIntegrationTestBase {
         registry.add("MAPPO_DB_PASSWORD", postgres::getPassword);
         registry.add("mappo.marketplace-ingest-token", () -> "");
         registry.add("MAPPO_MARKETPLACE_INGEST_TOKEN", () -> "");
+        registry.add("mappo.runtime-probe-enabled", () -> "false");
     }
 
     @Autowired
@@ -63,6 +65,7 @@ abstract class PostgresIntegrationTestBase {
               release_webhook_deliveries,
               marketplace_events,
               forwarder_logs,
+              target_runtime_probes,
               target_registrations,
               target_tags,
               targets

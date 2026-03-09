@@ -4,6 +4,10 @@ import com.mappo.controlplane.api.request.ForwarderLogIngestRequest;
 import com.mappo.controlplane.api.request.OnboardingEventRequest;
 import com.mappo.controlplane.api.request.ReleaseManifestIngestRequest;
 import com.mappo.controlplane.api.request.TargetRegistrationPatchRequest;
+import com.mappo.controlplane.api.query.ForwarderLogPageParameters;
+import com.mappo.controlplane.api.query.MarketplaceEventPageParameters;
+import com.mappo.controlplane.api.query.ReleaseWebhookDeliveryPageParameters;
+import com.mappo.controlplane.api.query.TargetRegistrationPageParameters;
 import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.model.DeleteRegistrationResultRecord;
 import com.mappo.controlplane.model.EventIngestResultRecord;
@@ -16,18 +20,18 @@ import com.mappo.controlplane.model.ReleaseWebhookDeliveryPageRecord;
 import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
 import com.mappo.controlplane.model.TargetRegistrationPageRecord;
 import com.mappo.controlplane.model.TargetRegistrationRecord;
-import com.mappo.controlplane.model.query.ForwarderLogPageQuery;
-import com.mappo.controlplane.model.query.MarketplaceEventPageQuery;
-import com.mappo.controlplane.model.query.ReleaseWebhookDeliveryPageQuery;
-import com.mappo.controlplane.model.query.TargetRegistrationPageQuery;
 import com.mappo.controlplane.service.AdminService;
 import com.mappo.controlplane.service.release.ReleaseManifestIngestService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -40,6 +44,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/admin")
 @RequiredArgsConstructor
+@Tag(name = "Admin", description = "Onboarding, registration, webhook, and operational audit endpoints.")
 public class AdminController {
 
     private final AdminService adminService;
@@ -47,6 +52,12 @@ public class AdminController {
     private final MappoProperties properties;
 
     @GetMapping("/onboarding")
+    @Deprecated
+    @Operation(
+        summary = "Get onboarding snapshot",
+        description = "Compatibility snapshot endpoint for the Admin shell. Prefer the paginated onboarding/admin collection endpoints for operator tables.",
+        deprecated = true
+    )
     public OnboardingSnapshotRecord onboardingSnapshot(
         @RequestParam(value = "event_limit", defaultValue = "50") int eventLimit
     ) {
@@ -54,6 +65,7 @@ public class AdminController {
     }
 
     @PostMapping("/onboarding/events")
+    @Operation(summary = "Ingest marketplace onboarding event")
     public EventIngestResultRecord ingestMarketplaceEvent(
         @Valid @RequestBody OnboardingEventRequest request,
         @RequestHeader(value = "x-mappo-ingest-token", required = false) String ingestToken
@@ -63,16 +75,20 @@ public class AdminController {
     }
 
     @GetMapping("/onboarding/events")
+    @Operation(summary = "List onboarding events", description = "Primary paginated admin endpoint for onboarding-event history.")
     public MarketplaceEventPageRecord listMarketplaceEvents(
-        @RequestParam(value = "page", defaultValue = "0") int page,
-        @RequestParam(value = "size", defaultValue = "25") int size,
-        @RequestParam(value = "eventId", required = false) String eventId,
-        @RequestParam(value = "status", required = false) String status
+        @Valid @ParameterObject @ModelAttribute MarketplaceEventPageParameters parameters
     ) {
-        return adminService.listMarketplaceEventsPage(new MarketplaceEventPageQuery(page, size, eventId, status));
+        return adminService.listMarketplaceEventsPage(parameters.toQuery());
     }
 
     @GetMapping("/onboarding/forwarder-logs")
+    @Deprecated
+    @Operation(
+        summary = "List recent forwarder logs snapshot",
+        description = "Compatibility snapshot endpoint for recent forwarder log summaries. Use `/api/v1/admin/onboarding/forwarder-logs/page` for operator tables.",
+        deprecated = true
+    )
     public List<ForwarderLogRecord> listForwarderLogs(
         @RequestParam(value = "limit", defaultValue = "50") int limit
     ) {
@@ -80,6 +96,7 @@ public class AdminController {
     }
 
     @PostMapping("/onboarding/forwarder-logs")
+    @Operation(summary = "Ingest marketplace forwarder log")
     public ForwarderLogIngestResultRecord ingestForwarderLog(
         @Valid @RequestBody ForwarderLogIngestRequest request,
         @RequestHeader(value = "x-mappo-ingest-token", required = false) String ingestToken
@@ -89,30 +106,23 @@ public class AdminController {
     }
 
     @GetMapping("/onboarding/forwarder-logs/page")
+    @Operation(summary = "List forwarder logs", description = "Primary paginated admin endpoint for marketplace forwarder logs.")
     public ForwarderLogPageRecord listForwarderLogsPage(
-        @RequestParam(value = "page", defaultValue = "0") int page,
-        @RequestParam(value = "size", defaultValue = "25") int size,
-        @RequestParam(value = "logId", required = false) String logId,
-        @RequestParam(value = "level", required = false) String level
+        @Valid @ParameterObject @ModelAttribute ForwarderLogPageParameters parameters
     ) {
-        return adminService.listForwarderLogsPage(new ForwarderLogPageQuery(page, size, logId, level));
+        return adminService.listForwarderLogsPage(parameters.toQuery());
     }
 
     @GetMapping("/onboarding/registrations")
+    @Operation(summary = "List registered targets", description = "Primary paginated admin endpoint for registered target metadata.")
     public TargetRegistrationPageRecord listRegistrations(
-        @RequestParam(value = "page", defaultValue = "0") int page,
-        @RequestParam(value = "size", defaultValue = "25") int size,
-        @RequestParam(value = "targetId", required = false) String targetId,
-        @RequestParam(value = "ring", required = false) String ring,
-        @RequestParam(value = "region", required = false) String region,
-        @RequestParam(value = "tier", required = false) String tier
+        @Valid @ParameterObject @ModelAttribute TargetRegistrationPageParameters parameters
     ) {
-        return adminService.listRegistrationsPage(
-            new TargetRegistrationPageQuery(page, size, targetId, ring, region, tier)
-        );
+        return adminService.listRegistrationsPage(parameters.toQuery());
     }
 
     @PostMapping("/releases/ingest/github")
+    @Operation(summary = "Ingest releases from GitHub manifest")
     public ReleaseManifestIngestResultRecord ingestGithubReleaseManifest(
         @RequestBody(required = false) ReleaseManifestIngestRequest request
     ) {
@@ -120,6 +130,7 @@ public class AdminController {
     }
 
     @PostMapping("/releases/webhooks/github")
+    @Operation(summary = "Receive GitHub release-manifest webhook")
     public ReleaseManifestIngestResultRecord ingestGithubReleaseWebhook(
         @RequestBody String payload,
         @RequestHeader(value = "x-github-event", required = false) String githubEvent,
@@ -130,6 +141,7 @@ public class AdminController {
     }
 
     @PatchMapping("/onboarding/registrations/{targetId}")
+    @Operation(summary = "Update registered target metadata")
     public TargetRegistrationRecord updateRegistration(
         @PathVariable("targetId") String targetId,
         @RequestBody TargetRegistrationPatchRequest patch
@@ -138,21 +150,18 @@ public class AdminController {
     }
 
     @DeleteMapping("/onboarding/registrations/{targetId}")
+    @Operation(summary = "Delete a registered target")
     public DeleteRegistrationResultRecord deleteRegistration(@PathVariable("targetId") String targetId) {
         adminService.deleteTargetRegistration(targetId);
         return new DeleteRegistrationResultRecord(targetId, true);
     }
 
     @GetMapping("/releases/webhook-deliveries")
+    @Operation(summary = "List release webhook deliveries", description = "Primary paginated admin endpoint for GitHub release-webhook audit records.")
     public ReleaseWebhookDeliveryPageRecord listReleaseWebhookDeliveries(
-        @RequestParam(value = "page", defaultValue = "0") int page,
-        @RequestParam(value = "size", defaultValue = "25") int size,
-        @RequestParam(value = "deliveryId", required = false) String deliveryId,
-        @RequestParam(value = "status", required = false) String status
+        @Valid @ParameterObject @ModelAttribute ReleaseWebhookDeliveryPageParameters parameters
     ) {
-        return adminService.listReleaseWebhookDeliveriesPage(
-            new ReleaseWebhookDeliveryPageQuery(page, size, deliveryId, status)
-        );
+        return adminService.listReleaseWebhookDeliveriesPage(parameters.toQuery());
     }
 
     private void validateIngestToken(String ingestToken) {

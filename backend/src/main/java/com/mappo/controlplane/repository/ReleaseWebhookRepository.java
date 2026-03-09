@@ -161,17 +161,13 @@ public class ReleaseWebhookRepository {
 
         Condition condition = DSL.trueCondition();
         String deliveryId = normalize(query.deliveryId());
-        String status = normalize(query.status()).toLowerCase();
+        MappoReleaseWebhookStatus status = query.status();
 
         if (!deliveryId.isBlank()) {
             condition = condition.and(RELEASE_WEBHOOK_DELIVERIES.EXTERNAL_DELIVERY_ID.containsIgnoreCase(deliveryId));
         }
-        if (!status.isBlank()) {
-            MappoReleaseWebhookStatus parsedStatus = MappoReleaseWebhookStatus.lookupLiteral(status);
-            if (parsedStatus == null) {
-                return null;
-            }
-            condition = condition.and(RELEASE_WEBHOOK_DELIVERIES.STATUS.eq(parsedStatus));
+        if (status != null) {
+            condition = condition.and(RELEASE_WEBHOOK_DELIVERIES.STATUS.eq(status));
         }
         return condition;
     }

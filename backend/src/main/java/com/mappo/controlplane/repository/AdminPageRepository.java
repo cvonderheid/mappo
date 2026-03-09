@@ -332,17 +332,13 @@ public class AdminPageRepository {
 
         Condition condition = DSL.trueCondition();
         String eventId = normalize(query.eventId());
-        String status = normalize(query.status()).toLowerCase();
+        MappoMarketplaceEventStatus status = query.status();
 
         if (!eventId.isBlank()) {
             condition = condition.and(MARKETPLACE_EVENTS.ID.containsIgnoreCase(eventId));
         }
-        if (!status.isBlank()) {
-            MappoMarketplaceEventStatus parsedStatus = MappoMarketplaceEventStatus.lookupLiteral(status);
-            if (parsedStatus == null) {
-                return null;
-            }
-            condition = condition.and(MARKETPLACE_EVENTS.STATUS.eq(parsedStatus));
+        if (status != null) {
+            condition = condition.and(MARKETPLACE_EVENTS.STATUS.eq(status));
         }
         return condition;
     }
@@ -354,17 +350,13 @@ public class AdminPageRepository {
 
         Condition condition = DSL.trueCondition();
         String logId = normalize(query.logId());
-        String level = normalize(query.level()).toLowerCase();
+        MappoForwarderLogLevel level = query.level();
 
         if (!logId.isBlank()) {
             condition = condition.and(FORWARDER_LOGS.ID.containsIgnoreCase(logId));
         }
-        if (!level.isBlank()) {
-            MappoForwarderLogLevel parsedLevel = MappoForwarderLogLevel.lookupLiteral(level);
-            if (parsedLevel == null) {
-                return null;
-            }
-            condition = condition.and(FORWARDER_LOGS.LEVEL.eq(parsedLevel));
+        if (level != null) {
+            condition = condition.and(FORWARDER_LOGS.LEVEL.eq(level));
         }
         return condition;
     }

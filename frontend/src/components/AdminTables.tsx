@@ -25,12 +25,15 @@ import {
 import { usePersistentColumnVisibility } from "@/lib/table-visibility";
 import type {
   ForwarderLogPage,
+  ForwarderLogLevel,
   ForwarderLogRecord,
   MarketplaceEventPage,
   MarketplaceEventRecord,
+  MarketplaceEventStatus,
   PageMetadata,
   ReleaseWebhookDeliveryPage,
   ReleaseWebhookDeliveryRecord,
+  ReleaseWebhookStatus,
   TargetRegistrationPage,
   TargetRegistrationRecord,
 } from "@/lib/types";
@@ -500,7 +503,7 @@ export function EventsDataTable({ refreshKey }: EventsDataTableProps) {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [eventIdFilter, setEventIdFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<MarketplaceEventStatus | "all">("all");
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = usePersistentColumnVisibility("admin-events");
 
@@ -620,7 +623,13 @@ export function EventsDataTable({ refreshKey }: EventsDataTableProps) {
         }
         if (columnId === "status") {
           return (
-            <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPage(0); }}>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => {
+                setStatusFilter(value as MarketplaceEventStatus | "all");
+                setPage(0);
+              }}
+            >
               <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
@@ -646,7 +655,7 @@ export function ForwarderLogsDataTable({ refreshKey }: ForwarderLogsDataTablePro
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [logIdFilter, setLogIdFilter] = useState("");
-  const [levelFilter, setLevelFilter] = useState("all");
+  const [levelFilter, setLevelFilter] = useState<ForwarderLogLevel | "all">("all");
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = usePersistentColumnVisibility("admin-forwarder-logs");
 
@@ -769,7 +778,13 @@ export function ForwarderLogsDataTable({ refreshKey }: ForwarderLogsDataTablePro
         }
         if (columnId === "level") {
           return (
-            <Select value={levelFilter} onValueChange={(value) => { setLevelFilter(value); setPage(0); }}>
+            <Select
+              value={levelFilter}
+              onValueChange={(value) => {
+                setLevelFilter(value as ForwarderLogLevel | "all");
+                setPage(0);
+              }}
+            >
               <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All levels</SelectItem>
@@ -795,7 +810,7 @@ export function ReleaseWebhookDeliveriesDataTable({ refreshKey }: ReleaseWebhook
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [deliveryIdFilter, setDeliveryIdFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<ReleaseWebhookStatus | "all">("all");
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = usePersistentColumnVisibility("admin-release-webhooks");
 
@@ -916,7 +931,13 @@ export function ReleaseWebhookDeliveriesDataTable({ refreshKey }: ReleaseWebhook
         }
         if (columnId === "status") {
           return (
-            <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPage(0); }}>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => {
+                setStatusFilter(value as ReleaseWebhookStatus | "all");
+                setPage(0);
+              }}
+            >
               <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>

@@ -14,6 +14,7 @@ import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.command.ReleaseWebhookDeliveryCommand;
 import com.mappo.controlplane.repository.ReleaseWebhookRepository;
 import com.mappo.controlplane.service.ReleaseService;
+import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.nio.charset.StandardCharsets;
@@ -44,6 +45,7 @@ public class ReleaseManifestIngestService {
     private final ReleaseWebhookRepository releaseWebhookRepository;
     private final MappoProperties properties;
     private final ObjectMapper objectMapper;
+    private final LiveUpdateService liveUpdateService;
 
     public ReleaseManifestIngestResultRecord ingestGithubManifest(ReleaseManifestIngestRequest request) {
         String repo = normalize(firstNonBlank(request == null ? null : request.repo(), properties.getManagedAppReleaseRepo()));
@@ -589,6 +591,7 @@ public class ReleaseManifestIngestService {
             result == null ? List.of() : result.createdReleaseIds(),
             receivedAt
         ));
+        liveUpdateService.emitAdminUpdated();
     }
 
     private String newDeliveryLogId(String externalDeliveryId, String eventType, String payload, OffsetDateTime receivedAt) {

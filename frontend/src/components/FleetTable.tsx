@@ -24,7 +24,14 @@ import {
   targetRuntimeStatus,
 } from "@/lib/fleet";
 import { usePersistentColumnVisibility } from "@/lib/table-visibility";
-import type { PageMetadata, Release, Target, TargetPage } from "@/lib/types";
+import type {
+  PageMetadata,
+  Release,
+  Target,
+  TargetPage,
+  TargetRuntimeStatus,
+  TargetStage,
+} from "@/lib/types";
 
 type FleetTableProps = {
   latestRelease: Release | null;
@@ -68,13 +75,16 @@ function runtimeVariant(runtimeStatus: string): "default" | "secondary" | "destr
   if (runtimeStatus === "healthy") {
     return "default";
   }
-  if (runtimeStatus === "degraded") {
+  if (runtimeStatus === "unhealthy") {
+    return "destructive";
+  }
+  if (runtimeStatus === "unreachable") {
     return "secondary";
   }
-  if (runtimeStatus === "registered" || runtimeStatus === "unknown") {
+  if (runtimeStatus === "unknown") {
     return "outline";
   }
-  return "destructive";
+  return "outline";
 }
 
 function lastDeploymentVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
@@ -147,8 +157,8 @@ export default function FleetTable({ latestRelease, refreshKey }: FleetTableProp
   const [regionFilter, setRegionFilter] = useState("all");
   const [tierFilter, setTierFilter] = useState("all");
   const [versionFilter, setVersionFilter] = useState("");
-  const [runtimeFilter, setRuntimeFilter] = useState("all");
-  const [lastDeploymentFilter, setLastDeploymentFilter] = useState("all");
+  const [runtimeFilter, setRuntimeFilter] = useState<TargetRuntimeStatus | "all">("all");
+  const [lastDeploymentFilter, setLastDeploymentFilter] = useState<TargetStage | "all">("all");
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] =
     usePersistentColumnVisibility("fleet-targets");
@@ -222,7 +232,7 @@ export default function FleetTable({ latestRelease, refreshKey }: FleetTableProp
         tier: target.tags?.tier ?? "unknown",
         version: target.lastDeployedRelease ?? "unknown",
         runtimeStatus: targetRuntimeStatus(target),
-        runtimeCheckedAt: target.lastCheckInAt ?? "",
+        runtimeCheckedAt: target.runtimeCheckedAt ?? "",
         lastDeploymentStatus: targetLastDeploymentTone(target),
         lastDeploymentAt: target.lastDeploymentAt ?? "",
         latestStatus: targetLatestReleaseStatus(target, latestVersion),
@@ -476,7 +486,7 @@ export default function FleetTable({ latestRelease, refreshKey }: FleetTableProp
         <Select
           value={runtimeFilter}
           onValueChange={(value) => {
-            setRuntimeFilter(value);
+            setRuntimeFilter(value as TargetRuntimeStatus | "all");
             setPage(0);
           }}
         >
@@ -499,7 +509,7 @@ export default function FleetTable({ latestRelease, refreshKey }: FleetTableProp
         <Select
           value={lastDeploymentFilter}
           onValueChange={(value) => {
-            setLastDeploymentFilter(value);
+            setLastDeploymentFilter(value as TargetStage | "all");
             setPage(0);
           }}
         >

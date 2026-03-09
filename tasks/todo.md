@@ -86,6 +86,8 @@ Post-demo production-path planning and execution setup:
 - 2026-03-08: Verified the live failure-path finding that Azure Deployment Stack SDK responses can still hide the actionable nested error until MAPPO re-reads the stack resource after failure; the executor now does that follow-up read so operator errors show the deepest available resource-specific detail.
 - 2026-03-09: Added backend-backed pagination for deployment runs (`GET /api/v1/runs`) with page metadata, server-side filters (`runId`, `releaseId`, `status`), frontend pagination controls, and integration coverage so the first large table no longer relies on full-list polling.
 - 2026-03-09: Extended backend-backed pagination to Fleet and Admin surfaces (`targets`, registrations, onboarding events, forwarder logs, release webhook deliveries), wired the frontend tables to shared pagination controls and generated contracts, and verified the full reactor build stays green.
+- 2026-03-09: Hardened the paginated OpenAPI surface by moving controller collection queries onto typed `@ParameterObject` DTOs with validation/schema metadata, switching frontend wrappers to generated query types, and adding an OpenAPI export regression test for the main operator collections.
+- 2026-03-09: Added persisted runtime probe storage plus a scheduled Azure Container App probe loop, split Fleet runtime status from deployment outcome, stopped deployments from mutating runtime health, and verified the updated backend/frontend contract through the full reactor build.
 
 ## Milestones
 
@@ -161,7 +163,6 @@ Post-demo production-path planning and execution setup:
 - Extend the new preview path beyond `deployment_stack` + resource-group scope once the production execution surface expands to subscription-scope stacks or additional release source types.
 - Decide whether preview cancellation should remain client-side request abort only or become a first-class backend cancelable job model.
 - Add backend-backed pagination, filtering, and sorting to the remaining log-heavy detail surfaces before the demo data model grows further.
-- Replace the current stored runtime badge with a real probe/check model that distinguishes runtime availability from deployment outcome.
 - Introduce SSE invalidation events once the paginated query contracts are stable enough to stream targeted refreshes instead of polling snapshots.
 - Harden retention/indexing/auditability for runs, logs, webhook deliveries, and previews so table growth does not degrade query latency.
 
@@ -179,12 +180,12 @@ Post-demo production-path planning and execution setup:
 - [x] Move `Refresh Snapshot` into the Registered Targets tab context and replace transient Admin action banners with Sonner toasts.
 - [x] Make run creation asynchronous so the Deployments drawer can close immediately after the run is accepted instead of blocking on full execution.
 - [x] Honor `strategyMode` and `concurrency` in run execution so `all_at_once` can execute multiple targets in parallel and `waves` respects wave ordering.
-- [ ] Replace stored `healthStatus` as the long-term runtime signal with an explicit probe/check model so Fleet runtime state is no longer dependent on historical deployment status or manual correction.
+- [x] Replace stored `healthStatus` as the long-term runtime signal with an explicit probe/check model so Fleet runtime state is no longer dependent on historical deployment status or manual correction.
 - [x] Convert the Deployments runs table to backend-backed pagination with shared pagination controls and server-side filters.
 - [x] Extend backend-backed pagination to Fleet, Admin tabs, and any log-heavy detail surface that currently transfers full snapshots.
-- [ ] Tighten Springdoc/OpenAPI as the authoritative contract surface: keep generated clients current, remove stale wrapper paths, and make paginated/query DTO changes contract-first.
-- [ ] Add SSE-based invalidate/refetch updates for runs, fleet, releases, and admin events so the UI can drop the current 1.2s polling model.
-- [ ] Add explicit runtime probe storage/API/UI so Fleet `Runtime` is backed by actual checks instead of historical deployment state.
+- [x] Tighten Springdoc/OpenAPI as the authoritative contract surface: keep generated clients current, remove stale wrapper paths, and make paginated/query DTO changes contract-first.
+- [x] Add SSE-based invalidate/refetch updates for runs, fleet, releases, and admin events so the UI can drop the current 1.2s polling model.
+- [x] Add explicit runtime probe storage/API/UI so Fleet `Runtime` is backed by actual checks instead of historical deployment state.
 
 ## Platform Hardening Program
 
@@ -205,6 +206,7 @@ Post-demo production-path planning and execution setup:
 **Status**
 - [x] Runs pagination end to end
 - [x] Standardize the same pattern for targets/admin/log-heavy views
+- [x] Harden Springdoc/OpenAPI so paginated collections export enum-backed query filters, required page metadata, and generated frontend clients stay in sync
 
 ### Sprint 2: Runtime Signal And Scale Readiness
 **Goal**
@@ -233,6 +235,10 @@ Post-demo production-path planning and execution setup:
 - Normal operator workflows update live without 1.2s polling.
 - Reconnect and fallback behavior are documented and tested.
 - SSE does not break current authenticated/custom-domain deployment paths.
+
+**Status**
+- [x] SSE invalidate/refetch events for runs, run detail, fleet, releases, and admin tabs
+- [x] 15s fallback polling retained as a resilience path while SSE reconnects
 
 ## Detailed Plan Reference
 - `/Users/cvonderheid/workspace/mappo/docs/azure-production-execution-plan.md`

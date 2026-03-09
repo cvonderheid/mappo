@@ -2,7 +2,7 @@ import { compareReleaseVersionsDesc } from "@/lib/releases";
 import type { Release, Target } from "@/lib/types";
 
 export type LatestReleaseStatus = "current" | "outdated" | "unknown";
-export type RuntimeStatus = "healthy" | "degraded" | "registered" | "unknown";
+export type RuntimeStatus = "healthy" | "unhealthy" | "unreachable" | "unknown";
 export type LastDeploymentStatusTone = "succeeded" | "failed" | "running" | "queued" | "unknown";
 
 export function targetLatestReleaseStatus(
@@ -42,9 +42,9 @@ export function releaseAvailabilitySummary(targets: Target[], latestRelease: Rel
   };
 }
 
-export function targetRuntimeStatus(target: Pick<Target, "healthStatus">): RuntimeStatus {
-  const value = String(target.healthStatus ?? "").trim().toLowerCase();
-  if (value === "healthy" || value === "degraded" || value === "registered") {
+export function targetRuntimeStatus(target: Pick<Target, "runtimeStatus">): RuntimeStatus {
+  const value = String(target.runtimeStatus ?? "").trim().toLowerCase();
+  if (value === "healthy" || value === "unhealthy" || value === "unreachable") {
     return value as RuntimeStatus;
   }
   return "unknown";

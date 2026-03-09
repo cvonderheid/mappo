@@ -1,12 +1,17 @@
 package com.mappo.controlplane.api;
 
+import com.mappo.controlplane.api.query.TargetPageParameters;
 import com.mappo.controlplane.model.TargetPageRecord;
 import com.mappo.controlplane.model.TargetRecord;
-import com.mappo.controlplane.model.query.TargetPageQuery;
 import com.mappo.controlplane.service.TargetService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -14,11 +19,18 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/targets")
 @RequiredArgsConstructor
+@Tag(name = "Targets", description = "Fleet target queries and selection endpoints.")
 public class TargetsController {
 
     private final TargetService targetService;
 
     @GetMapping
+    @Deprecated
+    @Operation(
+        summary = "List targets as a lightweight selection snapshot",
+        description = "Compatibility endpoint used by deployment-target selection and light app-shell refreshes. Use `/api/v1/targets/page` for operator table views.",
+        deprecated = true
+    )
     public List<TargetRecord> listTargets(
         @RequestParam(value = "ring", required = false) String ring,
         @RequestParam(value = "region", required = false) String region,
@@ -29,35 +41,13 @@ public class TargetsController {
     }
 
     @GetMapping("/page")
+    @Operation(summary = "List fleet targets", description = "Primary paginated fleet endpoint for operator views.")
     public TargetPageRecord listTargetsPage(
-        @RequestParam(value = "page", defaultValue = "0") int page,
-        @RequestParam(value = "size", defaultValue = "25") int size,
-        @RequestParam(value = "targetId", required = false) String targetId,
-        @RequestParam(value = "customerName", required = false) String customerName,
-        @RequestParam(value = "tenantId", required = false) String tenantId,
-        @RequestParam(value = "subscriptionId", required = false) String subscriptionId,
-        @RequestParam(value = "ring", required = false) String ring,
-        @RequestParam(value = "region", required = false) String region,
-        @RequestParam(value = "tier", required = false) String tier,
-        @RequestParam(value = "version", required = false) String version,
-        @RequestParam(value = "runtimeStatus", required = false) String runtimeStatus,
-        @RequestParam(value = "lastDeploymentStatus", required = false) String lastDeploymentStatus
+        @Valid
+        @ParameterObject
+        @ModelAttribute
+        TargetPageParameters parameters
     ) {
-        return targetService.listTargetsPage(
-            new TargetPageQuery(
-                page,
-                size,
-                targetId,
-                customerName,
-                tenantId,
-                subscriptionId,
-                ring,
-                region,
-                tier,
-                version,
-                runtimeStatus,
-                lastDeploymentStatus
-            )
-        );
+        return targetService.listTargetsPage(parameters.toQuery());
     }
 }

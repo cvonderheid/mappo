@@ -5,9 +5,15 @@ type Target = {
   tenantId: string;
   subscriptionId: string;
   managedAppId: string;
+  customerName?: string;
   tags: Record<string, string>;
   lastDeployedRelease: string;
   healthStatus: string;
+  runtimeStatus?: string;
+  runtimeCheckedAt?: string;
+  runtimeSummary?: string;
+  lastDeploymentStatus?: string;
+  lastDeploymentAt?: string;
   lastCheckInAt: string;
   simulatedFailureMode: string;
 };
@@ -211,7 +217,7 @@ async function handleRoute(route: Route, state: MockApiState): Promise<void> {
       if (regionFilter && (target.tags.region ?? "").toLowerCase() !== regionFilter) return false;
       if (tierFilter && (target.tags.tier ?? "").toLowerCase() !== tierFilter) return false;
       if (versionFilter && !(target.lastDeployedRelease ?? "").toLowerCase().includes(versionFilter)) return false;
-      if (runtimeFilter && (target.healthStatus ?? "").toLowerCase() !== runtimeFilter) return false;
+      if (runtimeFilter && (target.runtimeStatus ?? "").toLowerCase() !== runtimeFilter) return false;
       return true;
     });
 
@@ -439,6 +445,7 @@ function makeTarget(
     tenantId: `tenant-${id}`,
     subscriptionId: `sub-${id}`,
     managedAppId: `/subscriptions/sub-${id}/resourceGroups/rg-${id}`,
+    customerName: `Customer ${id}`,
     tags: {
       ring,
       region,
@@ -447,6 +454,11 @@ function makeTarget(
     },
     lastDeployedRelease: "2026.02.20.1",
     healthStatus: "healthy",
+    runtimeStatus: "healthy",
+    runtimeCheckedAt: NOW,
+    runtimeSummary: "Runtime responded with HTTP 200.",
+    lastDeploymentStatus: "SUCCEEDED",
+    lastDeploymentAt: NOW,
     lastCheckInAt: NOW,
     simulatedFailureMode: "none",
   };

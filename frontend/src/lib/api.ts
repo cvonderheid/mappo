@@ -4,6 +4,13 @@ import type {
   CreateRunRequest,
   DeleteTargetRegistrationResponse,
   ForwarderLogPage,
+  ListForwarderLogsQuery,
+  ListMarketplaceEventsQuery,
+  ListReleaseWebhookDeliveriesQuery,
+  ListRunsQuery,
+  ListTargetRegistrationsQuery,
+  ListTargetsPageQuery,
+  ListTargetsQuery,
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
   MarketplaceEventPage,
@@ -49,13 +56,6 @@ function requireData<T>(label: string, result: ApiResult<T>): T {
   throw new Error(`${label} failed (${status}): ${errorText}`);
 }
 
-export type ListTargetsQuery = {
-  ring?: string;
-  region?: string;
-  tier?: string;
-  environment?: string;
-};
-
 export async function listTargets(query: ListTargetsQuery = {}): Promise<Target[]> {
   const normalizedQuery = {
     ring: query.ring,
@@ -68,21 +68,6 @@ export async function listTargets(query: ListTargetsQuery = {}): Promise<Target[
   });
   return requireData("listTargets", { data, error, response });
 }
-
-export type ListTargetsPageQuery = {
-  page?: number;
-  size?: number;
-  targetId?: string;
-  customerName?: string;
-  tenantId?: string;
-  subscriptionId?: string;
-  ring?: string;
-  region?: string;
-  tier?: string;
-  version?: string;
-  runtimeStatus?: string;
-  lastDeploymentStatus?: string;
-};
 
 export async function listTargetsPage(query: ListTargetsPageQuery = {}): Promise<TargetPage> {
   const { data, error, response } = await apiClient.GET("/api/v1/targets/page", {
@@ -110,14 +95,6 @@ export async function listReleases(): Promise<Release[]> {
   const { data, error, response } = await apiClient.GET("/api/v1/releases");
   return requireData("listReleases", { data, error, response });
 }
-
-export type ListRunsQuery = {
-  page?: number;
-  size?: number;
-  runId?: string;
-  releaseId?: string;
-  status?: string;
-};
 
 export async function listRuns(query: ListRunsQuery = {}): Promise<RunSummaryPage> {
   const { data, error, response } = await apiClient.GET("/api/v1/runs", {
@@ -179,15 +156,6 @@ export async function getAdminOnboardingSnapshot(
   return requireData("getAdminOnboardingSnapshot", { data, error, response });
 }
 
-export type ListTargetRegistrationsQuery = {
-  page?: number;
-  size?: number;
-  targetId?: string;
-  ring?: string;
-  region?: string;
-  tier?: string;
-};
-
 export async function adminListTargetRegistrations(
   query: ListTargetRegistrationsQuery = {}
 ): Promise<TargetRegistrationPage> {
@@ -206,13 +174,6 @@ export async function adminListTargetRegistrations(
   return requireData("adminListTargetRegistrations", { data, error, response });
 }
 
-export type ListMarketplaceEventsQuery = {
-  page?: number;
-  size?: number;
-  eventId?: string;
-  status?: string;
-};
-
 export async function adminListMarketplaceEvents(
   query: ListMarketplaceEventsQuery = {}
 ): Promise<MarketplaceEventPage> {
@@ -229,13 +190,6 @@ export async function adminListMarketplaceEvents(
   return requireData("adminListMarketplaceEvents", { data, error, response });
 }
 
-export type ListForwarderLogsQuery = {
-  page?: number;
-  size?: number;
-  logId?: string;
-  level?: string;
-};
-
 export async function adminListForwarderLogs(
   query: ListForwarderLogsQuery = {}
 ): Promise<ForwarderLogPage> {
@@ -251,13 +205,6 @@ export async function adminListForwarderLogs(
   });
   return requireData("adminListForwarderLogs", { data, error, response });
 }
-
-export type ListReleaseWebhookDeliveriesQuery = {
-  page?: number;
-  size?: number;
-  deliveryId?: string;
-  status?: string;
-};
 
 export async function adminListReleaseWebhookDeliveries(
   query: ListReleaseWebhookDeliveriesQuery = {}

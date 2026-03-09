@@ -50,3 +50,9 @@ mappo:
   publisher-acr-pull-client-id: ${MAPPO_PUBLISHER_ACR_PULL_CLIENT_ID:}
   publisher-acr-pull-client-secret: ${MAPPO_PUBLISHER_ACR_PULL_CLIENT_SECRET:}
   publisher-acr-pull-secret-name: ${MAPPO_PUBLISHER_ACR_PULL_SECRET_NAME:publisher-acr-pull}
+  runtime-probe-enabled: ${MAPPO_RUNTIME_PROBE_ENABLED:true}
+  runtime-probe-interval-ms: ${MAPPO_RUNTIME_PROBE_INTERVAL_MS:60000}
+  runtime-probe-initial-delay-ms: ${MAPPO_RUNTIME_PROBE_INITIAL_DELAY_MS:15000}
+  runtime-probe-timeout-ms: ${MAPPO_RUNTIME_PROBE_TIMEOUT_MS:5000}
+  sse-enabled: ${MAPPO_SSE_ENABLED:true}
+  sse-heartbeat-interval-ms: ${MAPPO_SSE_HEARTBEAT_INTERVAL_MS:15000}

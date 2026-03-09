@@ -5,22 +5,33 @@ import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.RunDetailRecord;
 import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.repository.RunRepository;
+import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.util.List;
 import java.util.concurrent.Executor;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class RunDispatchService {
 
-    @Qualifier("runDispatchExecutor")
     private final Executor runDispatchExecutor;
     private final RunExecutionService runExecutionService;
     private final RunRepository runRepository;
+    private final LiveUpdateService liveUpdateService;
+
+    public RunDispatchService(
+        @Qualifier("runDispatchExecutor") Executor runDispatchExecutor,
+        RunExecutionService runExecutionService,
+        RunRepository runRepository,
+        LiveUpdateService liveUpdateService
+    ) {
+        this.runDispatchExecutor = runDispatchExecutor;
+        this.runExecutionService = runExecutionService;
+        this.runRepository = runRepository;
+        this.liveUpdateService = liveUpdateService;
+    }
 
     public void dispatchRun(
         RunDetailRecord run,
@@ -42,6 +53,8 @@ public class RunDispatchService {
                     MappoRunStatus.failed,
                     "execution crashed before completion"
                 );
+                liveUpdateService.emitRunsUpdated();
+                liveUpdateService.emitRunUpdated(run.id());
             }
         });
     }

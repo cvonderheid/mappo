@@ -30,6 +30,7 @@ Stabilize the platform under the production-shaped Azure model that is already r
 - [x] Deployment-stack + publisher ACR path validated end to end in Azure
 - [x] Runs table pagination implemented end to end with backend filters and page metadata
 - [x] Fleet/Admin pagination implemented end to end with backend filters, page metadata, and shared frontend pagination controls
+- [x] Runtime health now has a dedicated probe-backed model separate from deployment outcome
 
 ## Milestone H: OpenAPI Contract Hardening
 **Scope**
@@ -45,6 +46,12 @@ Stabilize the platform under the production-shaped Azure model that is already r
 **Current focus**
 - Normalize paginated collection contracts so filtering/sorting parameters and page DTOs follow one naming and shape convention across runs, targets, and admin surfaces.
 - Remove remaining compatibility wrappers where the frontend can safely use only the generated paginated contracts.
+- Keep the new runtime-probe fields (`runtimeStatus`, `runtimeCheckedAt`, `runtimeSummary`) contract-first so generated clients, tests, and Fleet rendering stay in lockstep.
+
+**Status**
+- [x] Main operator collection endpoints now export typed paginated query params through dedicated backend parameter DTOs.
+- [x] Frontend collection wrappers now consume generated query types instead of handwritten duplicates.
+- [ ] Remove remaining compatibility wrappers where the UI can move completely to contract-first collection APIs.
 
 **Verification**
 - `./mvnw -pl backend verify`
@@ -82,8 +89,11 @@ Stabilize the platform under the production-shaped Azure model that is already r
 - `Last Deployment` remains an independent signal.
 - Probe timestamps and failure summaries are operator-visible where they matter.
 
-**Next slice**
-- Introduce persisted runtime check records and an API shape that Fleet can consume without overloading target registration/deployment state.
+**Status**
+- [x] Persist runtime check/probe records separately from target registration and deployment history.
+- [x] Expose probe-backed runtime fields through the paginated Fleet API and generated frontend contract.
+- [x] Stop successful deployments from overwriting runtime health state.
+- [ ] Validate the hosted Azure demo against the scheduled probe loop and tune probe cadence/timeouts with real runtime behavior.
 
 **Verification**
 - Backend health/probe integration tests
@@ -287,6 +297,12 @@ Status: demo green; live GitHub webhook delivery setup pending
 - Workload version/data-model verification across both demo targets
 - Pagination contract checks on runs/targets/admin endpoints
 - SSE smoke once the event stream exists
+
+## Platform Hardening Status
+- Pagination is now backend-backed for runs, fleet targets, and admin collection tables.
+- Runtime health is now modeled through explicit runtime probes instead of historical deployment state.
+- SSE invalidate/refetch is in place for runs, run detail, fleet, releases, and admin tabs, with a slower fallback poll retained for reconnect resilience.
+- Springdoc/OpenAPI is now the hardened contract source for paginated collection endpoints, including enum-backed query filters and required page-metadata schemas consumed by generated frontend types.
 
 ## Detailed Plan
 - `/Users/cvonderheid/workspace/mappo/docs/azure-production-execution-plan.md`

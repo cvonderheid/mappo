@@ -1,5 +1,8 @@
 package com.mappo.controlplane.model.query;
 
+import com.mappo.controlplane.jooq.enums.MappoRuntimeProbeStatus;
+import com.mappo.controlplane.jooq.enums.MappoTargetStage;
+
 public record TargetPageQuery(
     Integer page,
     Integer size,
@@ -11,7 +14,7 @@ public record TargetPageQuery(
     String region,
     String tier,
     String version,
-    String runtimeStatus,
-    String lastDeploymentStatus
+    MappoRuntimeProbeStatus runtimeStatus,
+    MappoTargetStage lastDeploymentStatus
 ) {
 }

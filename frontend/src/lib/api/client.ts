@@ -19,3 +19,4 @@ function resolveBaseUrl(): string {
 const baseUrl = resolveBaseUrl();
 
 export const apiClient = createClient<paths>({ baseUrl });
+export const apiBaseUrl = baseUrl;

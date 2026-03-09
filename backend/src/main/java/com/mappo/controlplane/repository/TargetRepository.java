@@ -3,16 +3,20 @@ package com.mappo.controlplane.repository;
 import static com.mappo.controlplane.jooq.Tables.TARGETS;
 import static com.mappo.controlplane.jooq.Tables.TARGET_EXECUTION_RECORDS;
 import static com.mappo.controlplane.jooq.Tables.TARGET_REGISTRATIONS;
+import static com.mappo.controlplane.jooq.Tables.TARGET_RUNTIME_PROBES;
 import static com.mappo.controlplane.jooq.Tables.TARGET_TAGS;
 
 import com.mappo.controlplane.jooq.enums.MappoHealthStatus;
+import com.mappo.controlplane.jooq.enums.MappoRuntimeProbeStatus;
 import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
 import com.mappo.controlplane.jooq.enums.MappoTargetStage;
 import com.mappo.controlplane.model.PageMetadataRecord;
-import com.mappo.controlplane.model.TargetPageRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
-import com.mappo.controlplane.model.command.TargetUpsertCommand;
+import com.mappo.controlplane.model.TargetPageRecord;
 import com.mappo.controlplane.model.TargetRecord;
+import com.mappo.controlplane.model.TargetRuntimeProbeContextRecord;
+import com.mappo.controlplane.model.TargetRuntimeProbeRecord;
+import com.mappo.controlplane.model.command.TargetUpsertCommand;
 import com.mappo.controlplane.model.query.TargetPageQuery;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -64,6 +68,9 @@ public class TargetRepository {
                 TARGET_REGISTRATIONS.CUSTOMER_NAME,
                 TARGETS.LAST_DEPLOYED_RELEASE,
                 TARGETS.HEALTH_STATUS,
+                TARGET_RUNTIME_PROBES.RUNTIME_STATUS,
+                TARGET_RUNTIME_PROBES.CHECKED_AT,
+                TARGET_RUNTIME_PROBES.SUMMARY,
                 latestExecution.field("latest_status", MappoTargetStage.class),
                 latestExecution.field("latest_updated_at", OffsetDateTime.class),
                 TARGETS.LAST_CHECK_IN_AT,
@@ -72,6 +79,8 @@ public class TargetRepository {
             .from(TARGETS)
             .leftJoin(TARGET_REGISTRATIONS)
             .on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
+            .leftJoin(TARGET_RUNTIME_PROBES)
+            .on(TARGET_RUNTIME_PROBES.TARGET_ID.eq(TARGETS.ID))
             .leftJoin(latestExecution)
             .on(latestExecution.field("target_id", String.class).eq(TARGETS.ID))
             .where(condition)
@@ -108,6 +117,8 @@ public class TargetRepository {
                 .from(TARGETS)
                 .leftJoin(TARGET_REGISTRATIONS)
                 .on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
+                .leftJoin(TARGET_RUNTIME_PROBES)
+                .on(TARGET_RUNTIME_PROBES.TARGET_ID.eq(TARGETS.ID))
                 .leftJoin(latestExecution)
                 .on(latestExecution.field("target_id", String.class).eq(TARGETS.ID))
                 .where(condition)
@@ -122,6 +133,9 @@ public class TargetRepository {
                 TARGET_REGISTRATIONS.CUSTOMER_NAME,
                 TARGETS.LAST_DEPLOYED_RELEASE,
                 TARGETS.HEALTH_STATUS,
+                TARGET_RUNTIME_PROBES.RUNTIME_STATUS,
+                TARGET_RUNTIME_PROBES.CHECKED_AT,
+                TARGET_RUNTIME_PROBES.SUMMARY,
                 latestExecution.field("latest_status", MappoTargetStage.class),
                 latestExecution.field("latest_updated_at", OffsetDateTime.class),
                 TARGETS.LAST_CHECK_IN_AT,
@@ -130,6 +144,8 @@ public class TargetRepository {
             .from(TARGETS)
             .leftJoin(TARGET_REGISTRATIONS)
             .on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
+            .leftJoin(TARGET_RUNTIME_PROBES)
+            .on(TARGET_RUNTIME_PROBES.TARGET_ID.eq(TARGETS.ID))
             .leftJoin(latestExecution)
             .on(latestExecution.field("target_id", String.class).eq(TARGETS.ID))
             .where(condition)
@@ -163,6 +179,9 @@ public class TargetRepository {
                 TARGET_REGISTRATIONS.CUSTOMER_NAME,
                 TARGETS.LAST_DEPLOYED_RELEASE,
                 TARGETS.HEALTH_STATUS,
+                TARGET_RUNTIME_PROBES.RUNTIME_STATUS,
+                TARGET_RUNTIME_PROBES.CHECKED_AT,
+                TARGET_RUNTIME_PROBES.SUMMARY,
                 latestExecution.field("latest_status", MappoTargetStage.class),
                 latestExecution.field("latest_updated_at", OffsetDateTime.class),
                 TARGETS.LAST_CHECK_IN_AT,
@@ -171,6 +190,8 @@ public class TargetRepository {
             .from(TARGETS)
             .leftJoin(TARGET_REGISTRATIONS)
             .on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
+            .leftJoin(TARGET_RUNTIME_PROBES)
+            .on(TARGET_RUNTIME_PROBES.TARGET_ID.eq(TARGETS.ID))
             .leftJoin(latestExecution)
             .on(latestExecution.field("target_id", String.class).eq(TARGETS.ID))
             .where(TARGETS.ID.eq(targetId))
@@ -198,6 +219,9 @@ public class TargetRepository {
                 TARGET_REGISTRATIONS.CUSTOMER_NAME,
                 TARGETS.LAST_DEPLOYED_RELEASE,
                 TARGETS.HEALTH_STATUS,
+                TARGET_RUNTIME_PROBES.RUNTIME_STATUS,
+                TARGET_RUNTIME_PROBES.CHECKED_AT,
+                TARGET_RUNTIME_PROBES.SUMMARY,
                 latestExecution.field("latest_status", MappoTargetStage.class),
                 latestExecution.field("latest_updated_at", OffsetDateTime.class),
                 TARGETS.LAST_CHECK_IN_AT,
@@ -206,6 +230,8 @@ public class TargetRepository {
             .from(TARGETS)
             .leftJoin(TARGET_REGISTRATIONS)
             .on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
+            .leftJoin(TARGET_RUNTIME_PROBES)
+            .on(TARGET_RUNTIME_PROBES.TARGET_ID.eq(TARGETS.ID))
             .leftJoin(latestExecution)
             .on(latestExecution.field("target_id", String.class).eq(TARGETS.ID))
             .where(TARGETS.ID.in(targetIds))
@@ -272,6 +298,25 @@ public class TargetRepository {
         return contexts;
     }
 
+    public List<TargetRuntimeProbeContextRecord> listRuntimeProbeContexts() {
+        return dsl.select(
+                TARGETS.ID,
+                TARGETS.TENANT_ID,
+                TARGETS.SUBSCRIPTION_ID,
+                TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID
+            )
+            .from(TARGETS)
+            .join(TARGET_REGISTRATIONS)
+            .on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
+            .orderBy(TARGETS.ID.asc())
+            .fetch(row -> new TargetRuntimeProbeContextRecord(
+                row.get(TARGETS.ID),
+                row.get(TARGETS.TENANT_ID),
+                row.get(TARGETS.SUBSCRIPTION_ID),
+                row.get(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID)
+            ));
+    }
+
     public void upsertTarget(TargetUpsertCommand target) {
         String targetId = requiredText(target.id(), "id");
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -312,12 +357,37 @@ public class TargetRepository {
             .execute();
     }
 
+    public void upsertRuntimeProbe(TargetRuntimeProbeRecord probe) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        dsl.insertInto(TARGET_RUNTIME_PROBES)
+            .set(TARGET_RUNTIME_PROBES.TARGET_ID, requiredText(probe.targetId(), "target_id"))
+            .set(
+                TARGET_RUNTIME_PROBES.RUNTIME_STATUS,
+                enumOrDefault(probe.runtimeStatus(), MappoRuntimeProbeStatus.unknown)
+            )
+            .set(TARGET_RUNTIME_PROBES.CHECKED_AT, toTimestamp(probe.checkedAt(), now))
+            .set(TARGET_RUNTIME_PROBES.ENDPOINT_URL, nullableText(probe.endpointUrl()))
+            .set(TARGET_RUNTIME_PROBES.HTTP_STATUS_CODE, probe.httpStatusCode())
+            .set(TARGET_RUNTIME_PROBES.SUMMARY, defaultIfBlank(probe.summary(), ""))
+            .set(TARGET_RUNTIME_PROBES.UPDATED_AT, now)
+            .onConflict(TARGET_RUNTIME_PROBES.TARGET_ID)
+            .doUpdate()
+            .set(
+                TARGET_RUNTIME_PROBES.RUNTIME_STATUS,
+                enumOrDefault(probe.runtimeStatus(), MappoRuntimeProbeStatus.unknown)
+            )
+            .set(TARGET_RUNTIME_PROBES.CHECKED_AT, toTimestamp(probe.checkedAt(), now))
+            .set(TARGET_RUNTIME_PROBES.ENDPOINT_URL, nullableText(probe.endpointUrl()))
+            .set(TARGET_RUNTIME_PROBES.HTTP_STATUS_CODE, probe.httpStatusCode())
+            .set(TARGET_RUNTIME_PROBES.SUMMARY, defaultIfBlank(probe.summary(), ""))
+            .set(TARGET_RUNTIME_PROBES.UPDATED_AT, now)
+            .execute();
+    }
+
     public void updateLastDeployedRelease(String targetId, String releaseVersion) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         dsl.update(TARGETS)
             .set(TARGETS.LAST_DEPLOYED_RELEASE, normalize(releaseVersion))
-            .set(TARGETS.HEALTH_STATUS, MappoHealthStatus.healthy)
-            .set(TARGETS.LAST_CHECK_IN_AT, now)
             .set(TARGETS.UPDATED_AT, now)
             .where(TARGETS.ID.eq(targetId))
             .execute();
@@ -376,6 +446,9 @@ public class TargetRepository {
             tags,
             row.get(TARGETS.LAST_DEPLOYED_RELEASE),
             row.get(TARGETS.HEALTH_STATUS),
+            row.get(TARGET_RUNTIME_PROBES.RUNTIME_STATUS),
+            row.get(TARGET_RUNTIME_PROBES.CHECKED_AT),
+            nullableText(row.get(TARGET_RUNTIME_PROBES.SUMMARY)),
             row.get("latest_status", MappoTargetStage.class),
             row.get("latest_updated_at", OffsetDateTime.class),
             row.get(TARGETS.LAST_CHECK_IN_AT),
@@ -428,8 +501,8 @@ public class TargetRepository {
         String region = normalize(query.region());
         String tier = normalize(query.tier());
         String version = normalize(query.version());
-        String runtimeStatus = normalize(query.runtimeStatus()).toLowerCase();
-        String lastDeploymentStatus = normalize(query.lastDeploymentStatus()).toLowerCase();
+        MappoRuntimeProbeStatus runtimeStatus = query.runtimeStatus();
+        MappoTargetStage lastDeploymentStatus = query.lastDeploymentStatus();
 
         if (!targetId.isBlank()) {
             condition = condition.and(TARGETS.ID.containsIgnoreCase(targetId));
@@ -455,19 +528,20 @@ public class TargetRepository {
         if (!version.isBlank()) {
             condition = condition.and(TARGETS.LAST_DEPLOYED_RELEASE.containsIgnoreCase(version));
         }
-        if (!runtimeStatus.isBlank()) {
-            MappoHealthStatus healthStatus = MappoHealthStatus.lookupLiteral(runtimeStatus);
-            if (healthStatus == null) {
-                return null;
+        if (runtimeStatus != null) {
+            if (runtimeStatus == MappoRuntimeProbeStatus.unknown) {
+                condition = condition.and(
+                    TARGET_RUNTIME_PROBES.RUNTIME_STATUS.isNull()
+                        .or(TARGET_RUNTIME_PROBES.RUNTIME_STATUS.eq(MappoRuntimeProbeStatus.unknown))
+                );
+            } else {
+                condition = condition.and(TARGET_RUNTIME_PROBES.RUNTIME_STATUS.eq(runtimeStatus));
             }
-            condition = condition.and(TARGETS.HEALTH_STATUS.eq(healthStatus));
         }
-        if (!lastDeploymentStatus.isBlank()) {
-            MappoTargetStage stage = MappoTargetStage.lookupLiteral(lastDeploymentStatus);
-            if (stage == null) {
-                return null;
-            }
-            condition = condition.and(latestExecution.field("latest_status", MappoTargetStage.class).eq(stage));
+        if (lastDeploymentStatus != null) {
+            condition = condition.and(
+                latestExecution.field("latest_status", MappoTargetStage.class).eq(lastDeploymentStatus)
+            );
         }
         return condition;
     }

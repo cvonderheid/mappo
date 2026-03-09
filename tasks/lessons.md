@@ -183,3 +183,27 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Preventative rule: When a dashboard area starts the move to backend pagination, finish the entire operator surface cluster in the same program phase so state management can converge on one model before introducing live updates.
 - Detection signal: sibling tables in the same UI area mix paginated server queries with legacy full-snapshot refreshes.
 - Enforcement (test/lint/checklist): before starting SSE work, confirm each high-volume operator table in scope has backend pagination, generated-client coverage, and shared pagination controls.
+
+- Date: 2026-03-09
+- Pattern: Generated OpenAPI can look healthy while the frontend quietly drifts if collection query shapes are duplicated by hand in API wrappers.
+- Preventative rule: For paginated/filterable collection endpoints, export the query shape once from Springdoc and have frontend wrappers consume the generated operation query type directly.
+- Detection signal: backend query parameters change, but only handwritten wrapper types need updates while the generated schema remains unused.
+- Enforcement (test/lint/checklist): when adding or changing a collection query contract, update the controller/query DTOs, regenerate the client, and fail tests if the exported OpenAPI drops `page`/`size` or key filters.
+
+- Date: 2026-03-09
+- Pattern: `@Qualifier` on a Lombok-generated final field is not enough when Spring has multiple beans of the same type; constructor injection can still become ambiguous.
+- Preventative rule: When a bean type has multiple candidates, put the qualifier on the explicit constructor parameter or the `@Bean` injection point instead of assuming field-level Lombok annotations will propagate correctly.
+- Detection signal: context startup fails with `expected single matching bean but found 2` even though the field carries `@Qualifier`.
+- Enforcement (test/lint/checklist): after adding a second bean of a shared framework type like `Executor`, run at least one Spring integration test before considering the slice complete.
+
+- Date: 2026-03-09
+- Pattern: Date-time assertions become brittle when tests compare exact serialized strings instead of the underlying instant.
+- Preventative rule: For API fields backed by `OffsetDateTime`, assert semantic equality on the parsed instant unless the contract explicitly guarantees one offset representation.
+- Detection signal: the same timestamp serializes as `Z` in one environment and as a local-offset string in another, while representing the same moment.
+- Enforcement (test/lint/checklist): when adding date-time fields to contract tests, parse the returned value and compare instants rather than hardcoded timezone-specific strings.
+
+- Date: 2026-03-09
+- Pattern: OpenAPI regressions can be masked by brittle JSONPath/content assertions that overfit field ordering instead of validating the actual contract semantics.
+- Preventative rule: For Springdoc contract tests, assert parameter presence, required schema markers, and key enum/value fragments without depending on exact object serialization order.
+- Detection signal: the generated OpenAPI clearly contains the expected enum/query shape, but the regression test still fails on nested JSONPath indexing or exact raw-JSON substring matches.
+- Enforcement (test/lint/checklist): whenever a contract test fails unexpectedly, inspect the generated `backend/target/openapi/openapi.json` before changing the implementation and tighten the test around semantic contract guarantees only.

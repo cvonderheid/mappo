@@ -11,8 +11,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List deployment runs
+         * @description Primary paginated deployment-runs endpoint for the Deployments page.
+         */
         get: operations["listRuns"];
         put?: never;
+        /**
+         * Create a deployment run
+         * @description Creates a run record and dispatches execution asynchronously.
+         */
         post: operations["createRun"];
         delete?: never;
         options?: never;
@@ -29,6 +37,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Retry failed targets in a deployment run */
         post: operations["retryFailed"];
         delete?: never;
         options?: never;
@@ -45,6 +54,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Resume a halted deployment run */
         post: operations["resumeRun"];
         delete?: never;
         options?: never;
@@ -61,6 +71,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Preview a deployment run
+         * @description Runs the current pre-deployment preview flow for the supplied rollout request.
+         */
         post: operations["previewRun"];
         delete?: never;
         options?: never;
@@ -93,6 +107,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Receive GitHub release-manifest webhook */
         post: operations["ingestGithubReleaseWebhook"];
         delete?: never;
         options?: never;
@@ -109,6 +124,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Ingest releases from GitHub manifest */
         post: operations["ingestGithubReleaseManifest"];
         delete?: never;
         options?: never;
@@ -123,8 +139,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List recent forwarder logs snapshot
+         * @deprecated
+         * @description Compatibility snapshot endpoint for recent forwarder log summaries. Use `/api/v1/admin/onboarding/forwarder-logs/page` for operator tables.
+         */
         get: operations["listForwarderLogs"];
         put?: never;
+        /** Ingest marketplace forwarder log */
         post: operations["ingestForwarderLog"];
         delete?: never;
         options?: never;
@@ -139,8 +161,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List onboarding events
+         * @description Primary paginated admin endpoint for onboarding-event history.
+         */
         get: operations["listMarketplaceEvents"];
         put?: never;
+        /** Ingest marketplace onboarding event */
         post: operations["ingestMarketplaceEvent"];
         delete?: never;
         options?: never;
@@ -158,9 +185,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /** Delete a registered target */
         delete: operations["deleteRegistration"];
         options?: never;
         head?: never;
+        /** Update registered target metadata */
         patch: operations["updateRegistration"];
         trace?: never;
     };
@@ -187,6 +216,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List targets as a lightweight selection snapshot
+         * @deprecated
+         * @description Compatibility endpoint used by deployment-target selection and light app-shell refreshes. Use `/api/v1/targets/page` for operator table views.
+         */
         get: operations["listTargets"];
         put?: never;
         post?: never;
@@ -203,6 +237,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List fleet targets
+         * @description Primary paginated fleet endpoint for operator views.
+         */
         get: operations["listTargetsPage"];
         put?: never;
         post?: never;
@@ -219,6 +257,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Get deployment run detail
+         * @description Returns the latest persisted detail for one deployment run.
+         */
         get: operations["getRun"];
         put?: never;
         post?: never;
@@ -251,6 +293,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List release webhook deliveries
+         * @description Primary paginated admin endpoint for GitHub release-webhook audit records.
+         */
         get: operations["listReleaseWebhookDeliveries"];
         put?: never;
         post?: never;
@@ -267,6 +313,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Get onboarding snapshot
+         * @deprecated
+         * @description Compatibility snapshot endpoint for the Admin shell. Prefer the paginated onboarding/admin collection endpoints for operator tables.
+         */
         get: operations["onboardingSnapshot"];
         put?: never;
         post?: never;
@@ -283,6 +334,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List registered targets
+         * @description Primary paginated admin endpoint for registered target metadata.
+         */
         get: operations["listRegistrations"];
         put?: never;
         post?: never;
@@ -299,6 +354,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List forwarder logs
+         * @description Primary paginated admin endpoint for marketplace forwarder logs.
+         */
         get: operations["listForwarderLogsPage"];
         put?: never;
         post?: never;
@@ -660,6 +719,11 @@ export interface components {
             /** @enum {string} */
             healthStatus?: "registered" | "healthy" | "degraded";
             /** @enum {string} */
+            runtimeStatus?: "unknown" | "healthy" | "unhealthy" | "unreachable";
+            /** Format: date-time */
+            runtimeCheckedAt?: string;
+            runtimeSummary?: string;
+            /** @enum {string} */
             lastDeploymentStatus?: "QUEUED" | "VALIDATING" | "DEPLOYING" | "VERIFYING" | "SUCCEEDED" | "FAILED";
             /** Format: date-time */
             lastDeploymentAt?: string;
@@ -669,24 +733,48 @@ export interface components {
             simulatedFailureMode?: "none" | "validate_once" | "deploy_once" | "verify_once";
         };
         PageMetadataRecord: {
-            /** Format: int32 */
-            page?: number;
-            /** Format: int32 */
-            size?: number;
-            /** Format: int64 */
-            totalItems?: number;
-            /** Format: int32 */
-            totalPages?: number;
+            /**
+             * Format: int32
+             * @description Zero-based page index returned by the API.
+             * @example 0
+             */
+            page: number;
+            /**
+             * Format: int32
+             * @description Page size used for this response.
+             * @example 25
+             */
+            size: number;
+            /**
+             * Format: int64
+             * @description Total number of matching records across all pages.
+             * @example 132
+             */
+            totalItems: number;
+            /**
+             * Format: int32
+             * @description Total number of pages available for the current filter set.
+             * @example 6
+             */
+            totalPages: number;
         };
         TargetPageRecord: {
-            items?: components["schemas"]["TargetRecord"][];
-            page?: components["schemas"]["PageMetadataRecord"];
+            /** @description Fleet targets for the current page. */
+            items: components["schemas"]["TargetRecord"][];
+            /** @description Pagination metadata for the current fleet page. */
+            page: components["schemas"]["PageMetadataRecord"];
         };
         RunSummaryPageRecord: {
-            items?: components["schemas"]["RunSummaryRecord"][];
-            page?: components["schemas"]["PageMetadataRecord"];
-            /** Format: int32 */
-            activeRunCount?: number;
+            /** @description Deployment runs for the current page. */
+            items: components["schemas"]["RunSummaryRecord"][];
+            /** @description Pagination metadata for the current runs page. */
+            page: components["schemas"]["PageMetadataRecord"];
+            /**
+             * Format: int32
+             * @description Number of runs currently in the running state across the full filtered result set.
+             * @example 2
+             */
+            activeRunCount: number;
         };
         RunSummaryRecord: {
             id?: string;
@@ -719,8 +807,10 @@ export interface components {
             guardrailWarnings?: string[];
         };
         ReleaseWebhookDeliveryPageRecord: {
-            items?: components["schemas"]["ReleaseWebhookDeliveryRecord"][];
-            page?: components["schemas"]["PageMetadataRecord"];
+            /** @description GitHub release-webhook deliveries for the current page. */
+            items: components["schemas"]["ReleaseWebhookDeliveryRecord"][];
+            /** @description Pagination metadata for the current release-webhook page. */
+            page: components["schemas"]["PageMetadataRecord"];
         };
         ReleaseWebhookDeliveryRecord: {
             id?: string;
@@ -812,16 +902,22 @@ export interface components {
             releaseWebhookDeliveries?: components["schemas"]["ReleaseWebhookDeliveryRecord"][];
         };
         TargetRegistrationPageRecord: {
-            items?: components["schemas"]["TargetRegistrationRecord"][];
-            page?: components["schemas"]["PageMetadataRecord"];
+            /** @description Registered targets for the current admin page. */
+            items: components["schemas"]["TargetRegistrationRecord"][];
+            /** @description Pagination metadata for the current registrations page. */
+            page: components["schemas"]["PageMetadataRecord"];
         };
         ForwarderLogPageRecord: {
-            items?: components["schemas"]["ForwarderLogRecord"][];
-            page?: components["schemas"]["PageMetadataRecord"];
+            /** @description Marketplace forwarder logs for the current page. */
+            items: components["schemas"]["ForwarderLogRecord"][];
+            /** @description Pagination metadata for the current forwarder-log page. */
+            page: components["schemas"]["PageMetadataRecord"];
         };
         MarketplaceEventPageRecord: {
-            items?: components["schemas"]["MarketplaceEventRecord"][];
-            page?: components["schemas"]["PageMetadataRecord"];
+            /** @description Marketplace onboarding events for the current page. */
+            items: components["schemas"]["MarketplaceEventRecord"][];
+            /** @description Pagination metadata for the current onboarding-events page. */
+            page: components["schemas"]["PageMetadataRecord"];
         };
         DeleteRegistrationResultRecord: {
             targetId?: string;
@@ -839,11 +935,28 @@ export interface operations {
     listRuns: {
         parameters: {
             query?: {
-                page?: number;
-                size?: number;
+                /**
+                 * @description Filter by run identifier.
+                 * @example run-2a8daf6089
+                 */
                 runId?: string;
+                /**
+                 * @description Filter by release identifier.
+                 * @example rel-01fcd26e87
+                 */
                 releaseId?: string;
-                status?: string;
+                /** @description Filter by run status. */
+                status?: "running" | "succeeded" | "failed" | "partial" | "halted";
+                /**
+                 * @description Zero-based page index.
+                 * @example 0
+                 */
+                page?: number;
+                /**
+                 * @description Page size.
+                 * @example 25
+                 */
+                size?: number;
             };
             header?: never;
             path?: never;
@@ -1101,10 +1214,23 @@ export interface operations {
     listMarketplaceEvents: {
         parameters: {
             query?: {
-                page?: number;
-                size?: number;
+                /**
+                 * @description Filter by onboarding event identifier.
+                 * @example evt-20260308-001
+                 */
                 eventId?: string;
-                status?: string;
+                /** @description Filter by onboarding event status. */
+                status?: "applied" | "duplicate" | "rejected";
+                /**
+                 * @description Zero-based page index.
+                 * @example 0
+                 */
+                page?: number;
+                /**
+                 * @description Page size.
+                 * @example 25
+                 */
+                size?: number;
             };
             header?: never;
             path?: never;
@@ -1247,18 +1373,60 @@ export interface operations {
     listTargetsPage: {
         parameters: {
             query?: {
-                page?: number;
-                size?: number;
+                /**
+                 * @description Filter by target identifier.
+                 * @example demo-target-01
+                 */
                 targetId?: string;
+                /**
+                 * @description Filter by customer display name.
+                 * @example Demo Customer A
+                 */
                 customerName?: string;
+                /**
+                 * @description Filter by tenant identifier.
+                 * @example abe468b2-18bb-4dd2-90b9-5b8982337eb7
+                 */
                 tenantId?: string;
+                /**
+                 * @description Filter by subscription identifier.
+                 * @example c0d51042-7d0a-41f7-b270-151e4c4ea263
+                 */
                 subscriptionId?: string;
+                /**
+                 * @description Filter by target ring/group.
+                 * @example canary
+                 */
                 ring?: string;
+                /**
+                 * @description Filter by target region.
+                 * @example centralus
+                 */
                 region?: string;
+                /**
+                 * @description Filter by target tier.
+                 * @example gold
+                 */
                 tier?: string;
+                /**
+                 * @description Filter by deployed version.
+                 * @example 2026.03.08.1
+                 */
                 version?: string;
-                runtimeStatus?: string;
-                lastDeploymentStatus?: string;
+                /** @description Filter by runtime status. */
+                runtimeStatus?: "unknown" | "healthy" | "unhealthy" | "unreachable";
+                /** @description Filter by last deployment target stage. */
+                lastDeploymentStatus?: "QUEUED" | "VALIDATING" | "DEPLOYING" | "VERIFYING" | "SUCCEEDED" | "FAILED";
+                /**
+                 * @description Zero-based page index.
+                 * @example 0
+                 */
+                page?: number;
+                /**
+                 * @description Page size.
+                 * @example 25
+                 */
+                size?: number;
             };
             header?: never;
             path?: never;
@@ -1324,10 +1492,23 @@ export interface operations {
     listReleaseWebhookDeliveries: {
         parameters: {
             query?: {
-                page?: number;
-                size?: number;
+                /**
+                 * @description Filter by GitHub delivery identifier.
+                 * @example 4b85fdb0-1d72-11ef-8c1c-0242ac120002
+                 */
                 deliveryId?: string;
-                status?: string;
+                /** @description Filter by MAPPO webhook processing status. */
+                status?: "applied" | "skipped" | "failed";
+                /**
+                 * @description Zero-based page index.
+                 * @example 0
+                 */
+                page?: number;
+                /**
+                 * @description Page size.
+                 * @example 25
+                 */
+                size?: number;
             };
             header?: never;
             path?: never;
@@ -1371,12 +1552,36 @@ export interface operations {
     listRegistrations: {
         parameters: {
             query?: {
-                page?: number;
-                size?: number;
+                /**
+                 * @description Filter by target identifier.
+                 * @example demo-target-01
+                 */
                 targetId?: string;
+                /**
+                 * @description Filter by target ring/group.
+                 * @example canary
+                 */
                 ring?: string;
+                /**
+                 * @description Filter by target region.
+                 * @example centralus
+                 */
                 region?: string;
+                /**
+                 * @description Filter by target tier.
+                 * @example gold
+                 */
                 tier?: string;
+                /**
+                 * @description Zero-based page index.
+                 * @example 0
+                 */
+                page?: number;
+                /**
+                 * @description Page size.
+                 * @example 25
+                 */
+                size?: number;
             };
             header?: never;
             path?: never;
@@ -1398,10 +1603,23 @@ export interface operations {
     listForwarderLogsPage: {
         parameters: {
             query?: {
-                page?: number;
-                size?: number;
+                /**
+                 * @description Filter by forwarder log identifier.
+                 * @example log-20260308-001
+                 */
                 logId?: string;
-                level?: string;
+                /** @description Filter by forwarder log level. */
+                level?: "info" | "warning" | "error";
+                /**
+                 * @description Zero-based page index.
+                 * @example 0
+                 */
+                page?: number;
+                /**
+                 * @description Page size.
+                 * @example 25
+                 */
+                size?: number;
             };
             header?: never;
             path?: never;

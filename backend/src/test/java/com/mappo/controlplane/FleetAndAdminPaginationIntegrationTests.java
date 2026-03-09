@@ -1,6 +1,7 @@
 package com.mappo.controlplane;
 
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -9,8 +10,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.mappo.controlplane.jooq.enums.MappoReleaseWebhookStatus;
+import com.mappo.controlplane.jooq.enums.MappoRuntimeProbeStatus;
+import com.mappo.controlplane.model.TargetRuntimeProbeRecord;
 import com.mappo.controlplane.model.command.ReleaseWebhookDeliveryCommand;
 import com.mappo.controlplane.repository.ReleaseWebhookRepository;
+import com.mappo.controlplane.repository.TargetRepository;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
@@ -20,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
@@ -31,6 +36,9 @@ class FleetAndAdminPaginationIntegrationTests extends PostgresIntegrationTestBas
 
     @Autowired
     private ReleaseWebhookRepository releaseWebhookRepository;
+
+    @Autowired
+    private TargetRepository targetRepository;
 
     private MockMvc mockMvc;
 
@@ -46,6 +54,22 @@ class FleetAndAdminPaginationIntegrationTests extends PostgresIntegrationTestBas
         registerTarget("target-fleet-01", "11111111-1111-1111-1111-111111111111", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "canary", "centralus", "gold");
         registerTarget("target-fleet-02", "22222222-2222-2222-2222-222222222222", "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "prod", "eastus", "gold");
         registerTarget("target-fleet-03", "33333333-3333-3333-3333-333333333333", "cccccccc-cccc-cccc-cccc-cccccccccccc", "prod", "westus2", "silver");
+        targetRepository.upsertRuntimeProbe(new TargetRuntimeProbeRecord(
+            "target-fleet-01",
+            MappoRuntimeProbeStatus.healthy,
+            OffsetDateTime.parse("2026-03-09T10:00:00Z"),
+            "https://demo-target-01.example.com",
+            200,
+            "Runtime responded with HTTP 200."
+        ));
+        targetRepository.upsertRuntimeProbe(new TargetRuntimeProbeRecord(
+            "target-fleet-02",
+            MappoRuntimeProbeStatus.unreachable,
+            OffsetDateTime.parse("2026-03-09T10:05:00Z"),
+            "https://demo-target-02.example.com",
+            null,
+            "Runtime probe failed: connection refused."
+        ));
 
         ingestForwarderLog("log-fleet-001", "error", "target-fleet-01");
         ingestForwarderLog("log-fleet-002", "warning", "target-fleet-02");
@@ -94,7 +118,23 @@ class FleetAndAdminPaginationIntegrationTests extends PostgresIntegrationTestBas
         mockMvc.perform(get("/api/v1/targets/page").param("targetId", "target-fleet-03"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.items.length()").value(1))
-            .andExpect(jsonPath("$.items[0].id").value("target-fleet-03"));
+            .andExpect(jsonPath("$.items[0].id").value("target-fleet-03"))
+            .andExpect(jsonPath("$.items[0].runtimeStatus").doesNotExist());
+
+        MvcResult unreachableTargetsResult = mockMvc.perform(get("/api/v1/targets/page").param("runtimeStatus", "unreachable"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].id").value("target-fleet-02"))
+            .andExpect(jsonPath("$.items[0].runtimeStatus").value("unreachable"))
+            .andReturn();
+
+        String runtimeCheckedAt = objectMapper.readTree(unreachableTargetsResult.getResponse().getContentAsByteArray())
+            .path("items")
+            .path(0)
+            .path("runtimeCheckedAt")
+            .asText();
+        assertThat(OffsetDateTime.parse(runtimeCheckedAt).toInstant())
+            .isEqualTo(OffsetDateTime.parse("2026-03-09T10:05:00Z").toInstant());
 
         mockMvc.perform(get("/api/v1/admin/onboarding/registrations?page=0&size=1&tier=gold"))
             .andExpect(status().isOk())

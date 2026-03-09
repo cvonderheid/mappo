@@ -1,4 +1,4 @@
-import type { components } from "@/lib/api/generated/schema";
+import type { components, operations } from "@/lib/api/generated/schema";
 
 type Schemas = components["schemas"];
 
@@ -13,6 +13,17 @@ export type ForwarderLogLevel = NonNullable<Schemas["ForwarderLogRecord"]["level
 export type ForwarderLogRecord = Schemas["ForwarderLogRecord"];
 export type ForwarderLogPage = Schemas["ForwarderLogPageRecord"];
 export type PageMetadata = Schemas["PageMetadataRecord"];
+export type ListRunsQuery = NonNullable<operations["listRuns"]["parameters"]["query"]>;
+export type ListTargetsQuery = NonNullable<operations["listTargets"]["parameters"]["query"]>;
+export type ListTargetsPageQuery = NonNullable<operations["listTargetsPage"]["parameters"]["query"]>;
+export type ListTargetRegistrationsQuery =
+  NonNullable<operations["listRegistrations"]["parameters"]["query"]>;
+export type ListMarketplaceEventsQuery =
+  NonNullable<operations["listMarketplaceEvents"]["parameters"]["query"]>;
+export type ListForwarderLogsQuery =
+  NonNullable<operations["listForwarderLogsPage"]["parameters"]["query"]>;
+export type ListReleaseWebhookDeliveriesQuery =
+  NonNullable<operations["listReleaseWebhookDeliveries"]["parameters"]["query"]>;
 export type MarketplaceEventIngestRequest = Schemas["OnboardingEventRequest"];
 export type MarketplaceEventIngestResponse = Schemas["EventIngestResultRecord"];
 export type MarketplaceEventRecord = Schemas["MarketplaceEventRecord"];
@@ -21,6 +32,7 @@ export type MarketplaceEventStatus = NonNullable<Schemas["MarketplaceEventRecord
 export type Release = Schemas["ReleaseRecord"];
 export type ReleaseWebhookDeliveryRecord = Schemas["ReleaseWebhookDeliveryRecord"];
 export type ReleaseWebhookDeliveryPage = Schemas["ReleaseWebhookDeliveryPageRecord"];
+export type ReleaseWebhookStatus = NonNullable<Schemas["ReleaseWebhookDeliveryRecord"]["status"]>;
 export type ReleaseManifestIngestRequest = Schemas["ReleaseManifestIngestRequest"];
 export type ReleaseManifestIngestResponse = Schemas["ReleaseManifestIngestResultRecord"];
 export type RunDetail = Schemas["RunDetailRecord"];
@@ -40,6 +52,7 @@ export type TargetRegistrationPage = Schemas["TargetRegistrationPageRecord"];
 export type TargetRegistrationRecord = Schemas["TargetRegistrationRecord"];
 export type TargetExecutionRecord = Schemas["RunTargetRecord"];
 export type TargetLogEvent = Schemas["TargetLogEventRecord"];
+export type TargetRuntimeStatus = NonNullable<Schemas["TargetRecord"]["runtimeStatus"]>;
 export type TargetStage = NonNullable<Schemas["TargetStageRecord"]["stage"]>;
 export type TargetStageRecord = Schemas["TargetStageRecord"];
 export type UpdateTargetRegistrationRequest = Schemas["TargetRegistrationPatchRequest"];

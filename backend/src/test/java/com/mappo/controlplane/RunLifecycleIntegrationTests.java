@@ -110,7 +110,8 @@ class RunLifecycleIntegrationTests extends PostgresIntegrationTestBase {
         mockMvc.perform(get("/api/v1/targets"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].lastDeployedRelease").value("2026.03.05.1"))
-            .andExpect(jsonPath("$[0].healthStatus").value("healthy"));
+            .andExpect(jsonPath("$[0].healthStatus").value("registered"))
+            .andExpect(jsonPath("$[0].runtimeStatus").doesNotExist());
 
         mockMvc.perform(post("/api/v1/runs/{runId}/resume", runId))
             .andExpect(status().isBadRequest())

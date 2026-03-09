@@ -32,6 +32,7 @@ import com.mappo.controlplane.repository.AdminPageRepository;
 import com.mappo.controlplane.repository.AdminRepository;
 import com.mappo.controlplane.repository.ReleaseWebhookRepository;
 import com.mappo.controlplane.repository.TargetRepository;
+import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
@@ -51,6 +52,7 @@ public class AdminService {
     private final ReleaseWebhookRepository releaseWebhookRepository;
     private final TargetRepository targetRepository;
     private final MappoProperties properties;
+    private final LiveUpdateService liveUpdateService;
 
     public OnboardingSnapshotRecord getOnboardingSnapshot(int eventLimit) {
         return new OnboardingSnapshotRecord(
@@ -169,6 +171,8 @@ public class AdminService {
             defaultIfBlank(request.registrationSource(), "manual"),
             request.marketplacePayloadId()
         );
+        liveUpdateService.emitAdminUpdated();
+        liveUpdateService.emitTargetsUpdated();
 
         return new EventIngestResultRecord(
             eventId,
@@ -220,6 +224,7 @@ public class AdminService {
         }
 
         adminRepository.saveForwarderLog(command);
+        liveUpdateService.emitAdminUpdated();
         return new ForwarderLogIngestResultRecord(
             logId,
             MappoMarketplaceEventStatus.applied,
@@ -238,6 +243,8 @@ public class AdminService {
 
         TargetRegistrationPatchCommand patchCommand = patch.toCommand();
         adminRepository.updateRegistrationAndTarget(targetId, patchCommand);
+        liveUpdateService.emitAdminUpdated();
+        liveUpdateService.emitTargetsUpdated();
         return adminRepository.getRegistration(targetId)
             .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "target registration not found: " + targetId));
     }
@@ -245,6 +252,8 @@ public class AdminService {
     public void deleteTargetRegistration(String targetId) {
         adminRepository.deleteRegistration(targetId);
         targetRepository.deleteTarget(targetId);
+        liveUpdateService.emitAdminUpdated();
+        liveUpdateService.emitTargetsUpdated();
     }
 
     private Map<String, String> buildTags(OnboardingEventRequest request) {

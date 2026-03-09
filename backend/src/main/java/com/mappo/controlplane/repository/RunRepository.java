@@ -56,7 +56,7 @@ public class RunRepository {
         int size = normalizeSize(query == null ? null : query.size());
         String runIdFilter = normalize(query == null ? null : query.runId());
         String releaseIdFilter = normalize(query == null ? null : query.releaseId());
-        String statusFilter = normalize(query == null ? null : query.status()).toLowerCase();
+        MappoRunStatus statusFilter = query == null ? null : query.status();
 
         org.jooq.Condition condition = DSL.trueCondition();
         if (!runIdFilter.isBlank()) {
@@ -65,16 +65,8 @@ public class RunRepository {
         if (!releaseIdFilter.isBlank()) {
             condition = condition.and(RUNS.RELEASE_ID.containsIgnoreCase(releaseIdFilter));
         }
-        if (!statusFilter.isBlank()) {
-            MappoRunStatus parsedStatus = MappoRunStatus.lookupLiteral(statusFilter);
-            if (parsedStatus == null) {
-                return new RunSummaryPageRecord(
-                    List.of(),
-                    new PageMetadataRecord(page, size, 0L, 0),
-                    countActiveRuns()
-                );
-            }
-            condition = condition.and(RUNS.STATUS.eq(parsedStatus));
+        if (statusFilter != null) {
+            condition = condition.and(RUNS.STATUS.eq(statusFilter));
         }
 
         long totalItems = dsl.fetchCount(

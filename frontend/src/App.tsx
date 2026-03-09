@@ -10,6 +10,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { DEFAULT_FORM, type StartRunFormState } from "@/lib/deployment-form";
 import { releaseAvailabilitySummary } from "@/lib/fleet";
+import { createLiveUpdatesEventSource, parseLiveUpdateEvent } from "@/lib/live-updates";
 import { canonicalizeReleases } from "@/lib/releases";
 import {
   adminDeleteTargetRegistration,
@@ -70,7 +71,7 @@ function AppShell() {
   const [runPageSize, setRunPageSize] = useState<number>(25);
   const [runIdFilter, setRunIdFilter] = useState<string>("");
   const [runReleaseFilter, setRunReleaseFilter] = useState<string>("");
-  const [runStatusFilter, setRunStatusFilter] = useState<string>("");
+  const [runStatusFilter, setRunStatusFilter] = useState<RunStatus | "">("");
   const [selectedReleaseId, setSelectedReleaseId] = useState<string>("");
   const [selectedRunId, setSelectedRunId] = useState<string>("");
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
@@ -177,27 +178,107 @@ function AppShell() {
   }, [refreshRunDetail, selectedRunId]);
 
   useEffect(() => {
-    const isDeploymentsListRoute = location.pathname === "/deployments";
-    if (isDeploymentsListRoute && (deploymentControlsOpen || runActionsMenuOpen)) {
-      return;
-    }
-
     const intervalId = window.setInterval(() => {
       void refreshTargets();
       void refreshRuns();
       if (selectedRunId) {
         void refreshRunDetail(selectedRunId);
       }
-    }, 1200);
+      void refreshReleases();
+      if (location.pathname === "/admin" || location.pathname === "/demo") {
+        void refreshAdminSnapshot();
+      }
+    }, 15000);
 
     return () => window.clearInterval(intervalId);
   }, [
-    deploymentControlsOpen,
     location.pathname,
+    refreshAdminSnapshot,
     refreshRunDetail,
+    refreshReleases,
     refreshRuns,
     refreshTargets,
-    runActionsMenuOpen,
+    selectedRunId,
+  ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof EventSource === "undefined") {
+      return;
+    }
+
+    const eventSource = createLiveUpdatesEventSource();
+    const scheduledRefreshes = new Map<string, number>();
+
+    const scheduleRefresh = (key: string, action: () => void): void => {
+      if (scheduledRefreshes.has(key)) {
+        return;
+      }
+      const timeoutId = window.setTimeout(() => {
+        scheduledRefreshes.delete(key);
+        action();
+      }, 200);
+      scheduledRefreshes.set(key, timeoutId);
+    };
+
+    const refreshSelectedRun = (runId: string | null | undefined): void => {
+      if (runId && runId === selectedRunId) {
+        scheduleRefresh(`run:${runId}`, () => {
+          void refreshRunDetail(runId);
+        });
+      }
+    };
+
+    eventSource.addEventListener("targets-updated", () => {
+      scheduleRefresh("targets", () => {
+        void refreshTargets();
+      });
+    });
+
+    eventSource.addEventListener("releases-updated", () => {
+      scheduleRefresh("releases", () => {
+        void refreshReleases();
+      });
+    });
+
+    eventSource.addEventListener("admin-updated", () => {
+      if (location.pathname === "/admin" || location.pathname === "/demo") {
+        scheduleRefresh("admin", () => {
+          void refreshAdminSnapshot();
+        });
+      }
+    });
+
+    eventSource.addEventListener("runs-updated", () => {
+      scheduleRefresh("runs", () => {
+        void refreshRuns();
+      });
+      refreshSelectedRun(selectedRunId);
+    });
+
+    eventSource.addEventListener("run-updated", (event: MessageEvent<string>) => {
+      const payload = parseLiveUpdateEvent(event.data);
+      scheduleRefresh("runs", () => {
+        void refreshRuns();
+      });
+      refreshSelectedRun(payload?.subjectId);
+    });
+
+    eventSource.onerror = () => {
+      // Browser reconnect behavior is sufficient; slow polling remains as fallback.
+    };
+
+    return () => {
+      scheduledRefreshes.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      scheduledRefreshes.clear();
+      eventSource.close();
+    };
+  }, [
+    location.pathname,
+    refreshAdminSnapshot,
+    refreshRunDetail,
+    refreshReleases,
+    refreshRuns,
+    refreshTargets,
     selectedRunId,
   ]);
 
@@ -652,7 +733,7 @@ function AppShell() {
                 setRunPage(0);
               }}
               onRunStatusFilterChange={(value) => {
-                setRunStatusFilter(value);
+                setRunStatusFilter(value as RunStatus | "");
                 setRunPage(0);
               }}
               onRunsPageChange={setRunPage}

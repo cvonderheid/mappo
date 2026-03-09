@@ -27,4 +27,10 @@ public class MappoProperties {
     private String publisherAcrPullClientId = "";
     private String publisherAcrPullClientSecret = "";
     private String publisherAcrPullSecretName = "publisher-acr-pull";
+    private boolean runtimeProbeEnabled = true;
+    private long runtimeProbeIntervalMs = 60_000L;
+    private long runtimeProbeInitialDelayMs = 15_000L;
+    private long runtimeProbeTimeoutMs = 5_000L;
+    private boolean sseEnabled = true;
+    private long sseHeartbeatIntervalMs = 15_000L;
 }

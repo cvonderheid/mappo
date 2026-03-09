@@ -16,6 +16,7 @@ import com.mappo.controlplane.service.run.RunDispatchService;
 import com.mappo.controlplane.service.run.RunExecutionService;
 import com.mappo.controlplane.service.run.RunRequestContext;
 import com.mappo.controlplane.service.run.RunRequestResolverService;
+import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ public class RunService {
     private final AzureExecutorClient azureExecutorClient;
     private final RunDispatchService runDispatchService;
     private final RunRequestResolverService runRequestResolverService;
+    private final LiveUpdateService liveUpdateService;
 
     public List<RunSummaryRecord> listRuns() {
         return runRepository.listRunSummaries();
@@ -52,6 +54,8 @@ public class RunService {
         MappoReleaseSourceType executionSourceType = context.release().sourceType();
         runRepository.createRun(runId, command, context.targets(), executionSourceType);
         RunDetailRecord initialRun = getRun(runId);
+        liveUpdateService.emitRunsUpdated();
+        liveUpdateService.emitRunUpdated(runId);
         runDispatchService.dispatchRun(
             initialRun,
             context.release(),
@@ -67,6 +71,8 @@ public class RunService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "run is not resumable");
         }
         runRepository.markRunComplete(runId, MappoRunStatus.succeeded, null);
+        liveUpdateService.emitRunsUpdated();
+        liveUpdateService.emitRunUpdated(runId);
         return getRun(runId);
     }
 
@@ -79,6 +85,8 @@ public class RunService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "run has no failed targets to retry");
         }
         runRepository.markRunComplete(runId, MappoRunStatus.succeeded, null);
+        liveUpdateService.emitRunsUpdated();
+        liveUpdateService.emitRunUpdated(runId);
         return getRun(runId);
     }
 }
