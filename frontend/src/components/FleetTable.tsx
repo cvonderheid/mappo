@@ -1,34 +1,34 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   type ColumnDef,
-  type ColumnFiltersState,
   type SortingState,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
 
+import ColumnVisibilityMenu from "@/components/ColumnVisibilityMenu";
+import DataTablePagination from "@/components/DataTablePagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import ColumnVisibilityMenu from "@/components/ColumnVisibilityMenu";
+import { listTargetsPage } from "@/lib/api";
 import {
   targetLastDeploymentTone,
   targetLatestReleaseStatus,
   targetRuntimeStatus,
 } from "@/lib/fleet";
 import { usePersistentColumnVisibility } from "@/lib/table-visibility";
-import type { Release, Target } from "@/lib/types";
+import type { PageMetadata, Release, Target, TargetPage } from "@/lib/types";
 
 type FleetTableProps = {
-  targets: Target[];
   latestRelease: Release | null;
+  refreshKey: number;
 };
 
 type FleetRow = {
@@ -45,6 +45,23 @@ type FleetRow = {
   lastDeploymentStatus: string;
   lastDeploymentAt: string;
   latestStatus: "current" | "outdated" | "unknown";
+};
+
+const EMPTY_PAGE: TargetPage = {
+  items: [],
+  page: {
+    page: 0,
+    size: 10,
+    totalItems: 0,
+    totalPages: 0,
+  },
+};
+
+const EMPTY_PAGE_METADATA: PageMetadata = {
+  page: 0,
+  size: 10,
+  totalItems: 0,
+  totalPages: 0,
 };
 
 function runtimeVariant(runtimeStatus: string): "default" | "secondary" | "destructive" | "outline" {
@@ -107,11 +124,95 @@ function formatTimestamp(value: string): string {
   return timestamp.toLocaleString();
 }
 
-export default function FleetTable({ targets, latestRelease }: FleetTableProps) {
+function optionValues(values: string[], selectedValue: string): string[] {
+  const uniqueValues = new Set(values.filter((value) => value.trim() !== ""));
+  if (selectedValue.trim() !== "" && selectedValue !== "all") {
+    uniqueValues.add(selectedValue);
+  }
+  return [...uniqueValues].sort();
+}
+
+export default function FleetTable({ latestRelease, refreshKey }: FleetTableProps) {
   const latestVersion = latestRelease?.sourceVersion ?? "";
+  const [pageData, setPageData] = useState<TargetPage>(EMPTY_PAGE);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [targetIdFilter, setTargetIdFilter] = useState("");
+  const [customerNameFilter, setCustomerNameFilter] = useState("");
+  const [tenantIdFilter, setTenantIdFilter] = useState("");
+  const [subscriptionIdFilter, setSubscriptionIdFilter] = useState("");
+  const [targetGroupFilter, setTargetGroupFilter] = useState("all");
+  const [regionFilter, setRegionFilter] = useState("all");
+  const [tierFilter, setTierFilter] = useState("all");
+  const [versionFilter, setVersionFilter] = useState("");
+  const [runtimeFilter, setRuntimeFilter] = useState("all");
+  const [lastDeploymentFilter, setLastDeploymentFilter] = useState("all");
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnVisibility, setColumnVisibility] =
+    usePersistentColumnVisibility("fleet-targets");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    void listTargetsPage({
+      page,
+      size: pageSize,
+      targetId: targetIdFilter || undefined,
+      customerName: customerNameFilter || undefined,
+      tenantId: tenantIdFilter || undefined,
+      subscriptionId: subscriptionIdFilter || undefined,
+      ring: targetGroupFilter === "all" ? undefined : targetGroupFilter,
+      region: regionFilter === "all" ? undefined : regionFilter,
+      tier: tierFilter === "all" ? undefined : tierFilter,
+      version: versionFilter || undefined,
+      runtimeStatus: runtimeFilter === "all" ? undefined : runtimeFilter,
+      lastDeploymentStatus:
+        lastDeploymentFilter === "all" ? undefined : lastDeploymentFilter,
+    })
+      .then((result) => {
+        if (!active) {
+          return;
+        }
+        setPageData(result);
+        setErrorMessage("");
+      })
+      .catch((error) => {
+        if (!active) {
+          return;
+        }
+        setPageData(EMPTY_PAGE);
+        setErrorMessage((error as Error).message);
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [
+    customerNameFilter,
+    lastDeploymentFilter,
+    page,
+    pageSize,
+    refreshKey,
+    regionFilter,
+    runtimeFilter,
+    subscriptionIdFilter,
+    targetGroupFilter,
+    targetIdFilter,
+    tenantIdFilter,
+    tierFilter,
+    versionFilter,
+  ]);
+
   const rows = useMemo<FleetRow[]>(
     () =>
-      targets.map((target) => ({
+      (pageData.items ?? []).map((target: Target) => ({
         targetId: target.id ?? "unknown",
         customerName: target.customerName ?? "unknown",
         tenantId: target.tenantId ?? "unknown",
@@ -126,13 +227,8 @@ export default function FleetTable({ targets, latestRelease }: FleetTableProps) 
         lastDeploymentAt: target.lastDeploymentAt ?? "",
         latestStatus: targetLatestReleaseStatus(target, latestVersion),
       })),
-    [latestVersion, targets]
+    [latestVersion, pageData.items]
   );
-
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] =
-    usePersistentColumnVisibility("fleet-targets");
 
   const columns = useMemo<ColumnDef<FleetRow>[]>(
     () => [
@@ -140,21 +236,9 @@ export default function FleetTable({ targets, latestRelease }: FleetTableProps) 
       { accessorKey: "customerName", header: "Customer" },
       { accessorKey: "tenantId", header: "Tenant" },
       { accessorKey: "subscriptionId", header: "Subscription" },
-      {
-        accessorKey: "targetGroup",
-        header: "Target Group",
-        filterFn: (row, id, value) => !value || row.getValue<string>(id) === value,
-      },
-      {
-        accessorKey: "region",
-        header: "Region",
-        filterFn: (row, id, value) => !value || row.getValue<string>(id) === value,
-      },
-      {
-        accessorKey: "tier",
-        header: "Tier",
-        filterFn: (row, id, value) => !value || row.getValue<string>(id) === value,
-      },
+      { accessorKey: "targetGroup", header: "Target Group" },
+      { accessorKey: "region", header: "Region" },
+      { accessorKey: "tier", header: "Tier" },
       {
         accessorKey: "version",
         header: "Version",
@@ -178,7 +262,6 @@ export default function FleetTable({ targets, latestRelease }: FleetTableProps) 
       {
         accessorKey: "runtimeStatus",
         header: "Runtime",
-        filterFn: (row, id, value) => !value || row.getValue<string>(id) === value,
         cell: ({ row }) => (
           <div className="space-y-1">
             <Badge variant={runtimeVariant(row.original.runtimeStatus)} className="capitalize">
@@ -195,7 +278,6 @@ export default function FleetTable({ targets, latestRelease }: FleetTableProps) 
       {
         accessorKey: "lastDeploymentStatus",
         header: "Last Deployment",
-        filterFn: (row, id, value) => !value || row.getValue<string>(id) === value,
         cell: ({ row }) => (
           <div className="space-y-1">
             <Badge
@@ -221,62 +303,48 @@ export default function FleetTable({ targets, latestRelease }: FleetTableProps) 
     columns,
     state: {
       sorting,
-      columnFilters,
       columnVisibility,
     },
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
-  const filteredCount = table.getFilteredRowModel().rows.length;
-  const uniqueTargetGroups = useMemo(
-    () => [...new Set(rows.map((row) => row.targetGroup))].sort(),
-    [rows]
-  );
-  const uniqueRegions = useMemo(
-    () => [...new Set(rows.map((row) => row.region))].sort(),
-    [rows]
-  );
-  const uniqueTiers = useMemo(
-    () => [...new Set(rows.map((row) => row.tier))].sort(),
-    [rows]
-  );
-  const uniqueRuntimeStatuses = useMemo(
-    () => [...new Set(rows.map((row) => row.runtimeStatus))].sort(),
-    [rows]
-  );
-  const uniqueLastDeploymentStatuses = useMemo(
-    () => [...new Set(rows.map((row) => row.lastDeploymentStatus))].sort(),
-    [rows]
+  const visibleColumnCount = table.getVisibleLeafColumns().length;
+  const pageMetadata: PageMetadata = pageData.page ?? EMPTY_PAGE_METADATA;
+  const uniqueTargetGroups = optionValues(rows.map((row) => row.targetGroup), targetGroupFilter);
+  const uniqueRegions = optionValues(rows.map((row) => row.region), regionFilter);
+  const uniqueTiers = optionValues(rows.map((row) => row.tier), tierFilter);
+  const uniqueRuntimeStatuses = optionValues(rows.map((row) => row.runtimeStatus), runtimeFilter);
+  const uniqueLastDeploymentStatuses = optionValues(
+    rows.map((row) => row.lastDeploymentStatus),
+    lastDeploymentFilter
   );
 
-  const targetIdFilter = (table.getColumn("targetId")?.getFilterValue() as string | undefined) ?? "";
-  const customerNameFilter =
-    (table.getColumn("customerName")?.getFilterValue() as string | undefined) ?? "";
-  const tenantIdFilter = (table.getColumn("tenantId")?.getFilterValue() as string | undefined) ?? "";
-  const subscriptionIdFilter =
-    (table.getColumn("subscriptionId")?.getFilterValue() as string | undefined) ?? "";
-  const targetGroupFilter =
-    (table.getColumn("targetGroup")?.getFilterValue() as string | undefined) ?? "";
-  const regionFilter = (table.getColumn("region")?.getFilterValue() as string | undefined) ?? "";
-  const tierFilter = (table.getColumn("tier")?.getFilterValue() as string | undefined) ?? "";
-  const versionFilter = (table.getColumn("version")?.getFilterValue() as string | undefined) ?? "";
-  const runtimeFilter =
-    (table.getColumn("runtimeStatus")?.getFilterValue() as string | undefined) ?? "";
-  const lastDeploymentFilter =
-    (table.getColumn("lastDeploymentStatus")?.getFilterValue() as string | undefined) ?? "";
-  const visibleColumnCount = table.getVisibleLeafColumns().length;
+  function clearFilters(): void {
+    setTargetIdFilter("");
+    setCustomerNameFilter("");
+    setTenantIdFilter("");
+    setSubscriptionIdFilter("");
+    setTargetGroupFilter("all");
+    setRegionFilter("all");
+    setTierFilter("all");
+    setVersionFilter("");
+    setRuntimeFilter("all");
+    setLastDeploymentFilter("all");
+    setPage(0);
+  }
 
   function renderFilterCell(columnId: string): ReactNode {
     if (columnId === "targetId") {
       return (
         <Input
           value={targetIdFilter}
-          onChange={(event) => table.getColumn("targetId")?.setFilterValue(event.target.value)}
+          onChange={(event) => {
+            setTargetIdFilter(event.target.value);
+            setPage(0);
+          }}
           placeholder="Filter target"
           className="h-8"
         />
@@ -286,7 +354,10 @@ export default function FleetTable({ targets, latestRelease }: FleetTableProps) 
       return (
         <Input
           value={customerNameFilter}
-          onChange={(event) => table.getColumn("customerName")?.setFilterValue(event.target.value)}
+          onChange={(event) => {
+            setCustomerNameFilter(event.target.value);
+            setPage(0);
+          }}
           placeholder="Filter customer"
           className="h-8"
         />
@@ -296,7 +367,10 @@ export default function FleetTable({ targets, latestRelease }: FleetTableProps) 
       return (
         <Input
           value={tenantIdFilter}
-          onChange={(event) => table.getColumn("tenantId")?.setFilterValue(event.target.value)}
+          onChange={(event) => {
+            setTenantIdFilter(event.target.value);
+            setPage(0);
+          }}
           placeholder="Filter tenant"
           className="h-8"
         />
@@ -306,9 +380,10 @@ export default function FleetTable({ targets, latestRelease }: FleetTableProps) 
       return (
         <Input
           value={subscriptionIdFilter}
-          onChange={(event) =>
-            table.getColumn("subscriptionId")?.setFilterValue(event.target.value)
-          }
+          onChange={(event) => {
+            setSubscriptionIdFilter(event.target.value);
+            setPage(0);
+          }}
           placeholder="Filter subscription"
           className="h-8"
         />
@@ -317,10 +392,11 @@ export default function FleetTable({ targets, latestRelease }: FleetTableProps) 
     if (columnId === "targetGroup") {
       return (
         <Select
-          value={targetGroupFilter || "all"}
-          onValueChange={(value) =>
-            table.getColumn("targetGroup")?.setFilterValue(value === "all" ? undefined : value)
-          }
+          value={targetGroupFilter}
+          onValueChange={(value) => {
+            setTargetGroupFilter(value);
+            setPage(0);
+          }}
         >
           <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
             <SelectValue />
@@ -339,10 +415,11 @@ export default function FleetTable({ targets, latestRelease }: FleetTableProps) 
     if (columnId === "region") {
       return (
         <Select
-          value={regionFilter || "all"}
-          onValueChange={(value) =>
-            table.getColumn("region")?.setFilterValue(value === "all" ? undefined : value)
-          }
+          value={regionFilter}
+          onValueChange={(value) => {
+            setRegionFilter(value);
+            setPage(0);
+          }}
         >
           <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
             <SelectValue />
@@ -361,10 +438,11 @@ export default function FleetTable({ targets, latestRelease }: FleetTableProps) 
     if (columnId === "tier") {
       return (
         <Select
-          value={tierFilter || "all"}
-          onValueChange={(value) =>
-            table.getColumn("tier")?.setFilterValue(value === "all" ? undefined : value)
-          }
+          value={tierFilter}
+          onValueChange={(value) => {
+            setTierFilter(value);
+            setPage(0);
+          }}
         >
           <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
             <SelectValue />
@@ -384,7 +462,10 @@ export default function FleetTable({ targets, latestRelease }: FleetTableProps) 
       return (
         <Input
           value={versionFilter}
-          onChange={(event) => table.getColumn("version")?.setFilterValue(event.target.value)}
+          onChange={(event) => {
+            setVersionFilter(event.target.value);
+            setPage(0);
+          }}
           placeholder="Filter version"
           className="h-8"
         />
@@ -393,10 +474,11 @@ export default function FleetTable({ targets, latestRelease }: FleetTableProps) 
     if (columnId === "runtimeStatus") {
       return (
         <Select
-          value={runtimeFilter || "all"}
-          onValueChange={(value) =>
-            table.getColumn("runtimeStatus")?.setFilterValue(value === "all" ? undefined : value)
-          }
+          value={runtimeFilter}
+          onValueChange={(value) => {
+            setRuntimeFilter(value);
+            setPage(0);
+          }}
         >
           <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
             <SelectValue />
@@ -415,12 +497,11 @@ export default function FleetTable({ targets, latestRelease }: FleetTableProps) 
     if (columnId === "lastDeploymentStatus") {
       return (
         <Select
-          value={lastDeploymentFilter || "all"}
-          onValueChange={(value) =>
-            table
-              .getColumn("lastDeploymentStatus")
-              ?.setFilterValue(value === "all" ? undefined : value)
-          }
+          value={lastDeploymentFilter}
+          onValueChange={(value) => {
+            setLastDeploymentFilter(value);
+            setPage(0);
+          }}
         >
           <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
             <SelectValue />
@@ -445,20 +526,15 @@ export default function FleetTable({ targets, latestRelease }: FleetTableProps) 
         <CardTitle>Fleet Targets</CardTitle>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="font-mono text-[11px]">
-            {filteredCount}/{rows.length} subscriptions
+            {pageMetadata.totalItems ?? 0} subscriptions
           </Badge>
           <ColumnVisibilityMenu table={table} />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => table.resetColumnFilters()}
-          >
+          <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
             Clear filters
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
         <Table>
           <TableHeader>
             <TableRow>
@@ -483,10 +559,22 @@ export default function FleetTable({ targets, latestRelease }: FleetTableProps) 
             </TableRow>
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows.length === 0 ? (
+            {loading ? (
               <TableRow>
                 <TableCell className="text-sm text-muted-foreground" colSpan={visibleColumnCount}>
-                  No targets match current column filters.
+                  Loading fleet targets...
+                </TableCell>
+              </TableRow>
+            ) : errorMessage ? (
+              <TableRow>
+                <TableCell className="text-sm text-destructive" colSpan={visibleColumnCount}>
+                  {errorMessage}
+                </TableCell>
+              </TableRow>
+            ) : table.getRowModel().rows.length === 0 ? (
+              <TableRow>
+                <TableCell className="text-sm text-muted-foreground" colSpan={visibleColumnCount}>
+                  No targets match current filters.
                 </TableCell>
               </TableRow>
             ) : (
@@ -505,6 +593,18 @@ export default function FleetTable({ targets, latestRelease }: FleetTableProps) 
             )}
           </TableBody>
         </Table>
+        <DataTablePagination
+          page={pageMetadata.page ?? page}
+          pageSize={pageMetadata.size ?? pageSize}
+          totalItems={pageMetadata.totalItems ?? 0}
+          totalPages={pageMetadata.totalPages ?? 0}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setPage(0);
+          }}
+          noun="subscriptions"
+        />
       </CardContent>
     </Card>
   );

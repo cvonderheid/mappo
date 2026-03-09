@@ -3,15 +3,16 @@
 Date: 2026-03-07
 
 ## Phase
-Post-demo production-path execution
+Platform hardening and scale readiness
 
 ## Theme
-Production-shaped Azure rollout model with explicit repo boundaries:
+Stabilize the platform under the production-shaped Azure model that is already running:
 - this repo deploys MAPPO itself,
 - `/Users/cvonderheid/workspace/mappo-managed-app` defines the customer workload releases,
-- Maven owns MAPPO build and artifact publish,
-- customer workload releases move toward Deployment Stacks + Blob artifacts + publisher ACR,
-- GitHub webhook ingestion becomes the default release trigger into MAPPO.
+- Springdoc/OpenAPI is the authoritative contract surface,
+- large tables move to backend-backed pagination/filtering/sorting,
+- runtime health becomes an explicit probe model,
+- SSE replaces fast polling once those contracts are stable.
 
 ## Status Snapshot
 - [x] Java backend cutover completed.
@@ -27,6 +28,103 @@ Production-shaped Azure rollout model with explicit repo boundaries:
 - [x] Real `deployment_stack` execution implemented in the Java backend
 - [x] Publisher ACR pull-auth path modeled into customer runtime rollout
 - [x] Deployment-stack + publisher ACR path validated end to end in Azure
+- [x] Runs table pagination implemented end to end with backend filters and page metadata
+- [x] Fleet/Admin pagination implemented end to end with backend filters, page metadata, and shared frontend pagination controls
+
+## Milestone H: OpenAPI Contract Hardening
+**Scope**
+- Keep Springdoc as the canonical contract source for the Java backend.
+- Standardize paginated response shapes and query DTO patterns.
+- Make client generation a routine part of backend contract changes instead of an afterthought.
+
+**Acceptance criteria**
+- New collection endpoints follow one reusable page metadata contract.
+- Frontend generated types stay in sync with backend DTO/query changes in the same slice.
+- No legacy/manual contract surfaces remain in the active workflow.
+
+**Current focus**
+- Normalize paginated collection contracts so filtering/sorting parameters and page DTOs follow one naming and shape convention across runs, targets, and admin surfaces.
+- Remove remaining compatibility wrappers where the frontend can safely use only the generated paginated contracts.
+
+**Verification**
+- `./mvnw -pl backend verify`
+- `./mvnw -pl frontend package`
+- `./mvnw clean install`
+
+## Milestone I: Backend Pagination And Query Contracts
+**Scope**
+- Extend backend-backed pagination/filtering/sorting beyond runs to Fleet/Admin/log-heavy views.
+- Move away from full-snapshot list responses for operator tables.
+
+**Acceptance criteria**
+- `targets`, Admin tables, and other high-volume lists have server-side paging.
+- Filters/sorts are query-driven rather than client-only.
+- Frontend tables use a shared pagination control surface.
+
+**Status**
+- [x] Runs
+- [x] Fleet
+- [x] Admin tabs
+- [ ] Remaining log-heavy/detail surfaces
+
+**Verification**
+- API integration tests per paginated endpoint
+- Frontend unit tests for pagination/filter state
+- Hosted UI smoke on Fleet/Admin/Deployments
+
+## Milestone J: Runtime Health Model
+**Scope**
+- Separate runtime availability from deployment outcome permanently.
+- Add probe/check storage plus API/UI exposure.
+
+**Acceptance criteria**
+- Fleet `Runtime` is sourced from explicit checks, not historical deployment state.
+- `Last Deployment` remains an independent signal.
+- Probe timestamps and failure summaries are operator-visible where they matter.
+
+**Next slice**
+- Introduce persisted runtime check records and an API shape that Fleet can consume without overloading target registration/deployment state.
+
+**Verification**
+- Backend health/probe integration tests
+- Fleet UI assertions for healthy/unhealthy/unknown targets independent of last deployment
+
+## Milestone K: SSE Live Updates
+**Scope**
+- Introduce SSE invalidate/refetch events for the main operator surfaces:
+  - runs list,
+  - selected run detail,
+  - fleet targets,
+  - releases,
+  - admin logs/webhook deliveries.
+
+**Acceptance criteria**
+- Normal operator workflows no longer depend on 1.2s polling.
+- SSE reconnect/fallback behavior is explicit.
+- Current fetch functions are reused; no fragile live object patch layer is introduced.
+
+**Next slice**
+- Start with invalidate/refetch events for runs list, selected run detail, Fleet targets, releases, and Admin webhook/event tabs on top of the now-stable paginated endpoints.
+
+**Verification**
+- backend SSE integration coverage
+- frontend event/reconnect tests
+- hosted demo soak test with the polling interval reduced to slow fallback only
+
+## Milestone L: Data Retention And Auditability
+**Scope**
+- Add retention, indexing, and query hygiene for growing operational tables.
+- Keep operator-visible audit trails for releases, previews, and deployments usable at larger scale.
+
+**Acceptance criteria**
+- Run/log/webhook tables remain responsive under larger demo/prod volumes.
+- Retention policy is explicit and documented.
+- Admin/audit views keep enough detail without forcing full-table scans.
+
+**Verification**
+- explain/analyze or equivalent query review for hot paths
+- retention smoke tests
+- docs/runbook updates
 
 ## Milestone A: MAPPO Deploy Contract
 **Scope**
@@ -176,7 +274,7 @@ Status: demo green; live GitHub webhook delivery setup pending
 - The remaining live step is wiring the real GitHub webhook from
   `cvonderheid/mappo-managed-app` into the hosted MAPPO endpoint.
 
-## Deferred Until After Demo
+## Deferred Until After Platform Hardening
 - Real Partner Center/private-offer validation once publisher prerequisites exist.
 - Alternative customer-local artifact strategy beyond Blob + Deployment Stacks, if needed.
 
@@ -187,6 +285,8 @@ Status: demo green; live GitHub webhook delivery setup pending
 - GitHub webhook -> release ingest
 - Deployment Stack rollout across both demo targets
 - Workload version/data-model verification across both demo targets
+- Pagination contract checks on runs/targets/admin endpoints
+- SSE smoke once the event stream exists
 
 ## Detailed Plan
 - `/Users/cvonderheid/workspace/mappo/docs/azure-production-execution-plan.md`

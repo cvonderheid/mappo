@@ -1,6 +1,8 @@
 package com.mappo.controlplane.service;
 
+import com.mappo.controlplane.model.TargetPageRecord;
 import com.mappo.controlplane.model.TargetRecord;
+import com.mappo.controlplane.model.query.TargetPageQuery;
 import com.mappo.controlplane.repository.TargetRepository;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,6 +23,10 @@ public class TargetService {
         putIfPresent(filters, "tier", tier);
         putIfPresent(filters, "environment", environment);
         return repository.listTargets(filters);
+    }
+
+    public TargetPageRecord listTargetsPage(TargetPageQuery query) {
+        return repository.listTargetsPage(query);
     }
 
     private void putIfPresent(Map<String, String> target, String key, String value) {

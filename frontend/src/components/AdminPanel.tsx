@@ -34,6 +34,7 @@ import type {
 type AdminPanelProps = {
   adminErrorMessage: string;
   adminSnapshot: AdminOnboardingSnapshotResponse | null;
+  refreshKey: number;
   releaseIngestIsSubmitting: boolean;
   onIngestManagedAppReleases: (
     request: ReleaseManifestIngestRequest
@@ -58,6 +59,7 @@ function normalizeTagValue(value: unknown, fallback: string): string {
 export default function AdminPanel({
   adminErrorMessage,
   adminSnapshot,
+  refreshKey,
   releaseIngestIsSubmitting,
   onIngestManagedAppReleases,
   onUpdateTargetRegistration,
@@ -435,7 +437,7 @@ export default function AdminPanel({
             </TabsList>
             <TabsContent value="registrations">
               <RegistrationsDataTable
-                registrations={registrations}
+                refreshKey={refreshKey}
                 headerActions={
                   <Button
                     type="button"
@@ -455,13 +457,13 @@ export default function AdminPanel({
               />
             </TabsContent>
             <TabsContent value="events">
-              <EventsDataTable events={events} />
+              <EventsDataTable refreshKey={refreshKey} />
             </TabsContent>
             <TabsContent value="forwarder-logs">
-              <ForwarderLogsDataTable logs={forwarderLogs} />
+              <ForwarderLogsDataTable refreshKey={refreshKey} />
             </TabsContent>
             <TabsContent value="release-webhooks">
-              <ReleaseWebhookDeliveriesDataTable deliveries={releaseWebhookDeliveries} />
+              <ReleaseWebhookDeliveriesDataTable refreshKey={refreshKey} />
             </TabsContent>
           </Tabs>
         </CardContent>

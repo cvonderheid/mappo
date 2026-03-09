@@ -139,7 +139,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["listMarketplaceEvents"];
         put?: never;
         post: operations["ingestMarketplaceEvent"];
         delete?: never;
@@ -196,6 +196,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/targets/page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listTargetsPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{runId}": {
         parameters: {
             query?: never;
@@ -228,6 +244,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/releases/webhook-deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listReleaseWebhookDeliveries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/onboarding": {
         parameters: {
             query?: never;
@@ -236,6 +268,38 @@ export interface paths {
             cookie?: never;
         };
         get: operations["onboardingSnapshot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/onboarding/registrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listRegistrations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/onboarding/forwarder-logs/page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listForwarderLogsPage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -604,6 +668,26 @@ export interface components {
             /** @enum {string} */
             simulatedFailureMode?: "none" | "validate_once" | "deploy_once" | "verify_once";
         };
+        PageMetadataRecord: {
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            totalItems?: number;
+            /** Format: int32 */
+            totalPages?: number;
+        };
+        TargetPageRecord: {
+            items?: components["schemas"]["TargetRecord"][];
+            page?: components["schemas"]["PageMetadataRecord"];
+        };
+        RunSummaryPageRecord: {
+            items?: components["schemas"]["RunSummaryRecord"][];
+            page?: components["schemas"]["PageMetadataRecord"];
+            /** Format: int32 */
+            activeRunCount?: number;
+        };
         RunSummaryRecord: {
             id?: string;
             releaseId?: string;
@@ -633,6 +717,33 @@ export interface components {
             queuedTargets?: number;
             haltReason?: string;
             guardrailWarnings?: string[];
+        };
+        ReleaseWebhookDeliveryPageRecord: {
+            items?: components["schemas"]["ReleaseWebhookDeliveryRecord"][];
+            page?: components["schemas"]["PageMetadataRecord"];
+        };
+        ReleaseWebhookDeliveryRecord: {
+            id?: string;
+            externalDeliveryId?: string;
+            eventType?: string;
+            repo?: string;
+            ref?: string;
+            manifestPath?: string;
+            /** @enum {string} */
+            status?: "applied" | "skipped" | "failed";
+            message?: string;
+            changedPaths?: string[];
+            /** Format: int32 */
+            manifestReleaseCount?: number;
+            /** Format: int32 */
+            createdCount?: number;
+            /** Format: int32 */
+            skippedCount?: number;
+            /** Format: int32 */
+            ignoredCount?: number;
+            createdReleaseIds?: string[];
+            /** Format: date-time */
+            receivedAt?: string;
         };
         ForwarderLogDetailsRecord: {
             detail?: string;
@@ -700,28 +811,17 @@ export interface components {
             forwarderLogs?: components["schemas"]["ForwarderLogRecord"][];
             releaseWebhookDeliveries?: components["schemas"]["ReleaseWebhookDeliveryRecord"][];
         };
-        ReleaseWebhookDeliveryRecord: {
-            id?: string;
-            externalDeliveryId?: string;
-            eventType?: string;
-            repo?: string;
-            ref?: string;
-            manifestPath?: string;
-            /** @enum {string} */
-            status?: "applied" | "skipped" | "failed";
-            message?: string;
-            changedPaths?: string[];
-            /** Format: int32 */
-            manifestReleaseCount?: number;
-            /** Format: int32 */
-            createdCount?: number;
-            /** Format: int32 */
-            skippedCount?: number;
-            /** Format: int32 */
-            ignoredCount?: number;
-            createdReleaseIds?: string[];
-            /** Format: date-time */
-            receivedAt?: string;
+        TargetRegistrationPageRecord: {
+            items?: components["schemas"]["TargetRegistrationRecord"][];
+            page?: components["schemas"]["PageMetadataRecord"];
+        };
+        ForwarderLogPageRecord: {
+            items?: components["schemas"]["ForwarderLogRecord"][];
+            page?: components["schemas"]["PageMetadataRecord"];
+        };
+        MarketplaceEventPageRecord: {
+            items?: components["schemas"]["MarketplaceEventRecord"][];
+            page?: components["schemas"]["PageMetadataRecord"];
         };
         DeleteRegistrationResultRecord: {
             targetId?: string;
@@ -738,7 +838,13 @@ export type $defs = Record<string, never>;
 export interface operations {
     listRuns: {
         parameters: {
-            query?: never;
+            query?: {
+                page?: number;
+                size?: number;
+                runId?: string;
+                releaseId?: string;
+                status?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -751,7 +857,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["RunSummaryRecord"][];
+                    "*/*": components["schemas"]["RunSummaryPageRecord"];
                 };
             };
         };
@@ -992,6 +1098,31 @@ export interface operations {
             };
         };
     };
+    listMarketplaceEvents: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                eventId?: string;
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["MarketplaceEventPageRecord"];
+                };
+            };
+        };
+    };
     ingestMarketplaceEvent: {
         parameters: {
             query?: never;
@@ -1113,6 +1244,39 @@ export interface operations {
             };
         };
     };
+    listTargetsPage: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                targetId?: string;
+                customerName?: string;
+                tenantId?: string;
+                subscriptionId?: string;
+                ring?: string;
+                region?: string;
+                tier?: string;
+                version?: string;
+                runtimeStatus?: string;
+                lastDeploymentStatus?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TargetPageRecord"];
+                };
+            };
+        };
+    };
     getRun: {
         parameters: {
             query?: never;
@@ -1157,6 +1321,31 @@ export interface operations {
             };
         };
     };
+    listReleaseWebhookDeliveries: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                deliveryId?: string;
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReleaseWebhookDeliveryPageRecord"];
+                };
+            };
+        };
+    };
     onboardingSnapshot: {
         parameters: {
             query?: {
@@ -1175,6 +1364,58 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["OnboardingSnapshotRecord"];
+                };
+            };
+        };
+    };
+    listRegistrations: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                targetId?: string;
+                ring?: string;
+                region?: string;
+                tier?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TargetRegistrationPageRecord"];
+                };
+            };
+        };
+    };
+    listForwarderLogsPage: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                logId?: string;
+                level?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ForwarderLogPageRecord"];
                 };
             };
         };

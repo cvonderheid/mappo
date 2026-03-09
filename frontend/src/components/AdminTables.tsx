@@ -1,28 +1,40 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   type ColumnDef,
-  type ColumnFiltersState,
   type SortingState,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+
+import ColumnVisibilityMenu from "@/components/ColumnVisibilityMenu";
+import DataTablePagination from "@/components/DataTablePagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import ColumnVisibilityMenu from "@/components/ColumnVisibilityMenu";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  adminListForwarderLogs,
+  adminListMarketplaceEvents,
+  adminListReleaseWebhookDeliveries,
+  adminListTargetRegistrations,
+} from "@/lib/api";
 import { usePersistentColumnVisibility } from "@/lib/table-visibility";
 import type {
+  ForwarderLogPage,
   ForwarderLogRecord,
+  MarketplaceEventPage,
   MarketplaceEventRecord,
+  PageMetadata,
+  ReleaseWebhookDeliveryPage,
   ReleaseWebhookDeliveryRecord,
+  TargetRegistrationPage,
   TargetRegistrationRecord,
 } from "@/lib/types";
+
 type RegistrationRow = {
   record: TargetRegistrationRecord;
   targetId: string;
@@ -38,6 +50,7 @@ type RegistrationRow = {
   tenantId: string;
   updatedAt: string;
 };
+
 type EventRow = {
   eventId: string;
   status: string;
@@ -48,6 +61,7 @@ type EventRow = {
   createdAt: string;
   message: string;
 };
+
 type ForwarderLogRow = {
   logId: string;
   level: string;
@@ -58,6 +72,7 @@ type ForwarderLogRow = {
   backendStatusCode: string;
   createdAt: string;
 };
+
 type ReleaseWebhookRow = {
   id: string;
   externalDeliveryId: string;
@@ -69,23 +84,33 @@ type ReleaseWebhookRow = {
   createdCount: string;
   receivedAt: string;
 };
+
+const EMPTY_PAGE: PageMetadata = {
+  page: 0,
+  size: 10,
+  totalItems: 0,
+  totalPages: 0,
+};
+
 function normalizeTagValue(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() !== "" ? value : fallback;
 }
+
 function eventStatusVariant(
   status: string
 ): "default" | "secondary" | "destructive" | "outline" {
   if (status === "applied") {
     return "default";
   }
-  if (status === "duplicate") {
+  if (status === "duplicate" || status === "skipped") {
     return "secondary";
   }
-  if (status === "rejected") {
+  if (status === "rejected" || status === "failed") {
     return "destructive";
   }
   return "outline";
 }
+
 function logLevelVariant(
   level: string
 ): "default" | "secondary" | "destructive" | "outline" {
@@ -115,246 +140,65 @@ function releaseWebhookStatusVariant(
   }
   return "outline";
 }
-type RegistrationsDataTableProps = {
-  registrations: TargetRegistrationRecord[];
-  headerActions?: ReactNode;
-  onEditRegistration: (registration: TargetRegistrationRecord) => void;
-  onDeleteRegistration: (registration: TargetRegistrationRecord) => void;
-  deletingTargetId: string | null;
-};
-export function RegistrationsDataTable({
-  registrations,
-  headerActions,
-  onEditRegistration,
-  onDeleteRegistration,
-  deletingTargetId,
-}: RegistrationsDataTableProps) {
-  const rows = useMemo<RegistrationRow[]>(
-    () =>
-      registrations.map((record) => ({
-        record,
-        targetId: record.targetId ?? "unknown",
-        displayName: record.displayName ?? "unknown",
-        customerName: record.customerName ?? "unknown",
-        deploymentStackName: record.metadata?.deploymentStackName ?? "auto",
-        registryAuthMode: record.metadata?.registryAuthMode ?? "none",
-        targetGroup: normalizeTagValue(record.tags?.ring, "unassigned"),
-        region: normalizeTagValue(record.tags?.region, "unknown"),
-        tier: normalizeTagValue(record.tags?.tier, "unknown"),
-        environment: normalizeTagValue(record.tags?.environment, "unknown"),
-        subscriptionId: record.subscriptionId ?? "unknown",
-        tenantId: record.tenantId ?? "unknown",
-        updatedAt: record.updatedAt ?? "",
-      })),
-    [registrations]
-  );
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] =
-    usePersistentColumnVisibility("admin-registrations");
-  const columns = useMemo<ColumnDef<RegistrationRow>[]>(
-    () => [
-      { accessorKey: "targetId", header: "Target" },
-      { accessorKey: "displayName", header: "Display Name" },
-      { accessorKey: "customerName", header: "Customer" },
-      { accessorKey: "deploymentStackName", header: "Stack" },
-      { accessorKey: "registryAuthMode", header: "Registry Auth" },
-      {
-        accessorKey: "targetGroup",
-        header: "Group",
-        filterFn: (row, id, value) => {
-          if (!value) {
-            return true;
-          }
-          return row.getValue<string>(id) === value;
-        },
-      },
-      {
-        accessorKey: "region",
-        header: "Region",
-        filterFn: (row, id, value) => {
-          if (!value) {
-            return true;
-          }
-          return row.getValue<string>(id) === value;
-        },
-      },
-      {
-        accessorKey: "tier",
-        header: "Tier",
-        filterFn: (row, id, value) => {
-          if (!value) {
-            return true;
-          }
-          return row.getValue<string>(id) === value;
-        },
-      },
-      { accessorKey: "environment", header: "Env" },
-      { accessorKey: "subscriptionId", header: "Subscription" },
-      { accessorKey: "tenantId", header: "Tenant" },
-      {
-        accessorKey: "updatedAt",
-        header: "Updated",
-        cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
-            {new Date(row.original.updatedAt).toLocaleString()}
-          </span>
-        ),
-      },
-      {
-        id: "actions",
-        header: "Actions",
-        enableSorting: false,
-        enableColumnFilter: false,
-        enableHiding: false,
-        cell: ({ row }) => {
-          const isDeleting = deletingTargetId === row.original.targetId;
-          return (
-            <div className="flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => onEditRegistration(row.original.record)}
-              >
-                Edit
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-destructive/70 text-destructive hover:bg-destructive/10"
-                disabled={isDeleting}
-                onClick={() => onDeleteRegistration(row.original.record)}
-              >
-                {isDeleting ? "Deleting..." : "Delete"}
-              </Button>
-            </div>
-          );
-        },
-      },
-    ],
-    [deletingTargetId, onDeleteRegistration, onEditRegistration]
-  );
-  const table = useReactTable({
-    data: rows,
-    columns,
-    state: { sorting, columnFilters, columnVisibility },
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: setColumnVisibility,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  });
-  const targetIdFilter =
-    (table.getColumn("targetId")?.getFilterValue() as string | undefined) ?? "";
-  const groupFilter =
-    (table.getColumn("targetGroup")?.getFilterValue() as string | undefined) ?? "";
-  const regionFilter =
-    (table.getColumn("region")?.getFilterValue() as string | undefined) ?? "";
-  const tierFilter =
-    (table.getColumn("tier")?.getFilterValue() as string | undefined) ?? "";
-  const groups = [...new Set(rows.map((row) => row.targetGroup))].sort();
-  const regions = [...new Set(rows.map((row) => row.region))].sort();
-  const tiers = [...new Set(rows.map((row) => row.tier))].sort();
-  const visibleColumnCount = table.getVisibleLeafColumns().length;
-  function renderFilterCell(columnId: string): ReactNode {
-    if (columnId === "targetId") {
-      return (
-        <Input
-          value={targetIdFilter}
-          onChange={(event) =>
-            table.getColumn("targetId")?.setFilterValue(event.target.value)
-          }
-          placeholder="Filter target"
-          className="h-8"
-        />
-      );
-    }
-    if (columnId === "targetGroup") {
-      return (
-        <Select
-          value={groupFilter || "all"}
-          onValueChange={(value) =>
-            table.getColumn("targetGroup")?.setFilterValue(value === "all" ? undefined : value)
-          }
-        >
-          <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All groups</SelectItem>
-            {groups.map((value) => (
-              <SelectItem key={value} value={value}>
-                {value}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
-    }
-    if (columnId === "region") {
-      return (
-        <Select
-          value={regionFilter || "all"}
-          onValueChange={(value) =>
-            table.getColumn("region")?.setFilterValue(value === "all" ? undefined : value)
-          }
-        >
-          <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All regions</SelectItem>
-            {regions.map((value) => (
-              <SelectItem key={value} value={value}>
-                {value}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
-    }
-    if (columnId === "tier") {
-      return (
-        <Select
-          value={tierFilter || "all"}
-          onValueChange={(value) =>
-            table.getColumn("tier")?.setFilterValue(value === "all" ? undefined : value)
-          }
-        >
-          <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All tiers</SelectItem>
-            {tiers.map((value) => (
-              <SelectItem key={value} value={value}>
-                {value}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
-    }
-    return null;
+
+function optionValues(values: string[], selectedValue: string): string[] {
+  const uniqueValues = new Set(values.filter((value) => value.trim() !== ""));
+  if (selectedValue.trim() !== "" && selectedValue !== "all") {
+    uniqueValues.add(selectedValue);
   }
+  return [...uniqueValues].sort();
+}
+
+function formatTimestamp(value: string): string {
+  if (!value) {
+    return "";
+  }
+  const timestamp = new Date(value);
+  if (Number.isNaN(timestamp.getTime())) {
+    return "";
+  }
+  return timestamp.toLocaleString();
+}
+
+type TableFrameProps = {
+  table: ReturnType<typeof useReactTable<any>>;
+  page: PageMetadata;
+  noun: string;
+  loading: boolean;
+  errorMessage: string;
+  emptyMessage: string;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
+  onClearFilters: () => void;
+  headerActions?: ReactNode;
+  renderFilterCell: (columnId: string) => ReactNode;
+};
+
+function TableFrame({
+  table,
+  page,
+  noun,
+  loading,
+  errorMessage,
+  emptyMessage,
+  onPageChange,
+  onPageSizeChange,
+  onClearFilters,
+  headerActions,
+  renderFilterCell,
+}: TableFrameProps) {
+  const visibleColumnCount = table.getVisibleLeafColumns().length;
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <Badge variant="outline" className="font-mono text-[11px]">
-          {table.getFilteredRowModel().rows.length}/{rows.length}
+          {page.totalItems ?? 0}
         </Badge>
         <div className="flex items-center gap-2">
           {headerActions}
           <ColumnVisibilityMenu table={table} />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => table.resetColumnFilters()}
-          >
+          <Button type="button" variant="outline" size="sm" onClick={onClearFilters}>
             Clear filters
           </Button>
         </div>
@@ -387,42 +231,309 @@ export function RegistrationsDataTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {table.getRowModel().rows.length === 0 ? (
+          {loading ? (
             <TableRow>
               <TableCell colSpan={visibleColumnCount} className="text-sm text-muted-foreground">
-                No registered targets match current filters.
+                Loading...
+              </TableCell>
+            </TableRow>
+          ) : errorMessage ? (
+            <TableRow>
+              <TableCell colSpan={visibleColumnCount} className="text-sm text-destructive">
+                {errorMessage}
+              </TableCell>
+            </TableRow>
+          ) : table.getRowModel().rows.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={visibleColumnCount} className="text-sm text-muted-foreground">
+                {emptyMessage}
               </TableCell>
             </TableRow>
           ) : (
             table.getRowModel().rows.map((row) => (
               <TableRow key={row.id}>
                 {row.getVisibleCells().map((cell) => (
-                  <TableCell
-                    key={cell.id}
-                    className={
-                      cell.column.id === "targetId" || cell.column.id === "subscriptionId"
-                        ? "font-mono text-xs"
-                        : undefined
-                    }
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
+                  <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
                 ))}
               </TableRow>
             ))
           )}
         </TableBody>
       </Table>
+      <DataTablePagination
+        page={page.page ?? 0}
+        pageSize={page.size ?? 10}
+        totalItems={page.totalItems ?? 0}
+        totalPages={page.totalPages ?? 0}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
+        noun={noun}
+      />
     </div>
   );
 }
-type EventsDataTableProps = {
-  events: MarketplaceEventRecord[];
+
+type RegistrationsDataTableProps = {
+  refreshKey: number;
+  headerActions?: ReactNode;
+  onEditRegistration: (registration: TargetRegistrationRecord) => void;
+  onDeleteRegistration: (registration: TargetRegistrationRecord) => void;
+  deletingTargetId: string | null;
 };
-export function EventsDataTable({ events }: EventsDataTableProps) {
+
+export function RegistrationsDataTable({
+  refreshKey,
+  headerActions,
+  onEditRegistration,
+  onDeleteRegistration,
+  deletingTargetId,
+}: RegistrationsDataTableProps) {
+  const [pageData, setPageData] = useState<TargetRegistrationPage>({ items: [], page: EMPTY_PAGE });
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [targetIdFilter, setTargetIdFilter] = useState("");
+  const [groupFilter, setGroupFilter] = useState("all");
+  const [regionFilter, setRegionFilter] = useState("all");
+  const [tierFilter, setTierFilter] = useState("all");
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnVisibility, setColumnVisibility] = usePersistentColumnVisibility("admin-registrations");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    void adminListTargetRegistrations({
+      page,
+      size: pageSize,
+      targetId: targetIdFilter || undefined,
+      ring: groupFilter === "all" ? undefined : groupFilter,
+      region: regionFilter === "all" ? undefined : regionFilter,
+      tier: tierFilter === "all" ? undefined : tierFilter,
+    })
+      .then((result) => {
+        if (!active) return;
+        setPageData(result);
+        setErrorMessage("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setPageData({ items: [], page: EMPTY_PAGE });
+        setErrorMessage((error as Error).message);
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [groupFilter, page, pageSize, refreshKey, regionFilter, targetIdFilter, tierFilter]);
+
+  const rows = useMemo<RegistrationRow[]>(
+    () =>
+      (pageData.items ?? []).map((record) => ({
+        record,
+        targetId: record.targetId ?? "unknown",
+        displayName: record.displayName ?? "unknown",
+        customerName: record.customerName ?? "unknown",
+        deploymentStackName: record.metadata?.deploymentStackName ?? "auto",
+        registryAuthMode: record.metadata?.registryAuthMode ?? "none",
+        targetGroup: normalizeTagValue(record.tags?.ring, "unassigned"),
+        region: normalizeTagValue(record.tags?.region, "unknown"),
+        tier: normalizeTagValue(record.tags?.tier, "unknown"),
+        environment: normalizeTagValue(record.tags?.environment, "unknown"),
+        subscriptionId: record.subscriptionId ?? "unknown",
+        tenantId: record.tenantId ?? "unknown",
+        updatedAt: record.updatedAt ?? "",
+      })),
+    [pageData.items]
+  );
+
+  const columns = useMemo<ColumnDef<RegistrationRow>[]>(
+    () => [
+      { accessorKey: "targetId", header: "Target" },
+      { accessorKey: "displayName", header: "Display Name" },
+      { accessorKey: "customerName", header: "Customer" },
+      { accessorKey: "deploymentStackName", header: "Stack" },
+      { accessorKey: "registryAuthMode", header: "Registry Auth" },
+      { accessorKey: "targetGroup", header: "Group" },
+      { accessorKey: "region", header: "Region" },
+      { accessorKey: "tier", header: "Tier" },
+      { accessorKey: "environment", header: "Env" },
+      { accessorKey: "subscriptionId", header: "Subscription" },
+      { accessorKey: "tenantId", header: "Tenant" },
+      {
+        accessorKey: "updatedAt",
+        header: "Updated",
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">{formatTimestamp(row.original.updatedAt)}</span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        enableSorting: false,
+        enableHiding: false,
+        cell: ({ row }) => {
+          const isDeleting = deletingTargetId === row.original.targetId;
+          return (
+            <div className="flex items-center justify-end gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={() => onEditRegistration(row.original.record)}>
+                Edit
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-destructive/70 text-destructive hover:bg-destructive/10"
+                disabled={isDeleting}
+                onClick={() => onDeleteRegistration(row.original.record)}
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </Button>
+            </div>
+          );
+        },
+      },
+    ],
+    [deletingTargetId, onDeleteRegistration, onEditRegistration]
+  );
+
+  const table = useReactTable({
+    data: rows,
+    columns,
+    state: { sorting, columnVisibility },
+    onSortingChange: setSorting,
+    onColumnVisibilityChange: setColumnVisibility,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  const groups = optionValues(rows.map((row) => row.targetGroup), groupFilter);
+  const regions = optionValues(rows.map((row) => row.region), regionFilter);
+  const tiers = optionValues(rows.map((row) => row.tier), tierFilter);
+
+  return (
+    <TableFrame
+      table={table}
+      page={pageData.page ?? EMPTY_PAGE}
+      noun="registrations"
+      loading={loading}
+      errorMessage={errorMessage}
+      emptyMessage="No registered targets match current filters."
+      onPageChange={setPage}
+      onPageSizeChange={(size) => {
+        setPageSize(size);
+        setPage(0);
+      }}
+      onClearFilters={() => {
+        setTargetIdFilter("");
+        setGroupFilter("all");
+        setRegionFilter("all");
+        setTierFilter("all");
+        setPage(0);
+      }}
+      headerActions={headerActions}
+      renderFilterCell={(columnId) => {
+        if (columnId === "targetId") {
+          return (
+            <Input
+              value={targetIdFilter}
+              onChange={(event) => {
+                setTargetIdFilter(event.target.value);
+                setPage(0);
+              }}
+              placeholder="Filter target"
+              className="h-8"
+            />
+          );
+        }
+        if (columnId === "targetGroup") {
+          return (
+            <Select value={groupFilter} onValueChange={(value) => { setGroupFilter(value); setPage(0); }}>
+              <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All groups</SelectItem>
+                {groups.map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          );
+        }
+        if (columnId === "region") {
+          return (
+            <Select value={regionFilter} onValueChange={(value) => { setRegionFilter(value); setPage(0); }}>
+              <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All regions</SelectItem>
+                {regions.map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          );
+        }
+        if (columnId === "tier") {
+          return (
+            <Select value={tierFilter} onValueChange={(value) => { setTierFilter(value); setPage(0); }}>
+              <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All tiers</SelectItem>
+                {tiers.map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          );
+        }
+        return null;
+      }}
+    />
+  );
+}
+
+type EventsDataTableProps = {
+  refreshKey: number;
+};
+
+export function EventsDataTable({ refreshKey }: EventsDataTableProps) {
+  const [pageData, setPageData] = useState<MarketplaceEventPage>({ items: [], page: EMPTY_PAGE });
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [eventIdFilter, setEventIdFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnVisibility, setColumnVisibility] = usePersistentColumnVisibility("admin-events");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    void adminListMarketplaceEvents({
+      page,
+      size: pageSize,
+      eventId: eventIdFilter || undefined,
+      status: statusFilter === "all" ? undefined : statusFilter,
+    })
+      .then((result) => {
+        if (!active) return;
+        setPageData(result);
+        setErrorMessage("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setPageData({ items: [], page: EMPTY_PAGE });
+        setErrorMessage((error as Error).message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [eventIdFilter, page, pageSize, refreshKey, statusFilter]);
+
   const rows = useMemo<EventRow[]>(
     () =>
-      events.map((record) => ({
+      (pageData.items ?? []).map((record: MarketplaceEventRecord) => ({
         eventId: record.eventId ?? "unknown",
         status: record.status ?? "unknown",
         eventType: record.eventType ?? "unknown",
@@ -432,24 +543,15 @@ export function EventsDataTable({ events }: EventsDataTableProps) {
         createdAt: record.createdAt ?? "",
         message: record.message ?? "",
       })),
-    [events]
+    [pageData.items]
   );
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] =
-    usePersistentColumnVisibility("admin-events");
+
   const columns = useMemo<ColumnDef<EventRow>[]>(
     () => [
       { accessorKey: "eventId", header: "Event ID" },
       {
         accessorKey: "status",
         header: "Status",
-        filterFn: (row, id, value) => {
-          if (!value) {
-            return true;
-          }
-          return row.getValue<string>(id) === value;
-        },
         cell: ({ row }) => (
           <Badge variant={eventStatusVariant(row.original.status)} className="capitalize">
             {row.original.status}
@@ -464,149 +566,120 @@ export function EventsDataTable({ events }: EventsDataTableProps) {
         accessorKey: "createdAt",
         header: "Created",
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
-            {new Date(row.original.createdAt).toLocaleString()}
-          </span>
+          <span className="text-xs text-muted-foreground">{formatTimestamp(row.original.createdAt)}</span>
         ),
       },
       { accessorKey: "message", header: "Message" },
     ],
     []
   );
+
   const table = useReactTable({
     data: rows,
     columns,
-    state: { sorting, columnFilters, columnVisibility },
+    state: { sorting, columnVisibility },
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
-  const eventIdFilter =
-    (table.getColumn("eventId")?.getFilterValue() as string | undefined) ?? "";
-  const statusFilter =
-    (table.getColumn("status")?.getFilterValue() as string | undefined) ?? "";
-  const statuses = [...new Set(rows.map((row) => row.status))].sort();
-  const visibleColumnCount = table.getVisibleLeafColumns().length;
-  function renderFilterCell(columnId: string): ReactNode {
-    if (columnId === "eventId") {
-      return (
-        <Input
-          value={eventIdFilter}
-          onChange={(event) =>
-            table.getColumn("eventId")?.setFilterValue(event.target.value)
-          }
-          placeholder="Filter event"
-          className="h-8"
-        />
-      );
-    }
-    if (columnId === "status") {
-      return (
-        <Select
-          value={statusFilter || "all"}
-          onValueChange={(value) =>
-            table.getColumn("status")?.setFilterValue(value === "all" ? undefined : value)
-          }
-        >
-          <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {statuses.map((value) => (
-              <SelectItem key={value} value={value}>
-                {value}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
-    }
-    return null;
-  }
+
+  const statuses = optionValues(rows.map((row) => row.status), statusFilter);
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <Badge variant="outline" className="font-mono text-[11px]">
-          {table.getFilteredRowModel().rows.length}/{rows.length}
-        </Badge>
-        <ColumnVisibilityMenu table={table} />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => table.resetColumnFilters()}
-        >
-          Clear filters
-        </Button>
-      </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {table.getFlatHeaders().map((header) => (
-              <TableHead key={header.id}>
-                {header.column.getCanSort() ? (
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 text-left"
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                    {header.column.getIsSorted() === "asc" ? "▲" : null}
-                    {header.column.getIsSorted() === "desc" ? "▼" : null}
-                  </button>
-                ) : (
-                  flexRender(header.column.columnDef.header, header.getContext())
-                )}
-              </TableHead>
-            ))}
-          </TableRow>
-          <TableRow>
-            {table.getVisibleLeafColumns().map((column) => (
-              <TableHead key={`filter-${column.id}`}>{renderFilterCell(column.id)}</TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={visibleColumnCount} className="text-sm text-muted-foreground">
-                No onboarding events match current filters.
-              </TableCell>
-            </TableRow>
-          ) : (
-            table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell
-                    key={cell.id}
-                    className={
-                      cell.column.id === "eventId" || cell.column.id === "subscriptionId"
-                        ? "font-mono text-xs"
-                        : undefined
-                    }
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </div>
+    <TableFrame
+      table={table}
+      page={pageData.page ?? EMPTY_PAGE}
+      noun="events"
+      loading={loading}
+      errorMessage={errorMessage}
+      emptyMessage="No onboarding events match current filters."
+      onPageChange={setPage}
+      onPageSizeChange={(size) => {
+        setPageSize(size);
+        setPage(0);
+      }}
+      onClearFilters={() => {
+        setEventIdFilter("");
+        setStatusFilter("all");
+        setPage(0);
+      }}
+      renderFilterCell={(columnId) => {
+        if (columnId === "eventId") {
+          return (
+            <Input
+              value={eventIdFilter}
+              onChange={(event) => {
+                setEventIdFilter(event.target.value);
+                setPage(0);
+              }}
+              placeholder="Filter event"
+              className="h-8"
+            />
+          );
+        }
+        if (columnId === "status") {
+          return (
+            <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPage(0); }}>
+              <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {statuses.map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          );
+        }
+        return null;
+      }}
+    />
   );
 }
+
 type ForwarderLogsDataTableProps = {
-  logs: ForwarderLogRecord[];
+  refreshKey: number;
 };
-export function ForwarderLogsDataTable({ logs }: ForwarderLogsDataTableProps) {
+
+export function ForwarderLogsDataTable({ refreshKey }: ForwarderLogsDataTableProps) {
+  const [pageData, setPageData] = useState<ForwarderLogPage>({ items: [], page: EMPTY_PAGE });
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [logIdFilter, setLogIdFilter] = useState("");
+  const [levelFilter, setLevelFilter] = useState("all");
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnVisibility, setColumnVisibility] = usePersistentColumnVisibility("admin-forwarder-logs");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    void adminListForwarderLogs({
+      page,
+      size: pageSize,
+      logId: logIdFilter || undefined,
+      level: levelFilter === "all" ? undefined : levelFilter,
+    })
+      .then((result) => {
+        if (!active) return;
+        setPageData(result);
+        setErrorMessage("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setPageData({ items: [], page: EMPTY_PAGE });
+        setErrorMessage((error as Error).message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [levelFilter, logIdFilter, page, pageSize, refreshKey]);
+
   const rows = useMemo<ForwarderLogRow[]>(
     () =>
-      logs.map((record) => ({
+      (pageData.items ?? []).map((record: ForwarderLogRecord) => ({
         logId: record.logId ?? "unknown",
         level: record.level ?? "unknown",
         message: record.message ?? "",
@@ -619,24 +692,15 @@ export function ForwarderLogsDataTable({ logs }: ForwarderLogsDataTableProps) {
             : String(record.backendStatusCode),
         createdAt: record.createdAt ?? "",
       })),
-    [logs]
+    [pageData.items]
   );
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] =
-    usePersistentColumnVisibility("admin-forwarder-logs");
+
   const columns = useMemo<ColumnDef<ForwarderLogRow>[]>(
     () => [
       { accessorKey: "logId", header: "Log ID" },
       {
         accessorKey: "level",
         header: "Level",
-        filterFn: (row, id, value) => {
-          if (!value) {
-            return true;
-          }
-          return row.getValue<string>(id) === value;
-        },
         cell: ({ row }) => (
           <Badge variant={logLevelVariant(row.original.level)} className="uppercase">
             {row.original.level}
@@ -652,171 +716,132 @@ export function ForwarderLogsDataTable({ logs }: ForwarderLogsDataTableProps) {
         accessorKey: "createdAt",
         header: "Created",
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
-            {new Date(row.original.createdAt).toLocaleString()}
-          </span>
+          <span className="text-xs text-muted-foreground">{formatTimestamp(row.original.createdAt)}</span>
         ),
       },
     ],
     []
   );
+
   const table = useReactTable({
     data: rows,
     columns,
-    state: { sorting, columnFilters, columnVisibility },
+    state: { sorting, columnVisibility },
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
-  const logIdFilter =
-    (table.getColumn("logId")?.getFilterValue() as string | undefined) ?? "";
-  const levelFilter =
-    (table.getColumn("level")?.getFilterValue() as string | undefined) ?? "";
-  const levels = [...new Set(rows.map((row) => row.level))].sort();
-  const visibleColumnCount = table.getVisibleLeafColumns().length;
-  function renderFilterCell(columnId: string): ReactNode {
-    if (columnId === "logId") {
-      return (
-        <Input
-          value={logIdFilter}
-          onChange={(event) =>
-            table.getColumn("logId")?.setFilterValue(event.target.value)
-          }
-          placeholder="Filter log"
-          className="h-8"
-        />
-      );
-    }
-    if (columnId === "level") {
-      return (
-        <Select
-          value={levelFilter || "all"}
-          onValueChange={(value) =>
-            table.getColumn("level")?.setFilterValue(value === "all" ? undefined : value)
-          }
-        >
-          <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All levels</SelectItem>
-            {levels.map((value) => (
-              <SelectItem key={value} value={value}>
-                {value}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
-    }
-    return null;
-  }
+
+  const levels = optionValues(rows.map((row) => row.level), levelFilter);
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <Badge variant="outline" className="font-mono text-[11px]">
-          {table.getFilteredRowModel().rows.length}/{rows.length}
-        </Badge>
-        <ColumnVisibilityMenu table={table} />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => table.resetColumnFilters()}
-        >
-          Clear filters
-        </Button>
-      </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {table.getFlatHeaders().map((header) => (
-              <TableHead key={header.id}>
-                {header.column.getCanSort() ? (
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 text-left"
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                    {header.column.getIsSorted() === "asc" ? "▲" : null}
-                    {header.column.getIsSorted() === "desc" ? "▼" : null}
-                  </button>
-                ) : (
-                  flexRender(header.column.columnDef.header, header.getContext())
-                )}
-              </TableHead>
-            ))}
-          </TableRow>
-          <TableRow>
-            {table.getVisibleLeafColumns().map((column) => (
-              <TableHead key={`filter-${column.id}`}>{renderFilterCell(column.id)}</TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={visibleColumnCount} className="text-sm text-muted-foreground">
-                No forwarder logs match current filters.
-              </TableCell>
-            </TableRow>
-          ) : (
-            table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell
-                    key={cell.id}
-                    className={
-                      cell.column.id === "logId" || cell.column.id === "eventId"
-                        ? "font-mono text-xs"
-                        : undefined
-                    }
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </div>
+    <TableFrame
+      table={table}
+      page={pageData.page ?? EMPTY_PAGE}
+      noun="logs"
+      loading={loading}
+      errorMessage={errorMessage}
+      emptyMessage="No forwarder logs match current filters."
+      onPageChange={setPage}
+      onPageSizeChange={(size) => {
+        setPageSize(size);
+        setPage(0);
+      }}
+      onClearFilters={() => {
+        setLogIdFilter("");
+        setLevelFilter("all");
+        setPage(0);
+      }}
+      renderFilterCell={(columnId) => {
+        if (columnId === "logId") {
+          return (
+            <Input
+              value={logIdFilter}
+              onChange={(event) => {
+                setLogIdFilter(event.target.value);
+                setPage(0);
+              }}
+              placeholder="Filter log"
+              className="h-8"
+            />
+          );
+        }
+        if (columnId === "level") {
+          return (
+            <Select value={levelFilter} onValueChange={(value) => { setLevelFilter(value); setPage(0); }}>
+              <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All levels</SelectItem>
+                {levels.map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          );
+        }
+        return null;
+      }}
+    />
   );
 }
 
 type ReleaseWebhookDeliveriesDataTableProps = {
-  deliveries: ReleaseWebhookDeliveryRecord[];
+  refreshKey: number;
 };
 
-export function ReleaseWebhookDeliveriesDataTable({
-  deliveries,
-}: ReleaseWebhookDeliveriesDataTableProps) {
+export function ReleaseWebhookDeliveriesDataTable({ refreshKey }: ReleaseWebhookDeliveriesDataTableProps) {
+  const [pageData, setPageData] = useState<ReleaseWebhookDeliveryPage>({ items: [], page: EMPTY_PAGE });
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [deliveryIdFilter, setDeliveryIdFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnVisibility, setColumnVisibility] = usePersistentColumnVisibility("admin-release-webhooks");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    void adminListReleaseWebhookDeliveries({
+      page,
+      size: pageSize,
+      deliveryId: deliveryIdFilter || undefined,
+      status: statusFilter === "all" ? undefined : statusFilter,
+    })
+      .then((result) => {
+        if (!active) return;
+        setPageData(result);
+        setErrorMessage("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setPageData({ items: [], page: EMPTY_PAGE });
+        setErrorMessage((error as Error).message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [deliveryIdFilter, page, pageSize, refreshKey, statusFilter]);
+
   const rows = useMemo<ReleaseWebhookRow[]>(
     () =>
-      deliveries.map((record) => ({
+      (pageData.items ?? []).map((record: ReleaseWebhookDeliveryRecord) => ({
         id: record.id ?? "unknown",
-        externalDeliveryId: record.externalDeliveryId ?? "n/a",
+        externalDeliveryId: record.externalDeliveryId ?? "unknown",
         eventType: record.eventType ?? "unknown",
         repo: record.repo ?? "unknown",
         ref: record.ref ?? "unknown",
         status: record.status ?? "unknown",
         message: record.message ?? "",
-        createdCount:
-          record.createdCount === undefined || record.createdCount === null
-            ? "0"
-            : String(record.createdCount),
+        createdCount: String(record.createdCount ?? 0),
         receivedAt: record.receivedAt ?? "",
       })),
-    [deliveries]
+    [pageData.items]
   );
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] =
-    usePersistentColumnVisibility("admin-release-webhook-deliveries");
+
   const columns = useMemo<ColumnDef<ReleaseWebhookRow>[]>(
     () => [
       { accessorKey: "externalDeliveryId", header: "Delivery ID" },
@@ -825,12 +850,8 @@ export function ReleaseWebhookDeliveriesDataTable({
       {
         accessorKey: "status",
         header: "Status",
-        filterFn: (row, id, value) => !value || row.getValue<string>(id) === value,
         cell: ({ row }) => (
-          <Badge
-            variant={releaseWebhookStatusVariant(row.original.status)}
-            className="uppercase"
-          >
+          <Badge variant={releaseWebhookStatusVariant(row.original.status)} className="uppercase">
             {row.original.status}
           </Badge>
         ),
@@ -842,136 +863,70 @@ export function ReleaseWebhookDeliveriesDataTable({
         accessorKey: "receivedAt",
         header: "Received",
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
-            {new Date(row.original.receivedAt).toLocaleString()}
-          </span>
+          <span className="text-xs text-muted-foreground">{formatTimestamp(row.original.receivedAt)}</span>
         ),
       },
     ],
     []
   );
+
   const table = useReactTable({
     data: rows,
     columns,
-    state: { sorting, columnFilters, columnVisibility },
+    state: { sorting, columnVisibility },
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
-  const deliveryIdFilter =
-    (table.getColumn("externalDeliveryId")?.getFilterValue() as string | undefined) ?? "";
-  const statusFilter =
-    (table.getColumn("status")?.getFilterValue() as string | undefined) ?? "";
-  const statuses = [...new Set(rows.map((row) => row.status))].sort();
-  const visibleColumnCount = table.getVisibleLeafColumns().length;
 
-  function renderFilterCell(columnId: string): ReactNode {
-    if (columnId === "externalDeliveryId") {
-      return (
-        <Input
-          value={deliveryIdFilter}
-          onChange={(event) =>
-            table.getColumn("externalDeliveryId")?.setFilterValue(event.target.value)
-          }
-          placeholder="Filter delivery"
-          className="h-8"
-        />
-      );
-    }
-    if (columnId === "status") {
-      return (
-        <Select
-          value={statusFilter || "all"}
-          onValueChange={(value) =>
-            table.getColumn("status")?.setFilterValue(value === "all" ? undefined : value)
-          }
-        >
-          <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {statuses.map((value) => (
-              <SelectItem key={value} value={value}>
-                {value}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
-    }
-    return null;
-  }
+  const statuses = optionValues(rows.map((row) => row.status), statusFilter);
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <Badge variant="outline" className="font-mono text-[11px]">
-          {table.getFilteredRowModel().rows.length}/{rows.length}
-        </Badge>
-        <ColumnVisibilityMenu table={table} />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => table.resetColumnFilters()}
-        >
-          Clear filters
-        </Button>
-      </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {table.getFlatHeaders().map((header) => (
-              <TableHead key={header.id}>
-                {header.column.getCanSort() ? (
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 text-left"
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                    {header.column.getIsSorted() === "asc" ? "▲" : null}
-                    {header.column.getIsSorted() === "desc" ? "▼" : null}
-                  </button>
-                ) : (
-                  flexRender(header.column.columnDef.header, header.getContext())
-                )}
-              </TableHead>
-            ))}
-          </TableRow>
-          <TableRow>
-            {table.getVisibleLeafColumns().map((column) => (
-              <TableHead key={`filter-${column.id}`}>{renderFilterCell(column.id)}</TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={visibleColumnCount} className="text-sm text-muted-foreground">
-                No release webhook deliveries match current filters.
-              </TableCell>
-            </TableRow>
-          ) : (
-            table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell
-                    key={cell.id}
-                    className={cell.column.id === "externalDeliveryId" ? "font-mono text-xs" : undefined}
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </div>
+    <TableFrame
+      table={table}
+      page={pageData.page ?? EMPTY_PAGE}
+      noun="deliveries"
+      loading={loading}
+      errorMessage={errorMessage}
+      emptyMessage="No release webhook deliveries match current filters."
+      onPageChange={setPage}
+      onPageSizeChange={(size) => {
+        setPageSize(size);
+        setPage(0);
+      }}
+      onClearFilters={() => {
+        setDeliveryIdFilter("");
+        setStatusFilter("all");
+        setPage(0);
+      }}
+      renderFilterCell={(columnId) => {
+        if (columnId === "externalDeliveryId") {
+          return (
+            <Input
+              value={deliveryIdFilter}
+              onChange={(event) => {
+                setDeliveryIdFilter(event.target.value);
+                setPage(0);
+              }}
+              placeholder="Filter delivery"
+              className="h-8"
+            />
+          );
+        }
+        if (columnId === "status") {
+          return (
+            <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPage(0); }}>
+              <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {statuses.map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          );
+        }
+        return null;
+      }}
+    />
   );
 }

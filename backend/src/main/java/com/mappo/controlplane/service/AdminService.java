@@ -10,16 +10,25 @@ import com.mappo.controlplane.jooq.enums.MappoMarketplaceEventStatus;
 import com.mappo.controlplane.jooq.enums.MappoRegistryAuthMode;
 import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
 import com.mappo.controlplane.model.EventIngestResultRecord;
+import com.mappo.controlplane.model.ForwarderLogPageRecord;
 import com.mappo.controlplane.model.ForwarderLogIngestResultRecord;
 import com.mappo.controlplane.model.ForwarderLogRecord;
+import com.mappo.controlplane.model.MarketplaceEventPageRecord;
 import com.mappo.controlplane.model.MarketplaceEventType;
 import com.mappo.controlplane.model.OnboardingSnapshotRecord;
+import com.mappo.controlplane.model.ReleaseWebhookDeliveryPageRecord;
 import com.mappo.controlplane.model.TargetRecord;
+import com.mappo.controlplane.model.TargetRegistrationPageRecord;
 import com.mappo.controlplane.model.TargetRegistrationRecord;
 import com.mappo.controlplane.model.command.ForwarderLogIngestCommand;
 import com.mappo.controlplane.model.command.TargetRegistrationPatchCommand;
 import com.mappo.controlplane.model.command.TargetRegistrationUpsertCommand;
 import com.mappo.controlplane.model.command.TargetUpsertCommand;
+import com.mappo.controlplane.model.query.ForwarderLogPageQuery;
+import com.mappo.controlplane.model.query.MarketplaceEventPageQuery;
+import com.mappo.controlplane.model.query.ReleaseWebhookDeliveryPageQuery;
+import com.mappo.controlplane.model.query.TargetRegistrationPageQuery;
+import com.mappo.controlplane.repository.AdminPageRepository;
 import com.mappo.controlplane.repository.AdminRepository;
 import com.mappo.controlplane.repository.ReleaseWebhookRepository;
 import com.mappo.controlplane.repository.TargetRepository;
@@ -37,6 +46,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AdminService {
 
+    private final AdminPageRepository adminPageRepository;
     private final AdminRepository adminRepository;
     private final ReleaseWebhookRepository releaseWebhookRepository;
     private final TargetRepository targetRepository;
@@ -170,6 +180,24 @@ public class AdminService {
 
     public List<ForwarderLogRecord> listForwarderLogs(int limit) {
         return adminRepository.listForwarderLogs(limit);
+    }
+
+    public TargetRegistrationPageRecord listRegistrationsPage(TargetRegistrationPageQuery query) {
+        return adminPageRepository.listRegistrationsPage(query);
+    }
+
+    public MarketplaceEventPageRecord listMarketplaceEventsPage(MarketplaceEventPageQuery query) {
+        return adminPageRepository.listMarketplaceEventsPage(query);
+    }
+
+    public ForwarderLogPageRecord listForwarderLogsPage(ForwarderLogPageQuery query) {
+        return adminPageRepository.listForwarderLogsPage(query);
+    }
+
+    public ReleaseWebhookDeliveryPageRecord listReleaseWebhookDeliveriesPage(
+        ReleaseWebhookDeliveryPageQuery query
+    ) {
+        return releaseWebhookRepository.listReleaseWebhookDeliveriesPage(query);
     }
 
     public ForwarderLogIngestResultRecord ingestForwarderLog(ForwarderLogIngestRequest request) {

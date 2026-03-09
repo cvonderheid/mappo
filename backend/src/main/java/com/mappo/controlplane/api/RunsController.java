@@ -3,7 +3,9 @@ package com.mappo.controlplane.api;
 import com.mappo.controlplane.api.request.RunCreateRequest;
 import com.mappo.controlplane.model.RunDetailRecord;
 import com.mappo.controlplane.model.RunPreviewRecord;
+import com.mappo.controlplane.model.RunSummaryPageRecord;
 import com.mappo.controlplane.model.RunSummaryRecord;
+import com.mappo.controlplane.model.query.RunPageQuery;
 import com.mappo.controlplane.service.RunPreviewService;
 import com.mappo.controlplane.service.RunService;
 import jakarta.validation.Valid;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -27,8 +30,14 @@ public class RunsController {
     private final RunPreviewService runPreviewService;
 
     @GetMapping
-    public List<RunSummaryRecord> listRuns() {
-        return runService.listRuns();
+    public RunSummaryPageRecord listRuns(
+        @RequestParam(value = "page", defaultValue = "0") int page,
+        @RequestParam(value = "size", defaultValue = "25") int size,
+        @RequestParam(value = "runId", required = false) String runId,
+        @RequestParam(value = "releaseId", required = false) String releaseId,
+        @RequestParam(value = "status", required = false) String status
+    ) {
+        return runService.listRunsPage(new RunPageQuery(page, size, runId, releaseId, status));
     }
 
     @GetMapping("/{runId}")

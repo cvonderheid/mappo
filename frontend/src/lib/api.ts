@@ -3,15 +3,20 @@ import type {
   AdminOnboardingSnapshotResponse,
   CreateRunRequest,
   DeleteTargetRegistrationResponse,
+  ForwarderLogPage,
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
+  MarketplaceEventPage,
   Release,
   ReleaseManifestIngestRequest,
   ReleaseManifestIngestResponse,
+  ReleaseWebhookDeliveryPage,
   RunDetail,
   RunPreview,
-  RunSummary,
+  RunSummaryPage,
   Target,
+  TargetPage,
+  TargetRegistrationPage,
   TargetRegistrationRecord,
   UpdateTargetRegistrationRequest,
 } from "@/lib/types";
@@ -44,13 +49,61 @@ function requireData<T>(label: string, result: ApiResult<T>): T {
   throw new Error(`${label} failed (${status}): ${errorText}`);
 }
 
-export async function listTargets(ringFilter = "all"): Promise<Target[]> {
+export type ListTargetsQuery = {
+  ring?: string;
+  region?: string;
+  tier?: string;
+  environment?: string;
+};
+
+export async function listTargets(query: ListTargetsQuery = {}): Promise<Target[]> {
+  const normalizedQuery = {
+    ring: query.ring,
+    region: query.region,
+    tier: query.tier,
+    environment: query.environment,
+  };
   const { data, error, response } = await apiClient.GET("/api/v1/targets", {
-    params: {
-      query: ringFilter === "all" ? undefined : { ring: ringFilter },
-    },
+    params: { query: normalizedQuery },
   });
   return requireData("listTargets", { data, error, response });
+}
+
+export type ListTargetsPageQuery = {
+  page?: number;
+  size?: number;
+  targetId?: string;
+  customerName?: string;
+  tenantId?: string;
+  subscriptionId?: string;
+  ring?: string;
+  region?: string;
+  tier?: string;
+  version?: string;
+  runtimeStatus?: string;
+  lastDeploymentStatus?: string;
+};
+
+export async function listTargetsPage(query: ListTargetsPageQuery = {}): Promise<TargetPage> {
+  const { data, error, response } = await apiClient.GET("/api/v1/targets/page", {
+    params: {
+      query: {
+        page: query.page,
+        size: query.size,
+        targetId: query.targetId,
+        customerName: query.customerName,
+        tenantId: query.tenantId,
+        subscriptionId: query.subscriptionId,
+        ring: query.ring,
+        region: query.region,
+        tier: query.tier,
+        version: query.version,
+        runtimeStatus: query.runtimeStatus,
+        lastDeploymentStatus: query.lastDeploymentStatus,
+      },
+    },
+  });
+  return requireData("listTargetsPage", { data, error, response });
 }
 
 export async function listReleases(): Promise<Release[]> {
@@ -58,8 +111,26 @@ export async function listReleases(): Promise<Release[]> {
   return requireData("listReleases", { data, error, response });
 }
 
-export async function listRuns(): Promise<RunSummary[]> {
-  const { data, error, response } = await apiClient.GET("/api/v1/runs");
+export type ListRunsQuery = {
+  page?: number;
+  size?: number;
+  runId?: string;
+  releaseId?: string;
+  status?: string;
+};
+
+export async function listRuns(query: ListRunsQuery = {}): Promise<RunSummaryPage> {
+  const { data, error, response } = await apiClient.GET("/api/v1/runs", {
+    params: {
+      query: {
+        page: query.page,
+        size: query.size,
+        runId: query.runId,
+        releaseId: query.releaseId,
+        status: query.status,
+      },
+    },
+  });
   return requireData("listRuns", { data, error, response });
 }
 
@@ -106,6 +177,102 @@ export async function getAdminOnboardingSnapshot(
     params: { query: { event_limit: eventLimit } },
   });
   return requireData("getAdminOnboardingSnapshot", { data, error, response });
+}
+
+export type ListTargetRegistrationsQuery = {
+  page?: number;
+  size?: number;
+  targetId?: string;
+  ring?: string;
+  region?: string;
+  tier?: string;
+};
+
+export async function adminListTargetRegistrations(
+  query: ListTargetRegistrationsQuery = {}
+): Promise<TargetRegistrationPage> {
+  const { data, error, response } = await apiClient.GET("/api/v1/admin/onboarding/registrations", {
+    params: {
+      query: {
+        page: query.page,
+        size: query.size,
+        targetId: query.targetId,
+        ring: query.ring,
+        region: query.region,
+        tier: query.tier,
+      },
+    },
+  });
+  return requireData("adminListTargetRegistrations", { data, error, response });
+}
+
+export type ListMarketplaceEventsQuery = {
+  page?: number;
+  size?: number;
+  eventId?: string;
+  status?: string;
+};
+
+export async function adminListMarketplaceEvents(
+  query: ListMarketplaceEventsQuery = {}
+): Promise<MarketplaceEventPage> {
+  const { data, error, response } = await apiClient.GET("/api/v1/admin/onboarding/events", {
+    params: {
+      query: {
+        page: query.page,
+        size: query.size,
+        eventId: query.eventId,
+        status: query.status,
+      },
+    },
+  });
+  return requireData("adminListMarketplaceEvents", { data, error, response });
+}
+
+export type ListForwarderLogsQuery = {
+  page?: number;
+  size?: number;
+  logId?: string;
+  level?: string;
+};
+
+export async function adminListForwarderLogs(
+  query: ListForwarderLogsQuery = {}
+): Promise<ForwarderLogPage> {
+  const { data, error, response } = await apiClient.GET("/api/v1/admin/onboarding/forwarder-logs/page", {
+    params: {
+      query: {
+        page: query.page,
+        size: query.size,
+        logId: query.logId,
+        level: query.level,
+      },
+    },
+  });
+  return requireData("adminListForwarderLogs", { data, error, response });
+}
+
+export type ListReleaseWebhookDeliveriesQuery = {
+  page?: number;
+  size?: number;
+  deliveryId?: string;
+  status?: string;
+};
+
+export async function adminListReleaseWebhookDeliveries(
+  query: ListReleaseWebhookDeliveriesQuery = {}
+): Promise<ReleaseWebhookDeliveryPage> {
+  const { data, error, response } = await apiClient.GET("/api/v1/admin/releases/webhook-deliveries", {
+    params: {
+      query: {
+        page: query.page,
+        size: query.size,
+        deliveryId: query.deliveryId,
+        status: query.status,
+      },
+    },
+  });
+  return requireData("adminListReleaseWebhookDeliveries", { data, error, response });
 }
 
 export async function adminIngestMarketplaceEvent(

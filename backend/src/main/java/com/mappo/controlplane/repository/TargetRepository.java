@@ -8,9 +8,12 @@ import static com.mappo.controlplane.jooq.Tables.TARGET_TAGS;
 import com.mappo.controlplane.jooq.enums.MappoHealthStatus;
 import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
 import com.mappo.controlplane.jooq.enums.MappoTargetStage;
+import com.mappo.controlplane.model.PageMetadataRecord;
+import com.mappo.controlplane.model.TargetPageRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import com.mappo.controlplane.model.command.TargetUpsertCommand;
 import com.mappo.controlplane.model.TargetRecord;
+import com.mappo.controlplane.model.query.TargetPageQuery;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -88,6 +91,66 @@ public class TargetRepository {
             targets.add(toTargetRecord(row, tagsByTarget.getOrDefault(targetId, Map.of())));
         }
         return targets;
+    }
+
+    public TargetPageRecord listTargetsPage(TargetPageQuery query) {
+        int page = normalizePage(query == null ? null : query.page());
+        int size = normalizeSize(query == null ? null : query.size());
+        var latestExecution = latestExecutionTable();
+        Condition condition = buildTargetPageCondition(query, latestExecution);
+
+        if (condition == null) {
+            return new TargetPageRecord(List.of(), new PageMetadataRecord(page, size, 0L, 0));
+        }
+
+        long totalItems = dsl.fetchCount(
+            dsl.select(TARGETS.ID)
+                .from(TARGETS)
+                .leftJoin(TARGET_REGISTRATIONS)
+                .on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
+                .leftJoin(latestExecution)
+                .on(latestExecution.field("target_id", String.class).eq(TARGETS.ID))
+                .where(condition)
+        );
+        int totalPages = totalItems == 0 ? 0 : (int) Math.ceil((double) totalItems / size);
+
+        var rows = dsl.select(
+                TARGETS.ID,
+                TARGETS.TENANT_ID,
+                TARGETS.SUBSCRIPTION_ID,
+                TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID,
+                TARGET_REGISTRATIONS.CUSTOMER_NAME,
+                TARGETS.LAST_DEPLOYED_RELEASE,
+                TARGETS.HEALTH_STATUS,
+                latestExecution.field("latest_status", MappoTargetStage.class),
+                latestExecution.field("latest_updated_at", OffsetDateTime.class),
+                TARGETS.LAST_CHECK_IN_AT,
+                TARGETS.SIMULATED_FAILURE_MODE
+            )
+            .from(TARGETS)
+            .leftJoin(TARGET_REGISTRATIONS)
+            .on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
+            .leftJoin(latestExecution)
+            .on(latestExecution.field("target_id", String.class).eq(TARGETS.ID))
+            .where(condition)
+            .orderBy(TARGETS.ID.asc())
+            .limit(size)
+            .offset(page * size)
+            .fetch();
+
+        if (rows.isEmpty()) {
+            return new TargetPageRecord(List.of(), new PageMetadataRecord(page, size, totalItems, totalPages));
+        }
+
+        List<String> targetIds = rows.stream().map(row -> row.get(TARGETS.ID)).toList();
+        Map<String, Map<String, String>> tagsByTarget = loadTags(targetIds);
+        List<TargetRecord> targets = new ArrayList<>(rows.size());
+        for (Record row : rows) {
+            String targetId = row.get(TARGETS.ID);
+            targets.add(toTargetRecord(row, tagsByTarget.getOrDefault(targetId, Map.of())));
+        }
+
+        return new TargetPageRecord(targets, new PageMetadataRecord(page, size, totalItems, totalPages));
     }
 
     public Optional<TargetRecord> getTarget(String targetId) {
@@ -349,6 +412,86 @@ public class TargetRepository {
             return timestamp;
         }
         return fallback;
+    }
+
+    private Condition buildTargetPageCondition(TargetPageQuery query, org.jooq.Table<?> latestExecution) {
+        if (query == null) {
+            return DSL.trueCondition();
+        }
+
+        Condition condition = DSL.trueCondition();
+        String targetId = normalize(query.targetId());
+        String customerName = normalize(query.customerName());
+        String tenantId = normalize(query.tenantId());
+        String subscriptionId = normalize(query.subscriptionId());
+        String ring = normalize(query.ring());
+        String region = normalize(query.region());
+        String tier = normalize(query.tier());
+        String version = normalize(query.version());
+        String runtimeStatus = normalize(query.runtimeStatus()).toLowerCase();
+        String lastDeploymentStatus = normalize(query.lastDeploymentStatus()).toLowerCase();
+
+        if (!targetId.isBlank()) {
+            condition = condition.and(TARGETS.ID.containsIgnoreCase(targetId));
+        }
+        if (!customerName.isBlank()) {
+            condition = condition.and(TARGET_REGISTRATIONS.CUSTOMER_NAME.containsIgnoreCase(customerName));
+        }
+        if (!tenantId.isBlank()) {
+            condition = condition.and(TARGETS.TENANT_ID.cast(String.class).containsIgnoreCase(tenantId));
+        }
+        if (!subscriptionId.isBlank()) {
+            condition = condition.and(TARGETS.SUBSCRIPTION_ID.cast(String.class).containsIgnoreCase(subscriptionId));
+        }
+        if (!ring.isBlank()) {
+            condition = condition.and(tagEqualsCondition("ring", ring));
+        }
+        if (!region.isBlank()) {
+            condition = condition.and(tagEqualsCondition("region", region));
+        }
+        if (!tier.isBlank()) {
+            condition = condition.and(tagEqualsCondition("tier", tier));
+        }
+        if (!version.isBlank()) {
+            condition = condition.and(TARGETS.LAST_DEPLOYED_RELEASE.containsIgnoreCase(version));
+        }
+        if (!runtimeStatus.isBlank()) {
+            MappoHealthStatus healthStatus = MappoHealthStatus.lookupLiteral(runtimeStatus);
+            if (healthStatus == null) {
+                return null;
+            }
+            condition = condition.and(TARGETS.HEALTH_STATUS.eq(healthStatus));
+        }
+        if (!lastDeploymentStatus.isBlank()) {
+            MappoTargetStage stage = MappoTargetStage.lookupLiteral(lastDeploymentStatus);
+            if (stage == null) {
+                return null;
+            }
+            condition = condition.and(latestExecution.field("latest_status", MappoTargetStage.class).eq(stage));
+        }
+        return condition;
+    }
+
+    private Condition tagEqualsCondition(String key, String value) {
+        var tagFilterTable = TARGET_TAGS.as("tt_" + key);
+        return DSL.exists(
+            DSL.selectOne()
+                .from(tagFilterTable)
+                .where(tagFilterTable.TARGET_ID.eq(TARGETS.ID))
+                .and(tagFilterTable.TAG_KEY.eq(key))
+                .and(tagFilterTable.TAG_VALUE.eq(value))
+        );
+    }
+
+    private int normalizePage(Integer value) {
+        return value == null || value < 0 ? 0 : value;
+    }
+
+    private int normalizeSize(Integer value) {
+        if (value == null || value <= 0) {
+            return 25;
+        }
+        return Math.min(value, 100);
     }
 
     private <T> T enumOrDefault(T value, T fallback) {

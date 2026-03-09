@@ -31,6 +31,13 @@ type DeploymentsPageProps = {
   releases: Release[];
   runPreview: RunPreview | null;
   runs: RunSummary[];
+  runPage: number;
+  runPageSize: number;
+  runTotalItems: number;
+  runTotalPages: number;
+  runIdFilter: string;
+  runReleaseFilter: string;
+  runStatusFilter: string;
   selectedRelease: Release | null;
   selectedReleaseId: string;
   selectedTargetIds: string[];
@@ -42,6 +49,11 @@ type DeploymentsPageProps = {
   onOpenRun: (runId: string) => void;
   onCloneRun: (runId: string) => void;
   onReleaseChange: (releaseId: string) => void;
+  onRunIdFilterChange: (value: string) => void;
+  onRunReleaseFilterChange: (value: string) => void;
+  onRunStatusFilterChange: (value: string) => void;
+  onRunsPageChange: (page: number) => void;
+  onRunsPageSizeChange: (size: number) => void;
   onRetryFailed: (runId: string) => void;
   onResumeRun: (runId: string) => void;
   onSelectedTargetIdsChange: (targetIds: string[]) => void;
@@ -64,6 +76,13 @@ export default function DeploymentsPage({
   releases,
   runPreview,
   runs,
+  runPage,
+  runPageSize,
+  runTotalItems,
+  runTotalPages,
+  runIdFilter,
+  runReleaseFilter,
+  runStatusFilter,
   selectedRelease,
   selectedReleaseId,
   selectedTargetIds,
@@ -75,6 +94,11 @@ export default function DeploymentsPage({
   onOpenRun,
   onCloneRun,
   onReleaseChange,
+  onRunIdFilterChange,
+  onRunReleaseFilterChange,
+  onRunStatusFilterChange,
+  onRunsPageChange,
+  onRunsPageSizeChange,
   onRetryFailed,
   onResumeRun,
   onSelectedTargetIdsChange,
@@ -320,10 +344,22 @@ export default function DeploymentsPage({
       <div className="grid gap-4 lg:grid-cols-1">
         <RunList
           runs={runs}
+          page={runPage}
+          pageSize={runPageSize}
+          totalItems={runTotalItems}
+          totalPages={runTotalPages}
+          runIdFilter={runIdFilter}
+          releaseFilter={runReleaseFilter}
+          statusFilter={runStatusFilter}
           onOpenRun={onOpenRun}
           onCloneRun={onCloneRun}
           onResumeRun={onResumeRun}
           onRetryFailed={onRetryFailed}
+          onRunIdFilterChange={onRunIdFilterChange}
+          onReleaseFilterChange={onRunReleaseFilterChange}
+          onStatusFilterChange={onRunStatusFilterChange}
+          onPageChange={onRunsPageChange}
+          onPageSizeChange={onRunsPageSizeChange}
           onActionsMenuOpenChange={onRunActionsMenuOpenChange}
         />
       </div>

@@ -2,15 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   type ColumnDef,
-  type ColumnFiltersState,
-  type SortingState,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
 
+import DataTablePagination from "@/components/DataTablePagination";
 import type { RunDetail, RunSummary, TargetExecutionRecord } from "@/lib/types";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
@@ -41,10 +38,22 @@ type ProgressCounts = {
 
 type RunListProps = {
   runs: RunSummary[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  runIdFilter: string;
+  releaseFilter: string;
+  statusFilter: string;
   onOpenRun: (runId: string) => void;
   onCloneRun: (runId: string) => void;
   onResumeRun: (runId: string) => void;
   onRetryFailed: (runId: string) => void;
+  onRunIdFilterChange: (value: string) => void;
+  onReleaseFilterChange: (value: string) => void;
+  onStatusFilterChange: (value: string) => void;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
   onActionsMenuOpenChange?: (open: boolean) => void;
 };
 
@@ -221,14 +230,24 @@ function StackedProgressBar({
 
 export function RunList({
   runs,
+  page,
+  pageSize,
+  totalItems,
+  totalPages,
+  runIdFilter,
+  releaseFilter,
+  statusFilter,
   onOpenRun,
   onCloneRun,
   onResumeRun,
   onRetryFailed,
+  onRunIdFilterChange,
+  onReleaseFilterChange,
+  onStatusFilterChange,
+  onPageChange,
+  onPageSizeChange,
   onActionsMenuOpenChange,
 }: RunListProps) {
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [openActionRunId, setOpenActionRunId] = useState<string | null>(null);
   const [columnVisibility, setColumnVisibility] =
     usePersistentColumnVisibility("deployments-runs");
@@ -274,12 +293,6 @@ export function RunList({
       {
         accessorKey: "status",
         header: "Status",
-        filterFn: (row, id, value) => {
-          if (!value) {
-            return true;
-          }
-          return row.getValue<string>(id) === value;
-        },
         cell: ({ row }) => (
           <Badge variant={statusVariant(row.original.status ?? "unknown")} className="uppercase">
             {row.original.status ?? "unknown"}
@@ -415,22 +428,12 @@ export function RunList({
     data: runs,
     columns,
     state: {
-      sorting,
-      columnFilters,
       columnVisibility,
     },
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
   });
 
-  const filteredCount = table.getFilteredRowModel().rows.length;
-  const runIdFilter = (table.getColumn("id")?.getFilterValue() as string | undefined) ?? "";
-  const releaseFilter = (table.getColumn("releaseId")?.getFilterValue() as string | undefined) ?? "";
-  const statusFilter = (table.getColumn("status")?.getFilterValue() as string | undefined) ?? "";
   const uniqueStatuses = [
     ...new Set(
       runs
@@ -445,7 +448,7 @@ export function RunList({
       return (
         <Input
           value={runIdFilter}
-          onChange={(event) => table.getColumn("id")?.setFilterValue(event.target.value)}
+          onChange={(event) => onRunIdFilterChange(event.target.value)}
           placeholder="Filter run"
           className="h-8"
         />
@@ -455,7 +458,7 @@ export function RunList({
       return (
         <Input
           value={releaseFilter}
-          onChange={(event) => table.getColumn("releaseId")?.setFilterValue(event.target.value)}
+          onChange={(event) => onReleaseFilterChange(event.target.value)}
           placeholder="Filter release"
           className="h-8"
         />
@@ -465,9 +468,7 @@ export function RunList({
       return (
         <Select
           value={statusFilter || "all"}
-          onValueChange={(value) =>
-            table.getColumn("status")?.setFilterValue(value === "all" ? undefined : value)
-          }
+          onValueChange={(value) => onStatusFilterChange(value === "all" ? "" : value)}
         >
           <SelectTrigger className="h-8 w-full bg-background/90 px-2 text-xs">
             <SelectValue />
@@ -492,10 +493,20 @@ export function RunList({
         <CardTitle>Deployment Runs</CardTitle>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="font-mono text-[11px]">
-            {filteredCount}/{runs.length} runs
+            {totalItems} runs
           </Badge>
           <ColumnVisibilityMenu table={table} />
-          <Button type="button" variant="outline" size="sm" onClick={() => table.resetColumnFilters()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              onRunIdFilterChange("");
+              onReleaseFilterChange("");
+              onStatusFilterChange("");
+              onPageChange(0);
+            }}
+          >
             Clear filters
           </Button>
         </div>
@@ -551,6 +562,15 @@ export function RunList({
             )}
           </TableBody>
         </Table>
+        <DataTablePagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={totalItems}
+          totalPages={totalPages}
+          noun="runs"
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+        />
       </CardContent>
     </Card>
   );
@@ -655,9 +675,6 @@ function TargetRecordCard({ record }: { record: TargetExecutionRecord }) {
               </p>
             </div>
             <p className="text-[11px]">{stage.message}</p>
-            <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
-              <span className="font-mono">correlation-id: {stage.correlationId}</span>
-            </div>
             {stage.error ? (
               <div className="mt-2 rounded-md border border-destructive/60 bg-destructive/10 p-2 text-[11px]">
                 <p data-testid={`stage-error-code-${record.targetId}-${stage.stage}`} className="font-semibold">

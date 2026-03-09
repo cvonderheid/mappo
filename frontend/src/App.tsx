@@ -31,12 +31,15 @@ import type {
   CreateRunRequest,
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
+  PageMetadata,
   Release,
   ReleaseManifestIngestRequest,
   ReleaseManifestIngestResponse,
   RunDetail,
   RunPreview,
+  RunStatus,
   RunSummary,
+  RunSummaryPage,
   Target,
   TargetExecutionRecord,
   UpdateTargetRegistrationRequest,
@@ -60,8 +63,14 @@ function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [targets, setTargets] = useState<Target[]>([]);
+  const [targetsRefreshVersion, setTargetsRefreshVersion] = useState(0);
   const [releases, setReleases] = useState<Release[]>([]);
-  const [runs, setRuns] = useState<RunSummary[]>([]);
+  const [runsPage, setRunsPage] = useState<RunSummaryPage | null>(null);
+  const [runPage, setRunPage] = useState<number>(0);
+  const [runPageSize, setRunPageSize] = useState<number>(25);
+  const [runIdFilter, setRunIdFilter] = useState<string>("");
+  const [runReleaseFilter, setRunReleaseFilter] = useState<string>("");
+  const [runStatusFilter, setRunStatusFilter] = useState<string>("");
   const [selectedReleaseId, setSelectedReleaseId] = useState<string>("");
   const [selectedRunId, setSelectedRunId] = useState<string>("");
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
@@ -78,6 +87,7 @@ function AppShell() {
   const [previewErrorMessage, setPreviewErrorMessage] = useState<string>("");
   const [runPreview, setRunPreview] = useState<RunPreview | null>(null);
   const [adminSnapshot, setAdminSnapshot] = useState<AdminOnboardingSnapshotResponse | null>(null);
+  const [adminRefreshVersion, setAdminRefreshVersion] = useState(0);
   const [adminIsSubmitting, setAdminIsSubmitting] = useState<boolean>(false);
   const [adminErrorMessage, setAdminErrorMessage] = useState<string>("");
   const [adminResult, setAdminResult] = useState<MarketplaceEventIngestResponse | null>(null);
@@ -87,6 +97,7 @@ function AppShell() {
   const refreshTargets = useCallback(async () => {
     try {
       setTargets(await listTargets());
+      setTargetsRefreshVersion((current) => current + 1);
       setErrorMessage("");
     } catch (error) {
       setErrorMessage((error as Error).message);
@@ -113,15 +124,21 @@ function AppShell() {
 
   const refreshRuns = useCallback(async () => {
     try {
-      const payload = await listRuns();
-      setRuns(payload);
-      if (!selectedRunId && payload.length > 0) {
-        setSelectedRunId(payload[0]?.id ?? "");
+      const payload = await listRuns({
+        page: runPage,
+        size: runPageSize,
+        runId: runIdFilter || undefined,
+        releaseId: runReleaseFilter || undefined,
+        status: runStatusFilter || undefined,
+      });
+      setRunsPage(payload);
+      if (!selectedRunId && (payload.items?.length ?? 0) > 0) {
+        setSelectedRunId(payload.items?.[0]?.id ?? "");
       }
     } catch (error) {
       setErrorMessage((error as Error).message);
     }
-  }, [selectedRunId]);
+  }, [runIdFilter, runPage, runPageSize, runReleaseFilter, runStatusFilter, selectedRunId]);
 
   const refreshRunDetail = useCallback(async (runId: string) => {
     try {
@@ -134,6 +151,7 @@ function AppShell() {
   const refreshAdminSnapshot = useCallback(async () => {
     try {
       setAdminSnapshot(await getAdminOnboardingSnapshot());
+      setAdminRefreshVersion((current) => current + 1);
       setAdminErrorMessage("");
     } catch (error) {
       setAdminErrorMessage((error as Error).message);
@@ -223,14 +241,16 @@ function AppShell() {
   );
 
   const runStats = useMemo(() => {
-    let running = 0;
-    for (const run of runs) {
-      if (run.status === "running") {
-        running += 1;
-      }
-    }
-    return { running };
-  }, [runs]);
+    return { running: runsPage?.activeRunCount ?? 0 };
+  }, [runsPage]);
+
+  const runs = useMemo(() => runsPage?.items ?? [], [runsPage]);
+  const runPageMetadata: PageMetadata = runsPage?.page ?? {
+    page: runPage,
+    size: runPageSize,
+    totalItems: 0,
+    totalPages: 0,
+  };
 
   const selectedRelease = useMemo(
     () => releases.find((release) => release.id === selectedReleaseId) ?? null,
@@ -318,7 +338,8 @@ function AppShell() {
     try {
       const created = await createRun(request);
       if (created.id) {
-        setSelectedRunId(created.id);
+      setSelectedRunId(created.id);
+      setRunPage(0);
       }
       await refreshRuns();
       if (created.id) {
@@ -397,6 +418,7 @@ function AppShell() {
       await refreshRunDetail(runId);
       await refreshTargets();
       setSelectedRunId(runId);
+      setRunPage(0);
       setErrorMessage("");
     } catch (error) {
       setErrorMessage((error as Error).message);
@@ -410,6 +432,7 @@ function AppShell() {
       await refreshRunDetail(runId);
       await refreshTargets();
       setSelectedRunId(runId);
+      setRunPage(0);
       setErrorMessage("");
     } catch (error) {
       setErrorMessage((error as Error).message);
@@ -576,7 +599,7 @@ function AppShell() {
           element={
             <FleetTable
               latestRelease={latestRelease}
-              targets={targets}
+              refreshKey={targetsRefreshVersion}
             />
           }
         />
@@ -595,6 +618,13 @@ function AppShell() {
               releases={releases}
               runPreview={runPreview}
               runs={runs}
+              runPage={runPageMetadata.page ?? 0}
+              runPageSize={runPageMetadata.size ?? runPageSize}
+              runTotalItems={runPageMetadata.totalItems ?? 0}
+              runTotalPages={runPageMetadata.totalPages ?? 0}
+              runIdFilter={runIdFilter}
+              runReleaseFilter={runReleaseFilter}
+              runStatusFilter={runStatusFilter}
               selectedRelease={selectedRelease}
               selectedReleaseId={selectedReleaseId}
               selectedTargetIds={selectedTargetIds}
@@ -612,6 +642,23 @@ function AppShell() {
               }}
               onRetryFailed={(runId) => {
                 void handleRetryFailed(runId);
+              }}
+              onRunIdFilterChange={(value) => {
+                setRunIdFilter(value);
+                setRunPage(0);
+              }}
+              onRunReleaseFilterChange={(value) => {
+                setRunReleaseFilter(value);
+                setRunPage(0);
+              }}
+              onRunStatusFilterChange={(value) => {
+                setRunStatusFilter(value);
+                setRunPage(0);
+              }}
+              onRunsPageChange={setRunPage}
+              onRunsPageSizeChange={(size) => {
+                setRunPageSize(size);
+                setRunPage(0);
               }}
               onResumeRun={(runId) => {
                 void handleResumeRun(runId);
@@ -656,6 +703,7 @@ function AppShell() {
             <AdminPanel
               adminErrorMessage={adminErrorMessage}
               adminSnapshot={adminSnapshot}
+              refreshKey={adminRefreshVersion}
               releaseIngestIsSubmitting={releaseIngestIsSubmitting}
               onIngestManagedAppReleases={handleIngestManagedAppReleases}
               onUpdateTargetRegistration={handleAdminUpdateRegistration}

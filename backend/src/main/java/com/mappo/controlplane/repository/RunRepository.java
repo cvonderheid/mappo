@@ -13,9 +13,11 @@ import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.jooq.enums.MappoRunStatus;
 import com.mappo.controlplane.jooq.enums.MappoStrategyMode;
 import com.mappo.controlplane.jooq.enums.MappoTargetStage;
+import com.mappo.controlplane.model.PageMetadataRecord;
 import com.mappo.controlplane.model.command.CreateRunCommand;
 import com.mappo.controlplane.model.command.RunStopPolicyCommand;
 import com.mappo.controlplane.model.RunDetailRecord;
+import com.mappo.controlplane.model.RunSummaryPageRecord;
 import com.mappo.controlplane.model.RunStopPolicyRecord;
 import com.mappo.controlplane.model.RunSummaryRecord;
 import com.mappo.controlplane.model.RunTargetRecord;
@@ -24,6 +26,7 @@ import com.mappo.controlplane.model.StageErrorRecord;
 import com.mappo.controlplane.model.TargetLogEventRecord;
 import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.model.TargetStageRecord;
+import com.mappo.controlplane.model.query.RunPageQuery;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -45,6 +48,42 @@ public class RunRepository {
     private final DSLContext dsl;
 
     public List<RunSummaryRecord> listRunSummaries() {
+        return listRunSummariesPage(new RunPageQuery(0, 500, null, null, null)).items();
+    }
+
+    public RunSummaryPageRecord listRunSummariesPage(RunPageQuery query) {
+        int page = normalizePage(query == null ? null : query.page());
+        int size = normalizeSize(query == null ? null : query.size());
+        String runIdFilter = normalize(query == null ? null : query.runId());
+        String releaseIdFilter = normalize(query == null ? null : query.releaseId());
+        String statusFilter = normalize(query == null ? null : query.status()).toLowerCase();
+
+        org.jooq.Condition condition = DSL.trueCondition();
+        if (!runIdFilter.isBlank()) {
+            condition = condition.and(RUNS.ID.containsIgnoreCase(runIdFilter));
+        }
+        if (!releaseIdFilter.isBlank()) {
+            condition = condition.and(RUNS.RELEASE_ID.containsIgnoreCase(releaseIdFilter));
+        }
+        if (!statusFilter.isBlank()) {
+            MappoRunStatus parsedStatus = MappoRunStatus.lookupLiteral(statusFilter);
+            if (parsedStatus == null) {
+                return new RunSummaryPageRecord(
+                    List.of(),
+                    new PageMetadataRecord(page, size, 0L, 0),
+                    countActiveRuns()
+                );
+            }
+            condition = condition.and(RUNS.STATUS.eq(parsedStatus));
+        }
+
+        long totalItems = dsl.fetchCount(
+            dsl.select(RUNS.ID)
+                .from(RUNS)
+                .where(condition)
+        );
+        int totalPages = totalItems == 0 ? 0 : (int) Math.ceil((double) totalItems / size);
+
         var rows = dsl.select(
                 RUNS.ID,
                 RUNS.RELEASE_ID,
@@ -58,7 +97,10 @@ public class RunRepository {
                 RUNS.HALT_REASON
             )
             .from(RUNS)
+            .where(condition)
             .orderBy(RUNS.CREATED_AT.desc())
+            .limit(size)
+            .offset(page * size)
             .fetch();
 
         List<String> runIds = rows.stream().map(row -> row.get(RUNS.ID)).toList();
@@ -95,7 +137,11 @@ public class RunRepository {
                 warnings.getOrDefault(runId, List.of())
             ));
         }
-        return summaries;
+        return new RunSummaryPageRecord(
+            summaries,
+            new PageMetadataRecord(page, size, totalItems, totalPages),
+            countActiveRuns()
+        );
     }
 
     public Optional<RunDetailRecord> getRunDetail(String runId) {
@@ -567,6 +613,14 @@ public class RunRepository {
         );
     }
 
+    private int countActiveRuns() {
+        return dsl.fetchCount(
+            dsl.select(RUNS.ID)
+                .from(RUNS)
+                .where(RUNS.STATUS.eq(MappoRunStatus.running))
+        );
+    }
+
     private UUID requiredUuid(UUID value, String field) {
         if (value == null) {
             throw new IllegalArgumentException(field + " is required");
@@ -587,6 +641,20 @@ public class RunRepository {
 
     private String normalize(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private int normalizePage(Integer value) {
+        if (value == null || value < 0) {
+            return 0;
+        }
+        return value;
+    }
+
+    private int normalizeSize(Integer value) {
+        if (value == null || value < 1) {
+            return 25;
+        }
+        return Math.min(value, 100);
     }
 
     private String nullableText(Object value) {

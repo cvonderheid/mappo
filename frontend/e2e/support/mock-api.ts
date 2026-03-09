@@ -40,6 +40,17 @@ type RunSummary = {
   haltReason: string | null;
 };
 
+type RunSummaryPage = {
+  items: RunSummary[];
+  page: {
+    page: number;
+    size: number;
+    totalItems: number;
+    totalPages: number;
+  };
+  activeRunCount: number;
+};
+
 type TargetExecutionRecord = {
   targetId: string;
   subscriptionId: string;
@@ -178,13 +189,99 @@ async function handleRoute(route: Route, state: MockApiState): Promise<void> {
     return;
   }
 
+  if (method === "GET" && path === "/api/v1/targets/page") {
+    const targetIdFilter = (url.searchParams.get("targetId") ?? "").toLowerCase();
+    const customerNameFilter = (url.searchParams.get("customerName") ?? "").toLowerCase();
+    const tenantIdFilter = (url.searchParams.get("tenantId") ?? "").toLowerCase();
+    const subscriptionIdFilter = (url.searchParams.get("subscriptionId") ?? "").toLowerCase();
+    const ringFilter = (url.searchParams.get("ring") ?? "").toLowerCase();
+    const regionFilter = (url.searchParams.get("region") ?? "").toLowerCase();
+    const tierFilter = (url.searchParams.get("tier") ?? "").toLowerCase();
+    const versionFilter = (url.searchParams.get("version") ?? "").toLowerCase();
+    const runtimeFilter = (url.searchParams.get("runtimeStatus") ?? "").toLowerCase();
+    const page = Math.max(0, Number.parseInt(url.searchParams.get("page") ?? "0", 10) || 0);
+    const size = Math.max(1, Number.parseInt(url.searchParams.get("size") ?? "10", 10) || 10);
+
+    const filtered = state.targets.filter((target) => {
+      if (targetIdFilter && !target.id.toLowerCase().includes(targetIdFilter)) return false;
+      if (customerNameFilter && !(target.customerName ?? "").toLowerCase().includes(customerNameFilter)) return false;
+      if (tenantIdFilter && !target.tenantId.toLowerCase().includes(tenantIdFilter)) return false;
+      if (subscriptionIdFilter && !target.subscriptionId.toLowerCase().includes(subscriptionIdFilter)) return false;
+      if (ringFilter && (target.tags.ring ?? "").toLowerCase() !== ringFilter) return false;
+      if (regionFilter && (target.tags.region ?? "").toLowerCase() !== regionFilter) return false;
+      if (tierFilter && (target.tags.tier ?? "").toLowerCase() !== tierFilter) return false;
+      if (versionFilter && !(target.lastDeployedRelease ?? "").toLowerCase().includes(versionFilter)) return false;
+      if (runtimeFilter && (target.healthStatus ?? "").toLowerCase() !== runtimeFilter) return false;
+      return true;
+    });
+
+    await respond(route, 200, paginateItems(filtered, page, size));
+    return;
+  }
+
   if (method === "GET" && path === "/api/v1/releases") {
     await respond(route, 200, state.releases);
     return;
   }
 
+  if (method === "GET" && path === "/api/v1/admin/onboarding") {
+    await respond(route, 200, {
+      registrations: [],
+      events: [],
+      forwarderLogs: [],
+      releaseWebhookDeliveries: [],
+    });
+    return;
+  }
+
+  if (method === "GET" && path === "/api/v1/admin/onboarding/registrations") {
+    const page = Math.max(0, Number.parseInt(url.searchParams.get("page") ?? "0", 10) || 0);
+    const size = Math.max(1, Number.parseInt(url.searchParams.get("size") ?? "10", 10) || 10);
+    await respond(route, 200, paginateItems([], page, size));
+    return;
+  }
+
+  if (method === "GET" && path === "/api/v1/admin/onboarding/events") {
+    const page = Math.max(0, Number.parseInt(url.searchParams.get("page") ?? "0", 10) || 0);
+    const size = Math.max(1, Number.parseInt(url.searchParams.get("size") ?? "10", 10) || 10);
+    await respond(route, 200, paginateItems([], page, size));
+    return;
+  }
+
+  if (method === "GET" && path === "/api/v1/admin/onboarding/forwarder-logs/page") {
+    const page = Math.max(0, Number.parseInt(url.searchParams.get("page") ?? "0", 10) || 0);
+    const size = Math.max(1, Number.parseInt(url.searchParams.get("size") ?? "10", 10) || 10);
+    await respond(route, 200, paginateItems([], page, size));
+    return;
+  }
+
+  if (method === "GET" && path === "/api/v1/admin/releases/webhook-deliveries") {
+    const page = Math.max(0, Number.parseInt(url.searchParams.get("page") ?? "0", 10) || 0);
+    const size = Math.max(1, Number.parseInt(url.searchParams.get("size") ?? "10", 10) || 10);
+    await respond(route, 200, paginateItems([], page, size));
+    return;
+  }
+
   if (method === "GET" && path === "/api/v1/runs") {
-    await respond(route, 200, state.runs);
+    const runIdFilter = (url.searchParams.get("runId") ?? "").toLowerCase();
+    const releaseFilter = (url.searchParams.get("releaseId") ?? "").toLowerCase();
+    const statusFilter = (url.searchParams.get("status") ?? "").toLowerCase();
+    const page = Math.max(0, Number.parseInt(url.searchParams.get("page") ?? "0", 10) || 0);
+    const size = Math.max(1, Number.parseInt(url.searchParams.get("size") ?? "25", 10) || 25);
+    const filtered = state.runs.filter((run) => {
+      if (runIdFilter && !run.id.toLowerCase().includes(runIdFilter)) {
+        return false;
+      }
+      if (releaseFilter && !run.releaseId.toLowerCase().includes(releaseFilter)) {
+        return false;
+      }
+      if (statusFilter && run.status.toLowerCase() !== statusFilter) {
+        return false;
+      }
+      return true;
+    });
+    const paged = paginateRuns(filtered, page, size, state.runs);
+    await respond(route, 200, paged);
     return;
   }
 
@@ -263,6 +360,39 @@ async function handleRoute(route: Route, state: MockApiState): Promise<void> {
   }
 
   await respond(route, 404, { detail: `unhandled route: ${method} ${path}` });
+}
+
+function paginateRuns(runs: RunSummary[], page: number, size: number, allRuns: RunSummary[]): RunSummaryPage {
+  const totalItems = runs.length;
+  const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / size);
+  const start = page * size;
+  const items = runs.slice(start, start + size);
+
+  return {
+    items,
+    page: {
+      page,
+      size,
+      totalItems,
+      totalPages,
+    },
+    activeRunCount: allRuns.filter((run) => run.status === "running").length,
+  };
+}
+
+function paginateItems<T>(items: T[], page: number, size: number) {
+  const totalItems = items.length;
+  const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / size);
+  const start = page * size;
+  return {
+    items: items.slice(start, start + size),
+    page: {
+      page,
+      size,
+      totalItems,
+      totalPages,
+    },
+  };
 }
 
 async function respond(route: Route, status: number, payload: unknown): Promise<void> {

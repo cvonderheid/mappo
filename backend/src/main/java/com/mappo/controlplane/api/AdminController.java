@@ -7,11 +7,19 @@ import com.mappo.controlplane.api.request.TargetRegistrationPatchRequest;
 import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.model.DeleteRegistrationResultRecord;
 import com.mappo.controlplane.model.EventIngestResultRecord;
+import com.mappo.controlplane.model.ForwarderLogPageRecord;
 import com.mappo.controlplane.model.ForwarderLogIngestResultRecord;
 import com.mappo.controlplane.model.ForwarderLogRecord;
+import com.mappo.controlplane.model.MarketplaceEventPageRecord;
 import com.mappo.controlplane.model.OnboardingSnapshotRecord;
+import com.mappo.controlplane.model.ReleaseWebhookDeliveryPageRecord;
 import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
+import com.mappo.controlplane.model.TargetRegistrationPageRecord;
 import com.mappo.controlplane.model.TargetRegistrationRecord;
+import com.mappo.controlplane.model.query.ForwarderLogPageQuery;
+import com.mappo.controlplane.model.query.MarketplaceEventPageQuery;
+import com.mappo.controlplane.model.query.ReleaseWebhookDeliveryPageQuery;
+import com.mappo.controlplane.model.query.TargetRegistrationPageQuery;
 import com.mappo.controlplane.service.AdminService;
 import com.mappo.controlplane.service.release.ReleaseManifestIngestService;
 import jakarta.validation.Valid;
@@ -54,6 +62,16 @@ public class AdminController {
         return adminService.ingestMarketplaceEvent(request);
     }
 
+    @GetMapping("/onboarding/events")
+    public MarketplaceEventPageRecord listMarketplaceEvents(
+        @RequestParam(value = "page", defaultValue = "0") int page,
+        @RequestParam(value = "size", defaultValue = "25") int size,
+        @RequestParam(value = "eventId", required = false) String eventId,
+        @RequestParam(value = "status", required = false) String status
+    ) {
+        return adminService.listMarketplaceEventsPage(new MarketplaceEventPageQuery(page, size, eventId, status));
+    }
+
     @GetMapping("/onboarding/forwarder-logs")
     public List<ForwarderLogRecord> listForwarderLogs(
         @RequestParam(value = "limit", defaultValue = "50") int limit
@@ -68,6 +86,30 @@ public class AdminController {
     ) {
         validateIngestToken(ingestToken);
         return adminService.ingestForwarderLog(request);
+    }
+
+    @GetMapping("/onboarding/forwarder-logs/page")
+    public ForwarderLogPageRecord listForwarderLogsPage(
+        @RequestParam(value = "page", defaultValue = "0") int page,
+        @RequestParam(value = "size", defaultValue = "25") int size,
+        @RequestParam(value = "logId", required = false) String logId,
+        @RequestParam(value = "level", required = false) String level
+    ) {
+        return adminService.listForwarderLogsPage(new ForwarderLogPageQuery(page, size, logId, level));
+    }
+
+    @GetMapping("/onboarding/registrations")
+    public TargetRegistrationPageRecord listRegistrations(
+        @RequestParam(value = "page", defaultValue = "0") int page,
+        @RequestParam(value = "size", defaultValue = "25") int size,
+        @RequestParam(value = "targetId", required = false) String targetId,
+        @RequestParam(value = "ring", required = false) String ring,
+        @RequestParam(value = "region", required = false) String region,
+        @RequestParam(value = "tier", required = false) String tier
+    ) {
+        return adminService.listRegistrationsPage(
+            new TargetRegistrationPageQuery(page, size, targetId, ring, region, tier)
+        );
     }
 
     @PostMapping("/releases/ingest/github")
@@ -99,6 +141,18 @@ public class AdminController {
     public DeleteRegistrationResultRecord deleteRegistration(@PathVariable("targetId") String targetId) {
         adminService.deleteTargetRegistration(targetId);
         return new DeleteRegistrationResultRecord(targetId, true);
+    }
+
+    @GetMapping("/releases/webhook-deliveries")
+    public ReleaseWebhookDeliveryPageRecord listReleaseWebhookDeliveries(
+        @RequestParam(value = "page", defaultValue = "0") int page,
+        @RequestParam(value = "size", defaultValue = "25") int size,
+        @RequestParam(value = "deliveryId", required = false) String deliveryId,
+        @RequestParam(value = "status", required = false) String status
+    ) {
+        return adminService.listReleaseWebhookDeliveriesPage(
+            new ReleaseWebhookDeliveryPageQuery(page, size, deliveryId, status)
+        );
     }
 
     private void validateIngestToken(String ingestToken) {

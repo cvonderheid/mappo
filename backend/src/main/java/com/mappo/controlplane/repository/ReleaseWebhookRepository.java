@@ -2,15 +2,21 @@ package com.mappo.controlplane.repository;
 
 import static com.mappo.controlplane.jooq.Tables.RELEASE_WEBHOOK_DELIVERIES;
 
+import com.mappo.controlplane.jooq.enums.MappoReleaseWebhookStatus;
+import com.mappo.controlplane.model.PageMetadataRecord;
+import com.mappo.controlplane.model.ReleaseWebhookDeliveryPageRecord;
 import com.mappo.controlplane.model.ReleaseWebhookDeliveryRecord;
 import com.mappo.controlplane.model.command.ReleaseWebhookDeliveryCommand;
+import com.mappo.controlplane.model.query.ReleaseWebhookDeliveryPageQuery;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Record;
+import org.jooq.impl.DSL;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -20,6 +26,26 @@ public class ReleaseWebhookRepository {
     private final DSLContext dsl;
 
     public List<ReleaseWebhookDeliveryRecord> listReleaseWebhookDeliveries(int limit) {
+        return listReleaseWebhookDeliveriesPage(
+            new ReleaseWebhookDeliveryPageQuery(0, Math.max(1, limit), null, null)
+        ).items();
+    }
+
+    public ReleaseWebhookDeliveryPageRecord listReleaseWebhookDeliveriesPage(ReleaseWebhookDeliveryPageQuery query) {
+        int page = normalizePage(query == null ? null : query.page());
+        int size = normalizeSize(query == null ? null : query.size());
+        Condition condition = buildDeliveryCondition(query);
+        if (condition == null) {
+            return new ReleaseWebhookDeliveryPageRecord(List.of(), new PageMetadataRecord(page, size, 0L, 0));
+        }
+
+        long totalItems = dsl.fetchCount(
+            dsl.select(RELEASE_WEBHOOK_DELIVERIES.ID)
+                .from(RELEASE_WEBHOOK_DELIVERIES)
+                .where(condition)
+        );
+        int totalPages = totalItems == 0 ? 0 : (int) Math.ceil((double) totalItems / size);
+
         var rows = dsl.select(
                 RELEASE_WEBHOOK_DELIVERIES.ID,
                 RELEASE_WEBHOOK_DELIVERIES.EXTERNAL_DELIVERY_ID,
@@ -38,11 +64,16 @@ public class ReleaseWebhookRepository {
                 RELEASE_WEBHOOK_DELIVERIES.RECEIVED_AT
             )
             .from(RELEASE_WEBHOOK_DELIVERIES)
+            .where(condition)
             .orderBy(RELEASE_WEBHOOK_DELIVERIES.RECEIVED_AT.desc())
-            .limit(Math.max(1, limit))
+            .limit(size)
+            .offset(page * size)
             .fetch();
 
-        return rows.map(this::toRecord);
+        return new ReleaseWebhookDeliveryPageRecord(
+            rows.map(this::toRecord),
+            new PageMetadataRecord(page, size, totalItems, totalPages)
+        );
     }
 
     public void saveDelivery(ReleaseWebhookDeliveryCommand command) {
@@ -121,5 +152,38 @@ public class ReleaseWebhookRepository {
             .map(String::trim)
             .filter(part -> !part.isBlank())
             .toList();
+    }
+
+    private Condition buildDeliveryCondition(ReleaseWebhookDeliveryPageQuery query) {
+        if (query == null) {
+            return DSL.trueCondition();
+        }
+
+        Condition condition = DSL.trueCondition();
+        String deliveryId = normalize(query.deliveryId());
+        String status = normalize(query.status()).toLowerCase();
+
+        if (!deliveryId.isBlank()) {
+            condition = condition.and(RELEASE_WEBHOOK_DELIVERIES.EXTERNAL_DELIVERY_ID.containsIgnoreCase(deliveryId));
+        }
+        if (!status.isBlank()) {
+            MappoReleaseWebhookStatus parsedStatus = MappoReleaseWebhookStatus.lookupLiteral(status);
+            if (parsedStatus == null) {
+                return null;
+            }
+            condition = condition.and(RELEASE_WEBHOOK_DELIVERIES.STATUS.eq(parsedStatus));
+        }
+        return condition;
+    }
+
+    private int normalizePage(Integer value) {
+        return value == null || value < 0 ? 0 : value;
+    }
+
+    private int normalizeSize(Integer value) {
+        if (value == null || value <= 0) {
+            return 25;
+        }
+        return Math.min(value, 100);
     }
 }

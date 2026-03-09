@@ -51,6 +51,17 @@ const mockRuns = [
   },
 ];
 
+const mockRunPage = {
+  items: mockRuns,
+  page: {
+    page: 0,
+    size: 25,
+    totalItems: mockRuns.length,
+    totalPages: 1,
+  },
+  activeRunCount: 1,
+};
+
 const mockRunDetail = {
   id: "run-1",
   releaseId: "rel-2026-02-25",
@@ -97,7 +108,31 @@ const mockAdminSnapshot = {
   releaseWebhookDeliveries: [],
 };
 
+const mockTargetPage = {
+  items: mockTargets,
+  page: {
+    page: 0,
+    size: 10,
+    totalItems: mockTargets.length,
+    totalPages: 1,
+  },
+};
+
+const mockRegistrationPage = {
+  items: [],
+  page: {
+    page: 0,
+    size: 10,
+    totalItems: 0,
+    totalPages: 0,
+  },
+};
+
 const apiMock = vi.hoisted(() => ({
+  adminListForwarderLogs: vi.fn(),
+  adminListMarketplaceEvents: vi.fn(),
+  adminListReleaseWebhookDeliveries: vi.fn(),
+  adminListTargetRegistrations: vi.fn(),
   adminIngestGithubReleaseManifest: vi.fn(),
   adminIngestMarketplaceEvent: vi.fn(),
   createRun: vi.fn(),
@@ -106,6 +141,7 @@ const apiMock = vi.hoisted(() => ({
   listReleases: vi.fn(),
   listRuns: vi.fn(),
   listTargets: vi.fn(),
+  listTargetsPage: vi.fn(),
   previewRun: vi.fn(),
   resumeRun: vi.fn(),
   retryFailed: vi.fn(),
@@ -115,6 +151,10 @@ vi.mock("@/lib/api", () => apiMock);
 
 describe("App", () => {
   beforeEach(() => {
+    apiMock.adminListForwarderLogs.mockReset();
+    apiMock.adminListMarketplaceEvents.mockReset();
+    apiMock.adminListReleaseWebhookDeliveries.mockReset();
+    apiMock.adminListTargetRegistrations.mockReset();
     apiMock.adminIngestGithubReleaseManifest.mockReset();
     apiMock.adminIngestMarketplaceEvent.mockReset();
     apiMock.createRun.mockReset();
@@ -123,9 +163,14 @@ describe("App", () => {
     apiMock.retryFailed.mockReset();
     apiMock.listTargets.mockResolvedValue(mockTargets);
     apiMock.listReleases.mockResolvedValue(mockReleases);
-    apiMock.listRuns.mockResolvedValue(mockRuns);
+    apiMock.listRuns.mockResolvedValue(mockRunPage);
     apiMock.getRun.mockResolvedValue(mockRunDetail);
     apiMock.getAdminOnboardingSnapshot.mockResolvedValue(mockAdminSnapshot);
+    apiMock.listTargetsPage.mockResolvedValue(mockTargetPage);
+    apiMock.adminListTargetRegistrations.mockResolvedValue(mockRegistrationPage);
+    apiMock.adminListMarketplaceEvents.mockResolvedValue(mockRegistrationPage);
+    apiMock.adminListForwarderLogs.mockResolvedValue(mockRegistrationPage);
+    apiMock.adminListReleaseWebhookDeliveries.mockResolvedValue(mockRegistrationPage);
     apiMock.previewRun.mockResolvedValue({
       releaseVersion: "2026.02.25.3",
       mode: "ARM_WHAT_IF",

@@ -155,6 +155,12 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Enforcement (test/lint/checklist): when splitting operational concepts in the UI, verify the backing data source represents the same concept or rename the field until the data model catches up.
 
 - Date: 2026-03-09
+- Pattern: Internal tracing identifiers confuse operators when surfaced in the normal run timeline alongside actionable Azure request metadata.
+- Preventative rule: Keep MAPPO-only correlation keys in storage/debug views, but reserve the default operator UI for Azure-facing request, correlation, deployment, and resource identifiers.
+- Detection signal: users ask what `corr-run-...` means or whether they should care about it during troubleshooting.
+- Enforcement (test/lint/checklist): operator-facing run-detail tests should assert Azure error metadata remains visible while internal stage correlation labels stay hidden.
+
+- Date: 2026-03-09
 - Pattern: Page-level action buttons and sticky inline result banners create ambiguity when the action really belongs to one sub-tab and the feedback is transient.
 - Preventative rule: Place refresh actions inside the data context they mutate, and use Sonner-style transient notifications for short-lived action outcomes instead of persistent summary banners.
 - Detection signal: operators ask what a button is refreshing, or a one-time result message remains on screen after the action is complete and competes with durable tables/logs.
@@ -165,3 +171,15 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Preventative rule: When a rollout control such as `all_at_once`, `waves`, or `concurrency` is exposed to operators, backend execution and integration tests must prove the semantics are actually honored.
 - Detection signal: the run-creation request blocks until completion, the deployment drawer never closes, or “all at once” rollouts visibly execute one target at a time.
 - Enforcement (test/lint/checklist): keep integration coverage that asserts immediate `running` run creation, bounded parallel execution, and wave-order execution before shipping rollout UX changes.
+
+- Date: 2026-03-09
+- Pattern: Large operator tables become hard to scale and impossible to stream cleanly when the backend still returns full snapshots and the frontend layers client-only filters on top.
+- Preventative rule: Introduce backend pagination/query contracts before adding live-update mechanisms like SSE, and make the generated OpenAPI/client surface the source of truth for those collection shapes.
+- Detection signal: polling endpoints return full lists, table state cannot be linked to server-side filters, or SSE design discussions stall because there is no stable paginated contract to invalidate/refetch.
+- Enforcement (test/lint/checklist): every new high-volume table should land with backend pagination/filtering tests plus frontend generated-type verification in the same slice.
+
+- Date: 2026-03-09
+- Pattern: Partial pagination rollouts leave the app shell juggling incompatible fetch models and delay the SSE work they were supposed to enable.
+- Preventative rule: When a dashboard area starts the move to backend pagination, finish the entire operator surface cluster in the same program phase so state management can converge on one model before introducing live updates.
+- Detection signal: sibling tables in the same UI area mix paginated server queries with legacy full-snapshot refreshes.
+- Enforcement (test/lint/checklist): before starting SSE work, confirm each high-volume operator table in scope has backend pagination, generated-client coverage, and shared pagination controls.

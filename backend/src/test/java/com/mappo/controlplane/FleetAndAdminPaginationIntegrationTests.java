@@ -1,0 +1,165 @@
+package com.mappo.controlplane;
+
+import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.mappo.controlplane.jooq.enums.MappoReleaseWebhookStatus;
+import com.mappo.controlplane.model.command.ReleaseWebhookDeliveryCommand;
+import com.mappo.controlplane.repository.ReleaseWebhookRepository;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
+
+@SpringBootTest
+class FleetAndAdminPaginationIntegrationTests extends PostgresIntegrationTestBase {
+
+    @Autowired
+    private WebApplicationContext context;
+
+    @Autowired
+    private ReleaseWebhookRepository releaseWebhookRepository;
+
+    private MockMvc mockMvc;
+
+    private final ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
+
+    @BeforeEach
+    void setupMockMvc() {
+        mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+    }
+
+    @Test
+    void fleetAndAdminEndpointsReturnPagedData() throws Exception {
+        registerTarget("target-fleet-01", "11111111-1111-1111-1111-111111111111", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "canary", "centralus", "gold");
+        registerTarget("target-fleet-02", "22222222-2222-2222-2222-222222222222", "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "prod", "eastus", "gold");
+        registerTarget("target-fleet-03", "33333333-3333-3333-3333-333333333333", "cccccccc-cccc-cccc-cccc-cccccccccccc", "prod", "westus2", "silver");
+
+        ingestForwarderLog("log-fleet-001", "error", "target-fleet-01");
+        ingestForwarderLog("log-fleet-002", "warning", "target-fleet-02");
+
+        releaseWebhookRepository.saveDelivery(new ReleaseWebhookDeliveryCommand(
+            "wh-001",
+            "gh-delivery-001",
+            "push",
+            "cvonderheid/mappo-managed-app",
+            "refs/heads/main",
+            "releases/releases.manifest.json",
+            MappoReleaseWebhookStatus.applied,
+            "created one release",
+            java.util.List.of("releases/releases.manifest.json"),
+            4,
+            1,
+            3,
+            0,
+            java.util.List.of("rel-123"),
+            OffsetDateTime.now(ZoneOffset.UTC)
+        ));
+        releaseWebhookRepository.saveDelivery(new ReleaseWebhookDeliveryCommand(
+            "wh-002",
+            "gh-delivery-002",
+            "push",
+            "cvonderheid/mappo-managed-app",
+            "refs/heads/main",
+            "releases/releases.manifest.json",
+            MappoReleaseWebhookStatus.skipped,
+            "no new releases",
+            java.util.List.of("README.md"),
+            4,
+            0,
+            4,
+            0,
+            java.util.List.of(),
+            OffsetDateTime.now(ZoneOffset.UTC)
+        ));
+
+        mockMvc.perform(get("/api/v1/targets/page?page=0&size=1&ring=prod"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.page.totalItems").value(2))
+            .andExpect(jsonPath("$.page.totalPages").value(2));
+
+        mockMvc.perform(get("/api/v1/targets/page").param("targetId", "target-fleet-03"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].id").value("target-fleet-03"));
+
+        mockMvc.perform(get("/api/v1/admin/onboarding/registrations?page=0&size=1&tier=gold"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.page.totalItems").value(2));
+
+        mockMvc.perform(get("/api/v1/admin/onboarding/events?page=0&size=2&status=applied"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items.length()").value(2))
+            .andExpect(jsonPath("$.page.totalItems").value(3));
+
+        mockMvc.perform(get("/api/v1/admin/onboarding/forwarder-logs/page").param("level", "error"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].logId").value("log-fleet-001"));
+
+        mockMvc.perform(get("/api/v1/admin/releases/webhook-deliveries").param("status", "skipped"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].externalDeliveryId").value("gh-delivery-002"));
+    }
+
+    private void registerTarget(
+        String targetId,
+        String tenantId,
+        String subscriptionId,
+        String ring,
+        String region,
+        String tier
+    ) throws Exception {
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("eventId", "evt-" + targetId);
+        event.put("eventType", "subscription_purchased");
+        event.put("tenantId", tenantId);
+        event.put("subscriptionId", subscriptionId);
+        event.put("targetId", targetId);
+        event.put("displayName", targetId);
+        event.put("customerName", "Demo Customer " + targetId);
+        event.put(
+            "containerAppResourceId",
+            "/subscriptions/" + subscriptionId + "/resourceGroups/rg-" + targetId + "/providers/Microsoft.App/containerApps/ca-" + targetId
+        );
+        event.put("managedResourceGroupId", "/subscriptions/" + subscriptionId + "/resourceGroups/rg-" + targetId);
+        event.put("tags", Map.of("ring", ring, "region", region, "tier", tier, "environment", "prod"));
+
+        mockMvc.perform(post("/api/v1/admin/onboarding/events")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(event)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("applied"));
+    }
+
+    private void ingestForwarderLog(String logId, String level, String targetId) throws Exception {
+        Map<String, Object> log = new LinkedHashMap<>();
+        log.put("logId", logId);
+        log.put("level", level);
+        log.put("message", "log for " + targetId);
+        log.put("targetId", targetId);
+        log.put("eventId", "evt-" + targetId);
+        log.put("eventType", "subscription_purchased");
+
+        mockMvc.perform(post("/api/v1/admin/onboarding/forwarder-logs")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(log)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("applied"));
+    }
+}

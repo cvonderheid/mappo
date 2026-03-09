@@ -89,7 +89,7 @@ test("shows structured Azure stage errors in run detail", async ({ page }) => {
 
   await expect(page).toHaveURL(/\/deployments\/run-failed$/);
   await expect(page.getByTestId("stage-error-code-target-03-DEPLOYING")).toBeVisible();
-  await expect(page.getByText("correlation-id: corr-e2e-deploying")).toBeVisible();
+  await expect(page.getByText("correlation-id: corr-e2e-deploying")).toHaveCount(0);
 
   await page.getByText("Azure error details").first().click();
   await expect(page.getByText(/MANIFEST_UNKNOWN/)).toBeVisible();

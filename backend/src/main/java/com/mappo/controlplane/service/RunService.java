@@ -8,7 +8,9 @@ import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.jooq.enums.MappoTargetStage;
 import com.mappo.controlplane.model.command.CreateRunCommand;
 import com.mappo.controlplane.model.RunDetailRecord;
+import com.mappo.controlplane.model.RunSummaryPageRecord;
 import com.mappo.controlplane.model.RunSummaryRecord;
+import com.mappo.controlplane.model.query.RunPageQuery;
 import com.mappo.controlplane.repository.RunRepository;
 import com.mappo.controlplane.service.run.RunDispatchService;
 import com.mappo.controlplane.service.run.RunExecutionService;
@@ -31,6 +33,10 @@ public class RunService {
 
     public List<RunSummaryRecord> listRuns() {
         return runRepository.listRunSummaries();
+    }
+
+    public RunSummaryPageRecord listRunsPage(RunPageQuery query) {
+        return runRepository.listRunSummariesPage(query);
     }
 
     public RunDetailRecord getRun(String runId) {
