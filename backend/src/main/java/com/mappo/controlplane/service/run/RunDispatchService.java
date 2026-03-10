@@ -3,7 +3,9 @@ package com.mappo.controlplane.service.run;
 import com.mappo.controlplane.azure.AzureExecutorClient;
 import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.jooq.enums.MappoRunStatus;
-import com.mappo.controlplane.repository.RunCommandRepository;
+import com.mappo.controlplane.repository.RunExecutionStateRepository;
+import com.mappo.controlplane.repository.RunLifecycleCommandRepository;
+import com.mappo.controlplane.repository.RunTargetCommandRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -21,7 +23,9 @@ public class RunDispatchService {
 
     private final Executor runDispatchExecutor;
     private final RunExecutionService runExecutionService;
-    private final RunCommandRepository runCommandRepository;
+    private final RunLifecycleCommandRepository runLifecycleCommandRepository;
+    private final RunTargetCommandRepository runTargetCommandRepository;
+    private final RunExecutionStateRepository runExecutionStateRepository;
     private final LiveUpdateService liveUpdateService;
     private final AzureExecutorClient azureExecutorClient;
     private final RedisRunQueueService redisRunQueueService;
@@ -31,7 +35,9 @@ public class RunDispatchService {
     public RunDispatchService(
         @Qualifier("runDispatchExecutor") Executor runDispatchExecutor,
         RunExecutionService runExecutionService,
-        RunCommandRepository runCommandRepository,
+        RunLifecycleCommandRepository runLifecycleCommandRepository,
+        RunTargetCommandRepository runTargetCommandRepository,
+        RunExecutionStateRepository runExecutionStateRepository,
         LiveUpdateService liveUpdateService,
         AzureExecutorClient azureExecutorClient,
         RedisRunQueueService redisRunQueueService,
@@ -39,7 +45,9 @@ public class RunDispatchService {
     ) {
         this.runDispatchExecutor = runDispatchExecutor;
         this.runExecutionService = runExecutionService;
-        this.runCommandRepository = runCommandRepository;
+        this.runLifecycleCommandRepository = runLifecycleCommandRepository;
+        this.runTargetCommandRepository = runTargetCommandRepository;
+        this.runExecutionStateRepository = runExecutionStateRepository;
         this.liveUpdateService = liveUpdateService;
         this.azureExecutorClient = azureExecutorClient;
         this.redisRunQueueService = redisRunQueueService;
@@ -84,7 +92,7 @@ public class RunDispatchService {
         }
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         for (String runId : activeRunIds) {
-            runCommandRepository.touchRun(runId, now);
+            runLifecycleCommandRepository.touchRun(runId, now);
             if (redisRunQueueService.isEnabled()) {
                 redisRunQueueService.renewRunLease(runId);
             }
@@ -101,12 +109,12 @@ public class RunDispatchService {
         }
         OffsetDateTime cutoff = OffsetDateTime.now(ZoneOffset.UTC)
             .minusNanos(properties.getRedis().getRecoveryStaleAfterMs() * 1_000_000L);
-        for (String runId : runCommandRepository.listStaleRunningRunIds(cutoff)) {
+        for (String runId : runExecutionStateRepository.listStaleRunningRunIds(cutoff)) {
             if (activeRunIds.contains(runId) || redisRunQueueService.isRunLeaseHeld(runId)) {
                 continue;
             }
-            runCommandRepository.requeueActiveTargets(runId, "Queued after stale execution recovery.");
-            runCommandRepository.appendRunWarning(
+            runTargetCommandRepository.requeueActiveTargets(runId, "Queued after stale execution recovery.");
+            runLifecycleCommandRepository.appendRunWarning(
                 runId,
                 "Recovered stale running run and requeued interrupted targets."
             );
@@ -134,11 +142,11 @@ public class RunDispatchService {
             runExecutionService.executeRun(runId, azureExecutorClient.isConfigured());
         } catch (RuntimeException error) {
             log.error("Run execution crashed for {}", runId, error);
-            runCommandRepository.appendRunWarning(
+            runLifecycleCommandRepository.appendRunWarning(
                 runId,
                 "Run execution crashed before completion: " + error.getMessage()
             );
-            runCommandRepository.markRunComplete(
+            runLifecycleCommandRepository.markRunComplete(
                 runId,
                 MappoRunStatus.failed,
                 "execution crashed before completion"

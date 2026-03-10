@@ -19,8 +19,10 @@ import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
 import com.mappo.controlplane.model.TargetRegistrationPageRecord;
 import com.mappo.controlplane.model.TargetRegistrationRecord;
 import com.mappo.controlplane.service.release.ReleaseManifestIngestService;
-import com.mappo.controlplane.service.admin.AdminCommandService;
 import com.mappo.controlplane.service.admin.AdminQueryService;
+import com.mappo.controlplane.service.admin.ForwarderLogCommandService;
+import com.mappo.controlplane.service.admin.MarketplaceOnboardingCommandService;
+import com.mappo.controlplane.service.admin.TargetRegistrationCommandService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -46,7 +48,9 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Admin", description = "Onboarding, registration, webhook, and operational audit endpoints.")
 public class AdminController {
 
-    private final AdminCommandService adminCommandService;
+    private final MarketplaceOnboardingCommandService marketplaceOnboardingCommandService;
+    private final ForwarderLogCommandService forwarderLogCommandService;
+    private final TargetRegistrationCommandService targetRegistrationCommandService;
     private final AdminQueryService adminQueryService;
     private final ReleaseManifestIngestService releaseManifestIngestService;
     private final MappoProperties properties;
@@ -58,7 +62,7 @@ public class AdminController {
         @RequestHeader(value = "x-mappo-ingest-token", required = false) String ingestToken
     ) {
         validateIngestToken(ingestToken);
-        return adminCommandService.ingestMarketplaceEvent(request);
+        return marketplaceOnboardingCommandService.ingest(request);
     }
 
     @GetMapping("/onboarding/events")
@@ -76,7 +80,7 @@ public class AdminController {
         @RequestHeader(value = "x-mappo-ingest-token", required = false) String ingestToken
     ) {
         validateIngestToken(ingestToken);
-        return adminCommandService.ingestForwarderLog(request);
+        return forwarderLogCommandService.ingest(request);
     }
 
     @GetMapping("/onboarding/forwarder-logs/page")
@@ -120,13 +124,13 @@ public class AdminController {
         @PathVariable("targetId") String targetId,
         @RequestBody TargetRegistrationPatchRequest patch
     ) {
-        return adminCommandService.updateTargetRegistration(targetId, patch);
+        return targetRegistrationCommandService.update(targetId, patch);
     }
 
     @DeleteMapping("/onboarding/registrations/{targetId}")
     @Operation(summary = "Delete a registered target")
     public DeleteRegistrationResultRecord deleteRegistration(@PathVariable("targetId") String targetId) {
-        adminCommandService.deleteTargetRegistration(targetId);
+        targetRegistrationCommandService.delete(targetId);
         return new DeleteRegistrationResultRecord(targetId, true);
     }
 

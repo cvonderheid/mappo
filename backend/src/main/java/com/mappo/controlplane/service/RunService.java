@@ -11,8 +11,11 @@ import com.mappo.controlplane.model.RunDetailRecord;
 import com.mappo.controlplane.model.RunSummaryPageRecord;
 import com.mappo.controlplane.model.RunSummaryRecord;
 import com.mappo.controlplane.model.query.RunPageQuery;
-import com.mappo.controlplane.repository.RunCommandRepository;
-import com.mappo.controlplane.repository.RunRepository;
+import com.mappo.controlplane.repository.RunExecutionStateRepository;
+import com.mappo.controlplane.repository.RunLifecycleCommandRepository;
+import com.mappo.controlplane.repository.RunTargetCommandRepository;
+import com.mappo.controlplane.repository.RunDetailQueryRepository;
+import com.mappo.controlplane.repository.RunSummaryQueryRepository;
 import com.mappo.controlplane.service.run.RunDispatchService;
 import com.mappo.controlplane.service.run.RunRequestContext;
 import com.mappo.controlplane.service.run.RunRequestResolverService;
@@ -28,23 +31,26 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class RunService {
 
-    private final RunRepository runRepository;
-    private final RunCommandRepository runCommandRepository;
+    private final RunSummaryQueryRepository runSummaryQueryRepository;
+    private final RunDetailQueryRepository runDetailQueryRepository;
+    private final RunLifecycleCommandRepository runLifecycleCommandRepository;
+    private final RunTargetCommandRepository runTargetCommandRepository;
+    private final RunExecutionStateRepository runExecutionStateRepository;
     private final RunDispatchService runDispatchService;
     private final RunRequestResolverService runRequestResolverService;
     private final LiveUpdateService liveUpdateService;
     private final TransactionHookService transactionHookService;
 
     public List<RunSummaryRecord> listRuns() {
-        return runRepository.listRunSummaries();
+        return runSummaryQueryRepository.listRunSummaries();
     }
 
     public RunSummaryPageRecord listRunsPage(RunPageQuery query) {
-        return runRepository.listRunSummariesPage(query);
+        return runSummaryQueryRepository.listRunSummariesPage(query);
     }
 
     public RunDetailRecord getRun(String runId) {
-        return runRepository.getRunDetail(runId)
+        return runDetailQueryRepository.getRunDetail(runId)
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "run not found: " + runId));
     }
 
@@ -55,7 +61,7 @@ public class RunService {
 
         String runId = "run-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
         MappoReleaseSourceType executionSourceType = context.release().sourceType();
-        runCommandRepository.createRun(runId, command, context.targets(), executionSourceType);
+        runLifecycleCommandRepository.createRun(runId, command, context.targets(), executionSourceType);
         RunDetailRecord initialRun = getRun(runId);
         transactionHookService.afterCommitOrNow(() -> {
             liveUpdateService.emitRunsUpdated();
@@ -71,15 +77,15 @@ public class RunService {
         if (detail.status() != MappoRunStatus.halted) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "run is not resumable");
         }
-        List<String> requeuedTargetIds = runCommandRepository.requeueActiveTargets(
+        List<String> requeuedTargetIds = runTargetCommandRepository.requeueActiveTargets(
             runId,
             "Queued after execution recovery or resume."
         );
-        RunExecutionCountsRecord counts = runCommandRepository.getExecutionCounts(runId);
+        RunExecutionCountsRecord counts = runExecutionStateRepository.getExecutionCounts(runId);
         if (!counts.hasQueuedTargets() && requeuedTargetIds.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "run has no queued targets to resume");
         }
-        runCommandRepository.markRunRunning(runId, null);
+        runLifecycleCommandRepository.markRunRunning(runId, null);
         transactionHookService.afterCommitOrNow(() -> {
             liveUpdateService.emitRunsUpdated();
             liveUpdateService.emitRunUpdated(runId);
@@ -100,9 +106,9 @@ public class RunService {
         if (failed == 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "run has no failed targets to retry");
         }
-        runCommandRepository.requeueFailedTargets(runId, "Queued for retry after failed deployment.");
-        runCommandRepository.requeueActiveTargets(runId, "Queued after execution recovery or retry.");
-        runCommandRepository.markRunRunning(runId, null);
+        runTargetCommandRepository.requeueFailedTargets(runId, "Queued for retry after failed deployment.");
+        runTargetCommandRepository.requeueActiveTargets(runId, "Queued after execution recovery or retry.");
+        runLifecycleCommandRepository.markRunRunning(runId, null);
         transactionHookService.afterCommitOrNow(() -> {
             liveUpdateService.emitRunsUpdated();
             liveUpdateService.emitRunUpdated(runId);

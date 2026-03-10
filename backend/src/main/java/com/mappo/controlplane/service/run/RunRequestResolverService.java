@@ -4,7 +4,7 @@ import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.RunCreateRequest;
 import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.model.command.CreateRunCommand;
-import com.mappo.controlplane.repository.TargetQueryRepository;
+import com.mappo.controlplane.repository.TargetRecordQueryRepository;
 import com.mappo.controlplane.service.ReleaseService;
 import java.util.List;
 import java.util.Map;
@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class RunRequestResolverService {
 
-    private final TargetQueryRepository targetQueryRepository;
+    private final TargetRecordQueryRepository targetRecordQueryRepository;
     private final ReleaseService releaseService;
 
     public RunRequestContext resolve(RunCreateRequest request) {
@@ -43,13 +43,13 @@ public class RunRequestResolverService {
 
     private List<TargetRecord> resolveTargets(CreateRunCommand request) {
         if (!request.targetIds().isEmpty()) {
-            return targetQueryRepository.getTargetsByIds(request.targetIds());
+            return targetRecordQueryRepository.getTargetsByIds(request.targetIds());
         }
 
         if (!request.targetTags().isEmpty()) {
-            return targetQueryRepository.getTargetsByTagFilters(request.targetTags());
+            return targetRecordQueryRepository.getTargetsByTagFilters(request.targetTags());
         }
 
-        return targetQueryRepository.listTargets(Map.of());
+        return targetRecordQueryRepository.listTargets(Map.of());
     }
 }

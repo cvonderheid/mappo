@@ -129,3 +129,4 @@ Behavior:
 
 ## Related Design Docs
 - Current Azure demo topology: `/Users/cvonderheid/workspace/mappo/docs/demo-azure-topology.md`
+- Modular execution architecture: `/Users/cvonderheid/workspace/mappo/docs/modular-execution-architecture.md`

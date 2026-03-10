@@ -5,19 +5,13 @@ import static com.mappo.controlplane.jooq.Tables.RELEASE_PARAMETER_DEFAULTS;
 import static com.mappo.controlplane.jooq.Tables.RELEASE_VERIFICATION_HINTS;
 
 import com.mappo.controlplane.jooq.enums.MappoArmDeploymentMode;
-import com.mappo.controlplane.jooq.enums.MappoDeploymentScope;
-import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.model.ReleaseExecutionSettingsRecord;
-import com.mappo.controlplane.model.command.CreateReleaseCommand;
 import com.mappo.controlplane.model.ReleaseRecord;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.jooq.Record;
@@ -25,7 +19,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 @RequiredArgsConstructor
-public class ReleaseRepository {
+public class ReleaseQueryRepository {
 
     private final DSLContext dsl;
 
@@ -84,75 +78,6 @@ public class ReleaseRepository {
         Map<String, String> defaults = loadDefaults(List.of(releaseId)).getOrDefault(releaseId, Map.of());
         List<String> hints = loadHints(List.of(releaseId)).getOrDefault(releaseId, List.of());
         return Optional.of(toReleaseRecord(row, defaults, hints));
-    }
-
-    public ReleaseRecord createRelease(CreateReleaseCommand request) {
-        String releaseId = "rel-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
-        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-
-        MappoReleaseSourceType sourceType = enumOrDefault(
-            request.sourceType(),
-            MappoReleaseSourceType.template_spec
-        );
-        MappoDeploymentScope deploymentScope = enumOrDefault(
-            request.deploymentScope(),
-            MappoDeploymentScope.resource_group
-        );
-
-        dsl.insertInto(RELEASES)
-            .set(RELEASES.ID, releaseId)
-            .set(RELEASES.SOURCE_REF, normalize(request.sourceRef()))
-            .set(RELEASES.SOURCE_VERSION, normalize(request.sourceVersion()))
-            .set(RELEASES.SOURCE_TYPE, sourceType)
-            .set(RELEASES.SOURCE_VERSION_REF, nullableText(request.sourceVersionRef()))
-            .set(RELEASES.DEPLOYMENT_SCOPE, deploymentScope)
-            .set(
-                RELEASES.ARM_DEPLOYMENT_MODE,
-                enumOrDefault(request.armDeploymentMode(), MappoArmDeploymentMode.incremental)
-            )
-            .set(RELEASES.WHAT_IF_ON_CANARY, request.whatIfOnCanary())
-            .set(RELEASES.VERIFY_AFTER_DEPLOY, request.verifyAfterDeploy())
-            .set(RELEASES.RELEASE_NOTES, normalize(request.releaseNotes()))
-            .set(RELEASES.CREATED_AT, now)
-            .execute();
-
-        Map<String, String> defaults = new LinkedHashMap<>();
-        if (request.parameterDefaults() != null && !request.parameterDefaults().isEmpty()) {
-            for (Map.Entry<String, String> entry : request.parameterDefaults().entrySet()) {
-                String key = normalize(entry.getKey());
-                if (!key.isBlank()) {
-                    defaults.put(key, normalize(entry.getValue()));
-                }
-            }
-        }
-
-        for (Map.Entry<String, String> entry : defaults.entrySet()) {
-            dsl.insertInto(RELEASE_PARAMETER_DEFAULTS)
-                .set(RELEASE_PARAMETER_DEFAULTS.RELEASE_ID, releaseId)
-                .set(RELEASE_PARAMETER_DEFAULTS.PARAM_KEY, entry.getKey())
-                .set(RELEASE_PARAMETER_DEFAULTS.PARAM_VALUE, entry.getValue())
-                .execute();
-        }
-
-        List<String> hints = new ArrayList<>();
-        if (request.verificationHints() != null && !request.verificationHints().isEmpty()) {
-            for (String item : request.verificationHints()) {
-                String hint = normalize(item);
-                if (!hint.isBlank()) {
-                    hints.add(hint);
-                }
-            }
-        }
-
-        for (int i = 0; i < hints.size(); i++) {
-            dsl.insertInto(RELEASE_VERIFICATION_HINTS)
-                .set(RELEASE_VERIFICATION_HINTS.RELEASE_ID, releaseId)
-                .set(RELEASE_VERIFICATION_HINTS.POSITION, i)
-                .set(RELEASE_VERIFICATION_HINTS.HINT, hints.get(i))
-                .execute();
-        }
-
-        return getRelease(releaseId).orElseThrow();
     }
 
     private Map<String, Map<String, String>> loadDefaults(List<String> releaseIds) {
@@ -223,15 +148,6 @@ public class ReleaseRepository {
             Boolean.TRUE.equals(row.get(RELEASES.WHAT_IF_ON_CANARY)),
             !Boolean.FALSE.equals(row.get(RELEASES.VERIFY_AFTER_DEPLOY))
         );
-    }
-
-    private String nullableText(Object value) {
-        String text = normalize(value);
-        return text.isBlank() ? null : text;
-    }
-
-    private String normalize(Object value) {
-        return value == null ? "" : String.valueOf(value).trim();
     }
 
     private <T> T enumOrDefault(T value, T fallback) {

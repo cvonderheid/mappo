@@ -2,6 +2,7 @@ package com.mappo.controlplane.service;
 
 import com.mappo.controlplane.api.request.RunCreateRequest;
 import com.mappo.controlplane.azure.AzureExecutorClient;
+import com.mappo.controlplane.domain.execution.DeploymentPreviewDriver;
 import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.RunPreviewMode;
@@ -13,7 +14,7 @@ import com.mappo.controlplane.model.StageErrorRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.repository.TargetExecutionContextRepository;
-import com.mappo.controlplane.service.run.DeploymentStackPreviewExecutor;
+import com.mappo.controlplane.service.run.DeploymentDriverRegistry;
 import com.mappo.controlplane.service.run.RunRequestContext;
 import com.mappo.controlplane.service.run.RunRequestResolverService;
 import com.mappo.controlplane.service.run.TargetPreviewException;
@@ -34,7 +35,7 @@ public class RunPreviewService {
     private final RunRequestResolverService runRequestResolverService;
     private final TargetExecutionContextRepository targetExecutionContextRepository;
     private final AzureExecutorClient azureExecutorClient;
-    private final DeploymentStackPreviewExecutor deploymentStackPreviewExecutor;
+    private final DeploymentDriverRegistry deploymentDriverRegistry;
 
     public RunPreviewRecord previewRun(RunCreateRequest request) {
         RunRequestContext context = runRequestResolverService.resolve(request);
@@ -88,7 +89,9 @@ public class RunPreviewService {
         }
 
         try {
-            TargetPreviewOutcome outcome = deploymentStackPreviewExecutor.preview(release, context);
+            DeploymentPreviewDriver previewDriver = deploymentDriverRegistry.findPreviewDriver(release, azureExecutorClient.isConfigured())
+                .orElseThrow(() -> new IllegalStateException("preview driver not found for supported release"));
+            TargetPreviewOutcome outcome = previewDriver.preview(release, context);
             return new RunTargetPreviewRecord(
                 target.id(),
                 firstNonBlank(target.customerName(), target.id()),
@@ -157,12 +160,9 @@ public class RunPreviewService {
     }
 
     private RunPreviewMode previewMode(ReleaseRecord release, boolean azureConfigured) {
-        if (azureConfigured
-            && release.sourceType() == MappoReleaseSourceType.deployment_stack
-            && release.deploymentScope().getLiteral().equals("resource_group")) {
-            return RunPreviewMode.ARM_WHAT_IF;
-        }
-        return RunPreviewMode.UNSUPPORTED;
+        return deploymentDriverRegistry.findPreviewDriver(release, azureConfigured)
+            .map(DeploymentPreviewDriver::mode)
+            .orElse(RunPreviewMode.UNSUPPORTED);
     }
 
     private List<String> previewWarnings(ReleaseRecord release, boolean azureConfigured) {

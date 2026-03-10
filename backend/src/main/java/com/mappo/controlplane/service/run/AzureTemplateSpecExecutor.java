@@ -6,18 +6,13 @@ import com.azure.resourcemanager.appcontainers.ContainerAppsApiManager;
 import com.azure.resourcemanager.appcontainers.models.ContainerApp;
 import com.azure.resourcemanager.resources.ResourceManager;
 import com.azure.resourcemanager.resources.fluent.models.DeploymentOperationInner;
-import com.azure.resourcemanager.resources.fluentcore.arm.ResourceId;
 import com.azure.resourcemanager.resources.models.Deployment;
-import com.azure.resourcemanager.resources.models.DeploymentMode;
 import com.mappo.controlplane.azure.AzureExecutorClient;
-import com.mappo.controlplane.jooq.enums.MappoArmDeploymentMode;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.StageErrorDetailsRecord;
 import com.mappo.controlplane.model.StageErrorRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
-import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -25,11 +20,9 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
 
-    private static final String DEPLOYMENT_TEMPLATE_SCHEMA =
-        "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#";
-    private static final String DEPLOYMENT_RESOURCE_API_VERSION = "2022-09-01";
-
     private final AzureExecutorClient azureExecutorClient;
+    private final AzureTemplateSpecRequestFactory requestFactory;
+    private final AzureTemplateSpecStateService stateService;
 
     @Override
     public TargetDeploymentOutcome deploy(
@@ -37,11 +30,11 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
         ReleaseRecord release,
         TargetExecutionContextRecord target
     ) {
-        String tenantId = uuidText(target.tenantId(), "tenantId");
-        String subscriptionId = uuidText(target.subscriptionId(), "subscriptionId");
-        String templateSpecVersionId = resolveTemplateSpecVersionId(release, subscriptionId);
-        String resourceGroupName = parseResourceGroupName(target.managedResourceGroupId(), target.targetId());
-        String deploymentName = buildDeploymentName(runId, target.targetId());
+        String tenantId = requestFactory.uuidText(target.tenantId(), "tenantId");
+        String subscriptionId = requestFactory.uuidText(target.subscriptionId(), "subscriptionId");
+        String templateSpecVersionId = requestFactory.resolveTemplateSpecVersionId(release, subscriptionId);
+        String resourceGroupName = requestFactory.parseResourceGroupName(target.managedResourceGroupId(), target.targetId());
+        String deploymentName = requestFactory.buildDeploymentName(runId, target.targetId());
 
         try {
             ContainerAppsApiManager containerAppsManager = azureExecutorClient.createContainerAppsManager(tenantId, subscriptionId);
@@ -52,15 +45,15 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
                 .deployments()
                 .define(deploymentName)
                 .withExistingResourceGroup(resourceGroupName)
-                .withTemplate(wrapperTemplate(templateSpecVersionId, release, target, currentContainerApp))
+                .withTemplate(requestFactory.wrapperTemplate(templateSpecVersionId, release, target, currentContainerApp))
                 .withParameters(Map.of())
-                .withMode(toAzureMode(release.executionSettings().armMode()))
+                .withMode(requestFactory.toAzureMode(release.executionSettings().armMode()))
                 .create();
 
-            String correlationId = fallbackCorrelationId(deployment.correlationId(), runId, target.targetId());
+            String correlationId = requestFactory.fallbackCorrelationId(deployment.correlationId(), runId, target.targetId());
             ManagementError error = deployment.error();
             if (error != null) {
-                DeploymentOperationInner failedOperation = loadFailedDeploymentOperation(resourceManager, resourceGroupName, deploymentName);
+                DeploymentOperationInner failedOperation = stateService.loadFailedDeploymentOperation(resourceManager, resourceGroupName, deploymentName);
                 throw deploymentFailure(
                     "Azure deployment completed with an error state.",
                     error,
@@ -74,9 +67,9 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
                 );
             }
 
-            String provisioningState = normalize(deployment.provisioningState());
+            String provisioningState = requestFactory.normalize(deployment.provisioningState());
             if (!"succeeded".equalsIgnoreCase(provisioningState)) {
-                DeploymentOperationInner failedOperation = loadFailedDeploymentOperation(resourceManager, resourceGroupName, deploymentName);
+                DeploymentOperationInner failedOperation = stateService.loadFailedDeploymentOperation(resourceManager, resourceGroupName, deploymentName);
                 AzureFailureDiagnostics.AzureFailureSnapshot snapshot = AzureFailureDiagnostics.summarize(
                     "Azure deployment finished with provisioning state " + provisioningState + ".",
                     error,
@@ -109,13 +102,13 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
             );
         } catch (ManagementException error) {
             ManagementError managementError = error.getValue();
-            String correlationId = fallbackCorrelationId(
+            String correlationId = requestFactory.fallbackCorrelationId(
                 responseHeader(error, "x-ms-correlation-request-id"),
                 runId,
                 target.targetId()
             );
             ResourceManager resourceManager = azureExecutorClient.createResourceManager(tenantId, subscriptionId);
-            DeploymentOperationInner failedOperation = loadFailedDeploymentOperation(resourceManager, resourceGroupName, deploymentName);
+            DeploymentOperationInner failedOperation = stateService.loadFailedDeploymentOperation(resourceManager, resourceGroupName, deploymentName);
             throw deploymentFailure(
                 "Azure deployment request failed.",
                 managementError,
@@ -141,80 +134,16 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
                         null,
                         null,
                         null,
-                        null,
+                        requestFactory.fallbackCorrelationId(null, runId, target.targetId()),
                         deploymentName,
                         null,
                         target.containerAppResourceId()
                     )
                 ),
-                fallbackCorrelationId(null, runId, target.targetId()),
+                requestFactory.fallbackCorrelationId(null, runId, target.targetId()),
                 ""
             );
         }
-    }
-
-    private Map<String, Object> wrapperTemplate(
-        String templateSpecVersionId,
-        ReleaseRecord release,
-        TargetExecutionContextRecord target,
-        ContainerApp currentContainerApp
-    ) {
-        Map<String, Object> resourceProperties = new LinkedHashMap<>();
-        resourceProperties.put("mode", toAzureMode(release.executionSettings().armMode()).toString());
-        resourceProperties.put("templateLink", Map.of("id", templateSpecVersionId));
-        resourceProperties.put("parameters", deploymentParameters(release.parameterDefaults(), target, currentContainerApp));
-
-        Map<String, Object> nestedDeployment = new LinkedHashMap<>();
-        nestedDeployment.put("type", "Microsoft.Resources/deployments");
-        nestedDeployment.put("apiVersion", DEPLOYMENT_RESOURCE_API_VERSION);
-        nestedDeployment.put("name", "mappo-linked-template-spec");
-        nestedDeployment.put("properties", resourceProperties);
-
-        Map<String, Object> template = new LinkedHashMap<>();
-        template.put("$schema", DEPLOYMENT_TEMPLATE_SCHEMA);
-        template.put("contentVersion", "1.0.0.0");
-        template.put("resources", new Object[]{nestedDeployment});
-        return template;
-    }
-
-    private Map<String, Object> deploymentParameters(
-        Map<String, String> defaults,
-        TargetExecutionContextRecord target,
-        ContainerApp currentContainerApp
-    ) {
-        Map<String, Object> parameters = new LinkedHashMap<>();
-        mergeParameterValues(parameters, defaults);
-        mergeParameterValues(parameters, targetParameterDefaults(target, currentContainerApp));
-        return parameters;
-    }
-
-    private void mergeParameterValues(Map<String, Object> targetParameters, Map<String, String> values) {
-        if (values == null || values.isEmpty()) {
-            return;
-        }
-        for (Map.Entry<String, String> entry : values.entrySet()) {
-            String key = normalize(entry.getKey());
-            if (key.isBlank()) {
-                continue;
-            }
-            targetParameters.put(key, Map.of("value", entry.getValue()));
-        }
-    }
-
-    private Map<String, String> targetParameterDefaults(TargetExecutionContextRecord target, ContainerApp currentContainerApp) {
-        Map<String, String> values = new LinkedHashMap<>();
-        values.put("containerAppName", normalize(currentContainerApp.name()));
-        values.put(
-            "managedEnvironmentResourceId",
-            firstNonBlank(currentContainerApp.managedEnvironmentId(), currentContainerApp.environmentId())
-        );
-        values.put("location", normalize(currentContainerApp.regionName()));
-        values.put("targetGroup", firstNonBlank(target.tags().get("ring"), "prod"));
-        values.put("tenantId", uuidText(target.tenantId(), "tenantId"));
-        values.put("targetId", normalize(target.targetId()));
-        values.put("tier", firstNonBlank(target.tags().get("tier"), "standard"));
-        values.put("environment", firstNonBlank(target.tags().get("environment"), "prod"));
-        return values;
     }
 
     private TargetDeploymentException deploymentFailure(
@@ -254,141 +183,11 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
         );
     }
 
-    private DeploymentOperationInner loadFailedDeploymentOperation(
-        ResourceManager resourceManager,
-        String resourceGroupName,
-        String deploymentName
-    ) {
-        if (resourceManager == null || resourceGroupName.isBlank() || deploymentName.isBlank()) {
-            return null;
-        }
-        try {
-            DeploymentOperationInner latestFailure = null;
-            for (DeploymentOperationInner operation : resourceManager.serviceClient()
-                .getDeploymentOperations()
-                .listByResourceGroup(resourceGroupName, deploymentName)) {
-                if (operation == null || operation.properties() == null) {
-                    continue;
-                }
-                if (operation.properties().statusMessage() != null
-                    && operation.properties().statusMessage().error() != null) {
-                    latestFailure = operation;
-                }
-            }
-            return latestFailure;
-        } catch (RuntimeException ignored) {
-            return null;
-        }
-    }
-
-    private String resolveTemplateSpecVersionId(ReleaseRecord release, String targetSubscriptionId) {
-        String versionRef = normalize(release.sourceVersionRef());
-        if (!versionRef.isBlank()) {
-            return mirrorTemplateSpecVersionId(versionRef, targetSubscriptionId);
-        }
-
-        String sourceRef = normalize(release.sourceRef());
-        if (sourceRef.contains("/versions/")) {
-            return mirrorTemplateSpecVersionId(sourceRef, targetSubscriptionId);
-        }
-        if (sourceRef.isBlank()) {
-            throw new IllegalArgumentException("release sourceRef is required for template_spec execution");
-        }
-
-        String version = normalize(release.sourceVersion());
-        if (version.isBlank()) {
-            throw new IllegalArgumentException("release sourceVersion is required to resolve the Template Spec version ID");
-        }
-        return mirrorTemplateSpecVersionId(sourceRef + "/versions/" + version, targetSubscriptionId);
-    }
-
-    private String mirrorTemplateSpecVersionId(String templateSpecVersionId, String targetSubscriptionId) {
-        String resourceId = normalize(templateSpecVersionId);
-        ResourceId parsed = ResourceId.fromString(resourceId);
-        String sourceSubscriptionId = normalize(parsed.subscriptionId());
-        if (sourceSubscriptionId.isBlank() || sourceSubscriptionId.equalsIgnoreCase(normalize(targetSubscriptionId))) {
-            return resourceId;
-        }
-        String mirrored = resourceId.replaceFirst(
-            "/subscriptions/" + sourceSubscriptionId,
-            "/subscriptions/" + normalize(targetSubscriptionId)
-        );
-        return mirrored;
-    }
-
-    private String parseResourceGroupName(String managedResourceGroupId, String targetId) {
-        String resourceId = normalize(managedResourceGroupId);
-        if (resourceId.isBlank()) {
-            throw new IllegalArgumentException("target " + targetId + " is missing managedResourceGroupId");
-        }
-        String resourceGroupName = ResourceId.fromString(resourceId).resourceGroupName();
-        if (normalize(resourceGroupName).isBlank()) {
-            throw new IllegalArgumentException("target " + targetId + " has an invalid managedResourceGroupId");
-        }
-        return resourceGroupName;
-    }
-
-    private DeploymentMode toAzureMode(MappoArmDeploymentMode mode) {
-        if (mode == MappoArmDeploymentMode.complete) {
-            return DeploymentMode.COMPLETE;
-        }
-        return DeploymentMode.INCREMENTAL;
-    }
-
-    private String buildDeploymentName(String runId, String targetId) {
-        String suffix = sanitize(runId + "-" + targetId);
-        if (suffix.length() > 54) {
-            suffix = suffix.substring(0, 54);
-        }
-        return "mappo-" + suffix;
-    }
-
-    private String sanitize(String value) {
-        String text = normalize(value).toLowerCase();
-        String sanitized = text.replaceAll("[^a-z0-9-]", "-");
-        sanitized = sanitized.replaceAll("-{2,}", "-");
-        sanitized = sanitized.replaceAll("^-|-$", "");
-        return sanitized.isBlank() ? "deployment" : sanitized;
-    }
-
-    private String fallbackCorrelationId(String value, String runId, String targetId) {
-        String normalized = normalize(value);
-        if (!normalized.isBlank()) {
-            return normalized;
-        }
-        return "corr-" + sanitize(runId + "-" + targetId);
-    }
 
     private String responseHeader(ManagementException error, String name) {
         if (error.getResponse() == null || error.getResponse().getHeaders() == null) {
             return "";
         }
-        return normalize(error.getResponse().getHeaders().getValue(name));
-    }
-
-    private String uuidText(UUID value, String fieldName) {
-        if (value == null) {
-            throw new IllegalArgumentException(fieldName + " is required");
-        }
-        return value.toString();
-    }
-
-    private String nullable(String value) {
-        String normalized = normalize(value);
-        return normalized.isBlank() ? null : normalized;
-    }
-
-    private String firstNonBlank(String... values) {
-        for (String value : values) {
-            String normalized = normalize(value);
-            if (!normalized.isBlank()) {
-                return normalized;
-            }
-        }
-        return "";
-    }
-
-    private String normalize(Object value) {
-        return value == null ? "" : String.valueOf(value).trim();
+        return requestFactory.normalize(error.getResponse().getHeaders().getValue(name));
     }
 }

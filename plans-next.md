@@ -316,3 +316,20 @@ Status: demo green; live GitHub webhook delivery setup pending
 
 ## Detailed Plan
 - `/Users/cvonderheid/workspace/mappo/docs/azure-production-execution-plan.md`
+
+## Milestone M: Modular Execution Platform
+**Scope**
+- Evolve MAPPO from a single deployment implementation into a project-oriented orchestration core.
+- Separate project, access strategy, deployment driver, release artifact source, and runtime health concerns.
+- Keep the current Deployment Stack path as the first adapter rather than the hard-coded product model.
+
+**Acceptance criteria**
+- The first execution seam is documented and implemented without changing current Azure demo behavior.
+- The backend package layout has a clear path toward `domain`, `application`, and `infrastructure` responsibilities.
+- A second deployment style such as Lighthouse + Pulumi or Lighthouse + pipeline trigger can be added without expanding release-source switch logic in the orchestration core.
+
+**Status**
+- [x] Architecture note written in `/Users/cvonderheid/workspace/mappo/docs/modular-execution-architecture.md`
+- [ ] Extract execution/access/materialization/health contracts from the current deployment-stack path
+- [ ] Introduce project-level driver/access/health selection
+- [ ] Add the first non-Deployment-Stack driver

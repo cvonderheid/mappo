@@ -8,8 +8,10 @@ import com.mappo.controlplane.model.query.ForwarderLogPageQuery;
 import com.mappo.controlplane.model.query.MarketplaceEventPageQuery;
 import com.mappo.controlplane.model.query.ReleaseWebhookDeliveryPageQuery;
 import com.mappo.controlplane.model.query.TargetRegistrationPageQuery;
-import com.mappo.controlplane.repository.AdminPageRepository;
+import com.mappo.controlplane.repository.ForwarderLogPageRepository;
+import com.mappo.controlplane.repository.MarketplaceEventPageRepository;
 import com.mappo.controlplane.repository.ReleaseWebhookRepository;
+import com.mappo.controlplane.repository.TargetRegistrationPageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -17,19 +19,21 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AdminQueryService {
 
-    private final AdminPageRepository adminPageRepository;
+    private final TargetRegistrationPageRepository targetRegistrationPageRepository;
+    private final MarketplaceEventPageRepository marketplaceEventPageRepository;
+    private final ForwarderLogPageRepository forwarderLogPageRepository;
     private final ReleaseWebhookRepository releaseWebhookRepository;
 
     public TargetRegistrationPageRecord listRegistrationsPage(TargetRegistrationPageQuery query) {
-        return adminPageRepository.listRegistrationsPage(query);
+        return targetRegistrationPageRepository.listRegistrationsPage(query);
     }
 
     public MarketplaceEventPageRecord listMarketplaceEventsPage(MarketplaceEventPageQuery query) {
-        return adminPageRepository.listMarketplaceEventsPage(query);
+        return marketplaceEventPageRepository.listMarketplaceEventsPage(query);
     }
 
     public ForwarderLogPageRecord listForwarderLogsPage(ForwarderLogPageQuery query) {
-        return adminPageRepository.listForwarderLogsPage(query);
+        return forwarderLogPageRepository.listForwarderLogsPage(query);
     }
 
     public ReleaseWebhookDeliveryPageRecord listReleaseWebhookDeliveriesPage(

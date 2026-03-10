@@ -252,3 +252,23 @@ Post-demo production-path planning and execution setup:
 
 ## Detailed Plan Reference
 - `/Users/cvonderheid/workspace/mappo/docs/azure-production-execution-plan.md`
+
+### Milestone 5: Modular Execution Platform
+**Goal**
+- Make MAPPO an orchestration core that can support more than one deployment style without turning the current Azure Deployment Stack path into a giant switchboard.
+
+**Scope**
+- Separate project definition, target access strategy, deployment driver, release materialization, and runtime health concerns.
+- Keep the current Deployment Stack implementation as the first adapter.
+- Define package boundaries that support future Lighthouse + Pulumi and Lighthouse + pipeline-triggered deployments.
+
+**Acceptance criteria**
+- Current Azure demo behavior remains unchanged while the first abstraction seam is introduced.
+- Execution design is documented in `/Users/cvonderheid/workspace/mappo/docs/modular-execution-architecture.md`.
+- The next code slice can extract contracts without re-litigating package layout.
+
+**Status**
+- [x] Architecture and package-layout direction documented.
+- [ ] Extract execution contracts (`TargetAccessResolver`, `ReleaseMaterializer`, `DeploymentDriver`, `RuntimeHealthProvider`).
+- [ ] Adapt the current Deployment Stack implementation behind those contracts.
+- [ ] Add project-level configuration to choose access/deployment/health behavior per product.

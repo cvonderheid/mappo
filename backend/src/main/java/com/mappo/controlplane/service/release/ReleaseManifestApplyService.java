@@ -2,7 +2,8 @@ package com.mappo.controlplane.service.release;
 
 import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
 import com.mappo.controlplane.model.ReleaseRecord;
-import com.mappo.controlplane.repository.ReleaseRepository;
+import com.mappo.controlplane.repository.ReleaseCommandRepository;
+import com.mappo.controlplane.repository.ReleaseQueryRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import com.mappo.controlplane.service.TransactionHookService;
 import java.util.ArrayList;
@@ -17,7 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ReleaseManifestApplyService {
 
-    private final ReleaseRepository releaseRepository;
+    private final ReleaseQueryRepository releaseQueryRepository;
+    private final ReleaseCommandRepository releaseCommandRepository;
     private final LiveUpdateService liveUpdateService;
     private final TransactionHookService transactionHookService;
 
@@ -31,7 +33,7 @@ public class ReleaseManifestApplyService {
     ) {
         Set<String> existingKeys = new LinkedHashSet<>();
         if (!allowDuplicates) {
-            for (ReleaseRecord row : releaseRepository.listReleases()) {
+            for (ReleaseRecord row : releaseQueryRepository.listReleases()) {
                 existingKeys.add(releaseKey(row.sourceRef(), row.sourceVersion()));
             }
         }
@@ -45,7 +47,7 @@ public class ReleaseManifestApplyService {
                 skipped += 1;
                 continue;
             }
-            ReleaseRecord createdRelease = releaseRepository.createRelease(candidate.toCommand());
+            ReleaseRecord createdRelease = releaseCommandRepository.createRelease(candidate.toCommand());
             created += 1;
             createdReleaseIds.add(createdRelease.id());
             existingKeys.add(key);

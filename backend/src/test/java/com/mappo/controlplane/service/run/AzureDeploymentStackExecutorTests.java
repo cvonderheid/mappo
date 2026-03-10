@@ -31,10 +31,13 @@ class AzureDeploymentStackExecutorTests {
         MappoProperties properties = new MappoProperties();
         properties.getAzure().setDeploymentStackAttachTimeoutMs(2_000L);
         properties.getAzure().setDeploymentStackAttachPollIntervalMs(10L);
+        AzureDeploymentStackRequestFactory requestFactory = new AzureDeploymentStackRequestFactory();
+        AzureDeploymentStackStateService stateService = new AzureDeploymentStackStateService(properties);
         AzureDeploymentStackExecutor executor = new AzureDeploymentStackExecutor(
             azureExecutorClient,
             templateInputsFactory,
-            properties
+            requestFactory,
+            stateService
         );
 
         ResourceManager resourceManager = mock(ResourceManager.class, RETURNS_DEEP_STUBS);
