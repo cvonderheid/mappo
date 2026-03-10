@@ -10,7 +10,7 @@ import com.mappo.controlplane.jooq.enums.MappoRuntimeProbeStatus;
 import com.mappo.controlplane.model.TargetRuntimeProbeContextRecord;
 import com.mappo.controlplane.model.TargetRuntimeProbeRecord;
 import com.mappo.controlplane.repository.TargetCommandRepository;
-import com.mappo.controlplane.repository.TargetRepository;
+import com.mappo.controlplane.repository.TargetRuntimeProbeContextRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -24,7 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class TargetRuntimeProbeServiceTests {
 
     @Mock
-    private TargetRepository targetRepository;
+    private TargetRuntimeProbeContextRepository targetRuntimeProbeContextRepository;
 
     @Mock
     private TargetCommandRepository targetCommandRepository;
@@ -40,7 +40,7 @@ class TargetRuntimeProbeServiceTests {
         MappoProperties properties = new MappoProperties();
         properties.getRuntimeProbe().setEnabled(true);
         TargetRuntimeProbeService service = new TargetRuntimeProbeService(
-            targetRepository,
+            targetRuntimeProbeContextRepository,
             targetCommandRepository,
             targetRuntimeProbeClient,
             properties,
@@ -62,7 +62,7 @@ class TargetRuntimeProbeServiceTests {
         );
 
         when(targetRuntimeProbeClient.isConfigured()).thenReturn(true);
-        when(targetRepository.listRuntimeProbeContexts()).thenReturn(List.of(target));
+        when(targetRuntimeProbeContextRepository.listRuntimeProbeContexts()).thenReturn(List.of(target));
         when(targetRuntimeProbeClient.probe(target)).thenReturn(probe);
 
         service.refreshRuntimeProbes();
@@ -76,7 +76,7 @@ class TargetRuntimeProbeServiceTests {
         MappoProperties properties = new MappoProperties();
         properties.getRuntimeProbe().setEnabled(true);
         TargetRuntimeProbeService service = new TargetRuntimeProbeService(
-            targetRepository,
+            targetRuntimeProbeContextRepository,
             targetCommandRepository,
             targetRuntimeProbeClient,
             properties,
@@ -87,7 +87,7 @@ class TargetRuntimeProbeServiceTests {
 
         service.refreshRuntimeProbes();
 
-        verify(targetRepository, never()).listRuntimeProbeContexts();
+        verify(targetRuntimeProbeContextRepository, never()).listRuntimeProbeContexts();
         verify(targetCommandRepository, never()).upsertRuntimeProbe(any());
     }
 }

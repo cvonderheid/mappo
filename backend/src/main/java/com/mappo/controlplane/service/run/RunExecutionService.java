@@ -15,7 +15,8 @@ import com.mappo.controlplane.repository.ReleaseRepository;
 import com.mappo.controlplane.repository.RunCommandRepository;
 import com.mappo.controlplane.repository.RunRepository;
 import com.mappo.controlplane.repository.TargetCommandRepository;
-import com.mappo.controlplane.repository.TargetRepository;
+import com.mappo.controlplane.repository.TargetExecutionContextRepository;
+import com.mappo.controlplane.repository.TargetQueryRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -36,7 +37,8 @@ public class RunExecutionService {
     private final RunRepository runRepository;
     private final RunCommandRepository runCommandRepository;
     private final ReleaseRepository releaseRepository;
-    private final TargetRepository targetRepository;
+    private final TargetQueryRepository targetQueryRepository;
+    private final TargetExecutionContextRepository targetExecutionContextRepository;
     private final TargetCommandRepository targetCommandRepository;
     private final TemplateSpecExecutor templateSpecExecutor;
     private final DeploymentStackExecutor deploymentStackExecutor;
@@ -59,7 +61,7 @@ public class RunExecutionService {
             List.of(MappoTargetStage.QUEUED)
         );
         Map<String, TargetRecord> targetsById = new LinkedHashMap<>();
-        for (TargetRecord target : targetRepository.getTargetsByIds(queuedTargetIds)) {
+        for (TargetRecord target : targetQueryRepository.getTargetsByIds(queuedTargetIds)) {
             targetsById.put(target.id(), target);
         }
 
@@ -591,7 +593,7 @@ public class RunExecutionService {
         if (targetIds.isEmpty()) {
             return List.of();
         }
-        return targetRepository.getExecutionContextsByIds(targetIds);
+        return targetExecutionContextRepository.getExecutionContextsByIds(targetIds);
     }
 
     private Map<String, TargetExecutionContextRecord> indexContexts(List<TargetExecutionContextRecord> contexts) {

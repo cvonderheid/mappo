@@ -320,14 +320,47 @@ function AppShell() {
 
   useEffect(() => {
     setSelectedTargetIds((current) =>
-      current.filter((targetId) => deploymentTargets.some((target) => target.id === targetId))
+      {
+        const filtered = current.filter((targetId) =>
+          deploymentTargets.some((target) => target.id === targetId)
+        );
+        if (
+          filtered.length === current.length &&
+          filtered.every((targetId, index) => targetId === current[index])
+        ) {
+          return current;
+        }
+        return filtered;
+      }
     );
   }, [deploymentTargets]);
+
+  const previewResetKey = useMemo(
+    () =>
+      JSON.stringify({
+        releaseId: selectedReleaseId,
+        targetGroupFilter,
+        selectedTargetIds: [...selectedTargetIds].sort(),
+        strategyMode: formState.strategyMode,
+        concurrency: formState.concurrency,
+        maxFailureCount: formState.maxFailureCount,
+        maxFailureRatePercent: formState.maxFailureRatePercent,
+      }),
+    [
+      formState.concurrency,
+      formState.maxFailureCount,
+      formState.maxFailureRatePercent,
+      formState.strategyMode,
+      selectedReleaseId,
+      selectedTargetIds,
+      targetGroupFilter,
+    ]
+  );
 
   useEffect(() => {
     setRunPreview(null);
     setPreviewErrorMessage("");
-  }, [formState, selectedReleaseId, selectedTargetIds, targetGroupFilter]);
+  }, [previewResetKey]);
 
   useEffect(() => {
     if (!isPreviewing) {

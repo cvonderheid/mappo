@@ -1,4 +1,4 @@
-package com.mappo.controlplane.service;
+package com.mappo.controlplane.service.admin;
 
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ForwarderLogIngestRequest;
@@ -10,33 +10,21 @@ import com.mappo.controlplane.jooq.enums.MappoMarketplaceEventStatus;
 import com.mappo.controlplane.jooq.enums.MappoRegistryAuthMode;
 import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
 import com.mappo.controlplane.model.EventIngestResultRecord;
-import com.mappo.controlplane.model.ForwarderLogPageRecord;
 import com.mappo.controlplane.model.ForwarderLogIngestResultRecord;
-import com.mappo.controlplane.model.MarketplaceEventPageRecord;
 import com.mappo.controlplane.model.MarketplaceEventType;
-import com.mappo.controlplane.model.ReleaseWebhookDeliveryPageRecord;
 import com.mappo.controlplane.model.TargetRecord;
-import com.mappo.controlplane.model.TargetRegistrationPageRecord;
 import com.mappo.controlplane.model.TargetRegistrationRecord;
-import com.mappo.controlplane.model.command.ForwarderLogIngestCommand;
-import com.mappo.controlplane.model.command.TargetRegistrationPatchCommand;
 import com.mappo.controlplane.model.command.TargetRegistrationUpsertCommand;
 import com.mappo.controlplane.model.command.TargetUpsertCommand;
-import com.mappo.controlplane.model.query.ForwarderLogPageQuery;
-import com.mappo.controlplane.model.query.MarketplaceEventPageQuery;
-import com.mappo.controlplane.model.query.ReleaseWebhookDeliveryPageQuery;
-import com.mappo.controlplane.model.query.TargetRegistrationPageQuery;
 import com.mappo.controlplane.repository.AdminCommandRepository;
-import com.mappo.controlplane.repository.AdminPageRepository;
 import com.mappo.controlplane.repository.AdminRepository;
-import com.mappo.controlplane.repository.ReleaseWebhookRepository;
 import com.mappo.controlplane.repository.TargetCommandRepository;
-import com.mappo.controlplane.repository.TargetRepository;
+import com.mappo.controlplane.repository.TargetQueryRepository;
+import com.mappo.controlplane.service.TransactionHookService;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -46,13 +34,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-public class AdminService {
+public class AdminCommandService {
 
-    private final AdminPageRepository adminPageRepository;
     private final AdminRepository adminRepository;
     private final AdminCommandRepository adminCommandRepository;
-    private final ReleaseWebhookRepository releaseWebhookRepository;
-    private final TargetRepository targetRepository;
+    private final TargetQueryRepository targetQueryRepository;
     private final TargetCommandRepository targetCommandRepository;
     private final MappoProperties properties;
     private final LiveUpdateService liveUpdateService;
@@ -90,7 +76,7 @@ public class AdminService {
             targetCommandRepository.deleteTarget(targetId);
             message = "Deleted target registration and target.";
         } else if (eventType.isSuspendLike()) {
-            TargetRecord existing = targetRepository.getTarget(targetId).orElse(null);
+            TargetRecord existing = targetQueryRepository.getTarget(targetId).orElse(null);
             if (existing != null) {
                 targetCommandRepository.updateTargetHealth(targetId, MappoHealthStatus.degraded);
                 message = "Marked target as degraded.";
@@ -180,31 +166,13 @@ public class AdminService {
         );
     }
 
-    public TargetRegistrationPageRecord listRegistrationsPage(TargetRegistrationPageQuery query) {
-        return adminPageRepository.listRegistrationsPage(query);
-    }
-
-    public MarketplaceEventPageRecord listMarketplaceEventsPage(MarketplaceEventPageQuery query) {
-        return adminPageRepository.listMarketplaceEventsPage(query);
-    }
-
-    public ForwarderLogPageRecord listForwarderLogsPage(ForwarderLogPageQuery query) {
-        return adminPageRepository.listForwarderLogsPage(query);
-    }
-
-    public ReleaseWebhookDeliveryPageRecord listReleaseWebhookDeliveriesPage(
-        ReleaseWebhookDeliveryPageQuery query
-    ) {
-        return releaseWebhookRepository.listReleaseWebhookDeliveriesPage(query);
-    }
-
     @Transactional
     public ForwarderLogIngestResultRecord ingestForwarderLog(ForwarderLogIngestRequest request) {
         if (request == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "forwarder log request is required");
         }
 
-        ForwarderLogIngestCommand command = request.toCommand();
+        var command = request.toCommand();
         String logId = normalize(command.logId());
         if (logId.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "log_id is required");
@@ -237,8 +205,7 @@ public class AdminService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "registration patch is required");
         }
 
-        TargetRegistrationPatchCommand patchCommand = patch.toCommand();
-        adminCommandRepository.updateRegistrationAndTarget(targetId, patchCommand);
+        adminCommandRepository.updateRegistrationAndTarget(targetId, patch.toCommand());
         transactionHookService.afterCommitOrNow(() -> {
             liveUpdateService.emitAdminUpdated();
             liveUpdateService.emitTargetsUpdated();

@@ -7,13 +7,10 @@ import static com.mappo.controlplane.jooq.Tables.TARGET_RUNTIME_PROBES;
 import static com.mappo.controlplane.jooq.Tables.TARGET_TAGS;
 
 import com.mappo.controlplane.jooq.enums.MappoRuntimeProbeStatus;
-import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
 import com.mappo.controlplane.jooq.enums.MappoTargetStage;
 import com.mappo.controlplane.model.PageMetadataRecord;
-import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import com.mappo.controlplane.model.TargetPageRecord;
 import com.mappo.controlplane.model.TargetRecord;
-import com.mappo.controlplane.model.TargetRuntimeProbeContextRecord;
 import com.mappo.controlplane.model.query.TargetPageQuery;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -21,7 +18,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
@@ -31,7 +27,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 @RequiredArgsConstructor
-public class TargetRepository {
+public class TargetQueryRepository {
 
     private final DSLContext dsl;
 
@@ -247,72 +243,6 @@ public class TargetRepository {
         return listTargets(filters == null ? Map.of() : filters);
     }
 
-    public List<TargetExecutionContextRecord> getExecutionContextsByIds(List<String> targetIds) {
-        if (targetIds == null || targetIds.isEmpty()) {
-            return List.of();
-        }
-
-        var rows = dsl.select(
-                TARGETS.ID,
-                TARGETS.SUBSCRIPTION_ID,
-                TARGETS.TENANT_ID,
-                TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID,
-                TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID,
-                TARGET_REGISTRATIONS.DEPLOYMENT_STACK_NAME,
-                TARGET_REGISTRATIONS.REGISTRY_AUTH_MODE,
-                TARGET_REGISTRATIONS.REGISTRY_SERVER,
-                TARGET_REGISTRATIONS.REGISTRY_USERNAME,
-                TARGET_REGISTRATIONS.REGISTRY_PASSWORD_SECRET_NAME,
-                TARGETS.SIMULATED_FAILURE_MODE
-            )
-            .from(TARGETS)
-            .join(TARGET_REGISTRATIONS)
-            .on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
-            .where(TARGETS.ID.in(targetIds))
-            .orderBy(TARGETS.ID.asc())
-            .fetch();
-
-        Map<String, Map<String, String>> tagsByTarget = loadTags(targetIds);
-        List<TargetExecutionContextRecord> contexts = new ArrayList<>(rows.size());
-        for (Record row : rows) {
-            String targetId = row.get(TARGETS.ID);
-            contexts.add(new TargetExecutionContextRecord(
-                targetId,
-                row.get(TARGETS.SUBSCRIPTION_ID),
-                row.get(TARGETS.TENANT_ID),
-                row.get(TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID),
-                row.get(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID),
-                row.get(TARGET_REGISTRATIONS.DEPLOYMENT_STACK_NAME),
-                row.get(TARGET_REGISTRATIONS.REGISTRY_AUTH_MODE),
-                row.get(TARGET_REGISTRATIONS.REGISTRY_SERVER),
-                row.get(TARGET_REGISTRATIONS.REGISTRY_USERNAME),
-                row.get(TARGET_REGISTRATIONS.REGISTRY_PASSWORD_SECRET_NAME),
-                tagsByTarget.getOrDefault(targetId, Map.of()),
-                row.get(TARGETS.SIMULATED_FAILURE_MODE)
-            ));
-        }
-        return contexts;
-    }
-
-    public List<TargetRuntimeProbeContextRecord> listRuntimeProbeContexts() {
-        return dsl.select(
-                TARGETS.ID,
-                TARGETS.TENANT_ID,
-                TARGETS.SUBSCRIPTION_ID,
-                TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID
-            )
-            .from(TARGETS)
-            .join(TARGET_REGISTRATIONS)
-            .on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
-            .orderBy(TARGETS.ID.asc())
-            .fetch(row -> new TargetRuntimeProbeContextRecord(
-                row.get(TARGETS.ID),
-                row.get(TARGETS.TENANT_ID),
-                row.get(TARGETS.SUBSCRIPTION_ID),
-                row.get(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID)
-            ));
-    }
-
     private Map<String, Map<String, String>> loadTags(List<String> targetIds) {
         if (targetIds == null || targetIds.isEmpty()) {
             return Map.of();
@@ -374,13 +304,6 @@ public class TargetRepository {
             .on(TARGET_EXECUTION_RECORDS.TARGET_ID.eq(latestExecutionTimestamp.field("target_id", String.class)))
             .and(TARGET_EXECUTION_RECORDS.UPDATED_AT.eq(latestExecutionTimestamp.field("latest_updated_at", OffsetDateTime.class)))
             .asTable("latest_target_execution");
-    }
-
-    private OffsetDateTime toTimestamp(Object value, OffsetDateTime fallback) {
-        if (value instanceof OffsetDateTime timestamp) {
-            return timestamp;
-        }
-        return fallback;
     }
 
     private Condition buildTargetPageCondition(TargetPageQuery query, org.jooq.Table<?> latestExecution) {
@@ -464,25 +387,6 @@ public class TargetRepository {
         return Math.min(value, 100);
     }
 
-    private <T> T enumOrDefault(T value, T fallback) {
-        return value == null ? fallback : value;
-    }
-
-    private UUID requiredUuid(UUID value, String field) {
-        if (value == null) {
-            throw new IllegalArgumentException(field + " is required");
-        }
-        return value;
-    }
-
-    private String requiredText(Object value, String field) {
-        String text = normalize(value);
-        if (text.isBlank()) {
-            throw new IllegalArgumentException(field + " is required");
-        }
-        return text;
-    }
-
     private String nullableText(Object value) {
         String text = normalize(value);
         return text.isBlank() ? null : text;
@@ -490,10 +394,5 @@ public class TargetRepository {
 
     private String normalize(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
-    }
-
-    private String defaultIfBlank(String value, String fallback) {
-        String normalized = normalize(value);
-        return normalized.isBlank() ? fallback : normalized;
     }
 }

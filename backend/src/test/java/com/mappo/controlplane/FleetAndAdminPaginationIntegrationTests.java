@@ -15,7 +15,6 @@ import com.mappo.controlplane.model.TargetRuntimeProbeRecord;
 import com.mappo.controlplane.model.command.ReleaseWebhookDeliveryCommand;
 import com.mappo.controlplane.repository.ReleaseWebhookRepository;
 import com.mappo.controlplane.repository.TargetCommandRepository;
-import com.mappo.controlplane.repository.TargetRepository;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
@@ -37,9 +36,6 @@ class FleetAndAdminPaginationIntegrationTests extends PostgresIntegrationTestBas
 
     @Autowired
     private ReleaseWebhookRepository releaseWebhookRepository;
-
-    @Autowired
-    private TargetRepository targetRepository;
 
     @Autowired
     private TargetCommandRepository targetCommandRepository;

@@ -4,7 +4,6 @@ import com.mappo.controlplane.azure.AzureExecutorClient;
 import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.jooq.enums.MappoRunStatus;
 import com.mappo.controlplane.repository.RunCommandRepository;
-import com.mappo.controlplane.repository.RunRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -22,7 +21,6 @@ public class RunDispatchService {
 
     private final Executor runDispatchExecutor;
     private final RunExecutionService runExecutionService;
-    private final RunRepository runRepository;
     private final RunCommandRepository runCommandRepository;
     private final LiveUpdateService liveUpdateService;
     private final AzureExecutorClient azureExecutorClient;
@@ -33,7 +31,6 @@ public class RunDispatchService {
     public RunDispatchService(
         @Qualifier("runDispatchExecutor") Executor runDispatchExecutor,
         RunExecutionService runExecutionService,
-        RunRepository runRepository,
         RunCommandRepository runCommandRepository,
         LiveUpdateService liveUpdateService,
         AzureExecutorClient azureExecutorClient,
@@ -42,7 +39,6 @@ public class RunDispatchService {
     ) {
         this.runDispatchExecutor = runDispatchExecutor;
         this.runExecutionService = runExecutionService;
-        this.runRepository = runRepository;
         this.runCommandRepository = runCommandRepository;
         this.liveUpdateService = liveUpdateService;
         this.azureExecutorClient = azureExecutorClient;

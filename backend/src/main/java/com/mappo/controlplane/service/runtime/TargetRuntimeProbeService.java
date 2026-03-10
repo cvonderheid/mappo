@@ -5,7 +5,7 @@ import com.mappo.controlplane.jooq.enums.MappoRuntimeProbeStatus;
 import com.mappo.controlplane.model.TargetRuntimeProbeContextRecord;
 import com.mappo.controlplane.model.TargetRuntimeProbeRecord;
 import com.mappo.controlplane.repository.TargetCommandRepository;
-import com.mappo.controlplane.repository.TargetRepository;
+import com.mappo.controlplane.repository.TargetRuntimeProbeContextRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -22,7 +22,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class TargetRuntimeProbeService {
 
-    private final TargetRepository targetRepository;
+    private final TargetRuntimeProbeContextRepository targetRuntimeProbeContextRepository;
     private final TargetCommandRepository targetCommandRepository;
     private final TargetRuntimeProbeClient targetRuntimeProbeClient;
     private final MappoProperties properties;
@@ -49,7 +49,7 @@ public class TargetRuntimeProbeService {
         }
 
         try {
-            List<TargetRuntimeProbeContextRecord> targets = targetRepository.listRuntimeProbeContexts();
+            List<TargetRuntimeProbeContextRecord> targets = targetRuntimeProbeContextRepository.listRuntimeProbeContexts();
             if (targets.isEmpty()) {
                 return;
             }

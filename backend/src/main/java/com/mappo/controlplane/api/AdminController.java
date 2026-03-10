@@ -18,8 +18,9 @@ import com.mappo.controlplane.model.ReleaseWebhookDeliveryPageRecord;
 import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
 import com.mappo.controlplane.model.TargetRegistrationPageRecord;
 import com.mappo.controlplane.model.TargetRegistrationRecord;
-import com.mappo.controlplane.service.AdminService;
 import com.mappo.controlplane.service.release.ReleaseManifestIngestService;
+import com.mappo.controlplane.service.admin.AdminCommandService;
+import com.mappo.controlplane.service.admin.AdminQueryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -45,7 +46,8 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Admin", description = "Onboarding, registration, webhook, and operational audit endpoints.")
 public class AdminController {
 
-    private final AdminService adminService;
+    private final AdminCommandService adminCommandService;
+    private final AdminQueryService adminQueryService;
     private final ReleaseManifestIngestService releaseManifestIngestService;
     private final MappoProperties properties;
 
@@ -56,7 +58,7 @@ public class AdminController {
         @RequestHeader(value = "x-mappo-ingest-token", required = false) String ingestToken
     ) {
         validateIngestToken(ingestToken);
-        return adminService.ingestMarketplaceEvent(request);
+        return adminCommandService.ingestMarketplaceEvent(request);
     }
 
     @GetMapping("/onboarding/events")
@@ -64,7 +66,7 @@ public class AdminController {
     public MarketplaceEventPageRecord listMarketplaceEvents(
         @Valid @ParameterObject @ModelAttribute MarketplaceEventPageParameters parameters
     ) {
-        return adminService.listMarketplaceEventsPage(parameters.toQuery());
+        return adminQueryService.listMarketplaceEventsPage(parameters.toQuery());
     }
 
     @PostMapping("/onboarding/forwarder-logs")
@@ -74,7 +76,7 @@ public class AdminController {
         @RequestHeader(value = "x-mappo-ingest-token", required = false) String ingestToken
     ) {
         validateIngestToken(ingestToken);
-        return adminService.ingestForwarderLog(request);
+        return adminCommandService.ingestForwarderLog(request);
     }
 
     @GetMapping("/onboarding/forwarder-logs/page")
@@ -82,7 +84,7 @@ public class AdminController {
     public ForwarderLogPageRecord listForwarderLogsPage(
         @Valid @ParameterObject @ModelAttribute ForwarderLogPageParameters parameters
     ) {
-        return adminService.listForwarderLogsPage(parameters.toQuery());
+        return adminQueryService.listForwarderLogsPage(parameters.toQuery());
     }
 
     @GetMapping("/onboarding/registrations")
@@ -90,7 +92,7 @@ public class AdminController {
     public TargetRegistrationPageRecord listRegistrations(
         @Valid @ParameterObject @ModelAttribute TargetRegistrationPageParameters parameters
     ) {
-        return adminService.listRegistrationsPage(parameters.toQuery());
+        return adminQueryService.listRegistrationsPage(parameters.toQuery());
     }
 
     @PostMapping("/releases/ingest/github")
@@ -118,13 +120,13 @@ public class AdminController {
         @PathVariable("targetId") String targetId,
         @RequestBody TargetRegistrationPatchRequest patch
     ) {
-        return adminService.updateTargetRegistration(targetId, patch);
+        return adminCommandService.updateTargetRegistration(targetId, patch);
     }
 
     @DeleteMapping("/onboarding/registrations/{targetId}")
     @Operation(summary = "Delete a registered target")
     public DeleteRegistrationResultRecord deleteRegistration(@PathVariable("targetId") String targetId) {
-        adminService.deleteTargetRegistration(targetId);
+        adminCommandService.deleteTargetRegistration(targetId);
         return new DeleteRegistrationResultRecord(targetId, true);
     }
 
@@ -133,7 +135,7 @@ public class AdminController {
     public ReleaseWebhookDeliveryPageRecord listReleaseWebhookDeliveries(
         @Valid @ParameterObject @ModelAttribute ReleaseWebhookDeliveryPageParameters parameters
     ) {
-        return adminService.listReleaseWebhookDeliveriesPage(parameters.toQuery());
+        return adminQueryService.listReleaseWebhookDeliveriesPage(parameters.toQuery());
     }
 
     private void validateIngestToken(String ingestToken) {

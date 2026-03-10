@@ -12,7 +12,7 @@ import com.mappo.controlplane.model.StageErrorDetailsRecord;
 import com.mappo.controlplane.model.StageErrorRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import com.mappo.controlplane.model.TargetRecord;
-import com.mappo.controlplane.repository.TargetRepository;
+import com.mappo.controlplane.repository.TargetExecutionContextRepository;
 import com.mappo.controlplane.service.run.DeploymentStackPreviewExecutor;
 import com.mappo.controlplane.service.run.RunRequestContext;
 import com.mappo.controlplane.service.run.RunRequestResolverService;
@@ -32,14 +32,14 @@ public class RunPreviewService {
         "Deployment Stack what-if is not natively available; this preview reflects the underlying ARM deployment and may not include stack unmanage or deny-setting side effects.";
 
     private final RunRequestResolverService runRequestResolverService;
-    private final TargetRepository targetRepository;
+    private final TargetExecutionContextRepository targetExecutionContextRepository;
     private final AzureExecutorClient azureExecutorClient;
     private final DeploymentStackPreviewExecutor deploymentStackPreviewExecutor;
 
     public RunPreviewRecord previewRun(RunCreateRequest request) {
         RunRequestContext context = runRequestResolverService.resolve(request);
         boolean azureConfigured = azureExecutorClient.isConfigured();
-        List<TargetExecutionContextRecord> executionContexts = targetRepository.getExecutionContextsByIds(
+        List<TargetExecutionContextRecord> executionContexts = targetExecutionContextRepository.getExecutionContextsByIds(
             context.targets().stream().map(TargetRecord::id).toList()
         );
         Map<String, TargetExecutionContextRecord> contextsByTarget = new LinkedHashMap<>();
