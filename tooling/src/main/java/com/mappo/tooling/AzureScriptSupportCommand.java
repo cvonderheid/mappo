@@ -58,8 +58,6 @@ final class AzureScriptSupportCommand {
             case "export-db-env" -> runExportDbEnv(commandArgs);
             case "subscription-tenant-id" -> runSubscriptionTenantId(commandArgs);
             case "inventory-rg-scopes" -> runInventoryResourceGroupScopes(commandArgs);
-            case "marketplace-demo-targets-json" -> runMarketplaceDemoTargetsJson(commandArgs);
-            case "marketplace-demo-principal-map-json" -> runMarketplaceDemoPrincipalMapJson(commandArgs);
             case "csv-to-json-array" -> runCsvToJsonArray(commandArgs);
             case "account-stats" -> runAccountStats(commandArgs);
             case "validate-tenant-map" -> runValidateTenantMap(commandArgs);
@@ -272,49 +270,6 @@ final class AzureScriptSupportCommand {
         for (String scope : scopes) {
             System.out.println(scope);
         }
-        return 0;
-    }
-
-    private int runMarketplaceDemoTargetsJson(Arguments args) {
-        Map<String, String> options = parseOptions(args);
-        String providerSubscriptionId = requiredOption(options, "--provider-subscription-id");
-        String customerSubscriptionId = requiredOption(options, "--customer-subscription-id");
-        String providerTenantId = requiredOption(options, "--provider-tenant-id");
-        String customerTenantId = requiredOption(options, "--customer-tenant-id");
-        String region = requiredOption(options, "--region");
-
-        List<Map<String, Object>> rows = List.of(
-            Map.of(
-                "id", "target-01",
-                "tenantId", providerTenantId,
-                "subscriptionId", providerSubscriptionId,
-                "targetGroup", "canary",
-                "region", region,
-                "tier", "gold",
-                "environment", "demo",
-                "tags", Map.of("tier", "gold", "environment", "demo", "ring", "canary")
-            ),
-            Map.of(
-                "id", "target-02",
-                "tenantId", customerTenantId,
-                "subscriptionId", customerSubscriptionId,
-                "targetGroup", "prod",
-                "region", region,
-                "tier", "gold",
-                "environment", "demo",
-                "tags", Map.of("tier", "gold", "environment", "demo", "ring", "prod")
-            )
-        );
-        printJson(rows);
-        return 0;
-    }
-
-    private int runMarketplaceDemoPrincipalMapJson(Arguments args) {
-        Map<String, String> options = parseOptions(args);
-        printJson(Map.of(
-            requiredOption(options, "--provider-subscription-id"), requiredOption(options, "--provider-principal-object-id"),
-            requiredOption(options, "--customer-subscription-id"), requiredOption(options, "--customer-principal-object-id")
-        ));
         return 0;
     }
 

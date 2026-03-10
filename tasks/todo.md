@@ -90,6 +90,8 @@ Post-demo production-path planning and execution setup:
 - 2026-03-09: Added persisted runtime probe storage plus a scheduled Azure Container App probe loop, split Fleet runtime status from deployment outcome, stopped deployments from mutating runtime health, and verified the updated backend/frontend contract through the full reactor build.
 - 2026-03-09: Added route-level lazy loading for the major frontend surfaces, cutting the main production bundle chunk from ~594 kB to ~311 kB and eliminating the standing Vite chunk-size warning without changing the operator workflow.
 - 2026-03-09: Added explicit operational retention settings plus scheduled cleanup for old terminal runs, marketplace events, forwarder logs, and release-webhook deliveries, and added supporting indexes for the paginated run/admin query hot paths.
+- 2026-03-10: Removed deprecated compatibility endpoints and snapshot models, rewired the frontend to current paginated onboarding/target APIs only, and deleted stale docs/scripts from the old marketplace/template-spec path.
+- 2026-03-10: Reduced `infra/pulumi` to the current control-plane/edge responsibility set, moved exports/config helpers out of `Main.java`, and removed stale managed-app-era Pulumi config keys and helper tooling commands.
 
 ## Milestones
 

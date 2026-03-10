@@ -1,8 +1,5 @@
 encryptionsalt: v1:OnkTRWjKuoA=:v1:oKwJE5G0v0iExnUm:PKk/QoktVJLGhc8otDFB/TMI4iumaw==
 config:
-  mappo:targetProfile: empty
-  mappo:targets: '[]'
-  mappo:publisherPrincipalObjectIds: '{"c0d51042-7d0a-41f7-b270-151e4c4ea263":"6d8d9232-2bf5-4ca3-a94f-1065004968e3","1adaaa48-139a-477b-a8c8-0e6289d6d199":"7caf0ffc-0e9a-42d6-9a08-99fd1b659177"}'
   mappo:defaultLocation: eastus
   mappo:controlPlaneSubscriptionId: c0d51042-7d0a-41f7-b270-151e4c4ea263
   mappo:controlPlaneLocation: centralus

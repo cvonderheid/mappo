@@ -12,10 +12,8 @@ import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
 import com.mappo.controlplane.model.EventIngestResultRecord;
 import com.mappo.controlplane.model.ForwarderLogPageRecord;
 import com.mappo.controlplane.model.ForwarderLogIngestResultRecord;
-import com.mappo.controlplane.model.ForwarderLogRecord;
 import com.mappo.controlplane.model.MarketplaceEventPageRecord;
 import com.mappo.controlplane.model.MarketplaceEventType;
-import com.mappo.controlplane.model.OnboardingSnapshotRecord;
 import com.mappo.controlplane.model.ReleaseWebhookDeliveryPageRecord;
 import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.model.TargetRegistrationPageRecord;
@@ -59,15 +57,6 @@ public class AdminService {
     private final MappoProperties properties;
     private final LiveUpdateService liveUpdateService;
     private final TransactionHookService transactionHookService;
-
-    public OnboardingSnapshotRecord getOnboardingSnapshot(int eventLimit) {
-        return new OnboardingSnapshotRecord(
-            adminRepository.listRegistrations(),
-            adminRepository.listMarketplaceEvents(eventLimit),
-            adminRepository.listForwarderLogs(eventLimit),
-            releaseWebhookRepository.listReleaseWebhookDeliveries(eventLimit)
-        );
-    }
 
     @Transactional
     public EventIngestResultRecord ingestMarketplaceEvent(OnboardingEventRequest request) {
@@ -189,10 +178,6 @@ public class AdminService {
             message,
             targetId
         );
-    }
-
-    public List<ForwarderLogRecord> listForwarderLogs(int limit) {
-        return adminRepository.listForwarderLogs(limit);
     }
 
     public TargetRegistrationPageRecord listRegistrationsPage(TargetRegistrationPageQuery query) {

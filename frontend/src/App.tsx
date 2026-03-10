@@ -8,22 +8,21 @@ import { releaseAvailabilitySummary } from "@/lib/fleet";
 import { createLiveUpdatesEventSource, parseLiveUpdateEvent } from "@/lib/live-updates";
 import { canonicalizeReleases } from "@/lib/releases";
 import {
+  adminListTargetRegistrations,
   adminDeleteTargetRegistration,
   adminIngestGithubReleaseManifest,
   adminIngestMarketplaceEvent,
   adminUpdateTargetRegistration,
   createRun,
-  getAdminOnboardingSnapshot,
   getRun,
   listReleases,
   listRuns,
-  listTargets,
+  listTargetsPage,
   previewRun,
   resumeRun,
   retryFailed,
 } from "@/lib/api";
 import type {
-  AdminOnboardingSnapshotResponse,
   CreateRunRequest,
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
@@ -38,6 +37,7 @@ import type {
   RunSummaryPage,
   Target,
   TargetExecutionRecord,
+  TargetRegistrationRecord,
   UpdateTargetRegistrationRequest,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -90,7 +90,7 @@ function AppShell() {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [previewErrorMessage, setPreviewErrorMessage] = useState<string>("");
   const [runPreview, setRunPreview] = useState<RunPreview | null>(null);
-  const [adminSnapshot, setAdminSnapshot] = useState<AdminOnboardingSnapshotResponse | null>(null);
+  const [registrationOptions, setRegistrationOptions] = useState<TargetRegistrationRecord[]>([]);
   const [adminRefreshVersion, setAdminRefreshVersion] = useState(0);
   const [adminIsSubmitting, setAdminIsSubmitting] = useState<boolean>(false);
   const [adminErrorMessage, setAdminErrorMessage] = useState<string>("");
@@ -100,11 +100,37 @@ function AppShell() {
 
   const refreshTargets = useCallback(async () => {
     try {
-      setTargets(await listTargets());
+      const pageSize = 200;
+      const firstPage = await listTargetsPage({ page: 0, size: pageSize });
+      const items = [...(firstPage.items ?? [])];
+      const totalPages = firstPage.page?.totalPages ?? 0;
+      for (let page = 1; page < totalPages; page += 1) {
+        const nextPage = await listTargetsPage({ page, size: pageSize });
+        items.push(...(nextPage.items ?? []));
+      }
+      setTargets(items);
       setTargetsRefreshVersion((current) => current + 1);
       setErrorMessage("");
     } catch (error) {
       setErrorMessage((error as Error).message);
+    }
+  }, []);
+
+  const refreshRegistrationOptions = useCallback(async () => {
+    try {
+      const pageSize = 200;
+      const firstPage = await adminListTargetRegistrations({ page: 0, size: pageSize });
+      const items = [...(firstPage.items ?? [])];
+      const totalPages = firstPage.page?.totalPages ?? 0;
+      for (let page = 1; page < totalPages; page += 1) {
+        const nextPage = await adminListTargetRegistrations({ page, size: pageSize });
+        items.push(...(nextPage.items ?? []));
+      }
+      setRegistrationOptions(items);
+      setAdminRefreshVersion((current) => current + 1);
+      setAdminErrorMessage("");
+    } catch (error) {
+      setAdminErrorMessage((error as Error).message);
     }
   }, []);
 
@@ -152,16 +178,6 @@ function AppShell() {
     }
   }, []);
 
-  const refreshAdminSnapshot = useCallback(async () => {
-    try {
-      setAdminSnapshot(await getAdminOnboardingSnapshot());
-      setAdminRefreshVersion((current) => current + 1);
-      setAdminErrorMessage("");
-    } catch (error) {
-      setAdminErrorMessage((error as Error).message);
-    }
-  }, []);
-
   useEffect(() => {
     void refreshTargets();
   }, [refreshTargets]);
@@ -169,8 +185,8 @@ function AppShell() {
   useEffect(() => {
     void refreshReleases();
     void refreshRuns();
-    void refreshAdminSnapshot();
-  }, [refreshAdminSnapshot, refreshReleases, refreshRuns]);
+    void refreshRegistrationOptions();
+  }, [refreshRegistrationOptions, refreshReleases, refreshRuns]);
 
   useEffect(() => {
     if (selectedRunId) {
@@ -197,14 +213,14 @@ function AppShell() {
       }
       void refreshReleases();
       if (location.pathname === "/admin" || location.pathname === "/demo") {
-        void refreshAdminSnapshot();
+        void refreshRegistrationOptions();
       }
     }, 15000);
 
     return () => window.clearInterval(intervalId);
   }, [
     location.pathname,
-    refreshAdminSnapshot,
+    refreshRegistrationOptions,
     refreshRunDetail,
     refreshReleases,
     refreshRuns,
@@ -254,7 +270,7 @@ function AppShell() {
     eventSource.addEventListener("admin-updated", () => {
       if (location.pathname === "/admin" || location.pathname === "/demo") {
         scheduleRefresh("admin", () => {
-          void refreshAdminSnapshot();
+          void refreshRegistrationOptions();
         });
       }
     });
@@ -286,7 +302,7 @@ function AppShell() {
   }, [
     liveTopics,
     location.pathname,
-    refreshAdminSnapshot,
+    refreshRegistrationOptions,
     refreshRunDetail,
     refreshReleases,
     refreshRuns,
@@ -592,7 +608,7 @@ function AppShell() {
       setAdminResult(result);
       setAdminErrorMessage("");
       await refreshTargets();
-      await refreshAdminSnapshot();
+      await refreshRegistrationOptions();
     } catch (error) {
       setAdminErrorMessage((error as Error).message);
     } finally {
@@ -606,13 +622,13 @@ function AppShell() {
   ): Promise<void> {
     await adminUpdateTargetRegistration(targetId, request);
     await refreshTargets();
-    await refreshAdminSnapshot();
+    await refreshRegistrationOptions();
   }
 
   async function handleAdminDeleteRegistration(targetId: string): Promise<void> {
     await adminDeleteTargetRegistration(targetId);
     await refreshTargets();
-    await refreshAdminSnapshot();
+    await refreshRegistrationOptions();
   }
 
   async function handleIngestManagedAppReleases(
@@ -622,7 +638,7 @@ function AppShell() {
     try {
       const result = await adminIngestGithubReleaseManifest(request);
       await refreshReleases();
-      await refreshAdminSnapshot();
+      await refreshRegistrationOptions();
       return result;
     } catch (error) {
       throw error;
@@ -785,9 +801,9 @@ function AppShell() {
                 adminErrorMessage={adminErrorMessage}
                 adminIsSubmitting={adminIsSubmitting}
                 adminResult={adminResult}
-                adminSnapshot={adminSnapshot}
+                registrations={registrationOptions}
                 onIngestMarketplaceEvent={handleAdminIngestMarketplaceEvent}
-                onRefreshSnapshot={refreshAdminSnapshot}
+                onRefreshRegistrations={refreshRegistrationOptions}
               />
             }
           />
@@ -796,13 +812,13 @@ function AppShell() {
             element={
               <AdminPanel
                 adminErrorMessage={adminErrorMessage}
-                adminSnapshot={adminSnapshot}
+                registrations={registrationOptions}
                 refreshKey={adminRefreshVersion}
                 releaseIngestIsSubmitting={releaseIngestIsSubmitting}
                 onIngestManagedAppReleases={handleIngestManagedAppReleases}
                 onUpdateTargetRegistration={handleAdminUpdateRegistration}
                 onDeleteTargetRegistration={handleAdminDeleteRegistration}
-                onRefreshSnapshot={refreshAdminSnapshot}
+                onRefreshRegistrations={refreshRegistrationOptions}
               />
             }
           />

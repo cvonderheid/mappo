@@ -1,4 +1,4 @@
-# MAPPO Architecture
+s# MAPPO Architecture
 
 ## Overview
 MAPPO is a provider-tenant control plane that orchestrates release rollouts across customer subscriptions in multiple tenants.
@@ -76,8 +76,7 @@ Current hosted demo:
   - Runtime deploy also manages an ACA Job for Flyway migrations and runs it before app revision rollout (`./scripts/runtime_db_migrate_job_run.sh` for on-demand reruns).
   - EasyAuth app registration + frontend auth wiring is handled by script (`./scripts/runtime_easyauth_configure.sh`) for deterministic post-deploy callback URL binding.
   - CLI scripts provision/deploy the Function App webhook forwarder and replay inventory events through the webhook path.
-  - Partner Center offer lifecycle is handled via API/CLI helper scripts.
-  - Portal-only steps are documented in `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`.
+  - Partner Center offer lifecycle is still an external prerequisite and is not part of the current hosted demo workflow.
   - Current topology is documented in `/Users/cvonderheid/workspace/mappo/docs/demo-azure-topology.md`.
 
 ## Production Auth Model (Marketplace)
@@ -130,4 +129,3 @@ Behavior:
 
 ## Related Design Docs
 - Current Azure demo topology: `/Users/cvonderheid/workspace/mappo/docs/demo-azure-topology.md`
-- Legacy template-spec rollout design: `/Users/cvonderheid/workspace/mappo/docs/template-spec-executor-design.md`

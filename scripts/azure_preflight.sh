@@ -194,7 +194,7 @@ if [[ -f "${INVENTORY_PATH}" ]]; then
   fi
 else
   if [[ "${strict_inventory_checks}" == "true" ]]; then
-    fail "Missing target inventory file at ${INVENTORY_PATH}. Export with 'cd infra/pulumi && pulumi stack output --stack <stack> mappoTargetInventory --json > ${INVENTORY_PATH}'."
+    fail "Missing target inventory file at ${INVENTORY_PATH}. Export with 'cd infra/demo-fleet && pulumi stack output --stack <stack> mappoTargetInventory --json > ${INVENTORY_PATH}' or run './scripts/demo_fleet_up.sh --skip-events'."
   else
     pass "No inventory file found at ${INVENTORY_PATH}; marketplace mode expects webhook/event-driven target registration."
   fi

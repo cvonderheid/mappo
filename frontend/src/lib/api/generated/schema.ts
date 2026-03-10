@@ -139,12 +139,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * List recent forwarder logs snapshot
-         * @deprecated
-         * @description Compatibility snapshot endpoint for recent forwarder log summaries. Use `/api/v1/admin/onboarding/forwarder-logs/page` for operator tables.
-         */
-        get: operations["listForwarderLogs"];
+        get?: never;
         put?: never;
         /** Ingest marketplace forwarder log */
         post: operations["ingestForwarderLog"];
@@ -209,19 +204,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/targets": {
+    "/docs/": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * List targets as a lightweight selection snapshot
-         * @deprecated
-         * @description Compatibility endpoint used by deployment-target selection and light app-shell refreshes. Use `/api/v1/targets/page` for operator table views.
-         */
-        get: operations["listTargets"];
+        get: operations["renderSwaggerUi"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/docs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["renderSwaggerUi_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -298,27 +304,6 @@ export interface paths {
          * @description Primary paginated admin endpoint for GitHub release-webhook audit records.
          */
         get: operations["listReleaseWebhookDeliveries"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/onboarding": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get onboarding snapshot
-         * @deprecated
-         * @description Compatibility snapshot endpoint for the Admin shell. Prefer the paginated onboarding/admin collection endpoints for operator tables.
-         */
-        get: operations["onboardingSnapshot"];
         put?: never;
         post?: never;
         delete?: never;
@@ -704,34 +689,6 @@ export interface components {
             /** Format: date-time */
             updatedAt?: string;
         };
-        TargetRecord: {
-            id?: string;
-            /** Format: uuid */
-            tenantId?: string;
-            /** Format: uuid */
-            subscriptionId?: string;
-            managedAppId?: string;
-            customerName?: string;
-            tags?: {
-                [key: string]: string;
-            };
-            lastDeployedRelease?: string;
-            /** @enum {string} */
-            healthStatus?: "registered" | "healthy" | "degraded";
-            /** @enum {string} */
-            runtimeStatus?: "unknown" | "healthy" | "unhealthy" | "unreachable";
-            /** Format: date-time */
-            runtimeCheckedAt?: string;
-            runtimeSummary?: string;
-            /** @enum {string} */
-            lastDeploymentStatus?: "QUEUED" | "VALIDATING" | "DEPLOYING" | "VERIFYING" | "SUCCEEDED" | "FAILED";
-            /** Format: date-time */
-            lastDeploymentAt?: string;
-            /** Format: date-time */
-            lastCheckInAt?: string;
-            /** @enum {string} */
-            simulatedFailureMode?: "none" | "validate_once" | "deploy_once" | "verify_once";
-        };
         PageMetadataRecord: {
             /**
              * Format: int32
@@ -763,6 +720,34 @@ export interface components {
             items: components["schemas"]["TargetRecord"][];
             /** @description Pagination metadata for the current fleet page. */
             page: components["schemas"]["PageMetadataRecord"];
+        };
+        TargetRecord: {
+            id?: string;
+            /** Format: uuid */
+            tenantId?: string;
+            /** Format: uuid */
+            subscriptionId?: string;
+            managedAppId?: string;
+            customerName?: string;
+            tags?: {
+                [key: string]: string;
+            };
+            lastDeployedRelease?: string;
+            /** @enum {string} */
+            healthStatus?: "registered" | "healthy" | "degraded";
+            /** @enum {string} */
+            runtimeStatus?: "unknown" | "healthy" | "unhealthy" | "unreachable";
+            /** Format: date-time */
+            runtimeCheckedAt?: string;
+            runtimeSummary?: string;
+            /** @enum {string} */
+            lastDeploymentStatus?: "QUEUED" | "VALIDATING" | "DEPLOYING" | "VERIFYING" | "SUCCEEDED" | "FAILED";
+            /** Format: date-time */
+            lastDeploymentAt?: string;
+            /** Format: date-time */
+            lastCheckInAt?: string;
+            /** @enum {string} */
+            simulatedFailureMode?: "none" | "validate_once" | "deploy_once" | "verify_once";
         };
         RunSummaryPageRecord: {
             /** @description Deployment runs for the current page. */
@@ -835,9 +820,21 @@ export interface components {
             /** Format: date-time */
             receivedAt?: string;
         };
+        TargetRegistrationPageRecord: {
+            /** @description Registered targets for the current admin page. */
+            items: components["schemas"]["TargetRegistrationRecord"][];
+            /** @description Pagination metadata for the current registrations page. */
+            page: components["schemas"]["PageMetadataRecord"];
+        };
         ForwarderLogDetailsRecord: {
             detail?: string;
             backendResponse?: string;
+        };
+        ForwarderLogPageRecord: {
+            /** @description Marketplace forwarder logs for the current page. */
+            items: components["schemas"]["ForwarderLogRecord"][];
+            /** @description Pagination metadata for the current forwarder-log page. */
+            page: components["schemas"]["PageMetadataRecord"];
         };
         ForwarderLogRecord: {
             logId?: string;
@@ -859,6 +856,12 @@ export interface components {
             details?: components["schemas"]["ForwarderLogDetailsRecord"];
             /** Format: date-time */
             createdAt?: string;
+        };
+        MarketplaceEventPageRecord: {
+            /** @description Marketplace onboarding events for the current page. */
+            items: components["schemas"]["MarketplaceEventRecord"][];
+            /** @description Pagination metadata for the current onboarding-events page. */
+            page: components["schemas"]["PageMetadataRecord"];
         };
         MarketplaceEventPayloadRecord: {
             displayName?: string;
@@ -894,30 +897,6 @@ export interface components {
             createdAt?: string;
             /** Format: date-time */
             processedAt?: string;
-        };
-        OnboardingSnapshotRecord: {
-            registrations?: components["schemas"]["TargetRegistrationRecord"][];
-            events?: components["schemas"]["MarketplaceEventRecord"][];
-            forwarderLogs?: components["schemas"]["ForwarderLogRecord"][];
-            releaseWebhookDeliveries?: components["schemas"]["ReleaseWebhookDeliveryRecord"][];
-        };
-        TargetRegistrationPageRecord: {
-            /** @description Registered targets for the current admin page. */
-            items: components["schemas"]["TargetRegistrationRecord"][];
-            /** @description Pagination metadata for the current registrations page. */
-            page: components["schemas"]["PageMetadataRecord"];
-        };
-        ForwarderLogPageRecord: {
-            /** @description Marketplace forwarder logs for the current page. */
-            items: components["schemas"]["ForwarderLogRecord"][];
-            /** @description Pagination metadata for the current forwarder-log page. */
-            page: components["schemas"]["PageMetadataRecord"];
-        };
-        MarketplaceEventPageRecord: {
-            /** @description Marketplace onboarding events for the current page. */
-            items: components["schemas"]["MarketplaceEventRecord"][];
-            /** @description Pagination metadata for the current onboarding-events page. */
-            page: components["schemas"]["PageMetadataRecord"];
         };
         DeleteRegistrationResultRecord: {
             targetId?: string;
@@ -1163,28 +1142,6 @@ export interface operations {
             };
         };
     };
-    listForwarderLogs: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ForwarderLogRecord"][];
-                };
-            };
-        };
-    };
     ingestForwarderLog: {
         parameters: {
             query?: never;
@@ -1345,14 +1302,9 @@ export interface operations {
             };
         };
     };
-    listTargets: {
+    renderSwaggerUi: {
         parameters: {
-            query?: {
-                ring?: string;
-                region?: string;
-                tier?: string;
-                environment?: string;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -1365,7 +1317,27 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["TargetRecord"][];
+                    "text/html": string;
+                };
+            };
+        };
+    };
+    renderSwaggerUi_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
                 };
             };
         };
@@ -1523,28 +1495,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ReleaseWebhookDeliveryPageRecord"];
-                };
-            };
-        };
-    };
-    onboardingSnapshot: {
-        parameters: {
-            query?: {
-                event_limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["OnboardingSnapshotRecord"];
                 };
             };
         };

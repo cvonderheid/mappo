@@ -186,15 +186,6 @@ async function handleRoute(route: Route, state: MockApiState): Promise<void> {
   const path = url.pathname;
   const method = request.method();
 
-  if (method === "GET" && path === "/api/v1/targets") {
-    const ring = url.searchParams.get("ring");
-    const payload = ring
-      ? state.targets.filter((target) => target.tags.ring === ring)
-      : state.targets;
-    await respond(route, 200, payload);
-    return;
-  }
-
   if (method === "GET" && path === "/api/v1/targets/page") {
     const targetIdFilter = (url.searchParams.get("targetId") ?? "").toLowerCase();
     const customerNameFilter = (url.searchParams.get("customerName") ?? "").toLowerCase();
@@ -227,16 +218,6 @@ async function handleRoute(route: Route, state: MockApiState): Promise<void> {
 
   if (method === "GET" && path === "/api/v1/releases") {
     await respond(route, 200, state.releases);
-    return;
-  }
-
-  if (method === "GET" && path === "/api/v1/admin/onboarding") {
-    await respond(route, 200, {
-      registrations: [],
-      events: [],
-      forwarderLogs: [],
-      releaseWebhookDeliveries: [],
-    });
     return;
   }
 

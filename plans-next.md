@@ -311,6 +311,8 @@ Status: demo green; live GitHub webhook delivery setup pending
 - Runtime health is now modeled through explicit runtime probes instead of historical deployment state.
 - SSE invalidate/refetch is in place for runs, run detail, fleet, releases, and admin tabs, with a slower fallback poll retained for reconnect resilience.
 - Springdoc/OpenAPI is now the hardened contract source for paginated collection endpoints, including enum-backed query filters and required page-metadata schemas consumed by generated frontend types.
+- Deprecated compatibility endpoints and the old onboarding snapshot path have been removed from the active backend/frontend surface.
+- `infra/pulumi` now owns only control-plane Postgres and edge resources, with `Main.java` reduced to stack composition instead of carrying all provisioning logic directly.
 
 ## Detailed Plan
 - `/Users/cvonderheid/workspace/mappo/docs/azure-production-execution-plan.md`

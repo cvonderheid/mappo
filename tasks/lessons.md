@@ -219,3 +219,9 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Preventative rule: Add explicit retention and hot-path indexes as soon as paginated operator tables become the default access path for run/admin history.
 - Detection signal: paginated queries rely on descending timestamp scans over ever-growing terminal/audit tables with no cleanup policy.
 - Enforcement (test/lint/checklist): when promoting a table to backend pagination, verify it has a retention story and at least one supporting index for its dominant filter/order path.
+
+- Date: 2026-03-10
+- Pattern: Cleanup slices often remove deprecated endpoints while leaving contract tests asserting that still-supported sibling routes disappeared too.
+- Preventative rule: When deleting deprecated routes, update contract tests to assert the exact removed verb/path combination rather than broad path absence if any current operation still lives under that path.
+- Detection signal: OpenAPI regression tests fail after cleanup because a surviving POST or GET operation still exists under a partially deprecated path prefix.
+- Enforcement (test/lint/checklist): after deleting compatibility endpoints, inspect the generated OpenAPI and verify tests assert per-operation removal where needed.

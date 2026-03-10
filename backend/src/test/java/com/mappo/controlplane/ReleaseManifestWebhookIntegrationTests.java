@@ -71,14 +71,14 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
             .andExpect(jsonPath("$.skippedCount").value(0))
             .andExpect(jsonPath("$.ignoredCount").value(1));
 
-        mockMvc.perform(get("/api/v1/admin/onboarding"))
+        mockMvc.perform(get("/api/v1/admin/releases/webhook-deliveries"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].externalDeliveryId").value(deliveryId))
-            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].status").value("applied"))
-            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].repo").value("cvonderheid/mappo-managed-app"))
-            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].ref").value("main"))
-            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].createdCount").value(2))
-            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].changedPaths[0]").value("releases/releases.manifest.json"));
+            .andExpect(jsonPath("$.items[0].externalDeliveryId").value(deliveryId))
+            .andExpect(jsonPath("$.items[0].status").value("applied"))
+            .andExpect(jsonPath("$.items[0].repo").value("cvonderheid/mappo-managed-app"))
+            .andExpect(jsonPath("$.items[0].ref").value("main"))
+            .andExpect(jsonPath("$.items[0].createdCount").value(2))
+            .andExpect(jsonPath("$.items[0].changedPaths[0]").value("releases/releases.manifest.json"));
     }
 
     @Test
@@ -112,11 +112,11 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
             .andExpect(jsonPath("$.skippedCount").value(0))
             .andExpect(jsonPath("$.ignoredCount").value(0));
 
-        mockMvc.perform(get("/api/v1/admin/onboarding"))
+        mockMvc.perform(get("/api/v1/admin/releases/webhook-deliveries"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].externalDeliveryId").value(deliveryId))
-            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].status").value("skipped"))
-            .andExpect(jsonPath("$.releaseWebhookDeliveries[0].message")
+            .andExpect(jsonPath("$.items[0].externalDeliveryId").value(deliveryId))
+            .andExpect(jsonPath("$.items[0].status").value("skipped"))
+            .andExpect(jsonPath("$.items[0].message")
                 .value("Ignored webhook push because the managed-app release manifest did not change."));
     }
 

@@ -1,14 +1,11 @@
 package com.mappo.controlplane.repository;
 
-import static com.mappo.controlplane.jooq.Tables.FORWARDER_LOGS;
 import static com.mappo.controlplane.jooq.Tables.MARKETPLACE_EVENTS;
 import static com.mappo.controlplane.jooq.Tables.TARGETS;
 import static com.mappo.controlplane.jooq.Tables.TARGET_REGISTRATIONS;
 import static com.mappo.controlplane.jooq.Tables.TARGET_TAGS;
 
 import com.mappo.controlplane.jooq.enums.MappoRegistryAuthMode;
-import com.mappo.controlplane.model.ForwarderLogDetailsRecord;
-import com.mappo.controlplane.model.ForwarderLogRecord;
 import com.mappo.controlplane.model.MarketplaceEventPayloadRecord;
 import com.mappo.controlplane.model.MarketplaceEventRecord;
 import com.mappo.controlplane.model.MarketplaceEventType;
@@ -77,49 +74,6 @@ public class AdminRepository {
             ));
         }
         return events;
-    }
-
-    public List<ForwarderLogRecord> listForwarderLogs(int limit) {
-        var rows = dsl.select(
-                FORWARDER_LOGS.ID,
-                FORWARDER_LOGS.LEVEL,
-                FORWARDER_LOGS.MESSAGE,
-                FORWARDER_LOGS.EVENT_ID,
-                FORWARDER_LOGS.EVENT_TYPE,
-                FORWARDER_LOGS.TARGET_ID,
-                FORWARDER_LOGS.TENANT_ID,
-                FORWARDER_LOGS.SUBSCRIPTION_ID,
-                FORWARDER_LOGS.FUNCTION_APP_NAME,
-                FORWARDER_LOGS.FORWARDER_REQUEST_ID,
-                FORWARDER_LOGS.BACKEND_STATUS_CODE,
-                FORWARDER_LOGS.DETAIL_TEXT,
-                FORWARDER_LOGS.BACKEND_RESPONSE_BODY,
-                FORWARDER_LOGS.CREATED_AT
-            )
-            .from(FORWARDER_LOGS)
-            .orderBy(FORWARDER_LOGS.CREATED_AT.desc())
-            .limit(Math.max(1, limit))
-            .fetch();
-
-        List<ForwarderLogRecord> logs = new ArrayList<>(rows.size());
-        for (Record row : rows) {
-            logs.add(new ForwarderLogRecord(
-                row.get(FORWARDER_LOGS.ID),
-                row.get(FORWARDER_LOGS.LEVEL),
-                row.get(FORWARDER_LOGS.MESSAGE),
-                row.get(FORWARDER_LOGS.EVENT_ID),
-                toMarketplaceEventType(row.get(FORWARDER_LOGS.EVENT_TYPE)),
-                row.get(FORWARDER_LOGS.TARGET_ID),
-                row.get(FORWARDER_LOGS.TENANT_ID),
-                row.get(FORWARDER_LOGS.SUBSCRIPTION_ID),
-                row.get(FORWARDER_LOGS.FUNCTION_APP_NAME),
-                row.get(FORWARDER_LOGS.FORWARDER_REQUEST_ID),
-                row.get(FORWARDER_LOGS.BACKEND_STATUS_CODE),
-                forwarderDetails(row),
-                row.get(FORWARDER_LOGS.CREATED_AT)
-            ));
-        }
-        return logs;
     }
 
     public List<TargetRegistrationRecord> listRegistrations() {
@@ -254,13 +208,6 @@ public class AdminRepository {
             row.get(MARKETPLACE_EVENTS.HEALTH_STATUS),
             nullableText(row.get(MARKETPLACE_EVENTS.REGISTRATION_SOURCE)),
             nullableText(row.get(MARKETPLACE_EVENTS.MARKETPLACE_PAYLOAD_ID))
-        );
-    }
-
-    private ForwarderLogDetailsRecord forwarderDetails(Record row) {
-        return new ForwarderLogDetailsRecord(
-            nullableText(row.get(FORWARDER_LOGS.DETAIL_TEXT)),
-            nullableText(row.get(FORWARDER_LOGS.BACKEND_RESPONSE_BODY))
         );
     }
 

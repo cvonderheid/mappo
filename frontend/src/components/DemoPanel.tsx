@@ -16,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type {
-  AdminOnboardingSnapshotResponse,
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
   TargetRegistrationRecord,
@@ -31,12 +30,12 @@ type DemoPanelProps = {
   adminErrorMessage: string;
   adminIsSubmitting: boolean;
   adminResult: MarketplaceEventIngestResponse | null;
-  adminSnapshot: AdminOnboardingSnapshotResponse | null;
+  registrations: TargetRegistrationRecord[];
   onIngestMarketplaceEvent: (
     request: MarketplaceEventIngestRequest,
     ingestToken?: string
   ) => Promise<void>;
-  onRefreshSnapshot: () => Promise<void>;
+  onRefreshRegistrations: () => Promise<void>;
 };
 
 function nextEventId(): string {
@@ -47,9 +46,9 @@ export default function DemoPanel({
   adminErrorMessage,
   adminIsSubmitting,
   adminResult,
-  adminSnapshot,
+  registrations,
   onIngestMarketplaceEvent,
-  onRefreshSnapshot,
+  onRefreshRegistrations,
 }: DemoPanelProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [eventId, setEventId] = useState(nextEventId());
@@ -70,10 +69,6 @@ export default function DemoPanel({
   const [tier, setTier] = useState("standard");
   const [ingestToken, setIngestToken] = useState("");
 
-  const registrations = useMemo(
-    () => adminSnapshot?.registrations ?? [],
-    [adminSnapshot]
-  );
   const registrationByTargetId = useMemo(
     () =>
       new Map(
@@ -202,8 +197,8 @@ export default function DemoPanel({
           Simulate marketplace lifecycle events without Partner Center.
         </p>
         <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" onClick={() => void onRefreshSnapshot()}>
-            Refresh Snapshot
+          <Button type="button" variant="outline" onClick={() => void onRefreshRegistrations()}>
+            Refresh Registered Targets
           </Button>
           <Drawer direction="top" open={drawerOpen} onOpenChange={setDrawerOpen}>
             <DrawerTrigger asChild>

@@ -1,36 +1,8 @@
 name: mappo-marketplace-demo
 runtime: java
-description: MAPPO marketplace-accurate managed application demo provisioning
+description: MAPPO control-plane and edge infrastructure provisioning
 config:
   mappo:defaultLocation:
     value: eastus
-  mappo:definitionNamePrefix:
-    value: mappo-ma-def
-  mappo:definitionResourceGroupPrefix:
-    value: rg-mappo-ma-def
-  mappo:applicationResourceGroupPrefix:
-    value: rg-mappo-ma-apps
-  mappo:managedEnvironmentNamePrefix:
-    value: cae-mappo-ma
-  mappo:managedAppNamePrefix:
-    value: mappo-ma
-  mappo:managedResourceGroupPrefix:
-    value: rg-mappo-ma-mrg
-  mappo:containerAppNamePrefix:
-    value: ca-mappo-ma
-  mappo:publisherRoleDefinitionId:
-    value: b24988ac-6180-42a0-ab88-20f7382dd24c
-  mappo:targetProfile:
-    value: empty
-  mappo:defaultImage:
-    value: docker.io/library/python:3.11-alpine
-  mappo:defaultSoftwareVersion:
-    value: "2026.02.20.1"
-  mappo:defaultDataModelVersion:
-    value: "1"
-  mappo:defaultCpu:
-    value: 0.25
-  mappo:defaultMemory:
-    value: 0.5Gi
   mappo:controlPlanePostgresEnabled:
     value: false

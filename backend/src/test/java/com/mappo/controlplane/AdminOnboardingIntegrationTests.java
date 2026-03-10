@@ -57,10 +57,10 @@ class AdminOnboardingIntegrationTests extends PostgresIntegrationTestBase {
             .andExpect(jsonPath("$.eventId").value("evt-admin-001"))
             .andExpect(jsonPath("$.status").value("applied"));
 
-        mockMvc.perform(get("/api/v1/targets"))
+        mockMvc.perform(get("/api/v1/targets/page"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].id").value("target-admin-01"))
-            .andExpect(jsonPath("$[0].customerName").value("Acme Original"));
+            .andExpect(jsonPath("$.items[0].id").value("target-admin-01"))
+            .andExpect(jsonPath("$.items[0].customerName").value("Acme Original"));
 
         mockMvc.perform(patch("/api/v1/admin/onboarding/registrations/target-admin-01")
                 .contentType(APPLICATION_JSON)
@@ -82,9 +82,9 @@ class AdminOnboardingIntegrationTests extends PostgresIntegrationTestBase {
             .andExpect(jsonPath("$.metadata.deploymentStackName").value("mappo-stack-acme-01"))
             .andExpect(jsonPath("$.metadata.registryAuthMode").value("shared_service_principal_secret"));
 
-        mockMvc.perform(get("/api/v1/targets"))
+        mockMvc.perform(get("/api/v1/targets/page"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].customerName").value("Acme Updated"));
+            .andExpect(jsonPath("$.items[0].customerName").value("Acme Updated"));
 
         Map<String, Object> forwarderLog = new LinkedHashMap<>();
         forwarderLog.put("logId", "log-admin-001");
@@ -99,18 +99,24 @@ class AdminOnboardingIntegrationTests extends PostgresIntegrationTestBase {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("applied"));
 
-        mockMvc.perform(get("/api/v1/admin/onboarding"))
+        mockMvc.perform(get("/api/v1/admin/onboarding/registrations"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.registrations[0].metadata.containerAppName").value("ca-target-admin-01"))
-            .andExpect(jsonPath("$.registrations[0].metadata.source").value("marketplace-forwarder"))
-            .andExpect(jsonPath("$.registrations[0].metadata.deploymentStackName").value("mappo-stack-acme-01"))
-            .andExpect(jsonPath("$.registrations[0].metadata.registryAuthMode").value("shared_service_principal_secret"))
-            .andExpect(jsonPath("$.registrations[0].metadata.registryServer").value("acrmappodemo.azurecr.io"))
-            .andExpect(jsonPath("$.registrations[0].metadata.registryUsername").value("00000000-0000-0000-0000-000000000123"))
-            .andExpect(jsonPath("$.registrations[0].metadata.registryPasswordSecretName").value("publisher-acr-pull"))
-            .andExpect(jsonPath("$.events[0].payload.registrationSource").value("marketplace-forwarder"))
-            .andExpect(jsonPath("$.events[0].payload.marketplacePayloadId").value("mp-evt-001"))
-            .andExpect(jsonPath("$.forwarderLogs[0].details.detail").value("customer mapping missing"))
-            .andExpect(jsonPath("$.forwarderLogs[0].details.backendResponse").value("{\"detail\":\"bad request\"}"));
+            .andExpect(jsonPath("$.items[0].metadata.containerAppName").value("ca-target-admin-01"))
+            .andExpect(jsonPath("$.items[0].metadata.source").value("marketplace-forwarder"))
+            .andExpect(jsonPath("$.items[0].metadata.deploymentStackName").value("mappo-stack-acme-01"))
+            .andExpect(jsonPath("$.items[0].metadata.registryAuthMode").value("shared_service_principal_secret"))
+            .andExpect(jsonPath("$.items[0].metadata.registryServer").value("acrmappodemo.azurecr.io"))
+            .andExpect(jsonPath("$.items[0].metadata.registryUsername").value("00000000-0000-0000-0000-000000000123"))
+            .andExpect(jsonPath("$.items[0].metadata.registryPasswordSecretName").value("publisher-acr-pull"));
+
+        mockMvc.perform(get("/api/v1/admin/onboarding/events"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items[0].payload.registrationSource").value("marketplace-forwarder"))
+            .andExpect(jsonPath("$.items[0].payload.marketplacePayloadId").value("mp-evt-001"));
+
+        mockMvc.perform(get("/api/v1/admin/onboarding/forwarder-logs/page"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items[0].details.detail").value("customer mapping missing"))
+            .andExpect(jsonPath("$.items[0].details.backendResponse").value("{\"detail\":\"bad request\"}"));
     }
 }

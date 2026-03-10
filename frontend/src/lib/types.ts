@@ -3,7 +3,6 @@ import type { components, operations } from "@/lib/api/generated/schema";
 type Schemas = components["schemas"];
 
 export type CreateRunRequest = Schemas["RunCreateRequest"];
-export type AdminOnboardingSnapshotResponse = Schemas["OnboardingSnapshotRecord"];
 export type DeleteTargetRegistrationResponse = Schemas["DeleteRegistrationResultRecord"];
 export type ForwarderLogIngestRequest = components["schemas"]["ForwarderLogIngestRequest"];
 export type ForwarderLogIngestResponse = Schemas["ForwarderLogIngestResultRecord"];
@@ -14,7 +13,6 @@ export type ForwarderLogRecord = Schemas["ForwarderLogRecord"];
 export type ForwarderLogPage = Schemas["ForwarderLogPageRecord"];
 export type PageMetadata = Schemas["PageMetadataRecord"];
 export type ListRunsQuery = NonNullable<operations["listRuns"]["parameters"]["query"]>;
-export type ListTargetsQuery = NonNullable<operations["listTargets"]["parameters"]["query"]>;
 export type ListTargetsPageQuery = NonNullable<operations["listTargetsPage"]["parameters"]["query"]>;
 export type ListTargetRegistrationsQuery =
   NonNullable<operations["listRegistrations"]["parameters"]["query"]>;

@@ -104,18 +104,11 @@ const mockRunDetail = {
   ],
 };
 
-const mockAdminSnapshot = {
-  registrations: [],
-  events: [],
-  forwarderLogs: [],
-  releaseWebhookDeliveries: [],
-};
-
 const mockTargetPage = {
   items: mockTargets,
   page: {
     page: 0,
-    size: 10,
+    size: 200,
     totalItems: mockTargets.length,
     totalPages: 1,
   },
@@ -125,7 +118,7 @@ const mockRegistrationPage = {
   items: [],
   page: {
     page: 0,
-    size: 10,
+    size: 200,
     totalItems: 0,
     totalPages: 0,
   },
@@ -139,11 +132,9 @@ const apiMock = vi.hoisted(() => ({
   adminIngestGithubReleaseManifest: vi.fn(),
   adminIngestMarketplaceEvent: vi.fn(),
   createRun: vi.fn(),
-  getAdminOnboardingSnapshot: vi.fn(),
   getRun: vi.fn(),
   listReleases: vi.fn(),
   listRuns: vi.fn(),
-  listTargets: vi.fn(),
   listTargetsPage: vi.fn(),
   previewRun: vi.fn(),
   resumeRun: vi.fn(),
@@ -164,11 +155,9 @@ describe("App", () => {
     apiMock.previewRun.mockReset();
     apiMock.resumeRun.mockReset();
     apiMock.retryFailed.mockReset();
-    apiMock.listTargets.mockResolvedValue(mockTargets);
     apiMock.listReleases.mockResolvedValue(mockReleases);
     apiMock.listRuns.mockResolvedValue(mockRunPage);
     apiMock.getRun.mockResolvedValue(mockRunDetail);
-    apiMock.getAdminOnboardingSnapshot.mockResolvedValue(mockAdminSnapshot);
     apiMock.listTargetsPage.mockResolvedValue(mockTargetPage);
     apiMock.adminListTargetRegistrations.mockResolvedValue(mockRegistrationPage);
     apiMock.adminListMarketplaceEvents.mockResolvedValue(mockRegistrationPage);

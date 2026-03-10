@@ -69,7 +69,9 @@ Replay inventory through Function App (instead of calling MAPPO backend directly
 
 Expected:
 - Function App returns MAPPO onboarding response bodies.
-- `GET /api/v1/admin/onboarding` shows applied events, registered targets, and recent forwarder logs.
+- `GET /api/v1/admin/onboarding/registrations` shows registered targets.
+- `GET /api/v1/admin/onboarding/events` shows applied onboarding events.
+- `GET /api/v1/admin/onboarding/forwarder-logs/page` shows recent forwarder logs.
 - Forwarder failures are posted to `POST /api/v1/admin/onboarding/forwarder-logs` and visible in the Admin `Forwarder Logs` tab.
 
 ## Function Payload Contract
@@ -124,4 +126,4 @@ Recommended model:
 - Certification / private audience configuration.
 
 See also:
-- `/Users/cvonderheid/workspace/mappo/docs/marketplace-portal-playbook.md`
+- `/Users/cvonderheid/workspace/mappo/docs/demo-azure-topology.md`

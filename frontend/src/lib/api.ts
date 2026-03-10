@@ -1,6 +1,5 @@
 import { apiClient } from "@/lib/api/client";
 import type {
-  AdminOnboardingSnapshotResponse,
   CreateRunRequest,
   DeleteTargetRegistrationResponse,
   ForwarderLogPage,
@@ -10,7 +9,6 @@ import type {
   ListRunsQuery,
   ListTargetRegistrationsQuery,
   ListTargetsPageQuery,
-  ListTargetsQuery,
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
   MarketplaceEventPage,
@@ -54,19 +52,6 @@ function requireData<T>(label: string, result: ApiResult<T>): T {
   const status = result.response.status;
   const errorText = result.error !== undefined ? formatError(result.error) : "unknown error";
   throw new Error(`${label} failed (${status}): ${errorText}`);
-}
-
-export async function listTargets(query: ListTargetsQuery = {}): Promise<Target[]> {
-  const normalizedQuery = {
-    ring: query.ring,
-    region: query.region,
-    tier: query.tier,
-    environment: query.environment,
-  };
-  const { data, error, response } = await apiClient.GET("/api/v1/targets", {
-    params: { query: normalizedQuery },
-  });
-  return requireData("listTargets", { data, error, response });
 }
 
 export async function listTargetsPage(query: ListTargetsPageQuery = {}): Promise<TargetPage> {
@@ -145,15 +130,6 @@ export async function retryFailed(runId: string): Promise<RunDetail> {
     params: { path: { runId } },
   });
   return requireData("retryFailed", { data, error, response });
-}
-
-export async function getAdminOnboardingSnapshot(
-  eventLimit = 50
-): Promise<AdminOnboardingSnapshotResponse> {
-  const { data, error, response } = await apiClient.GET("/api/v1/admin/onboarding", {
-    params: { query: { event_limit: eventLimit } },
-  });
-  return requireData("getAdminOnboardingSnapshot", { data, error, response });
 }
 
 export async function adminListTargetRegistrations(

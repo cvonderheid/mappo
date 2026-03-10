@@ -10,6 +10,7 @@ import com.azure.resourcemanager.resources.models.DeploymentStacksDeleteDetachEn
 import com.azure.resourcemanager.resources.models.DenySettings;
 import com.azure.resourcemanager.resources.models.DenySettingsMode;
 import com.mappo.controlplane.azure.AzureExecutorClient;
+import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.StageErrorDetailsRecord;
 import com.mappo.controlplane.model.StageErrorRecord;
@@ -24,6 +25,7 @@ public class AzureDeploymentStackExecutor implements DeploymentStackExecutor {
 
     private final AzureExecutorClient azureExecutorClient;
     private final DeploymentStackTemplateInputsFactory templateInputsFactory;
+    private final MappoProperties properties;
 
     @Override
     public TargetDeploymentOutcome deploy(
@@ -36,9 +38,10 @@ public class AzureDeploymentStackExecutor implements DeploymentStackExecutor {
         String stackName = resolveStackName(target);
         String deploymentScope = normalize(target.managedResourceGroupId());
         String stackResourceGroupName = resourceGroupNameFromResourceId(deploymentScope);
+        ResourceManager resourceManager = null;
 
         try {
-            ResourceManager resourceManager = azureExecutorClient.createResourceManager(tenantId, subscriptionId);
+            resourceManager = azureExecutorClient.createResourceManager(tenantId, subscriptionId);
             DeploymentStackTemplateInputs inputs = templateInputsFactory.resolve(release, target);
             DeploymentStackInner deploymentStack = buildDeploymentStack(target.targetId(), inputs);
             DeploymentStackInner result = resourceManager.deploymentStackClient()
@@ -113,6 +116,18 @@ public class AzureDeploymentStackExecutor implements DeploymentStackExecutor {
             );
         } catch (ManagementException error) {
             ManagementError managementError = error.getValue();
+            if (isNonTerminalStateConflict(managementError) && resourceManager != null) {
+                return attachToInFlightDeployment(
+                    resourceManager,
+                    stackResourceGroupName,
+                    stackName,
+                    deploymentScope,
+                    runId,
+                    target.targetId(),
+                    managementError,
+                    error
+                );
+            }
             String correlationId = fallbackCorrelationId(
                 responseHeader(error, "x-ms-correlation-request-id"),
                 runId,
@@ -154,6 +169,117 @@ public class AzureDeploymentStackExecutor implements DeploymentStackExecutor {
                 fallbackCorrelationId(null, runId, target.targetId()),
                 ""
             );
+        }
+    }
+
+    private TargetDeploymentOutcome attachToInFlightDeployment(
+        ResourceManager resourceManager,
+        String resourceGroupName,
+        String stackName,
+        String deploymentScope,
+        String runId,
+        String targetId,
+        ManagementError originalError,
+        ManagementException managementException
+    ) {
+        DeploymentStackInner diagnosticsStack = waitForTerminalStackState(resourceManager, resourceGroupName, stackName);
+        if (diagnosticsStack == null) {
+            throw deploymentFailure(
+                "Azure deployment stack was already in progress and did not reach a terminal state before the recovery timeout.",
+                originalError,
+                managementException.getResponse() == null ? null : managementException.getResponse().getStatusCode(),
+                responseHeader(managementException, "x-ms-request-id"),
+                responseHeader(managementException, "x-ms-arm-service-request-id"),
+                fallbackCorrelationId(
+                    responseHeader(managementException, "x-ms-correlation-request-id"),
+                    runId,
+                    targetId
+                ),
+                stackName,
+                deploymentScope,
+                "",
+                null,
+                null
+            );
+        }
+
+        String diagnosticsDeploymentName = deploymentNameFromResourceId(diagnosticsStack.deploymentId());
+        String correlationId = fallbackCorrelationId(
+            normalize(diagnosticsStack.correlationId()),
+            runId,
+            targetId
+        );
+        ManagementError diagnosticsError = diagnosticsStack.error();
+        String provisioningState = normalize(diagnosticsStack.provisioningState());
+
+        if ("succeeded".equalsIgnoreCase(provisioningState) && diagnosticsError == null) {
+            return new TargetDeploymentOutcome(
+                correlationId,
+                "Deployment Stack " + stackName + " succeeded after reattaching to the in-flight Azure operation.",
+                ""
+            );
+        }
+
+        DeploymentOperationInner failedOperation = loadFailedDeploymentOperation(
+            resourceManager,
+            resourceGroupName,
+            diagnosticsDeploymentName
+        );
+        throw deploymentFailure(
+            "Azure deployment stack did not succeed after reattaching to the in-flight Azure operation.",
+            diagnosticsError == null ? originalError : diagnosticsError,
+            managementException.getResponse() == null ? null : managementException.getResponse().getStatusCode(),
+            responseHeader(managementException, "x-ms-request-id"),
+            responseHeader(managementException, "x-ms-arm-service-request-id"),
+            correlationId,
+            firstNonBlank(diagnosticsDeploymentName, stackName),
+            normalize(diagnosticsStack.id()),
+            normalize(diagnosticsStack.deploymentId()),
+            diagnosticsStack.failedResources(),
+            failedOperation
+        );
+    }
+
+    private DeploymentStackInner waitForTerminalStackState(
+        ResourceManager resourceManager,
+        String resourceGroupName,
+        String stackName
+    ) {
+        long timeoutMs = Math.max(1_000L, properties.getAzure().getDeploymentStackAttachTimeoutMs());
+        long pollIntervalMs = Math.max(250L, properties.getAzure().getDeploymentStackAttachPollIntervalMs());
+        long deadline = System.nanoTime() + (timeoutMs * 1_000_000L);
+
+        while (System.nanoTime() < deadline) {
+            DeploymentStackInner stack = refreshStackState(resourceManager, resourceGroupName, stackName, null);
+            if (stack != null && isTerminalProvisioningState(String.valueOf(stack.provisioningState()))) {
+                return stack;
+            }
+            sleep(pollIntervalMs);
+        }
+        return refreshStackState(resourceManager, resourceGroupName, stackName, null);
+    }
+
+    private boolean isTerminalProvisioningState(String provisioningState) {
+        String normalized = normalize(provisioningState);
+        return !normalized.isBlank()
+            && !"deploying".equalsIgnoreCase(normalized)
+            && !"running".equalsIgnoreCase(normalized)
+            && !"updating".equalsIgnoreCase(normalized)
+            && !"accepted".equalsIgnoreCase(normalized)
+            && !"creating".equalsIgnoreCase(normalized)
+            && !"deleting".equalsIgnoreCase(normalized);
+    }
+
+    private boolean isNonTerminalStateConflict(ManagementError error) {
+        return error != null && "DeploymentStackInNonTerminalState".equalsIgnoreCase(normalize(error.getCode()));
+    }
+
+    private void sleep(long delayMs) {
+        try {
+            Thread.sleep(delayMs);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for deployment stack state to settle.", interrupted);
         }
     }
 

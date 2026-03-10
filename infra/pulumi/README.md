@@ -1,6 +1,12 @@
 # MAPPO Pulumi IaC (Java)
 
-This Pulumi project provisions a marketplace-accurate managed application demo surface for MAPPO.
+This Pulumi project provisions only the shared control-plane infrastructure that still belongs in IaC:
+
+- control-plane PostgreSQL
+- Front Door edge / custom-domain ingress
+
+It does not provision target workloads. The target fleet lives in
+[`/Users/cvonderheid/workspace/mappo/infra/demo-fleet`](/Users/cvonderheid/workspace/mappo/infra/demo-fleet).
 
 ## Runtime
 
@@ -11,29 +17,18 @@ This Pulumi project provisions a marketplace-accurate managed application demo s
 ## What it creates
 
 - Optional stable ingress:
-- Azure Front Door profile, endpoint, route, and optional custom domain for the MAPPO webhook/API edge
-- Per target subscription:
-- Managed app definition resource group (`Microsoft.Solutions/applicationDefinitions`)
-- Managed app instances resource group (`Microsoft.Solutions/applications`)
-- Per target:
-- Managed app instance + managed resource group
-- Managed Environment + Container App inside the managed resource group
+  - Azure Front Door profile, endpoint, route, and optional custom domain for the MAPPO webhook/API edge
 - Optional control-plane persistence:
-- Azure Database for PostgreSQL Flexible Server + `mappo` database
+  - Azure Database for PostgreSQL Flexible Server + `mappo` database
 
 ## Stack config contract
 
 Pulumi config namespace is `mappo`.
 
-Required:
-- Either `mappo:publisherPrincipalObjectId` or `mappo:publisherPrincipalObjectIds`
-
 Required when `mappo:controlPlanePostgresEnabled=true`:
 - `mappo:controlPlanePostgresAdminPassword` (secret)
 
 Common optional keys:
-- `mappo:targetProfile` (`empty` or `demo10`; default `empty`)
-- `mappo:targets` (explicit array override)
 - `mappo:defaultLocation` (`eastus`)
 - `mappo:controlPlanePostgresEnabled` (`false`)
 - `mappo:controlPlaneSubscriptionId`
@@ -78,3 +73,7 @@ Destroy:
 cd infra/pulumi
 pulumi destroy --stack <stack> --yes
 ```
+
+Target fleet provisioning:
+- [`/Users/cvonderheid/workspace/mappo/infra/demo-fleet/README.md`](/Users/cvonderheid/workspace/mappo/infra/demo-fleet/README.md)
+- [`/Users/cvonderheid/workspace/mappo/scripts/demo_fleet_up.sh`](/Users/cvonderheid/workspace/mappo/scripts/demo_fleet_up.sh)

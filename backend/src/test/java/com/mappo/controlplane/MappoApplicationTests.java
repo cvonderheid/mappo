@@ -94,9 +94,9 @@ class MappoApplicationTests extends PostgresIntegrationTestBase {
                 jsonPath("$.paths['/api/v1/admin/releases/webhook-deliveries'].get.parameters[?(@.name == 'deliveryId')]")
                     .isNotEmpty()
             )
-            .andExpect(jsonPath("$.paths['/api/v1/targets'].get.deprecated").value(true))
-            .andExpect(jsonPath("$.paths['/api/v1/admin/onboarding'].get.deprecated").value(true))
-            .andExpect(jsonPath("$.paths['/api/v1/admin/onboarding/forwarder-logs'].get.deprecated").value(true));
+            .andExpect(jsonPath("$.paths['/api/v1/targets']").doesNotExist())
+            .andExpect(jsonPath("$.paths['/api/v1/admin/onboarding']").doesNotExist())
+            .andExpect(jsonPath("$.paths['/api/v1/admin/onboarding/forwarder-logs'].get").doesNotExist());
     }
 
     @Test

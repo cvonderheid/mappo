@@ -24,7 +24,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
-  AdminOnboardingSnapshotResponse,
   ReleaseManifestIngestRequest,
   ReleaseManifestIngestResponse,
   TargetRegistrationRecord,
@@ -33,7 +32,7 @@ import type {
 
 type AdminPanelProps = {
   adminErrorMessage: string;
-  adminSnapshot: AdminOnboardingSnapshotResponse | null;
+  registrations: TargetRegistrationRecord[];
   refreshKey: number;
   releaseIngestIsSubmitting: boolean;
   onIngestManagedAppReleases: (
@@ -44,7 +43,7 @@ type AdminPanelProps = {
     request: UpdateTargetRegistrationRequest
   ) => Promise<void>;
   onDeleteTargetRegistration: (targetId: string) => Promise<void>;
-  onRefreshSnapshot: () => Promise<void>;
+  onRefreshRegistrations: () => Promise<void>;
 };
 
 type RegistryAuthMode =
@@ -58,13 +57,13 @@ function normalizeTagValue(value: unknown, fallback: string): string {
 
 export default function AdminPanel({
   adminErrorMessage,
-  adminSnapshot,
+  registrations,
   refreshKey,
   releaseIngestIsSubmitting,
   onIngestManagedAppReleases,
   onUpdateTargetRegistration,
   onDeleteTargetRegistration,
-  onRefreshSnapshot,
+  onRefreshRegistrations,
 }: AdminPanelProps) {
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
 
@@ -89,11 +88,6 @@ export default function AdminPanel({
   const [isRefreshingSnapshot, setIsRefreshingSnapshot] = useState<boolean>(false);
 
   const [deletingTargetId, setDeletingTargetId] = useState<string | null>(null);
-
-  const registrations = adminSnapshot?.registrations ?? [];
-  const events = adminSnapshot?.events ?? [];
-  const forwarderLogs = adminSnapshot?.forwarderLogs ?? [];
-  const releaseWebhookDeliveries = adminSnapshot?.releaseWebhookDeliveries ?? [];
 
   const canSubmitEdit =
     editingTargetId.trim() !== "" &&
@@ -188,7 +182,7 @@ export default function AdminPanel({
   async function handleRefreshRegistrations(): Promise<void> {
     setIsRefreshingSnapshot(true);
     try {
-      await onRefreshSnapshot();
+      await onRefreshRegistrations();
       toast.success("Registered targets refreshed.");
     } catch (error) {
       toast.error((error as Error).message);
@@ -425,15 +419,9 @@ export default function AdminPanel({
               <TabsTrigger value="registrations">
                 Registered Targets ({registrations.length})
               </TabsTrigger>
-              <TabsTrigger value="events">
-                Recent Onboarding Events ({events.length})
-              </TabsTrigger>
-              <TabsTrigger value="forwarder-logs">
-                Forwarder Logs ({forwarderLogs.length})
-              </TabsTrigger>
-              <TabsTrigger value="release-webhooks">
-                Release Webhooks ({releaseWebhookDeliveries.length})
-              </TabsTrigger>
+              <TabsTrigger value="events">Recent Onboarding Events</TabsTrigger>
+              <TabsTrigger value="forwarder-logs">Forwarder Logs</TabsTrigger>
+              <TabsTrigger value="release-webhooks">Release Webhooks</TabsTrigger>
             </TabsList>
             <TabsContent value="registrations">
               <RegistrationsDataTable

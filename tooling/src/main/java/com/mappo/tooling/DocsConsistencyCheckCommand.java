@@ -17,7 +17,8 @@ final class DocsConsistencyCheckCommand {
         "docs/engineering-playbook.md",
         "docs/golden-principles.md",
         "docs/implement.md",
-        "docs/plans.md"
+        "docs/plans.md",
+        "docs/demo-azure-topology.md"
     );
 
     private static final List<String> NO_MAKE_REFERENCE_FILES = List.of(
@@ -31,7 +32,6 @@ final class DocsConsistencyCheckCommand {
         "docs/implement.md",
         "docs/live-demo-checklist.md",
         "docs/marketplace-forwarder-runbook.md",
-        "docs/marketplace-portal-playbook.md",
         "docs/runtime-aca-runbook.md"
     );
 

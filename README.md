@@ -120,9 +120,13 @@ Environment variables:
 
 ## API Surface (Java)
 
+Primary operator-facing routes:
+
 - `GET /healthz`
 - `GET /api/v1/health`
-- `GET /api/v1/targets`
+- `GET /docs`
+- `GET /api/v1/openapi.json`
+- `GET /api/v1/targets/page`
 - `GET /api/v1/releases`
 - `POST /api/v1/releases`
 - `GET /api/v1/runs`
@@ -130,12 +134,16 @@ Environment variables:
 - `POST /api/v1/runs`
 - `POST /api/v1/runs/{runId}/resume`
 - `POST /api/v1/runs/{runId}/retry-failed`
-- `GET /api/v1/admin/onboarding`
-- `POST /api/v1/admin/onboarding/events`
-- `GET /api/v1/admin/onboarding/forwarder-logs`
+- `POST /api/v1/runs/preview`
+- `GET /api/v1/events/stream`
+- `GET /api/v1/admin/onboarding/registrations`
+- `GET /api/v1/admin/onboarding/events`
+- `GET /api/v1/admin/onboarding/forwarder-logs/page`
 - `POST /api/v1/admin/onboarding/forwarder-logs`
 - `PATCH /api/v1/admin/onboarding/registrations/{targetId}`
 - `DELETE /api/v1/admin/onboarding/registrations/{targetId}`
+- `GET /api/v1/admin/releases/webhook-deliveries`
+- `POST /api/v1/admin/releases/webhooks/github`
 
 ## Quality Commands
 

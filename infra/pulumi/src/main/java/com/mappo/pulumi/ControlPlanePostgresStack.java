@@ -1,0 +1,197 @@
+package com.mappo.pulumi;
+
+import com.pulumi.azurenative.Provider;
+import com.pulumi.azurenative.dbforpostgresql.Configuration;
+import com.pulumi.azurenative.dbforpostgresql.ConfigurationArgs;
+import com.pulumi.azurenative.dbforpostgresql.Database;
+import com.pulumi.azurenative.dbforpostgresql.DatabaseArgs;
+import com.pulumi.azurenative.dbforpostgresql.FirewallRule;
+import com.pulumi.azurenative.dbforpostgresql.FirewallRuleArgs;
+import com.pulumi.azurenative.dbforpostgresql.Server;
+import com.pulumi.azurenative.dbforpostgresql.ServerArgs;
+import com.pulumi.azurenative.dbforpostgresql.inputs.BackupArgs;
+import com.pulumi.azurenative.dbforpostgresql.inputs.HighAvailabilityArgs;
+import com.pulumi.azurenative.dbforpostgresql.inputs.NetworkArgs;
+import com.pulumi.azurenative.dbforpostgresql.inputs.SkuArgs;
+import com.pulumi.azurenative.dbforpostgresql.inputs.StorageArgs;
+import com.pulumi.azurenative.resources.ResourceGroup;
+import com.pulumi.azurenative.resources.ResourceGroupArgs;
+import com.pulumi.core.Output;
+import com.pulumi.resources.CustomResourceOptions;
+import com.pulumi.resources.CustomTimeouts;
+import java.time.Duration;
+
+final class ControlPlanePostgresStack {
+    private ControlPlanePostgresStack() {
+    }
+
+    static ControlPlanePostgresResources create(ControlPlanePostgresConfig config, Provider provider) {
+        if (!config.enabled()) {
+            return null;
+        }
+        if (config.adminPassword() == null) {
+            throw new IllegalStateException(
+                "Managed Postgres provisioning requested without admin password. "
+                    + "Set mappo:controlPlanePostgresAdminPassword (secret)."
+            );
+        }
+
+        String subscriptionKey = PulumiSupport.subscriptionKey(config.subscriptionId());
+        String resourceGroupName = PulumiSupport.normalizeName(
+            config.resourceGroupPrefix() + "-" + subscriptionKey,
+            "rg-mappo-control-plane-" + subscriptionKey,
+            90
+        );
+        String serverName = PulumiSupport.normalizeName(
+            config.serverNamePrefix() + "-" + subscriptionKey,
+            "pg-mappo-" + subscriptionKey,
+            63
+        );
+
+        CustomResourceOptions withProvider = CustomResourceOptions.builder().provider(provider).build();
+
+        ResourceGroup resourceGroup = new ResourceGroup(
+            "control-plane-rg-" + subscriptionKey,
+            ResourceGroupArgs.builder()
+                .resourceGroupName(resourceGroupName)
+                .location(config.location())
+                .tags(PulumiSupport.linkedMapOfString(
+                    "managedBy", "pulumi",
+                    "system", "mappo",
+                    "scope", "control-plane"
+                ))
+                .build(),
+            withProvider
+        );
+
+        Server server = new Server(
+            "control-plane-postgres-" + subscriptionKey,
+            ServerArgs.builder()
+                .resourceGroupName(resourceGroup.name())
+                .serverName(serverName)
+                .location(config.location())
+                .createMode("Create")
+                .administratorLogin(config.adminLogin())
+                .administratorLoginPassword(config.adminPassword())
+                .version(config.version())
+                .backup(BackupArgs.builder()
+                    .backupRetentionDays(config.backupRetentionDays())
+                    .geoRedundantBackup("Disabled")
+                    .build())
+                .highAvailability(HighAvailabilityArgs.builder().mode("Disabled").build())
+                .network(NetworkArgs.builder()
+                    .publicNetworkAccess(config.publicNetworkAccess() ? "Enabled" : "Disabled")
+                    .build())
+                .sku(SkuArgs.builder()
+                    .name(config.skuName())
+                    .tier(PulumiSupport.inferPostgresSkuTier(config.skuName()))
+                    .build())
+                .storage(StorageArgs.builder()
+                    .storageSizeGB(config.storageSizeGb())
+                    .autoGrow("Enabled")
+                    .build())
+                .tags(PulumiSupport.linkedMapOfString(
+                    "managedBy", "pulumi",
+                    "system", "mappo",
+                    "scope", "control-plane-postgres"
+                ))
+                .build(),
+            CustomResourceOptions.builder()
+                .provider(provider)
+                .customTimeouts(CustomTimeouts.builder()
+                    .create(Duration.ofMinutes(30))
+                    .update(Duration.ofMinutes(30))
+                    .delete(Duration.ofMinutes(30))
+                    .build())
+                .build()
+        );
+
+        Database database = new Database(
+            "control-plane-postgres-db-" + subscriptionKey,
+            DatabaseArgs.builder()
+                .resourceGroupName(resourceGroup.name())
+                .serverName(server.name())
+                .databaseName(config.databaseName())
+                .charset("UTF8")
+                .collation("en_US.utf8")
+                .build(),
+            withProvider
+        );
+
+        new Configuration(
+            "control-plane-postgres-ext-" + subscriptionKey,
+            ConfigurationArgs.builder()
+                .resourceGroupName(resourceGroup.name())
+                .serverName(server.name())
+                .configurationName("azure.extensions")
+                .source("user-override")
+                .value("PGCRYPTO")
+                .build(),
+            CustomResourceOptions.builder()
+                .provider(provider)
+                .dependsOn(database)
+                .customTimeouts(CustomTimeouts.builder()
+                    .create(Duration.ofMinutes(10))
+                    .update(Duration.ofMinutes(10))
+                    .build())
+                .build()
+        );
+
+        if (config.publicNetworkAccess()) {
+            if (config.allowAzureServices()) {
+                new FirewallRule(
+                    "control-plane-postgres-fw-azure-" + subscriptionKey,
+                    FirewallRuleArgs.builder()
+                        .resourceGroupName(resourceGroup.name())
+                        .serverName(server.name())
+                        .firewallRuleName("allow-azure-services")
+                        .startIpAddress("0.0.0.0")
+                        .endIpAddress("0.0.0.0")
+                        .build(),
+                    withProvider
+                );
+            }
+
+            for (int i = 0; i < config.firewallIpRanges().size(); i++) {
+                PulumiSupport.FirewallIpRange range = config.firewallIpRanges().get(i);
+                new FirewallRule(
+                    "control-plane-postgres-fw-custom-" + subscriptionKey + "-" + (i + 1),
+                    FirewallRuleArgs.builder()
+                        .resourceGroupName(resourceGroup.name())
+                        .serverName(server.name())
+                        .firewallRuleName("allow-ip-" + (i + 1))
+                        .startIpAddress(range.startIpAddress())
+                        .endIpAddress(range.endIpAddress())
+                        .build(),
+                    withProvider
+                );
+            }
+        }
+
+        Output<String> host = server.fullyQualifiedDomainName();
+        Output<String> connectionUsername = Output.of(config.adminLogin());
+        Output<String> databaseUrl = Output.tuple(connectionUsername, config.adminPassword(), host, database.name())
+            .applyValue(tuple -> "postgresql+psycopg://"
+                + PulumiSupport.urlEncode(tuple.t1)
+                + ":"
+                + PulumiSupport.urlEncode(tuple.t2)
+                + "@"
+                + tuple.t3
+                + ":5432/"
+                + tuple.t4
+                + "?sslmode=require");
+
+        return new ControlPlanePostgresResources(
+            config.subscriptionId(),
+            resourceGroup.name(),
+            server.name(),
+            host,
+            5432,
+            config.databaseName(),
+            config.adminLogin(),
+            connectionUsername,
+            config.adminPassword(),
+            databaseUrl
+        );
+    }
+}
