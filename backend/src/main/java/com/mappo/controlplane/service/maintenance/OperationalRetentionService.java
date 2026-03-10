@@ -20,24 +20,24 @@ public class OperationalRetentionService {
     private final LiveUpdateService liveUpdateService;
 
     @Scheduled(
-        initialDelayString = "${mappo.retention-interval-ms:86400000}",
-        fixedDelayString = "${mappo.retention-interval-ms:86400000}"
+        initialDelayString = "${mappo.retention.interval-ms:86400000}",
+        fixedDelayString = "${mappo.retention.interval-ms:86400000}"
     )
     public void scheduledRetentionCleanup() {
-        if (!properties.isRetentionEnabled()) {
+        if (!properties.getRetention().isEnabled()) {
             return;
         }
         pruneExpiredData();
     }
 
     public RetentionCleanupSummary pruneExpiredData() {
-        if (!properties.isRetentionEnabled()) {
+        if (!properties.getRetention().isEnabled()) {
             return new RetentionCleanupSummary(0, 0, 0, 0);
         }
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        OffsetDateTime runCutoff = now.minusDays(Math.max(1, properties.getRunRetentionDays()));
-        OffsetDateTime auditCutoff = now.minusDays(Math.max(1, properties.getAuditRetentionDays()));
+        OffsetDateTime runCutoff = now.minusDays(Math.max(1, properties.getRetention().getRunRetentionDays()));
+        OffsetDateTime auditCutoff = now.minusDays(Math.max(1, properties.getRetention().getAuditRetentionDays()));
 
         RetentionCleanupSummary summary = new RetentionCleanupSummary(
             retentionRepository.deleteExpiredRuns(runCutoff),

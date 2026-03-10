@@ -4,6 +4,7 @@ import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.jooq.enums.MappoRuntimeProbeStatus;
 import com.mappo.controlplane.model.TargetRuntimeProbeContextRecord;
 import com.mappo.controlplane.model.TargetRuntimeProbeRecord;
+import com.mappo.controlplane.repository.TargetCommandRepository;
 import com.mappo.controlplane.repository.TargetRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
@@ -22,24 +23,25 @@ import org.springframework.stereotype.Service;
 public class TargetRuntimeProbeService {
 
     private final TargetRepository targetRepository;
+    private final TargetCommandRepository targetCommandRepository;
     private final TargetRuntimeProbeClient targetRuntimeProbeClient;
     private final MappoProperties properties;
     private final LiveUpdateService liveUpdateService;
     private final AtomicBoolean refreshInProgress = new AtomicBoolean(false);
 
     @Scheduled(
-        initialDelayString = "${mappo.runtime-probe-initial-delay-ms:15000}",
-        fixedDelayString = "${mappo.runtime-probe-interval-ms:60000}"
+        initialDelayString = "${mappo.runtime-probe.initial-delay-ms:15000}",
+        fixedDelayString = "${mappo.runtime-probe.interval-ms:60000}"
     )
     public void scheduledRefreshRuntimeProbes() {
-        if (!properties.isRuntimeProbeEnabled()) {
+        if (!properties.getRuntimeProbe().isEnabled()) {
             return;
         }
         refreshRuntimeProbes();
     }
 
     public void refreshRuntimeProbes() {
-        if (!properties.isRuntimeProbeEnabled() || !targetRuntimeProbeClient.isConfigured()) {
+        if (!properties.getRuntimeProbe().isEnabled() || !targetRuntimeProbeClient.isConfigured()) {
             return;
         }
         if (!refreshInProgress.compareAndSet(false, true)) {
@@ -60,6 +62,7 @@ public class TargetRuntimeProbeService {
                     waitFor(task);
                 }
             }
+            liveUpdateService.emitTargetsUpdated();
         } finally {
             refreshInProgress.set(false);
         }
@@ -67,9 +70,9 @@ public class TargetRuntimeProbeService {
 
     private void refreshRuntimeProbe(TargetRuntimeProbeContextRecord target) {
         try {
-            targetRepository.upsertRuntimeProbe(targetRuntimeProbeClient.probe(target));
+            targetCommandRepository.upsertRuntimeProbe(targetRuntimeProbeClient.probe(target));
         } catch (RuntimeException error) {
-            targetRepository.upsertRuntimeProbe(new TargetRuntimeProbeRecord(
+            targetCommandRepository.upsertRuntimeProbe(new TargetRuntimeProbeRecord(
                 target.targetId(),
                 MappoRuntimeProbeStatus.unknown,
                 OffsetDateTime.now(ZoneOffset.UTC),
@@ -78,7 +81,6 @@ public class TargetRuntimeProbeService {
                 "Runtime probe failed: " + summarizeError(error)
             ));
         }
-        liveUpdateService.emitTargetsUpdated();
     }
 
     private void waitFor(Future<?> task) {

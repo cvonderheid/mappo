@@ -57,7 +57,7 @@ public class HttpReleaseManifestSourceClient implements ReleaseManifestSourceCli
     }
 
     private HttpRequest buildRequest(String repo, String safePath, String ref) {
-        String token = normalize(properties.getManagedAppReleaseGithubToken());
+        String token = normalize(properties.getManagedAppRelease().getGithubToken());
         if (token.isBlank()) {
             String url = githubRawBaseUri().toString() + "/%s/%s/%s".formatted(
                 repo,

@@ -5,12 +5,16 @@ import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
 import com.mappo.controlplane.jooq.enums.MappoTargetStage;
 import com.mappo.controlplane.model.ReleaseRecord;
+import com.mappo.controlplane.model.RunExecutionCountsRecord;
 import com.mappo.controlplane.model.RunDetailRecord;
 import com.mappo.controlplane.model.StageErrorDetailsRecord;
 import com.mappo.controlplane.model.StageErrorRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import com.mappo.controlplane.model.TargetRecord;
+import com.mappo.controlplane.repository.ReleaseRepository;
+import com.mappo.controlplane.repository.RunCommandRepository;
 import com.mappo.controlplane.repository.RunRepository;
+import com.mappo.controlplane.repository.TargetCommandRepository;
 import com.mappo.controlplane.repository.TargetRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
@@ -30,38 +34,69 @@ import org.springframework.stereotype.Service;
 public class RunExecutionService {
 
     private final RunRepository runRepository;
+    private final RunCommandRepository runCommandRepository;
+    private final ReleaseRepository releaseRepository;
     private final TargetRepository targetRepository;
+    private final TargetCommandRepository targetCommandRepository;
     private final TemplateSpecExecutor templateSpecExecutor;
     private final DeploymentStackExecutor deploymentStackExecutor;
     private final RunExecutionPolicyService runExecutionPolicyService;
     private final LiveUpdateService liveUpdateService;
 
-    public void executeRun(
-        RunDetailRecord run,
-        ReleaseRecord release,
-        List<TargetRecord> targets,
-        boolean azureConfigured
-    ) {
-        String runId = run.id();
-        List<TargetExecutionContextRecord> contexts = loadExecutionContexts(targets);
+    public void executeRun(String runId, boolean azureConfigured) {
+        RunDetailRecord run = runRepository.getRunDetail(runId)
+            .orElseThrow(() -> new IllegalStateException("run not found: " + runId));
+        if (run.status() != com.mappo.controlplane.jooq.enums.MappoRunStatus.running) {
+            publishRunChange(runId);
+            return;
+        }
+
+        ReleaseRecord release = releaseRepository.getRelease(run.releaseId())
+            .orElseThrow(() -> new IllegalStateException("release not found: " + run.releaseId()));
+
+        List<String> queuedTargetIds = runCommandRepository.listTargetIdsByStatuses(
+            runId,
+            List.of(MappoTargetStage.QUEUED)
+        );
+        Map<String, TargetRecord> targetsById = new LinkedHashMap<>();
+        for (TargetRecord target : targetRepository.getTargetsByIds(queuedTargetIds)) {
+            targetsById.put(target.id(), target);
+        }
+
+        List<TargetExecutionContextRecord> contexts = loadExecutionContexts(queuedTargetIds);
         Map<String, TargetExecutionContextRecord> contextsByTarget = indexContexts(contexts);
+        List<TargetRecord> targets = new ArrayList<>(queuedTargetIds.size());
+        for (String queuedTargetId : queuedTargetIds) {
+            TargetRecord target = targetsById.get(queuedTargetId);
+            if (target == null) {
+                failValidation(
+                    runId,
+                    queuedTargetId,
+                    "Target registration is missing current metadata required for execution."
+                );
+                continue;
+            }
+            targets.add(target);
+        }
+
         List<String> warnings = runExecutionPolicyService.buildWarnings(release, targets, azureConfigured);
 
-        runRepository.deleteRunWarnings(runId);
+        runCommandRepository.deleteRunWarnings(runId);
         for (int i = 0; i < warnings.size(); i++) {
-            runRepository.addRunWarning(runId, i, warnings.get(i));
+            runCommandRepository.addRunWarning(runId, i, warnings.get(i));
         }
         publishRunChange(runId);
 
-        int failedCount = 0;
-        int succeededCount = 0;
         String haltReason = null;
-        int processedCount = 0;
+        if (targets.isEmpty()) {
+            finalizeRun(runId, haltReason);
+            return;
+        }
 
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             List<List<TargetRecord>> batches = runExecutionPolicyService.planBatches(run, targets);
             for (List<TargetRecord> batch : batches) {
-                List<TargetRunResult> batchResults = executeBatch(
+                executeBatch(
                     executor,
                     runId,
                     release,
@@ -69,44 +104,23 @@ public class RunExecutionService {
                     contextsByTarget,
                     azureConfigured
                 );
-                processedCount += batchResults.size();
-                for (TargetRunResult result : batchResults) {
-                    if (result.succeeded()) {
-                        succeededCount += 1;
-                        targetRepository.updateLastDeployedRelease(result.targetId(), release.sourceVersion());
-                        liveUpdateService.emitTargetsUpdated();
-                    } else {
-                        failedCount += 1;
-                    }
-                }
-
+                RunExecutionCountsRecord counts = runCommandRepository.getExecutionCounts(runId);
                 haltReason = runExecutionPolicyService.haltReasonFor(
                     run.stopPolicy(),
-                    failedCount,
-                    processedCount,
-                    targets.size()
+                    counts.failedTargets(),
+                    counts.processedTargets(),
+                    counts.totalTargets()
                 );
-                if (haltReason != null && processedCount < targets.size()) {
+                if (haltReason != null && counts.hasQueuedTargets()) {
                     break;
                 }
             }
         }
 
-        runRepository.markRunComplete(
-            runId,
-            runExecutionPolicyService.finalRunStatus(
-                targets.size(),
-                succeededCount,
-                failedCount,
-                haltReason,
-                processedCount
-            ),
-            haltReason
-        );
-        publishRunChange(runId);
+        finalizeRun(runId, haltReason);
     }
 
-    private List<TargetRunResult> executeBatch(
+    private void executeBatch(
         java.util.concurrent.ExecutorService executor,
         String runId,
         ReleaseRecord release,
@@ -123,10 +137,13 @@ public class RunExecutionService {
             }));
         }
 
-        List<TargetRunResult> results = new ArrayList<>(batch.size());
         for (Future<TargetRunResult> future : futures) {
             try {
-                results.add(future.get());
+                TargetRunResult result = future.get();
+                if (result.succeeded()) {
+                    targetCommandRepository.updateLastDeployedRelease(result.targetId(), release.sourceVersion());
+                    liveUpdateService.emitTargetsUpdated();
+                }
             } catch (InterruptedException error) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException("Run execution interrupted", error);
@@ -134,7 +151,6 @@ public class RunExecutionService {
                 throw new IllegalStateException("Run execution worker failed", error.getCause());
             }
         }
-        return results;
     }
 
     private TargetRunOutcome executeTarget(
@@ -177,8 +193,8 @@ public class RunExecutionService {
         String correlationId = correlationId(runId, target.id(), MappoTargetStage.VALIDATING);
         OffsetDateTime startedAt = now();
 
-        runRepository.updateTargetExecutionStatus(runId, target.id(), MappoTargetStage.VALIDATING);
-        runRepository.appendTargetLog(
+        runCommandRepository.updateTargetExecutionStatus(runId, target.id(), MappoTargetStage.VALIDATING);
+        runCommandRepository.appendTargetLog(
             runId,
             target.id(),
             MappoForwarderLogLevel.info,
@@ -275,7 +291,7 @@ public class RunExecutionService {
 
         OffsetDateTime endedAt = now();
         String message = runExecutionPolicyService.validationMessage(release, target, context, azureConfigured);
-        runRepository.appendTargetStage(
+        runCommandRepository.appendTargetStage(
             runId,
             target.id(),
             MappoTargetStage.VALIDATING,
@@ -286,7 +302,7 @@ public class RunExecutionService {
             correlationId,
             ""
         );
-        runRepository.appendTargetLog(
+        runCommandRepository.appendTargetLog(
             runId,
             target.id(),
             MappoForwarderLogLevel.info,
@@ -309,8 +325,8 @@ public class RunExecutionService {
         String correlationId = correlationId(runId, target.id(), MappoTargetStage.DEPLOYING);
         OffsetDateTime startedAt = now();
 
-        runRepository.updateTargetExecutionStatus(runId, target.id(), MappoTargetStage.DEPLOYING);
-        runRepository.appendTargetLog(
+        runCommandRepository.updateTargetExecutionStatus(runId, target.id(), MappoTargetStage.DEPLOYING);
+        runCommandRepository.appendTargetLog(
             runId,
             target.id(),
             MappoForwarderLogLevel.info,
@@ -325,7 +341,7 @@ public class RunExecutionService {
             TargetDeploymentOutcome outcome = deployOutcome(runId, release, context, azureConfigured);
 
             OffsetDateTime endedAt = now();
-            runRepository.appendTargetStage(
+            runCommandRepository.appendTargetStage(
                 runId,
                 target.id(),
                 MappoTargetStage.DEPLOYING,
@@ -336,7 +352,7 @@ public class RunExecutionService {
                 outcome.correlationId(),
                 outcome.portalLink()
             );
-            runRepository.appendTargetLog(
+            runCommandRepository.appendTargetLog(
                 runId,
                 target.id(),
                 MappoForwarderLogLevel.info,
@@ -369,8 +385,8 @@ public class RunExecutionService {
         String correlationId = correlationId(runId, target.id(), MappoTargetStage.VERIFYING);
         OffsetDateTime startedAt = now();
 
-        runRepository.updateTargetExecutionStatus(runId, target.id(), MappoTargetStage.VERIFYING);
-        runRepository.appendTargetLog(
+        runCommandRepository.updateTargetExecutionStatus(runId, target.id(), MappoTargetStage.VERIFYING);
+        runCommandRepository.appendTargetLog(
             runId,
             target.id(),
             MappoForwarderLogLevel.info,
@@ -414,7 +430,7 @@ public class RunExecutionService {
         String message = release.executionSettings().verifyAfterDeploy()
             ? runExecutionPolicyService.verificationMessage(release, azureConfigured)
             : "Verification skipped by release settings.";
-        runRepository.appendTargetStage(
+        runCommandRepository.appendTargetStage(
             runId,
             target.id(),
             MappoTargetStage.VERIFYING,
@@ -425,7 +441,7 @@ public class RunExecutionService {
             correlationId,
             ""
         );
-        runRepository.appendTargetLog(
+        runCommandRepository.appendTargetLog(
             runId,
             target.id(),
             MappoForwarderLogLevel.info,
@@ -440,8 +456,8 @@ public class RunExecutionService {
 
     private void markSucceeded(String runId, String targetId, String correlationId) {
         OffsetDateTime timestamp = now();
-        runRepository.updateTargetExecutionStatus(runId, targetId, MappoTargetStage.SUCCEEDED);
-        runRepository.appendTargetStage(
+        runCommandRepository.updateTargetExecutionStatus(runId, targetId, MappoTargetStage.SUCCEEDED);
+        runCommandRepository.appendTargetStage(
             runId,
             targetId,
             MappoTargetStage.SUCCEEDED,
@@ -452,7 +468,7 @@ public class RunExecutionService {
             correlationId,
             ""
         );
-        runRepository.appendTargetLog(
+        runCommandRepository.appendTargetLog(
             runId,
             targetId,
             MappoForwarderLogLevel.info,
@@ -502,8 +518,8 @@ public class RunExecutionService {
         StageErrorRecord error
     ) {
         OffsetDateTime timestamp = now();
-        runRepository.updateTargetExecutionStatus(runId, targetId, MappoTargetStage.FAILED);
-        runRepository.appendTargetStage(
+        runCommandRepository.updateTargetExecutionStatus(runId, targetId, MappoTargetStage.FAILED);
+        runCommandRepository.appendTargetStage(
             runId,
             targetId,
             stage,
@@ -514,7 +530,7 @@ public class RunExecutionService {
             correlationId,
             ""
         );
-        runRepository.appendTargetLog(
+        runCommandRepository.appendTargetLog(
             runId,
             targetId,
             MappoForwarderLogLevel.error,
@@ -571,11 +587,11 @@ public class RunExecutionService {
         );
     }
 
-    private List<TargetExecutionContextRecord> loadExecutionContexts(List<TargetRecord> targets) {
-        if (targets.isEmpty()) {
+    private List<TargetExecutionContextRecord> loadExecutionContexts(List<String> targetIds) {
+        if (targetIds.isEmpty()) {
             return List.of();
         }
-        return targetRepository.getExecutionContextsByIds(targets.stream().map(TargetRecord::id).toList());
+        return targetRepository.getExecutionContextsByIds(targetIds);
     }
 
     private Map<String, TargetExecutionContextRecord> indexContexts(List<TargetExecutionContextRecord> contexts) {
@@ -603,6 +619,17 @@ public class RunExecutionService {
 
     private String correlationId(String runId, String targetId, MappoTargetStage stage) {
         return "corr-" + runId + "-" + targetId + "-" + stage.name().toLowerCase();
+    }
+
+    private void finalizeRun(String runId, String haltReason) {
+        RunExecutionCountsRecord counts = runCommandRepository.getExecutionCounts(runId);
+        var finalStatus = runExecutionPolicyService.finalRunStatus(counts, haltReason);
+        if (finalStatus == com.mappo.controlplane.jooq.enums.MappoRunStatus.running) {
+            publishRunChange(runId);
+            return;
+        }
+        runCommandRepository.markRunComplete(runId, finalStatus, haltReason);
+        publishRunChange(runId);
     }
 
     private OffsetDateTime now() {

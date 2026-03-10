@@ -14,6 +14,7 @@ import com.mappo.controlplane.jooq.enums.MappoRuntimeProbeStatus;
 import com.mappo.controlplane.model.TargetRuntimeProbeRecord;
 import com.mappo.controlplane.model.command.ReleaseWebhookDeliveryCommand;
 import com.mappo.controlplane.repository.ReleaseWebhookRepository;
+import com.mappo.controlplane.repository.TargetCommandRepository;
 import com.mappo.controlplane.repository.TargetRepository;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -40,6 +41,9 @@ class FleetAndAdminPaginationIntegrationTests extends PostgresIntegrationTestBas
     @Autowired
     private TargetRepository targetRepository;
 
+    @Autowired
+    private TargetCommandRepository targetCommandRepository;
+
     private MockMvc mockMvc;
 
     private final ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
@@ -54,7 +58,7 @@ class FleetAndAdminPaginationIntegrationTests extends PostgresIntegrationTestBas
         registerTarget("target-fleet-01", "11111111-1111-1111-1111-111111111111", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "canary", "centralus", "gold");
         registerTarget("target-fleet-02", "22222222-2222-2222-2222-222222222222", "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "prod", "eastus", "gold");
         registerTarget("target-fleet-03", "33333333-3333-3333-3333-333333333333", "cccccccc-cccc-cccc-cccc-cccccccccccc", "prod", "westus2", "silver");
-        targetRepository.upsertRuntimeProbe(new TargetRuntimeProbeRecord(
+        targetCommandRepository.upsertRuntimeProbe(new TargetRuntimeProbeRecord(
             "target-fleet-01",
             MappoRuntimeProbeStatus.healthy,
             OffsetDateTime.parse("2026-03-09T10:00:00Z"),
@@ -62,7 +66,7 @@ class FleetAndAdminPaginationIntegrationTests extends PostgresIntegrationTestBas
             200,
             "Runtime responded with HTTP 200."
         ));
-        targetRepository.upsertRuntimeProbe(new TargetRuntimeProbeRecord(
+        targetCommandRepository.upsertRuntimeProbe(new TargetRuntimeProbeRecord(
             "target-fleet-02",
             MappoRuntimeProbeStatus.unreachable,
             OffsetDateTime.parse("2026-03-09T10:05:00Z"),

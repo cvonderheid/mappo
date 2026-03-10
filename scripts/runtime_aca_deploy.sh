@@ -17,6 +17,9 @@ DB_ENV_FILE="${ROOT_DIR}/.data/mappo-db.env"
 PUBLISHER_ACR_ENV_FILE="${ROOT_DIR}/.data/mappo-publisher-acr.env"
 GITHUB_ENV_FILE="${ROOT_DIR}/.data/mappo-github.env"
 OUTPUT_ENV_FILE="${ROOT_DIR}/.data/mappo-runtime.env"
+REDIS_CLUSTER_NAME=""
+REDIS_SKU="Balanced_B0"
+REDIS_PROVISION="true"
 BACKEND_CPU="0.5"
 BACKEND_MEMORY="1.0Gi"
 FRONTEND_CPU="0.5"
@@ -51,6 +54,9 @@ Options:
                                Optional publisher ACR env file (default: .data/mappo-publisher-acr.env)
   --github-env-file <path>     Optional GitHub/webhook env file (default: .data/mappo-github.env)
   --output-env-file <path>     Output env file with deployed URLs (default: .data/mappo-runtime.env)
+  --redis-name <name>          Azure Managed Redis cluster name (default: redis-mappo-<stack>)
+  --redis-sku <sku>            Azure Managed Redis SKU (default: Balanced_B0)
+  --skip-redis                 Do not provision or configure Azure Managed Redis
   --min-replicas <int>         Min replicas per app (default: 1)
   --max-replicas <int>         Max replicas per app (default: 2)
   --migration-job-name <name>  Migration Container App Job name (default: job-mappo-db-<stack>)
@@ -119,6 +125,18 @@ while [[ $# -gt 0 ]]; do
     --output-env-file)
       OUTPUT_ENV_FILE="${2:-}"
       shift 2
+      ;;
+    --redis-name)
+      REDIS_CLUSTER_NAME="${2:-}"
+      shift 2
+      ;;
+    --redis-sku)
+      REDIS_SKU="${2:-}"
+      shift 2
+      ;;
+    --skip-redis)
+      REDIS_PROVISION="false"
+      shift
       ;;
     --min-replicas)
       MIN_REPLICAS="${2:-}"
@@ -282,7 +300,11 @@ fi
 if [[ -z "${MIGRATION_JOB_NAME}" ]]; then
   MIGRATION_JOB_NAME="$(printf "job-mappo-db-%s" "${stack_token}" | cut -c1-32 | sed -E 's/-+$//')"
 fi
+if [[ -z "${REDIS_CLUSTER_NAME}" ]]; then
+  REDIS_CLUSTER_NAME="$(printf "redis-mappo-%s" "${stack_token}" | cut -c1-60 | sed -E 's/-+$//')"
+fi
 MIGRATION_JOB_NAME="$(printf "%s" "${MIGRATION_JOB_NAME}" | tr "[:upper:]" "[:lower:]")"
+REDIS_CLUSTER_NAME="$(printf "%s" "${REDIS_CLUSTER_NAME}" | tr "[:upper:]" "[:lower:]")"
 if ! [[ "${MIGRATION_TIMEOUT_SECONDS}" =~ ^[0-9]+$ ]] || (( MIGRATION_TIMEOUT_SECONDS < 60 )); then
   echo "runtime-aca-deploy: --migration-timeout must be an integer >= 60." >&2
   exit 2
@@ -308,6 +330,9 @@ else
   echo "runtime-aca-deploy: acr=<auto>"
 fi
 echo "runtime-aca-deploy: image_tag=${IMAGE_TAG}"
+echo "runtime-aca-deploy: redis_cluster=${REDIS_CLUSTER_NAME}"
+echo "runtime-aca-deploy: redis_sku=${REDIS_SKU}"
+echo "runtime-aca-deploy: redis_provision=${REDIS_PROVISION}"
 echo "runtime-aca-deploy: skip_build=${SKIP_BUILD}"
 echo "runtime-aca-deploy: skip_app_deploy=${SKIP_APP_DEPLOY}"
 echo "runtime-aca-deploy: run_migrations=${RUN_MIGRATIONS}"
@@ -315,6 +340,7 @@ echo "runtime-aca-deploy: run_migrations=${RUN_MIGRATIONS}"
 az provider register --namespace Microsoft.App --wait --only-show-errors >/dev/null
 az provider register --namespace Microsoft.ContainerRegistry --wait --only-show-errors >/dev/null
 az provider register --namespace Microsoft.OperationalInsights --wait --only-show-errors >/dev/null
+az provider register --namespace Microsoft.Cache --wait --only-show-errors >/dev/null
 
 existing_rg_location="$(az group show --name "${RESOURCE_GROUP}" --query location -o tsv --only-show-errors 2>/dev/null || true)"
 if [[ -n "${existing_rg_location}" ]]; then
@@ -457,6 +483,45 @@ acr_password="$(az acr credential show --name "${ACR_NAME}" --resource-group "${
 backend_image="${acr_login_server}/mappo-backend:${IMAGE_TAG}"
 frontend_image="${acr_login_server}/mappo-frontend:${IMAGE_TAG}"
 flyway_image="${acr_login_server}/mappo-flyway:${IMAGE_TAG}"
+redis_host=""
+redis_port=""
+redis_password=""
+redis_ssl_enabled="true"
+
+if is_falsey "${REDIS_PROVISION}"; then
+  echo "runtime-aca-deploy: skipping Azure Managed Redis provisioning by request."
+else
+  if ! az redisenterprise show --name "${REDIS_CLUSTER_NAME}" --resource-group "${RESOURCE_GROUP}" --only-show-errors >/dev/null 2>&1; then
+    echo "runtime-aca-deploy: creating Azure Managed Redis cluster ${REDIS_CLUSTER_NAME}"
+    az redisenterprise create \
+      --name "${REDIS_CLUSTER_NAME}" \
+      --resource-group "${RESOURCE_GROUP}" \
+      --location "${LOCATION}" \
+      --sku "${REDIS_SKU}" \
+      --public-network-access Enabled \
+      --access-keys-auth Enabled \
+      --only-show-errors \
+      >/dev/null
+  else
+    echo "runtime-aca-deploy: reusing Azure Managed Redis cluster ${REDIS_CLUSTER_NAME}"
+    az redisenterprise database update \
+      --cluster-name "${REDIS_CLUSTER_NAME}" \
+      --resource-group "${RESOURCE_GROUP}" \
+      --access-keys-auth Enabled \
+      --client-protocol Encrypted \
+      --only-show-errors \
+      >/dev/null
+  fi
+
+  redis_host="$(az redisenterprise show --name "${REDIS_CLUSTER_NAME}" --resource-group "${RESOURCE_GROUP}" --query hostName -o tsv --only-show-errors)"
+  redis_port="$(az redisenterprise database show --cluster-name "${REDIS_CLUSTER_NAME}" --resource-group "${RESOURCE_GROUP}" --query port -o tsv --only-show-errors)"
+  redis_password="$(az redisenterprise database list-keys --cluster-name "${REDIS_CLUSTER_NAME}" --resource-group "${RESOURCE_GROUP}" --query primaryKey -o tsv --only-show-errors)"
+
+  if [[ -z "${redis_host}" || -z "${redis_port}" || -z "${redis_password}" ]]; then
+    echo "runtime-aca-deploy: failed to resolve Azure Managed Redis connection details for ${REDIS_CLUSTER_NAME}" >&2
+    exit 1
+  fi
+fi
 
 build_image() {
   local image_repo="$1"
@@ -653,7 +718,8 @@ backend_env_vars=(
   "MAPPO_AZURE_CLIENT_SECRET=secretref:azure-client-secret"
   "MAPPO_AZURE_TENANT_BY_SUBSCRIPTION=${MAPPO_AZURE_TENANT_BY_SUBSCRIPTION}"
   "MAPPO_MARKETPLACE_INGEST_TOKEN=secretref:marketplace-ingest-token"
-  "MAPPO_RETENTION_DAYS=90"
+  "MAPPO_RUN_RETENTION_DAYS=90"
+  "MAPPO_AUDIT_RETENTION_DAYS=90"
 )
 backend_secrets=(
   "database-url=${MAPPO_DATABASE_URL}"
@@ -661,6 +727,19 @@ backend_secrets=(
   "azure-client-secret=${MAPPO_AZURE_CLIENT_SECRET}"
   "marketplace-ingest-token=${MAPPO_MARKETPLACE_INGEST_TOKEN}"
 )
+
+if [[ -n "${redis_host}" && -n "${redis_port}" && -n "${redis_password}" ]]; then
+  backend_env_vars+=(
+    "MAPPO_REDIS_ENABLED=true"
+    "MAPPO_REDIS_HOST=${redis_host}"
+    "MAPPO_REDIS_PORT=${redis_port}"
+    "MAPPO_REDIS_SSL_ENABLED=${redis_ssl_enabled}"
+    "MAPPO_REDIS_PASSWORD=secretref:redis-password"
+  )
+  backend_secrets+=("redis-password=${redis_password}")
+else
+  backend_env_vars+=("MAPPO_REDIS_ENABLED=false")
+fi
 
 if [[ -n "${MAPPO_PUBLISHER_ACR_SERVER:-}" ]]; then
   backend_env_vars+=("MAPPO_PUBLISHER_ACR_SERVER=${MAPPO_PUBLISHER_ACR_SERVER}")
@@ -861,6 +940,10 @@ export MAPPO_RUNTIME_ENVIRONMENT_LOCATION='${CONTAINER_ENV_LOCATION}'
 export MAPPO_RUNTIME_ENVIRONMENT_ID='${CONTAINER_ENV_ID}'
 export MAPPO_RUNTIME_ACR_NAME='${ACR_NAME}'
 export MAPPO_RUNTIME_IMAGE_TAG='${IMAGE_TAG}'
+export MAPPO_RUNTIME_REDIS_NAME='${REDIS_CLUSTER_NAME}'
+export MAPPO_RUNTIME_REDIS_HOST='${redis_host}'
+export MAPPO_RUNTIME_REDIS_PORT='${redis_port}'
+export MAPPO_RUNTIME_REDIS_SSL_ENABLED='${redis_ssl_enabled}'
 export MAPPO_RUNTIME_BACKEND_APP='${BACKEND_APP_NAME}'
 export MAPPO_RUNTIME_FRONTEND_APP='${FRONTEND_APP_NAME}'
 export MAPPO_RUNTIME_MIGRATION_JOB='${MIGRATION_JOB_NAME}'

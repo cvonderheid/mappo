@@ -168,6 +168,7 @@ type TableFrameProps = {
   page: PageMetadata;
   noun: string;
   loading: boolean;
+  refreshing?: boolean;
   errorMessage: string;
   emptyMessage: string;
   onPageChange: (page: number) => void;
@@ -182,6 +183,7 @@ function TableFrame({
   page,
   noun,
   loading,
+  refreshing = false,
   errorMessage,
   emptyMessage,
   onPageChange,
@@ -199,6 +201,7 @@ function TableFrame({
           {page.totalItems ?? 0}
         </Badge>
         <div className="flex items-center gap-2">
+          {refreshing ? <span className="text-xs text-muted-foreground">Syncing…</span> : null}
           {headerActions}
           <ColumnVisibilityMenu table={table} />
           <Button type="button" variant="outline" size="sm" onClick={onClearFilters}>
@@ -293,6 +296,7 @@ export function RegistrationsDataTable({
 }: RegistrationsDataTableProps) {
   const [pageData, setPageData] = useState<TargetRegistrationPage>({ items: [], page: EMPTY_PAGE });
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
@@ -305,7 +309,13 @@ export function RegistrationsDataTable({
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
+    const hasVisibleData =
+      (pageData.items?.length ?? 0) > 0 || (pageData.page?.totalItems ?? 0) > 0;
+    if (hasVisibleData) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     void adminListTargetRegistrations({
       page,
       size: pageSize,
@@ -321,12 +331,17 @@ export function RegistrationsDataTable({
       })
       .catch((error) => {
         if (!active) return;
-        setPageData({ items: [], page: EMPTY_PAGE });
-        setErrorMessage((error as Error).message);
+        if (hasVisibleData) {
+          setErrorMessage("");
+        } else {
+          setPageData({ items: [], page: EMPTY_PAGE });
+          setErrorMessage((error as Error).message);
+        }
       })
       .finally(() => {
         if (active) {
           setLoading(false);
+          setRefreshing(false);
         }
       });
     return () => {
@@ -424,6 +439,7 @@ export function RegistrationsDataTable({
       page={pageData.page ?? EMPTY_PAGE}
       noun="registrations"
       loading={loading}
+      refreshing={refreshing}
       errorMessage={errorMessage}
       emptyMessage="No registered targets match current filters."
       onPageChange={setPage}
@@ -499,6 +515,7 @@ type EventsDataTableProps = {
 export function EventsDataTable({ refreshKey }: EventsDataTableProps) {
   const [pageData, setPageData] = useState<MarketplaceEventPage>({ items: [], page: EMPTY_PAGE });
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
@@ -509,7 +526,13 @@ export function EventsDataTable({ refreshKey }: EventsDataTableProps) {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
+    const hasVisibleData =
+      (pageData.items?.length ?? 0) > 0 || (pageData.page?.totalItems ?? 0) > 0;
+    if (hasVisibleData) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     void adminListMarketplaceEvents({
       page,
       size: pageSize,
@@ -523,11 +546,18 @@ export function EventsDataTable({ refreshKey }: EventsDataTableProps) {
       })
       .catch((error) => {
         if (!active) return;
-        setPageData({ items: [], page: EMPTY_PAGE });
-        setErrorMessage((error as Error).message);
+        if (hasVisibleData) {
+          setErrorMessage("");
+        } else {
+          setPageData({ items: [], page: EMPTY_PAGE });
+          setErrorMessage((error as Error).message);
+        }
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       });
     return () => {
       active = false;
@@ -595,6 +625,7 @@ export function EventsDataTable({ refreshKey }: EventsDataTableProps) {
       page={pageData.page ?? EMPTY_PAGE}
       noun="events"
       loading={loading}
+      refreshing={refreshing}
       errorMessage={errorMessage}
       emptyMessage="No onboarding events match current filters."
       onPageChange={setPage}
@@ -651,6 +682,7 @@ type ForwarderLogsDataTableProps = {
 export function ForwarderLogsDataTable({ refreshKey }: ForwarderLogsDataTableProps) {
   const [pageData, setPageData] = useState<ForwarderLogPage>({ items: [], page: EMPTY_PAGE });
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
@@ -661,7 +693,13 @@ export function ForwarderLogsDataTable({ refreshKey }: ForwarderLogsDataTablePro
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
+    const hasVisibleData =
+      (pageData.items?.length ?? 0) > 0 || (pageData.page?.totalItems ?? 0) > 0;
+    if (hasVisibleData) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     void adminListForwarderLogs({
       page,
       size: pageSize,
@@ -675,11 +713,18 @@ export function ForwarderLogsDataTable({ refreshKey }: ForwarderLogsDataTablePro
       })
       .catch((error) => {
         if (!active) return;
-        setPageData({ items: [], page: EMPTY_PAGE });
-        setErrorMessage((error as Error).message);
+        if (hasVisibleData) {
+          setErrorMessage("");
+        } else {
+          setPageData({ items: [], page: EMPTY_PAGE });
+          setErrorMessage((error as Error).message);
+        }
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       });
     return () => {
       active = false;
@@ -750,6 +795,7 @@ export function ForwarderLogsDataTable({ refreshKey }: ForwarderLogsDataTablePro
       page={pageData.page ?? EMPTY_PAGE}
       noun="logs"
       loading={loading}
+      refreshing={refreshing}
       errorMessage={errorMessage}
       emptyMessage="No forwarder logs match current filters."
       onPageChange={setPage}
@@ -806,6 +852,7 @@ type ReleaseWebhookDeliveriesDataTableProps = {
 export function ReleaseWebhookDeliveriesDataTable({ refreshKey }: ReleaseWebhookDeliveriesDataTableProps) {
   const [pageData, setPageData] = useState<ReleaseWebhookDeliveryPage>({ items: [], page: EMPTY_PAGE });
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
@@ -816,7 +863,13 @@ export function ReleaseWebhookDeliveriesDataTable({ refreshKey }: ReleaseWebhook
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
+    const hasVisibleData =
+      (pageData.items?.length ?? 0) > 0 || (pageData.page?.totalItems ?? 0) > 0;
+    if (hasVisibleData) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     void adminListReleaseWebhookDeliveries({
       page,
       size: pageSize,
@@ -830,11 +883,18 @@ export function ReleaseWebhookDeliveriesDataTable({ refreshKey }: ReleaseWebhook
       })
       .catch((error) => {
         if (!active) return;
-        setPageData({ items: [], page: EMPTY_PAGE });
-        setErrorMessage((error as Error).message);
+        if (hasVisibleData) {
+          setErrorMessage("");
+        } else {
+          setPageData({ items: [], page: EMPTY_PAGE });
+          setErrorMessage((error as Error).message);
+        }
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       });
     return () => {
       active = false;
@@ -903,6 +963,7 @@ export function ReleaseWebhookDeliveriesDataTable({ refreshKey }: ReleaseWebhook
       page={pageData.page ?? EMPTY_PAGE}
       noun="deliveries"
       loading={loading}
+      refreshing={refreshing}
       errorMessage={errorMessage}
       emptyMessage="No release webhook deliveries match current filters."
       onPageChange={setPage}

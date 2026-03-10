@@ -13,9 +13,7 @@ import com.mappo.controlplane.model.DeleteRegistrationResultRecord;
 import com.mappo.controlplane.model.EventIngestResultRecord;
 import com.mappo.controlplane.model.ForwarderLogPageRecord;
 import com.mappo.controlplane.model.ForwarderLogIngestResultRecord;
-import com.mappo.controlplane.model.ForwarderLogRecord;
 import com.mappo.controlplane.model.MarketplaceEventPageRecord;
-import com.mappo.controlplane.model.OnboardingSnapshotRecord;
 import com.mappo.controlplane.model.ReleaseWebhookDeliveryPageRecord;
 import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
 import com.mappo.controlplane.model.TargetRegistrationPageRecord;
@@ -51,19 +49,6 @@ public class AdminController {
     private final ReleaseManifestIngestService releaseManifestIngestService;
     private final MappoProperties properties;
 
-    @GetMapping("/onboarding")
-    @Deprecated
-    @Operation(
-        summary = "Get onboarding snapshot",
-        description = "Compatibility snapshot endpoint for the Admin shell. Prefer the paginated onboarding/admin collection endpoints for operator tables.",
-        deprecated = true
-    )
-    public OnboardingSnapshotRecord onboardingSnapshot(
-        @RequestParam(value = "event_limit", defaultValue = "50") int eventLimit
-    ) {
-        return adminService.getOnboardingSnapshot(eventLimit);
-    }
-
     @PostMapping("/onboarding/events")
     @Operation(summary = "Ingest marketplace onboarding event")
     public EventIngestResultRecord ingestMarketplaceEvent(
@@ -80,19 +65,6 @@ public class AdminController {
         @Valid @ParameterObject @ModelAttribute MarketplaceEventPageParameters parameters
     ) {
         return adminService.listMarketplaceEventsPage(parameters.toQuery());
-    }
-
-    @GetMapping("/onboarding/forwarder-logs")
-    @Deprecated
-    @Operation(
-        summary = "List recent forwarder logs snapshot",
-        description = "Compatibility snapshot endpoint for recent forwarder log summaries. Use `/api/v1/admin/onboarding/forwarder-logs/page` for operator tables.",
-        deprecated = true
-    )
-    public List<ForwarderLogRecord> listForwarderLogs(
-        @RequestParam(value = "limit", defaultValue = "50") int limit
-    ) {
-        return adminService.listForwarderLogs(limit);
     }
 
     @PostMapping("/onboarding/forwarder-logs")

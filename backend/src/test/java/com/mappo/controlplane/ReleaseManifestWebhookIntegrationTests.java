@@ -24,7 +24,7 @@ import org.springframework.web.context.WebApplicationContext;
 
 @SpringBootTest
 @TestPropertySource(properties = {
-    "mappo.managed-app-release-webhook-secret=test-github-secret"
+    "mappo.managed-app-release.webhook-secret=test-github-secret"
 })
 class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase {
 

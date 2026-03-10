@@ -54,7 +54,7 @@ class HttpReleaseManifestSourceClientTests {
         startServer(requestPath, authHeader, "[2]");
 
         MappoProperties properties = new MappoProperties();
-        properties.setManagedAppReleaseGithubToken("test-token");
+        properties.getManagedAppRelease().setGithubToken("test-token");
         HttpReleaseManifestSourceClient client = new TestHttpReleaseManifestSourceClient(
             properties,
             HttpClient.newHttpClient(),

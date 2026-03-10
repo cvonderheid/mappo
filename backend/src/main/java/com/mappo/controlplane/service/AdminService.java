@@ -28,9 +28,11 @@ import com.mappo.controlplane.model.query.ForwarderLogPageQuery;
 import com.mappo.controlplane.model.query.MarketplaceEventPageQuery;
 import com.mappo.controlplane.model.query.ReleaseWebhookDeliveryPageQuery;
 import com.mappo.controlplane.model.query.TargetRegistrationPageQuery;
+import com.mappo.controlplane.repository.AdminCommandRepository;
 import com.mappo.controlplane.repository.AdminPageRepository;
 import com.mappo.controlplane.repository.AdminRepository;
 import com.mappo.controlplane.repository.ReleaseWebhookRepository;
+import com.mappo.controlplane.repository.TargetCommandRepository;
 import com.mappo.controlplane.repository.TargetRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
@@ -42,6 +44,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -49,10 +52,13 @@ public class AdminService {
 
     private final AdminPageRepository adminPageRepository;
     private final AdminRepository adminRepository;
+    private final AdminCommandRepository adminCommandRepository;
     private final ReleaseWebhookRepository releaseWebhookRepository;
     private final TargetRepository targetRepository;
+    private final TargetCommandRepository targetCommandRepository;
     private final MappoProperties properties;
     private final LiveUpdateService liveUpdateService;
+    private final TransactionHookService transactionHookService;
 
     public OnboardingSnapshotRecord getOnboardingSnapshot(int eventLimit) {
         return new OnboardingSnapshotRecord(
@@ -63,6 +69,7 @@ public class AdminService {
         );
     }
 
+    @Transactional
     public EventIngestResultRecord ingestMarketplaceEvent(OnboardingEventRequest request) {
         if (request == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "event request is required");
@@ -77,7 +84,7 @@ public class AdminService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "eventId, tenantId, and subscriptionId are required");
         }
 
-        if (adminRepository.marketplaceEventExists(eventId)) {
+        if (adminCommandRepository.marketplaceEventExists(eventId)) {
             return new EventIngestResultRecord(
                 eventId,
                 MappoMarketplaceEventStatus.duplicate,
@@ -90,13 +97,13 @@ public class AdminService {
         String message;
 
         if (eventType.isDeleteLike()) {
-            adminRepository.deleteRegistration(targetId);
-            targetRepository.deleteTarget(targetId);
+            adminCommandRepository.deleteRegistration(targetId);
+            targetCommandRepository.deleteTarget(targetId);
             message = "Deleted target registration and target.";
         } else if (eventType.isSuspendLike()) {
             TargetRecord existing = targetRepository.getTarget(targetId).orElse(null);
             if (existing != null) {
-                targetRepository.updateTargetHealth(targetId, MappoHealthStatus.degraded);
+                targetCommandRepository.updateTargetHealth(targetId, MappoHealthStatus.degraded);
                 message = "Marked target as degraded.";
             } else {
                 message = "Target not found; suspension acknowledged.";
@@ -119,7 +126,7 @@ public class AdminService {
                 now,
                 MappoSimulatedFailureMode.none
             );
-            targetRepository.upsertTarget(target);
+            targetCommandRepository.upsertTarget(target);
 
             String managedResourceGroupId = normalize(request.managedResourceGroupId());
             if (managedResourceGroupId.isBlank()) {
@@ -137,18 +144,18 @@ public class AdminService {
                 defaultIfBlank(request.registrationSource(), "manual"),
                 defaultDeploymentStackName(targetId),
                 defaultRegistryAuthMode(),
-                nullable(properties.getPublisherAcrServer()),
-                nullable(properties.getPublisherAcrPullClientId()),
-                nullable(properties.getPublisherAcrPullSecretName()),
+                nullable(properties.getPublisherAcr().getServer()),
+                nullable(properties.getPublisherAcr().getPullClientId()),
+                nullable(properties.getPublisherAcr().getPullSecretName()),
                 eventId,
                 now
             );
-            adminRepository.upsertRegistration(registration);
+            adminCommandRepository.upsertRegistration(registration);
 
             message = "Registered target " + targetId + " for subscription " + subscriptionId + ".";
         }
 
-        adminRepository.saveMarketplaceEvent(
+        adminCommandRepository.saveMarketplaceEvent(
             eventId,
             eventType,
             MappoMarketplaceEventStatus.applied,
@@ -171,8 +178,10 @@ public class AdminService {
             defaultIfBlank(request.registrationSource(), "manual"),
             request.marketplacePayloadId()
         );
-        liveUpdateService.emitAdminUpdated();
-        liveUpdateService.emitTargetsUpdated();
+        transactionHookService.afterCommitOrNow(() -> {
+            liveUpdateService.emitAdminUpdated();
+            liveUpdateService.emitTargetsUpdated();
+        });
 
         return new EventIngestResultRecord(
             eventId,
@@ -204,6 +213,7 @@ public class AdminService {
         return releaseWebhookRepository.listReleaseWebhookDeliveriesPage(query);
     }
 
+    @Transactional
     public ForwarderLogIngestResultRecord ingestForwarderLog(ForwarderLogIngestRequest request) {
         if (request == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "forwarder log request is required");
@@ -215,7 +225,7 @@ public class AdminService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "log_id is required");
         }
 
-        if (adminRepository.forwarderLogExists(logId)) {
+        if (adminCommandRepository.forwarderLogExists(logId)) {
             return new ForwarderLogIngestResultRecord(
                 logId,
                 MappoMarketplaceEventStatus.duplicate,
@@ -223,8 +233,8 @@ public class AdminService {
             );
         }
 
-        adminRepository.saveForwarderLog(command);
-        liveUpdateService.emitAdminUpdated();
+        adminCommandRepository.saveForwarderLog(command);
+        transactionHookService.afterCommitOrNow(liveUpdateService::emitAdminUpdated);
         return new ForwarderLogIngestResultRecord(
             logId,
             MappoMarketplaceEventStatus.applied,
@@ -232,6 +242,7 @@ public class AdminService {
         );
     }
 
+    @Transactional
     public TargetRegistrationRecord updateTargetRegistration(String targetId, TargetRegistrationPatchRequest patch) {
         TargetRegistrationRecord existing = adminRepository.getRegistration(targetId).orElse(null);
         if (existing == null) {
@@ -242,18 +253,23 @@ public class AdminService {
         }
 
         TargetRegistrationPatchCommand patchCommand = patch.toCommand();
-        adminRepository.updateRegistrationAndTarget(targetId, patchCommand);
-        liveUpdateService.emitAdminUpdated();
-        liveUpdateService.emitTargetsUpdated();
+        adminCommandRepository.updateRegistrationAndTarget(targetId, patchCommand);
+        transactionHookService.afterCommitOrNow(() -> {
+            liveUpdateService.emitAdminUpdated();
+            liveUpdateService.emitTargetsUpdated();
+        });
         return adminRepository.getRegistration(targetId)
             .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "target registration not found: " + targetId));
     }
 
+    @Transactional
     public void deleteTargetRegistration(String targetId) {
-        adminRepository.deleteRegistration(targetId);
-        targetRepository.deleteTarget(targetId);
-        liveUpdateService.emitAdminUpdated();
-        liveUpdateService.emitTargetsUpdated();
+        adminCommandRepository.deleteRegistration(targetId);
+        targetCommandRepository.deleteTarget(targetId);
+        transactionHookService.afterCommitOrNow(() -> {
+            liveUpdateService.emitAdminUpdated();
+            liveUpdateService.emitTargetsUpdated();
+        });
     }
 
     private Map<String, String> buildTags(OnboardingEventRequest request) {
@@ -326,9 +342,9 @@ public class AdminService {
     }
 
     private boolean hasSharedPublisherAcrConfig() {
-        return !normalize(properties.getPublisherAcrServer()).isBlank()
-            && !normalize(properties.getPublisherAcrPullClientId()).isBlank()
-            && !normalize(properties.getPublisherAcrPullSecretName()).isBlank();
+        return !normalize(properties.getPublisherAcr().getServer()).isBlank()
+            && !normalize(properties.getPublisherAcr().getPullClientId()).isBlank()
+            && !normalize(properties.getPublisherAcr().getPullSecretName()).isBlank();
     }
 
     private String normalize(Object value) {

@@ -180,6 +180,14 @@ function AppShell() {
     }
   }, [refreshRunDetail, selectedRunId]);
 
+  const liveTopics = useMemo(() => {
+    const topics = new Set<string>(["targets", "runs", "releases"]);
+    if (location.pathname === "/admin" || location.pathname === "/demo") {
+      topics.add("admin");
+    }
+    return Array.from(topics);
+  }, [location.pathname]);
+
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       void refreshTargets();
@@ -209,7 +217,7 @@ function AppShell() {
       return;
     }
 
-    const eventSource = createLiveUpdatesEventSource();
+    const eventSource = createLiveUpdatesEventSource(liveTopics);
     const scheduledRefreshes = new Map<string, number>();
 
     const scheduleRefresh = (key: string, action: () => void): void => {
@@ -276,6 +284,7 @@ function AppShell() {
       eventSource.close();
     };
   }, [
+    liveTopics,
     location.pathname,
     refreshAdminSnapshot,
     refreshRunDetail,

@@ -24,9 +24,9 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 @SpringBootTest(properties = {
-    "mappo.azure-tenant-id=",
-    "mappo.azure-client-id=",
-    "mappo.azure-client-secret=",
+    "mappo.azure.tenant-id=",
+    "mappo.azure.client-id=",
+    "mappo.azure.client-secret=",
     "MAPPO_AZURE_TENANT_ID=",
     "MAPPO_AZURE_CLIENT_ID=",
     "MAPPO_AZURE_CLIENT_SECRET="

@@ -13,10 +13,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 @SpringBootTest(properties = {
-    "mappo.retention-enabled=true",
-    "mappo.run-retention-days=30",
-    "mappo.audit-retention-days=30",
-    "mappo.runtime-probe-enabled=false"
+    "mappo.retention.enabled=true",
+    "mappo.retention.run-retention-days=30",
+    "mappo.retention.audit-retention-days=30",
+    "mappo.runtime-probe.enabled=false"
 })
 class OperationalRetentionIntegrationTests extends PostgresIntegrationTestBase {
 

@@ -5,7 +5,10 @@ import com.mappo.controlplane.model.LiveUpdateEventRecord;
 import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -16,18 +19,20 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class LiveUpdateService {
 
     private static final long SSE_TIMEOUT_MS = 0L;
+    private static final Set<String> ALL_TOPICS = Set.of("targets", "releases", "admin", "runs");
 
-    private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
+    private final Map<String, EmitterRegistration> emitters = new ConcurrentHashMap<>();
+    private final Map<String, LiveUpdateEventRecord> pendingEvents = new ConcurrentHashMap<>();
     private final MappoProperties properties;
 
     public LiveUpdateService(MappoProperties properties) {
         this.properties = properties;
     }
 
-    public SseEmitter subscribe() {
+    public SseEmitter subscribe(Set<String> requestedTopics) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         String emitterId = "sse-" + UUID.randomUUID();
-        emitters.put(emitterId, emitter);
+        emitters.put(emitterId, new EmitterRegistration(emitter, normalizeTopics(requestedTopics)));
         emitter.onCompletion(() -> emitters.remove(emitterId));
         emitter.onTimeout(() -> {
             emitter.complete();
@@ -39,42 +44,74 @@ public class LiveUpdateService {
     }
 
     public void emitTargetsUpdated() {
-        publish("targets-updated", null);
+        enqueue("targets-updated", null);
     }
 
     public void emitReleasesUpdated() {
-        publish("releases-updated", null);
+        enqueue("releases-updated", null);
     }
 
     public void emitAdminUpdated() {
-        publish("admin-updated", null);
+        enqueue("admin-updated", null);
     }
 
     public void emitRunsUpdated() {
-        publish("runs-updated", null);
+        enqueue("runs-updated", null);
     }
 
     public void emitRunUpdated(String runId) {
-        publish("run-updated", runId);
+        enqueue("run-updated", runId);
     }
 
     @Scheduled(
-        fixedDelayString = "${mappo.sse-heartbeat-interval-ms:15000}",
-        initialDelayString = "${mappo.sse-heartbeat-interval-ms:15000}"
+        fixedDelayString = "${mappo.sse.heartbeat-interval-ms:15000}",
+        initialDelayString = "${mappo.sse.heartbeat-interval-ms:15000}"
     )
     public void emitHeartbeat() {
-        if (!properties.isSseEnabled() || emitters.isEmpty()) {
+        if (!properties.getSse().isEnabled() || emitters.isEmpty()) {
             return;
         }
-        publish("heartbeat", null);
+        publishDirect("heartbeat", null);
     }
 
-    private void publish(String type, String subjectId) {
-        if (!properties.isSseEnabled() || emitters.isEmpty()) {
+    @Scheduled(
+        fixedDelayString = "${mappo.sse.coalesce-window-ms:250}",
+        initialDelayString = "${mappo.sse.coalesce-window-ms:250}"
+    )
+    public void flushPending() {
+        if (!properties.getSse().isEnabled() || emitters.isEmpty() || pendingEvents.isEmpty()) {
+            pendingEvents.clear();
+            return;
+        }
+        Map<String, LiveUpdateEventRecord> snapshot = new LinkedHashMap<>();
+        pendingEvents.forEach((key, value) -> {
+            if (pendingEvents.remove(key, value)) {
+                snapshot.put(key, value);
+            }
+        });
+        snapshot.values().forEach(event -> publishDirect(event.type(), event.subjectId()));
+    }
+
+    private void enqueue(String type, String subjectId) {
+        if (!properties.getSse().isEnabled() || emitters.isEmpty()) {
             return;
         }
         LiveUpdateEventRecord event = new LiveUpdateEventRecord(type, subjectId, now());
-        emitters.forEach((emitterId, emitter) -> sendSafely(emitterId, emitter, type, event));
+        pendingEvents.put(eventKey(type, subjectId), event);
+    }
+
+    private void publishDirect(String type, String subjectId) {
+        if (!properties.getSse().isEnabled() || emitters.isEmpty()) {
+            return;
+        }
+        LiveUpdateEventRecord event = new LiveUpdateEventRecord(type, subjectId, now());
+        String topic = topicFor(type);
+        emitters.forEach((emitterId, registration) -> {
+            if (!topic.isBlank() && !registration.topics().contains(topic)) {
+                return;
+            }
+            sendSafely(emitterId, registration.emitter(), type, event);
+        });
     }
 
     private void sendSafely(String emitterId, SseEmitter emitter, String eventName, LiveUpdateEventRecord event) {
@@ -96,5 +133,39 @@ public class LiveUpdateService {
 
     private OffsetDateTime now() {
         return OffsetDateTime.now(ZoneOffset.UTC);
+    }
+
+    private Set<String> normalizeTopics(Set<String> requestedTopics) {
+        if (requestedTopics == null || requestedTopics.isEmpty()) {
+            return ALL_TOPICS;
+        }
+        Set<String> normalized = new LinkedHashSet<>();
+        for (String topic : requestedTopics) {
+            String value = topic == null ? "" : topic.trim().toLowerCase();
+            if (ALL_TOPICS.contains(value)) {
+                normalized.add(value);
+            }
+        }
+        return normalized.isEmpty() ? ALL_TOPICS : Set.copyOf(normalized);
+    }
+
+    private String eventKey(String type, String subjectId) {
+        return type + ":" + (subjectId == null ? "" : subjectId);
+    }
+
+    private String topicFor(String type) {
+        return switch (type) {
+            case "targets-updated" -> "targets";
+            case "releases-updated" -> "releases";
+            case "admin-updated" -> "admin";
+            case "runs-updated", "run-updated" -> "runs";
+            default -> "";
+        };
+    }
+
+    private record EmitterRegistration(
+        SseEmitter emitter,
+        Set<String> topics
+    ) {
     }
 }

@@ -15,8 +15,12 @@ export type LiveUpdateEvent = {
   occurredAt?: string | null;
 };
 
-export function createLiveUpdatesEventSource(): EventSource {
-  return new EventSource(`${apiBaseUrl}/api/v1/events/stream`, {
+export function createLiveUpdatesEventSource(topics: string[] = []): EventSource {
+  const url = new URL(`${apiBaseUrl}/api/v1/events/stream`);
+  if (topics.length > 0) {
+    url.searchParams.set("topics", topics.join(","));
+  }
+  return new EventSource(url.toString(), {
     withCredentials: true,
   });
 }

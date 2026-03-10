@@ -9,6 +9,7 @@ import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.jooq.enums.MappoRuntimeProbeStatus;
 import com.mappo.controlplane.model.TargetRuntimeProbeContextRecord;
 import com.mappo.controlplane.model.TargetRuntimeProbeRecord;
+import com.mappo.controlplane.repository.TargetCommandRepository;
 import com.mappo.controlplane.repository.TargetRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
@@ -26,6 +27,9 @@ class TargetRuntimeProbeServiceTests {
     private TargetRepository targetRepository;
 
     @Mock
+    private TargetCommandRepository targetCommandRepository;
+
+    @Mock
     private TargetRuntimeProbeClient targetRuntimeProbeClient;
 
     @Mock
@@ -34,9 +38,10 @@ class TargetRuntimeProbeServiceTests {
     @Test
     void refreshRuntimeProbesPersistsProbeResults() {
         MappoProperties properties = new MappoProperties();
-        properties.setRuntimeProbeEnabled(true);
+        properties.getRuntimeProbe().setEnabled(true);
         TargetRuntimeProbeService service = new TargetRuntimeProbeService(
             targetRepository,
+            targetCommandRepository,
             targetRuntimeProbeClient,
             properties,
             liveUpdateService
@@ -62,16 +67,17 @@ class TargetRuntimeProbeServiceTests {
 
         service.refreshRuntimeProbes();
 
-        verify(targetRepository).upsertRuntimeProbe(probe);
+        verify(targetCommandRepository).upsertRuntimeProbe(probe);
         verify(liveUpdateService).emitTargetsUpdated();
     }
 
     @Test
     void refreshRuntimeProbesSkipsWhenClientIsNotConfigured() {
         MappoProperties properties = new MappoProperties();
-        properties.setRuntimeProbeEnabled(true);
+        properties.getRuntimeProbe().setEnabled(true);
         TargetRuntimeProbeService service = new TargetRuntimeProbeService(
             targetRepository,
+            targetCommandRepository,
             targetRuntimeProbeClient,
             properties,
             liveUpdateService
@@ -82,6 +88,6 @@ class TargetRuntimeProbeServiceTests {
         service.refreshRuntimeProbes();
 
         verify(targetRepository, never()).listRuntimeProbeContexts();
-        verify(targetRepository, never()).upsertRuntimeProbe(any());
+        verify(targetCommandRepository, never()).upsertRuntimeProbe(any());
     }
 }

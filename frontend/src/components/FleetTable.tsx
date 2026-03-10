@@ -146,6 +146,7 @@ export default function FleetTable({ latestRelease, refreshKey }: FleetTableProp
   const latestVersion = latestRelease?.sourceVersion ?? "";
   const [pageData, setPageData] = useState<TargetPage>(EMPTY_PAGE);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
@@ -165,7 +166,13 @@ export default function FleetTable({ latestRelease, refreshKey }: FleetTableProp
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
+    const hasVisibleData =
+      (pageData.items?.length ?? 0) > 0 || (pageData.page?.totalItems ?? 0) > 0;
+    if (hasVisibleData) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     void listTargetsPage({
       page,
       size: pageSize,
@@ -192,12 +199,17 @@ export default function FleetTable({ latestRelease, refreshKey }: FleetTableProp
         if (!active) {
           return;
         }
-        setPageData(EMPTY_PAGE);
-        setErrorMessage((error as Error).message);
+        if (hasVisibleData) {
+          setErrorMessage("");
+        } else {
+          setPageData(EMPTY_PAGE);
+          setErrorMessage((error as Error).message);
+        }
       })
       .finally(() => {
         if (active) {
           setLoading(false);
+          setRefreshing(false);
         }
       });
 
@@ -538,6 +550,13 @@ export default function FleetTable({ latestRelease, refreshKey }: FleetTableProp
           <Badge variant="outline" className="font-mono text-[11px]">
             {pageMetadata.totalItems ?? 0} subscriptions
           </Badge>
+          <span
+            className={`inline-flex min-w-[4.5rem] justify-end text-xs text-muted-foreground transition-opacity ${
+              refreshing ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            Syncing…
+          </span>
           <ColumnVisibilityMenu table={table} />
           <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
             Clear filters

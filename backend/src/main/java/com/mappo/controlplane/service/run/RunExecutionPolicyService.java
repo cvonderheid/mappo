@@ -3,6 +3,7 @@ package com.mappo.controlplane.service.run;
 import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.jooq.enums.MappoRunStatus;
 import com.mappo.controlplane.jooq.enums.MappoStrategyMode;
+import com.mappo.controlplane.model.RunExecutionCountsRecord;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.RunDetailRecord;
 import com.mappo.controlplane.model.RunStopPolicyRecord;
@@ -133,6 +134,22 @@ public class RunExecutionPolicyService {
         }
         if (succeededCount == 0 && failedCount >= targetCount) {
             return MappoRunStatus.failed;
+        }
+        return MappoRunStatus.partial;
+    }
+
+    public MappoRunStatus finalRunStatus(RunExecutionCountsRecord counts, String haltReason) {
+        if (haltReason != null && counts.hasQueuedTargets()) {
+            return MappoRunStatus.halted;
+        }
+        if (counts.failedTargets() == 0 && !counts.hasActiveTargets() && !counts.hasQueuedTargets()) {
+            return MappoRunStatus.succeeded;
+        }
+        if (counts.succeededTargets() == 0 && counts.failedTargets() >= counts.totalTargets()) {
+            return MappoRunStatus.failed;
+        }
+        if (counts.hasActiveTargets() || counts.hasQueuedTargets()) {
+            return MappoRunStatus.running;
         }
         return MappoRunStatus.partial;
     }

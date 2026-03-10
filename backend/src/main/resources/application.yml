@@ -18,6 +18,14 @@ spring:
     baseline-on-migrate: false
   jooq:
     sql-dialect: POSTGRES
+  data:
+    redis:
+      host: ${MAPPO_REDIS_HOST:localhost}
+      port: ${MAPPO_REDIS_PORT:6379}
+      password: ${MAPPO_REDIS_PASSWORD:}
+      ssl:
+        enabled: ${MAPPO_REDIS_SSL_ENABLED:false}
+      timeout: ${MAPPO_REDIS_TIMEOUT:5s}
 
 springdoc:
   api-docs:
@@ -38,25 +46,43 @@ mappo:
   api-prefix: /api/v1
   marketplace-ingest-token: ${MAPPO_MARKETPLACE_INGEST_TOKEN:}
   cors-origins: ${MAPPO_CORS_ORIGINS:http://localhost:5174,http://127.0.0.1:5174}
-  azure-tenant-id: ${MAPPO_AZURE_TENANT_ID:}
-  azure-client-id: ${MAPPO_AZURE_CLIENT_ID:}
-  azure-client-secret: ${MAPPO_AZURE_CLIENT_SECRET:}
-  managed-app-release-repo: ${MAPPO_MANAGED_APP_RELEASE_REPO:cvonderheid/mappo-managed-app}
-  managed-app-release-path: ${MAPPO_MANAGED_APP_RELEASE_PATH:releases/releases.manifest.json}
-  managed-app-release-ref: ${MAPPO_MANAGED_APP_RELEASE_REF:main}
-  managed-app-release-webhook-secret: ${MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET:}
-  managed-app-release-github-token: ${MAPPO_MANAGED_APP_RELEASE_GITHUB_TOKEN:}
-  publisher-acr-server: ${MAPPO_PUBLISHER_ACR_SERVER:}
-  publisher-acr-pull-client-id: ${MAPPO_PUBLISHER_ACR_PULL_CLIENT_ID:}
-  publisher-acr-pull-client-secret: ${MAPPO_PUBLISHER_ACR_PULL_CLIENT_SECRET:}
-  publisher-acr-pull-secret-name: ${MAPPO_PUBLISHER_ACR_PULL_SECRET_NAME:publisher-acr-pull}
-  runtime-probe-enabled: ${MAPPO_RUNTIME_PROBE_ENABLED:true}
-  runtime-probe-interval-ms: ${MAPPO_RUNTIME_PROBE_INTERVAL_MS:60000}
-  runtime-probe-initial-delay-ms: ${MAPPO_RUNTIME_PROBE_INITIAL_DELAY_MS:15000}
-  runtime-probe-timeout-ms: ${MAPPO_RUNTIME_PROBE_TIMEOUT_MS:5000}
-  sse-enabled: ${MAPPO_SSE_ENABLED:true}
-  sse-heartbeat-interval-ms: ${MAPPO_SSE_HEARTBEAT_INTERVAL_MS:15000}
-  retention-enabled: ${MAPPO_RETENTION_ENABLED:true}
-  retention-interval-ms: ${MAPPO_RETENTION_INTERVAL_MS:86400000}
-  run-retention-days: ${MAPPO_RUN_RETENTION_DAYS:30}
-  audit-retention-days: ${MAPPO_AUDIT_RETENTION_DAYS:30}
+  azure:
+    tenant-id: ${MAPPO_AZURE_TENANT_ID:}
+    client-id: ${MAPPO_AZURE_CLIENT_ID:}
+    client-secret: ${MAPPO_AZURE_CLIENT_SECRET:}
+  managed-app-release:
+    repo: ${MAPPO_MANAGED_APP_RELEASE_REPO:cvonderheid/mappo-managed-app}
+    path: ${MAPPO_MANAGED_APP_RELEASE_PATH:releases/releases.manifest.json}
+    ref: ${MAPPO_MANAGED_APP_RELEASE_REF:main}
+    webhook-secret: ${MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET:}
+    github-token: ${MAPPO_MANAGED_APP_RELEASE_GITHUB_TOKEN:}
+  publisher-acr:
+    server: ${MAPPO_PUBLISHER_ACR_SERVER:}
+    pull-client-id: ${MAPPO_PUBLISHER_ACR_PULL_CLIENT_ID:}
+    pull-client-secret: ${MAPPO_PUBLISHER_ACR_PULL_CLIENT_SECRET:}
+    pull-secret-name: ${MAPPO_PUBLISHER_ACR_PULL_SECRET_NAME:publisher-acr-pull}
+  runtime-probe:
+    enabled: ${MAPPO_RUNTIME_PROBE_ENABLED:true}
+    interval-ms: ${MAPPO_RUNTIME_PROBE_INTERVAL_MS:60000}
+    initial-delay-ms: ${MAPPO_RUNTIME_PROBE_INITIAL_DELAY_MS:15000}
+    timeout-ms: ${MAPPO_RUNTIME_PROBE_TIMEOUT_MS:5000}
+  sse:
+    enabled: ${MAPPO_SSE_ENABLED:true}
+    heartbeat-interval-ms: ${MAPPO_SSE_HEARTBEAT_INTERVAL_MS:15000}
+    coalesce-window-ms: ${MAPPO_SSE_COALESCE_WINDOW_MS:250}
+  retention:
+    enabled: ${MAPPO_RETENTION_ENABLED:true}
+    interval-ms: ${MAPPO_RETENTION_INTERVAL_MS:86400000}
+    run-retention-days: ${MAPPO_RUN_RETENTION_DAYS:30}
+    audit-retention-days: ${MAPPO_AUDIT_RETENTION_DAYS:30}
+  redis:
+    enabled: ${MAPPO_REDIS_ENABLED:false}
+    queue-key: ${MAPPO_REDIS_QUEUE_KEY:mappo:run-queue}
+    queue-lock-prefix: ${MAPPO_REDIS_QUEUE_LOCK_PREFIX:mappo:run-lock:}
+    queue-dedup-prefix: ${MAPPO_REDIS_QUEUE_DEDUP_PREFIX:mappo:run-dedup:}
+    lock-lease-ms: ${MAPPO_REDIS_LOCK_LEASE_MS:3600000}
+    queue-dedup-ttl-ms: ${MAPPO_REDIS_QUEUE_DEDUP_TTL_MS:120000}
+    worker-poll-timeout-ms: ${MAPPO_REDIS_WORKER_POLL_TIMEOUT_MS:1000}
+    heartbeat-interval-ms: ${MAPPO_REDIS_HEARTBEAT_INTERVAL_MS:10000}
+    recovery-interval-ms: ${MAPPO_REDIS_RECOVERY_INTERVAL_MS:30000}
+    recovery-stale-after-ms: ${MAPPO_REDIS_RECOVERY_STALE_AFTER_MS:120000}

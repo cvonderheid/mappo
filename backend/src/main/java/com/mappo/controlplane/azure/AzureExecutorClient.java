@@ -19,13 +19,13 @@ public class AzureExecutorClient {
     private final MappoProperties properties;
 
     public boolean isConfigured() {
-        return !blank(properties.getAzureTenantId())
-            && !blank(properties.getAzureClientId())
-            && !blank(properties.getAzureClientSecret());
+        return !blank(properties.getAzure().getTenantId())
+            && !blank(properties.getAzure().getClientId())
+            && !blank(properties.getAzure().getClientSecret());
     }
 
     public AzureResourceManager createManager(String tenantId, String subscriptionId) {
-        String effectiveTenant = blank(tenantId) ? properties.getAzureTenantId() : tenantId;
+        String effectiveTenant = blank(tenantId) ? properties.getAzure().getTenantId() : tenantId;
         if (!isConfigured()) {
             throw new IllegalStateException(
                 "Azure SDK is not configured. Set MAPPO_AZURE_TENANT_ID, MAPPO_AZURE_CLIENT_ID, MAPPO_AZURE_CLIENT_SECRET."
@@ -38,7 +38,7 @@ public class AzureExecutorClient {
     }
 
     public TokenCredential createTokenCredential(String tenantId) {
-        String effectiveTenant = blank(tenantId) ? properties.getAzureTenantId() : tenantId;
+        String effectiveTenant = blank(tenantId) ? properties.getAzure().getTenantId() : tenantId;
         if (!isConfigured()) {
             throw new IllegalStateException(
                 "Azure SDK is not configured. Set MAPPO_AZURE_TENANT_ID, MAPPO_AZURE_CLIENT_ID, MAPPO_AZURE_CLIENT_SECRET."
@@ -48,7 +48,7 @@ public class AzureExecutorClient {
     }
 
     public ContainerAppsApiManager createContainerAppsManager(String tenantId, String subscriptionId) {
-        String effectiveTenant = blank(tenantId) ? properties.getAzureTenantId() : tenantId;
+        String effectiveTenant = blank(tenantId) ? properties.getAzure().getTenantId() : tenantId;
         if (!isConfigured()) {
             throw new IllegalStateException(
                 "Azure SDK is not configured. Set MAPPO_AZURE_TENANT_ID, MAPPO_AZURE_CLIENT_ID, MAPPO_AZURE_CLIENT_SECRET."
@@ -58,7 +58,7 @@ public class AzureExecutorClient {
     }
 
     public ResourceManager createResourceManager(String tenantId, String subscriptionId) {
-        String effectiveTenant = blank(tenantId) ? properties.getAzureTenantId() : tenantId;
+        String effectiveTenant = blank(tenantId) ? properties.getAzure().getTenantId() : tenantId;
         if (!isConfigured()) {
             throw new IllegalStateException(
                 "Azure SDK is not configured. Set MAPPO_AZURE_TENANT_ID, MAPPO_AZURE_CLIENT_ID, MAPPO_AZURE_CLIENT_SECRET."
@@ -71,8 +71,8 @@ public class AzureExecutorClient {
     private ClientSecretCredential createCredential(String tenantId) {
         return new ClientSecretCredentialBuilder()
             .tenantId(tenantId)
-            .clientId(properties.getAzureClientId())
-            .clientSecret(properties.getAzureClientSecret())
+            .clientId(properties.getAzure().getClientId())
+            .clientSecret(properties.getAzure().getClientSecret())
             .build();
     }
 

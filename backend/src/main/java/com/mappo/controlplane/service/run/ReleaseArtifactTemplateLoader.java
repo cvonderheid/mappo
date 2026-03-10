@@ -70,7 +70,7 @@ public class ReleaseArtifactTemplateLoader {
 
     private String fetchWithBlobIdentity(URI sourceUri) {
         BlobLocation location = BlobLocation.parse(sourceUri);
-        TokenCredential credential = azureExecutorClient.createTokenCredential(properties.getAzureTenantId());
+        TokenCredential credential = azureExecutorClient.createTokenCredential(properties.getAzure().getTenantId());
         BlobClient client = new BlobClientBuilder()
             .endpoint(location.endpoint())
             .containerName(location.containerName())

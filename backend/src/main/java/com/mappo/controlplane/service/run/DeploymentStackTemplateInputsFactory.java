@@ -113,19 +113,19 @@ class DeploymentStackTemplateInputsFactory {
             target.registryServer(),
             defaults == null ? null : defaults.get("registryServer"),
             deriveRegistryServer(containerImage),
-            properties.getPublisherAcrServer()
+            properties.getPublisherAcr().getServer()
         );
         String registryUsername = firstNonBlank(
             target.registryUsername(),
             defaults == null ? null : defaults.get("registryUsername"),
-            properties.getPublisherAcrPullClientId()
+            properties.getPublisherAcr().getPullClientId()
         );
         String registryPasswordSecretName = firstNonBlank(
             target.registryPasswordSecretName(),
             defaults == null ? null : defaults.get("registryPasswordSecretName"),
-            properties.getPublisherAcrPullSecretName()
+            properties.getPublisherAcr().getPullSecretName()
         );
-        String registryPassword = normalize(properties.getPublisherAcrPullClientSecret());
+        String registryPassword = normalize(properties.getPublisherAcr().getPullClientSecret());
 
         if (registryServer.isBlank() || registryUsername.isBlank() || registryPassword.isBlank()) {
             throw new IllegalArgumentException(

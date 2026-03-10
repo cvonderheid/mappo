@@ -30,9 +30,9 @@ class AzureTargetRuntimeProbeClient implements TargetRuntimeProbeClient {
 
     @Override
     public boolean isConfigured() {
-        return !normalize(properties.getAzureTenantId()).isBlank()
-            && !normalize(properties.getAzureClientId()).isBlank()
-            && !normalize(properties.getAzureClientSecret()).isBlank();
+        return !normalize(properties.getAzure().getTenantId()).isBlank()
+            && !normalize(properties.getAzure().getClientId()).isBlank()
+            && !normalize(properties.getAzure().getClientSecret()).isBlank();
     }
 
     @Override
@@ -113,7 +113,7 @@ class AzureTargetRuntimeProbeClient implements TargetRuntimeProbeClient {
     private HttpResult send(String url) {
         try {
             HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                .timeout(Duration.ofMillis(properties.getRuntimeProbeTimeoutMs()))
+                .timeout(Duration.ofMillis(properties.getRuntimeProbe().getTimeoutMs()))
                 .header("Accept", "application/json, text/plain, */*")
                 .header("User-Agent", "mappo-runtime-probe")
                 .GET()
@@ -174,7 +174,7 @@ class AzureTargetRuntimeProbeClient implements TargetRuntimeProbeClient {
 
     private HttpClient httpClient() {
         return HttpClient.newBuilder()
-            .connectTimeout(Duration.ofMillis(properties.getRuntimeProbeTimeoutMs()))
+            .connectTimeout(Duration.ofMillis(properties.getRuntimeProbe().getTimeoutMs()))
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
     }
