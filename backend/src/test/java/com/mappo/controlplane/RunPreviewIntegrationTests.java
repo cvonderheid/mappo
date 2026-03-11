@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.RunPreviewChangeRecord;
 import com.mappo.controlplane.model.RunPreviewPropertyChangeRecord;
@@ -119,7 +120,7 @@ class RunPreviewIntegrationTests extends PostgresIntegrationTestBase {
     static class StubDeploymentStackPreviewExecutor implements DeploymentStackPreviewExecutor {
 
         @Override
-        public TargetPreviewOutcome preview(ReleaseRecord release, TargetExecutionContextRecord target) {
+        public TargetPreviewOutcome preview(ProjectDefinition project, ReleaseRecord release, TargetExecutionContextRecord target) {
             return new TargetPreviewOutcome(
                 "ARM what-if found 2 resource changes (1 Create, 1 Modify).",
                 List.of(),

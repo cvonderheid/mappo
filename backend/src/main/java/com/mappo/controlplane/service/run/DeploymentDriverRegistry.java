@@ -2,6 +2,7 @@ package com.mappo.controlplane.service.run;
 
 import com.mappo.controlplane.domain.execution.DeploymentDriver;
 import com.mappo.controlplane.domain.execution.DeploymentPreviewDriver;
+import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.model.ReleaseRecord;
 import java.util.Comparator;
 import java.util.Map;
@@ -19,17 +20,17 @@ public class DeploymentDriverRegistry {
     private final Map<String, DeploymentPreviewDriver> previewDrivers;
     private final ConfigurableListableBeanFactory beanFactory;
 
-    public Optional<DeploymentDriver> findDriver(ReleaseRecord release, boolean azureConfigured) {
+    public Optional<DeploymentDriver> findDriver(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
         return deploymentDrivers.entrySet().stream()
-            .filter(entry -> entry.getValue().supports(release, azureConfigured))
+            .filter(entry -> entry.getValue().supports(project, release, azureConfigured))
             .sorted(driverComparator())
             .map(Map.Entry::getValue)
             .findFirst();
     }
 
-    public Optional<DeploymentPreviewDriver> findPreviewDriver(ReleaseRecord release, boolean azureConfigured) {
+    public Optional<DeploymentPreviewDriver> findPreviewDriver(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
         return previewDrivers.entrySet().stream()
-            .filter(entry -> entry.getValue().supports(release, azureConfigured))
+            .filter(entry -> entry.getValue().supports(project, release, azureConfigured))
             .sorted(driverComparator())
             .map(Map.Entry::getValue)
             .findFirst();

@@ -1,9 +1,8 @@
 package com.mappo.controlplane.service;
 
 import com.mappo.controlplane.api.request.RunCreateRequest;
-import com.mappo.controlplane.azure.AzureExecutorClient;
+import com.mappo.controlplane.domain.access.TargetAccessValidation;
 import com.mappo.controlplane.domain.execution.DeploymentPreviewDriver;
-import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.RunPreviewMode;
 import com.mappo.controlplane.model.RunPreviewRecord;
@@ -17,8 +16,11 @@ import com.mappo.controlplane.repository.TargetExecutionContextRepository;
 import com.mappo.controlplane.service.run.DeploymentDriverRegistry;
 import com.mappo.controlplane.service.run.RunRequestContext;
 import com.mappo.controlplane.service.run.RunRequestResolverService;
+import com.mappo.controlplane.service.run.TargetAccessResolverRegistry;
 import com.mappo.controlplane.service.run.TargetPreviewException;
 import com.mappo.controlplane.service.run.TargetPreviewOutcome;
+import com.mappo.controlplane.infrastructure.azure.auth.AzureExecutorClient;
+import com.mappo.controlplane.service.project.ProjectExecutionCapabilities;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,11 +37,11 @@ public class RunPreviewService {
     private final RunRequestResolverService runRequestResolverService;
     private final TargetExecutionContextRepository targetExecutionContextRepository;
     private final AzureExecutorClient azureExecutorClient;
-    private final DeploymentDriverRegistry deploymentDriverRegistry;
 
     public RunPreviewRecord previewRun(RunCreateRequest request) {
         RunRequestContext context = runRequestResolverService.resolve(request);
         boolean azureConfigured = azureExecutorClient.isConfigured();
+        ProjectExecutionCapabilities capabilities = context.capabilities();
         List<TargetExecutionContextRecord> executionContexts = targetExecutionContextRepository.getExecutionContextsByIds(
             context.targets().stream().map(TargetRecord::id).toList()
         );
@@ -48,10 +50,10 @@ public class RunPreviewService {
             contextsByTarget.put(executionContext.targetId(), executionContext);
         }
 
-        RunPreviewMode mode = previewMode(context.release(), azureConfigured);
-        List<String> warnings = previewWarnings(context.release(), azureConfigured);
+        RunPreviewMode mode = previewMode(capabilities);
+        List<String> warnings = previewWarnings(capabilities, context.release(), azureConfigured);
         List<RunTargetPreviewRecord> targetPreviews = context.targets().stream()
-            .map(target -> previewTarget(context.release(), target, contextsByTarget.get(target.id()), mode))
+            .map(target -> previewTarget(capabilities, context.release(), target, contextsByTarget.get(target.id()), mode))
             .toList();
 
         return new RunPreviewRecord(
@@ -65,6 +67,7 @@ public class RunPreviewService {
     }
 
     private RunTargetPreviewRecord previewTarget(
+        ProjectExecutionCapabilities capabilities,
         ReleaseRecord release,
         TargetRecord target,
         TargetExecutionContextRecord context,
@@ -89,9 +92,24 @@ public class RunPreviewService {
         }
 
         try {
-            DeploymentPreviewDriver previewDriver = deploymentDriverRegistry.findPreviewDriver(release, azureExecutorClient.isConfigured())
+            TargetAccessValidation validation = capabilities.targetAccessResolver()
+                .validate(capabilities.project(), release, target, context, azureExecutorClient.isConfigured());
+            if (!validation.valid()) {
+                return new RunTargetPreviewRecord(
+                    target.id(),
+                    firstNonBlank(target.customerName(), target.id()),
+                    target.tags().get("ring"),
+                    context.managedResourceGroupId(),
+                    RunPreviewTargetStatus.FAILED,
+                    validation.message(),
+                    List.of(),
+                    validation.error(),
+                    List.of()
+                );
+            }
+            DeploymentPreviewDriver previewDriver = capabilities.previewDriver()
                 .orElseThrow(() -> new IllegalStateException("preview driver not found for supported release"));
-            TargetPreviewOutcome outcome = previewDriver.preview(release, context);
+            TargetPreviewOutcome outcome = previewDriver.preview(capabilities.project(), release, context);
             return new RunTargetPreviewRecord(
                 target.id(),
                 firstNonBlank(target.customerName(), target.id()),
@@ -159,17 +177,21 @@ public class RunPreviewService {
         );
     }
 
-    private RunPreviewMode previewMode(ReleaseRecord release, boolean azureConfigured) {
-        return deploymentDriverRegistry.findPreviewDriver(release, azureConfigured)
+    private RunPreviewMode previewMode(ProjectExecutionCapabilities capabilities) {
+        return capabilities.previewDriver()
             .map(DeploymentPreviewDriver::mode)
             .orElse(RunPreviewMode.UNSUPPORTED);
     }
 
-    private List<String> previewWarnings(ReleaseRecord release, boolean azureConfigured) {
+    private List<String> previewWarnings(
+        ProjectExecutionCapabilities capabilities,
+        ReleaseRecord release,
+        boolean azureConfigured
+    ) {
         if (!azureConfigured) {
             return List.of("Azure execution is not configured; run preview is unavailable.");
         }
-        if (release.sourceType() != MappoReleaseSourceType.deployment_stack) {
+        if (capabilities.project().deploymentDriver() != com.mappo.controlplane.domain.project.ProjectDeploymentDriverType.azure_deployment_stack) {
             return List.of("Preview is currently implemented only for deployment_stack releases.");
         }
         if (!release.deploymentScope().getLiteral().equals("resource_group")) {

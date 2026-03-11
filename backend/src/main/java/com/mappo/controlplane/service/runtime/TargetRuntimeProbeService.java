@@ -1,14 +1,9 @@
 package com.mappo.controlplane.service.runtime;
 
 import com.mappo.controlplane.config.MappoProperties;
-import com.mappo.controlplane.jooq.enums.MappoRuntimeProbeStatus;
 import com.mappo.controlplane.model.TargetRuntimeProbeContextRecord;
-import com.mappo.controlplane.model.TargetRuntimeProbeRecord;
-import com.mappo.controlplane.repository.TargetCommandRepository;
 import com.mappo.controlplane.repository.TargetRuntimeProbeContextRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -23,8 +18,7 @@ import org.springframework.stereotype.Service;
 public class TargetRuntimeProbeService {
 
     private final TargetRuntimeProbeContextRepository targetRuntimeProbeContextRepository;
-    private final TargetCommandRepository targetCommandRepository;
-    private final TargetRuntimeProbeClient targetRuntimeProbeClient;
+    private final TargetRuntimeProbeExecutionService targetRuntimeProbeExecutionService;
     private final MappoProperties properties;
     private final LiveUpdateService liveUpdateService;
     private final AtomicBoolean refreshInProgress = new AtomicBoolean(false);
@@ -41,7 +35,7 @@ public class TargetRuntimeProbeService {
     }
 
     public void refreshRuntimeProbes() {
-        if (!properties.getRuntimeProbe().isEnabled() || !targetRuntimeProbeClient.isConfigured()) {
+        if (!properties.getRuntimeProbe().isEnabled()) {
             return;
         }
         if (!refreshInProgress.compareAndSet(false, true)) {
@@ -69,18 +63,7 @@ public class TargetRuntimeProbeService {
     }
 
     private void refreshRuntimeProbe(TargetRuntimeProbeContextRecord target) {
-        try {
-            targetCommandRepository.upsertRuntimeProbe(targetRuntimeProbeClient.probe(target));
-        } catch (RuntimeException error) {
-            targetCommandRepository.upsertRuntimeProbe(new TargetRuntimeProbeRecord(
-                target.targetId(),
-                MappoRuntimeProbeStatus.unknown,
-                OffsetDateTime.now(ZoneOffset.UTC),
-                null,
-                null,
-                "Runtime probe failed: " + summarizeError(error)
-            ));
-        }
+        targetRuntimeProbeExecutionService.probeAndPersist(target);
     }
 
     private void waitFor(Future<?> task) {
@@ -91,13 +74,5 @@ public class TargetRuntimeProbeService {
         } catch (ExecutionException ignored) {
             // Probe failures are captured per-target and persisted as unknown/unreachable results.
         }
-    }
-
-    private String summarizeError(Throwable error) {
-        String message = error == null ? "" : String.valueOf(error.getMessage()).trim();
-        if (!message.isBlank()) {
-            return message;
-        }
-        return error == null ? "unknown error" : error.getClass().getSimpleName();
     }
 }

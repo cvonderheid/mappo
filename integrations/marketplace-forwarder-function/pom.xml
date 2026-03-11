@@ -61,7 +61,6 @@
             <javaVersion>${function.runtime.java.version}</javaVersion>
           </runtime>
           <hostJson>${project.basedir}/host.json</hostJson>
-          <stagingDirectory>${project.build.directory}/azure-functions/${function.app.name}</stagingDirectory>
         </configuration>
         <executions>
           <execution>

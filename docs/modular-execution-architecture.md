@@ -1,7 +1,7 @@
 # MAPPO Modular Execution Architecture
 
 Date: 2026-03-10
-Status: proposed
+Status: in progress
 
 ## Purpose
 MAPPO currently runs one production-shaped deployment model well:
@@ -167,6 +167,63 @@ Examples:
 - `HttpEndpointHealthProvider`
 - `ExternalPipelineHealthProvider`
 
+## Current Implementation Status
+The first abstraction seam is now in code.
+
+Implemented contracts:
+- `TargetAccessResolver`
+- `ReleaseMaterializer`
+- `DeploymentDriver`
+- `DeploymentPreviewDriver`
+- `RuntimeHealthProvider`
+- `TargetVerificationProvider`
+- `RunQueue`
+
+Implemented orchestration helpers:
+- `ProjectDefinition`
+- `ProjectDefinitionProvider`
+- `ProjectExecutionCapabilities`
+- `ProjectExecutionCapabilityResolver`
+- `RunRequestContext`
+- `RunExecutionContext`
+- `ReleaseMaterializerRegistry`
+- `DeploymentDriverRegistry`
+- `TargetAccessResolverRegistry`
+- `RuntimeHealthProviderRegistry`
+- `TargetVerificationProviderRegistry`
+
+Current concrete adapters:
+- `azure_deployment_stack` project definition provider
+- `azure_template_spec` project definition provider
+- `azure_deployment_stack`
+- `azure_template_spec`
+- default target access validation
+- default target verification
+- Azure Container App runtime health provider
+- Redis-backed run queue
+
+Current request/execution flow:
+1. resolve request context from release + target selection
+2. resolve project execution capabilities
+3. persist the run and dispatch through the durable queue
+4. resolve execution context from run + queued targets
+5. execute through the selected deployment driver
+
+This is enough to treat the current Azure Deployment Stack implementation as the first driver adapter instead of the permanent control-plane default.
+Project definition resolution is also now provider-based instead of a hard-coded source-type switch.
+
+Current run orchestration split:
+- `RunExecutionService` coordinates the run lifecycle only
+- `RunPreparationService` owns missing-target validation and warning persistence
+- `RunBatchExecutionService` owns concurrency-bounded target execution batches
+- `RunCompletionService` owns final status calculation and run-change emission
+
+That split keeps behavior unchanged while making the next steps easier:
+- durable queue restart/recovery behavior
+- batch-policy evolution
+- driver-specific resume/retry behavior
+- future non-Azure deployment drivers
+
 ## Data Model Direction
 The current `Release.sourceType` field is useful but too small to carry the full architecture.
 
@@ -304,6 +361,14 @@ A growing enum matrix will turn `RunExecutionService` into a control-plane monol
 - adapt the current Deployment Stack implementation to those contracts
 - keep current Azure demo behavior unchanged
 
+Status:
+- [x] execution/access/materialization/health contracts introduced
+- [x] current Deployment Stack path adapted behind those contracts
+- [x] request and run execution now resolve explicit project capabilities
+- [x] post-deploy verification now resolves through a verification-provider seam
+- [x] project-definition selection now resolves through provider/registry seams
+- [ ] runtime-health-backed verification is not yet the active verification adapter
+
 ### Phase 2: Project definition layer
 - add `ProjectDefinition` and associate targets/releases/runs with a project
 - move driver/access/health selection to project config
@@ -322,9 +387,9 @@ Choose one:
 
 ## Recommendation
 The next code slice should be:
-1. add the execution contracts and registry,
-2. move the current Deployment Stack flow behind them,
-3. leave the HTTP and data model mostly unchanged,
-4. only then add project-level modeling.
+1. replace the default verification provider with a runtime-health-backed adapter,
+2. introduce explicit persistent `project` modeling in the data layer,
+3. add one second deployment driver after the current seams settle,
+4. only then migrate package structure toward the full `application` / `infrastructure` layout.
 
 That is the lowest-risk path to turn MAPPO from one deployment implementation into a general orchestration platform.

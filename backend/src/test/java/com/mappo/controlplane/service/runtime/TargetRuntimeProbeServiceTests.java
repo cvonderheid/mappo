@@ -9,7 +9,6 @@ import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.jooq.enums.MappoRuntimeProbeStatus;
 import com.mappo.controlplane.model.TargetRuntimeProbeContextRecord;
 import com.mappo.controlplane.model.TargetRuntimeProbeRecord;
-import com.mappo.controlplane.repository.TargetCommandRepository;
 import com.mappo.controlplane.repository.TargetRuntimeProbeContextRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
@@ -27,10 +26,7 @@ class TargetRuntimeProbeServiceTests {
     private TargetRuntimeProbeContextRepository targetRuntimeProbeContextRepository;
 
     @Mock
-    private TargetCommandRepository targetCommandRepository;
-
-    @Mock
-    private TargetRuntimeProbeClient targetRuntimeProbeClient;
+    private TargetRuntimeProbeExecutionService targetRuntimeProbeExecutionService;
 
     @Mock
     private LiveUpdateService liveUpdateService;
@@ -41,8 +37,7 @@ class TargetRuntimeProbeServiceTests {
         properties.getRuntimeProbe().setEnabled(true);
         TargetRuntimeProbeService service = new TargetRuntimeProbeService(
             targetRuntimeProbeContextRepository,
-            targetCommandRepository,
-            targetRuntimeProbeClient,
+            targetRuntimeProbeExecutionService,
             properties,
             liveUpdateService
         );
@@ -61,13 +56,12 @@ class TargetRuntimeProbeServiceTests {
             "Runtime responded with HTTP 200."
         );
 
-        when(targetRuntimeProbeClient.isConfigured()).thenReturn(true);
         when(targetRuntimeProbeContextRepository.listRuntimeProbeContexts()).thenReturn(List.of(target));
-        when(targetRuntimeProbeClient.probe(target)).thenReturn(probe);
+        when(targetRuntimeProbeExecutionService.probeAndPersist(target)).thenReturn(java.util.Optional.of(probe));
 
         service.refreshRuntimeProbes();
 
-        verify(targetCommandRepository).upsertRuntimeProbe(probe);
+        verify(targetRuntimeProbeExecutionService).probeAndPersist(target);
         verify(liveUpdateService).emitTargetsUpdated();
     }
 
@@ -77,17 +71,16 @@ class TargetRuntimeProbeServiceTests {
         properties.getRuntimeProbe().setEnabled(true);
         TargetRuntimeProbeService service = new TargetRuntimeProbeService(
             targetRuntimeProbeContextRepository,
-            targetCommandRepository,
-            targetRuntimeProbeClient,
+            targetRuntimeProbeExecutionService,
             properties,
             liveUpdateService
         );
 
-        when(targetRuntimeProbeClient.isConfigured()).thenReturn(false);
+        when(targetRuntimeProbeContextRepository.listRuntimeProbeContexts()).thenReturn(List.of());
 
         service.refreshRuntimeProbes();
 
-        verify(targetRuntimeProbeContextRepository, never()).listRuntimeProbeContexts();
-        verify(targetCommandRepository, never()).upsertRuntimeProbe(any());
+        verify(targetRuntimeProbeContextRepository).listRuntimeProbeContexts();
+        verify(targetRuntimeProbeExecutionService, never()).probeAndPersist(any());
     }
 }

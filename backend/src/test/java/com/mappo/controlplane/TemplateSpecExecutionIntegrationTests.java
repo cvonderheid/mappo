@@ -9,8 +9,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.mappo.controlplane.domain.health.TargetVerificationProvider;
+import com.mappo.controlplane.domain.project.ProjectRuntimeHealthProviderType;
+import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
+import com.mappo.controlplane.model.TargetRecord;
+import com.mappo.controlplane.model.TargetVerificationResultRecord;
 import com.mappo.controlplane.service.run.TargetDeploymentOutcome;
 import com.mappo.controlplane.service.run.TemplateSpecExecutor;
 import java.util.LinkedHashMap;
@@ -98,7 +103,7 @@ class TemplateSpecExecutionIntegrationTests extends PostgresIntegrationTestBase 
                     .andExpect(jsonPath("$.targetRecords[0].status").value("SUCCEEDED"))
                     .andExpect(jsonPath("$.targetRecords[0].stages[1].message").value(containsString("deploying into resource group")))
                     .andExpect(jsonPath("$.targetRecords[0].stages[2].message").value("Template Spec deployment stub-template-spec-deployment succeeded."))
-                    .andExpect(jsonPath("$.targetRecords[0].stages[3].message").value("Verification passed: ARM deployment completed successfully."))
+                    .andExpect(jsonPath("$.targetRecords[0].stages[3].message").value("Runtime verification passed: Runtime responded with HTTP 200."))
                     .andExpect(jsonPath("$.targetRecords[0].stages[4].stage").value("SUCCEEDED"));
                 return;
             }
@@ -135,6 +140,12 @@ class TemplateSpecExecutionIntegrationTests extends PostgresIntegrationTestBase 
         TemplateSpecExecutor templateSpecExecutor() {
             return new StubTemplateSpecExecutor();
         }
+
+        @Bean
+        @Primary
+        TargetVerificationProvider targetVerificationProvider() {
+            return new StubTargetVerificationProvider();
+        }
     }
 
     static class StubTemplateSpecExecutor implements TemplateSpecExecutor {
@@ -142,6 +153,7 @@ class TemplateSpecExecutionIntegrationTests extends PostgresIntegrationTestBase 
         @Override
         public TargetDeploymentOutcome deploy(
             String runId,
+            ProjectDefinition project,
             ReleaseRecord release,
             TargetExecutionContextRecord target
         ) {
@@ -150,6 +162,31 @@ class TemplateSpecExecutionIntegrationTests extends PostgresIntegrationTestBase 
                 "Template Spec deployment stub-template-spec-deployment succeeded.",
                 ""
             );
+        }
+    }
+
+    static class StubTargetVerificationProvider implements TargetVerificationProvider {
+
+        @Override
+        public boolean supports(
+            ProjectDefinition project,
+            ReleaseRecord release,
+            TargetRecord target,
+            TargetExecutionContextRecord context,
+            boolean azureConfigured
+        ) {
+            return project.runtimeHealthProvider() == ProjectRuntimeHealthProviderType.azure_container_app_http;
+        }
+
+        @Override
+        public TargetVerificationResultRecord verify(
+            ProjectDefinition project,
+            ReleaseRecord release,
+            TargetRecord target,
+            TargetExecutionContextRecord context,
+            boolean azureConfigured
+        ) {
+            return TargetVerificationResultRecord.success("Runtime verification passed: Runtime responded with HTTP 200.");
         }
     }
 }

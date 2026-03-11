@@ -269,6 +269,12 @@ Post-demo production-path planning and execution setup:
 
 **Status**
 - [x] Architecture and package-layout direction documented.
-- [ ] Extract execution contracts (`TargetAccessResolver`, `ReleaseMaterializer`, `DeploymentDriver`, `RuntimeHealthProvider`).
-- [ ] Adapt the current Deployment Stack implementation behind those contracts.
-- [ ] Add project-level configuration to choose access/deployment/health behavior per product.
+- [x] Extract execution contracts (`TargetAccessResolver`, `ReleaseMaterializer`, `DeploymentDriver`, `RuntimeHealthProvider`).
+- [x] Adapt the current Deployment Stack implementation behind those contracts.
+- [x] Resolve request and run execution through explicit project capability and execution-context objects.
+- [x] Move post-deploy verification behind a provider seam.
+- [x] Move project-definition selection behind provider/registry seams.
+- [x] Respect runtime-probe/project verification selection when choosing verification providers.
+- [x] Split run orchestration into coordinator, preparation, batch execution, and completion services.
+- [ ] Add persistent project-level configuration to choose access/deployment/health behavior per product.
+- [ ] Split the remaining workflow-heavy classes (`AzureDeploymentStackExecutor`, `ReleaseManifestParser`) by responsibility.

@@ -1,7 +1,8 @@
 package com.mappo.controlplane.service.run;
 
-import com.mappo.controlplane.azure.AzureExecutorClient;
+import com.mappo.controlplane.infrastructure.azure.auth.AzureExecutorClient;
 import com.mappo.controlplane.config.MappoProperties;
+import com.mappo.controlplane.domain.execution.RunQueue;
 import com.mappo.controlplane.jooq.enums.MappoRunStatus;
 import com.mappo.controlplane.repository.RunExecutionStateRepository;
 import com.mappo.controlplane.repository.RunLifecycleCommandRepository;
@@ -28,7 +29,7 @@ public class RunDispatchService {
     private final RunExecutionStateRepository runExecutionStateRepository;
     private final LiveUpdateService liveUpdateService;
     private final AzureExecutorClient azureExecutorClient;
-    private final RedisRunQueueService redisRunQueueService;
+    private final RunQueue runQueue;
     private final MappoProperties properties;
     private final Set<String> activeRunIds = ConcurrentHashMap.newKeySet();
 
@@ -40,7 +41,7 @@ public class RunDispatchService {
         RunExecutionStateRepository runExecutionStateRepository,
         LiveUpdateService liveUpdateService,
         AzureExecutorClient azureExecutorClient,
-        RedisRunQueueService redisRunQueueService,
+        RunQueue runQueue,
         MappoProperties properties
     ) {
         this.runDispatchExecutor = runDispatchExecutor;
@@ -50,7 +51,7 @@ public class RunDispatchService {
         this.runExecutionStateRepository = runExecutionStateRepository;
         this.liveUpdateService = liveUpdateService;
         this.azureExecutorClient = azureExecutorClient;
-        this.redisRunQueueService = redisRunQueueService;
+        this.runQueue = runQueue;
         this.properties = properties;
     }
 
@@ -67,15 +68,15 @@ public class RunDispatchService {
         initialDelayString = "${mappo.redis.worker-poll-timeout-ms:1000}"
     )
     public void drainQueuedRuns() {
-        if (!redisRunQueueService.isEnabled()) {
+        if (!runQueue.isEnabled()) {
             return;
         }
         for (int i = 0; i < 8; i++) {
-            String runId = redisRunQueueService.poll();
+            String runId = runQueue.poll();
             if (runId.isBlank()) {
                 return;
             }
-            if (!redisRunQueueService.acquireRunLease(runId)) {
+            if (!runQueue.acquireRunLease(runId)) {
                 continue;
             }
             runDispatchExecutor.execute(() -> executeQueuedRun(runId));
@@ -93,8 +94,8 @@ public class RunDispatchService {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         for (String runId : activeRunIds) {
             runLifecycleCommandRepository.touchRun(runId, now);
-            if (redisRunQueueService.isEnabled()) {
-                redisRunQueueService.renewRunLease(runId);
+            if (runQueue.isEnabled()) {
+                runQueue.renewRunLease(runId);
             }
         }
     }
@@ -104,13 +105,13 @@ public class RunDispatchService {
         initialDelayString = "${mappo.redis.recovery-interval-ms:30000}"
     )
     public void recoverStaleRuns() {
-        if (!redisRunQueueService.isEnabled()) {
+        if (!runQueue.isEnabled()) {
             return;
         }
         OffsetDateTime cutoff = OffsetDateTime.now(ZoneOffset.UTC)
             .minusNanos(properties.getRedis().getRecoveryStaleAfterMs() * 1_000_000L);
         for (String runId : runExecutionStateRepository.listStaleRunningRunIds(cutoff)) {
-            if (activeRunIds.contains(runId) || redisRunQueueService.isRunLeaseHeld(runId)) {
+            if (activeRunIds.contains(runId) || runQueue.isRunLeaseHeld(runId)) {
                 continue;
             }
             runTargetCommandRepository.requeueActiveTargets(runId, "Queued after stale execution recovery.");
@@ -125,11 +126,11 @@ public class RunDispatchService {
     }
 
     private void dispatchRun(String runId, boolean force) {
-        if (redisRunQueueService.isEnabled()) {
+        if (runQueue.isEnabled()) {
             if (force) {
-                redisRunQueueService.enqueue(runId, true);
+                runQueue.enqueue(runId, true);
             } else {
-                redisRunQueueService.enqueue(runId);
+                runQueue.enqueue(runId);
             }
             return;
         }
@@ -155,8 +156,8 @@ public class RunDispatchService {
             liveUpdateService.emitRunUpdated(runId);
         } finally {
             activeRunIds.remove(runId);
-            if (redisRunQueueService.isEnabled()) {
-                redisRunQueueService.releaseRunLease(runId);
+            if (runQueue.isEnabled()) {
+                runQueue.releaseRunLease(runId);
             }
         }
     }

@@ -1,8 +1,9 @@
 package com.mappo.controlplane.service.run;
 
 import com.mappo.controlplane.domain.execution.DeploymentPreviewDriver;
+import com.mappo.controlplane.domain.project.ProjectDefinition;
+import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
 import com.mappo.controlplane.jooq.enums.MappoDeploymentScope;
-import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.RunPreviewMode;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
@@ -10,9 +11,9 @@ import com.mappo.controlplane.model.TargetExecutionContextRecord;
 public interface DeploymentStackPreviewExecutor extends DeploymentPreviewDriver {
 
     @Override
-    default boolean supports(ReleaseRecord release, boolean azureConfigured) {
+    default boolean supports(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
         return azureConfigured
-            && release.sourceType() == MappoReleaseSourceType.deployment_stack
+            && project.deploymentDriver() == ProjectDeploymentDriverType.azure_deployment_stack
             && release.deploymentScope() == MappoDeploymentScope.resource_group;
     }
 
@@ -22,5 +23,5 @@ public interface DeploymentStackPreviewExecutor extends DeploymentPreviewDriver 
     }
 
     @Override
-    TargetPreviewOutcome preview(ReleaseRecord release, TargetExecutionContextRecord target);
+    TargetPreviewOutcome preview(ProjectDefinition project, ReleaseRecord release, TargetExecutionContextRecord target);
 }

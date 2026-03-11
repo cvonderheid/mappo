@@ -1,13 +1,13 @@
 package com.mappo.controlplane.service.run;
 
-import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
+import com.mappo.controlplane.domain.project.ProjectDefinition;
+import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
 import com.mappo.controlplane.jooq.enums.MappoRunStatus;
 import com.mappo.controlplane.jooq.enums.MappoStrategyMode;
 import com.mappo.controlplane.model.RunExecutionCountsRecord;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.RunDetailRecord;
 import com.mappo.controlplane.model.RunStopPolicyRecord;
-import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import com.mappo.controlplane.model.TargetRecord;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,12 +24,12 @@ public class RunExecutionPolicyService {
         return chunkTargets(targets, concurrency);
     }
 
-    public List<String> buildWarnings(ReleaseRecord release, List<TargetRecord> targets, boolean azureConfigured) {
+    public List<String> buildWarnings(ProjectDefinition project, ReleaseRecord release, List<TargetRecord> targets, boolean azureConfigured) {
         List<String> warnings = new ArrayList<>();
-        if (useRealExecution(release, azureConfigured) && release.executionSettings().whatIfOnCanary()) {
+        if (useRealExecution(project, release, azureConfigured) && release.executionSettings().whatIfOnCanary()) {
             warnings.add("whatIfOnCanary is configured but not implemented yet; live deployment will proceed directly.");
         }
-        if (useRealExecution(release, azureConfigured)) {
+        if (useRealExecution(project, release, azureConfigured)) {
             return warnings;
         }
 
@@ -38,7 +38,7 @@ public class RunExecutionPolicyService {
             return warnings;
         }
 
-        if (release.sourceType() == MappoReleaseSourceType.template_spec) {
+        if (project.deploymentDriver() == ProjectDeploymentDriverType.azure_template_spec) {
             warnings.add(
                 "Azure execution for source type template_spec with deployment scope "
                     + release.deploymentScope().getLiteral()
@@ -54,50 +54,35 @@ public class RunExecutionPolicyService {
         return warnings;
     }
 
-    public String validationMessage(
-        ReleaseRecord release,
-        TargetRecord target,
-        TargetExecutionContextRecord context,
-        boolean azureConfigured
-    ) {
-        if (useRealTemplateSpecExecution(release, azureConfigured)) {
-            return "Validated target " + target.id() + "; deploying into resource group " + resourceGroupName(context.managedResourceGroupId()) + ".";
-        }
-        if (useRealDeploymentStackExecution(release, azureConfigured)) {
-            return "Validated target " + target.id() + "; updating deployment stack scope " + context.managedResourceGroupId() + ".";
-        }
-        return "Validated target " + target.id() + " for simulator execution.";
-    }
-
-    public String verificationMessage(ReleaseRecord release, boolean azureConfigured) {
-        if (useRealTemplateSpecExecution(release, azureConfigured)) {
+    public String verificationMessage(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
+        if (useRealTemplateSpecExecution(project, release, azureConfigured)) {
             return "Verification passed: ARM deployment completed successfully.";
         }
-        if (useRealDeploymentStackExecution(release, azureConfigured)) {
+        if (useRealDeploymentStackExecution(project, release, azureConfigured)) {
             return "Verification passed: deployment stack completed successfully.";
         }
         return "Verification passed in simulator mode.";
     }
 
-    public boolean useRealTemplateSpecExecution(ReleaseRecord release, boolean azureConfigured) {
+    public boolean useRealTemplateSpecExecution(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
         return azureConfigured
-            && release.sourceType() == MappoReleaseSourceType.template_spec
+            && project.deploymentDriver() == ProjectDeploymentDriverType.azure_template_spec
             && release.deploymentScope().getLiteral().equals("resource_group");
     }
 
-    public boolean useRealDeploymentStackExecution(ReleaseRecord release, boolean azureConfigured) {
+    public boolean useRealDeploymentStackExecution(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
         return azureConfigured
-            && release.sourceType() == MappoReleaseSourceType.deployment_stack
+            && project.deploymentDriver() == ProjectDeploymentDriverType.azure_deployment_stack
             && release.deploymentScope().getLiteral().equals("resource_group");
     }
 
-    public boolean useRealExecution(ReleaseRecord release, boolean azureConfigured) {
-        return useRealTemplateSpecExecution(release, azureConfigured)
-            || useRealDeploymentStackExecution(release, azureConfigured);
+    public boolean useRealExecution(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
+        return useRealTemplateSpecExecution(project, release, azureConfigured)
+            || useRealDeploymentStackExecution(project, release, azureConfigured);
     }
 
-    public boolean isSimulatorMode(ReleaseRecord release, boolean azureConfigured) {
-        return !useRealExecution(release, azureConfigured);
+    public boolean isSimulatorMode(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
+        return !useRealExecution(project, release, azureConfigured);
     }
 
     public String haltReasonFor(RunStopPolicyRecord stopPolicy, int failedCount, int processedCount, int totalTargets) {
@@ -208,17 +193,6 @@ public class RunExecutionPolicyService {
             }
         }
         return false;
-    }
-
-    private String resourceGroupName(String resourceId) {
-        String value = blankToEmpty(resourceId);
-        int index = value.toLowerCase().indexOf("/resourcegroups/");
-        if (index < 0) {
-            return value;
-        }
-        String suffix = value.substring(index + "/resourceGroups/".length());
-        int slash = suffix.indexOf('/');
-        return slash < 0 ? suffix : suffix.substring(0, slash);
     }
 
     private String sourceTypeLiteral(ReleaseRecord release) {

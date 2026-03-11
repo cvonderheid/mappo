@@ -2,10 +2,13 @@ package com.mappo.controlplane.service.run;
 
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.RunCreateRequest;
+import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.model.command.CreateRunCommand;
 import com.mappo.controlplane.repository.TargetRecordQueryRepository;
 import com.mappo.controlplane.service.ReleaseService;
+import com.mappo.controlplane.infrastructure.azure.auth.AzureExecutorClient;
+import com.mappo.controlplane.service.project.ProjectExecutionCapabilityResolver;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +21,8 @@ public class RunRequestResolverService {
 
     private final TargetRecordQueryRepository targetRecordQueryRepository;
     private final ReleaseService releaseService;
+    private final ProjectExecutionCapabilityResolver projectExecutionCapabilityResolver;
+    private final AzureExecutorClient azureExecutorClient;
 
     public RunRequestContext resolve(RunCreateRequest request) {
         if (request == null) {
@@ -34,9 +39,11 @@ public class RunRequestResolverService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "no matching targets found");
         }
 
+        ReleaseRecord release = releaseService.getRelease(releaseId);
         return new RunRequestContext(
             command,
-            releaseService.getRelease(releaseId),
+            projectExecutionCapabilityResolver.resolve(release, azureExecutorClient.isConfigured()),
+            release,
             targets
         );
     }
