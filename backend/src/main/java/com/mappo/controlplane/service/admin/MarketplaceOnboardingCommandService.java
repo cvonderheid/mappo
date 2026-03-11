@@ -83,7 +83,7 @@ public class MarketplaceOnboardingCommandService {
         );
         transactionHookService.afterCommitOrNow(() -> {
             liveUpdateService.emitAdminUpdated();
-            liveUpdateService.emitTargetsUpdated();
+            liveUpdateService.emitTargetsUpdated(targetPlan.targetCommand().projectId());
         });
         return new EventIngestResultRecord(eventId, MappoMarketplaceEventStatus.applied, message, targetId);
     }

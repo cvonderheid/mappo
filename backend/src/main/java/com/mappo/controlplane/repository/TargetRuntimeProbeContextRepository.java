@@ -18,6 +18,7 @@ public class TargetRuntimeProbeContextRepository {
     public List<TargetRuntimeProbeContextRecord> listRuntimeProbeContexts() {
         return dsl.select(
                 TARGETS.ID,
+                TARGETS.PROJECT_ID,
                 TARGETS.TENANT_ID,
                 TARGETS.SUBSCRIPTION_ID,
                 TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID
@@ -28,6 +29,7 @@ public class TargetRuntimeProbeContextRepository {
             .orderBy(TARGETS.ID.asc())
             .fetch(row -> new TargetRuntimeProbeContextRecord(
                 row.get(TARGETS.ID),
+                row.get(TARGETS.PROJECT_ID),
                 row.get(TARGETS.TENANT_ID),
                 row.get(TARGETS.SUBSCRIPTION_ID),
                 row.get(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID)

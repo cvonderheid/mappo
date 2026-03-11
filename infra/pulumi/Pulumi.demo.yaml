@@ -7,11 +7,5 @@ config:
   mappo:controlPlanePostgresAllowedIpRanges: '["68.226.82.42"]'
   mappo:controlPlanePostgresAdminPassword:
     secure: v1:xblKKCHBapg3zdO7:YArgTSaTcOwLUT+EIPoFmLcSqK93U/92WLtAAmwXmqymO5wOCpyynw==
-  mappo:frontDoorEnabled: "true"
-  mappo:frontDoorOriginHost: ca-mappo-api-demo.victorioussmoke-7becae0e.centralus.azurecontainerapps.io
-  mappo:frontDoorCustomDomainHostName: api.mappopoc.com
-  mappo:frontDoorDnsZoneSubscriptionId: c0d51042-7d0a-41f7-b270-151e4c4ea263
-  mappo:frontDoorDnsZoneResourceGroupName: rg-mappo-dns-demo
-  mappo:frontDoorDnsZoneName: mappopoc.com
   mappo:managedAppReleaseWebhookSecret:
     secure: v1:nwx3j8SGtlaQ67/Z:c0EOghfemHbzt5FGqKsRlDLPIZFOR8nG4f6PrhqNSTQM165vBKi/yLhwmIyQeSeVD0lAlYwwD/QdOYPvJZKBoM8sA3Tmy8qyg3DQlIxqggc=

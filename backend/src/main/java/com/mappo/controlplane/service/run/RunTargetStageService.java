@@ -23,7 +23,7 @@ public class RunTargetStageService {
         this.liveUpdateService = liveUpdateService;
     }
 
-    public StageStart beginStage(String runId, String targetId, MappoTargetStage stage, String message) {
+    public StageStart beginStage(String runId, String projectId, String targetId, MappoTargetStage stage, String message) {
         String correlationId = correlationId(runId, targetId, stage);
         OffsetDateTime startedAt = now();
         runTargetCommandRepository.updateTargetExecutionStatus(runId, targetId, stage);
@@ -36,12 +36,13 @@ public class RunTargetStageService {
             message,
             correlationId
         );
-        publishRunChange(runId);
+        publishRunChange(projectId, runId);
         return new StageStart(correlationId, startedAt);
     }
 
     public void completeStage(
         String runId,
+        String projectId,
         String targetId,
         MappoTargetStage stage,
         StageStart start,
@@ -69,11 +70,12 @@ public class RunTargetStageService {
             message,
             start.correlationId()
         );
-        publishRunChange(runId);
+        publishRunChange(projectId, runId);
     }
 
     public boolean failStage(
         String runId,
+        String projectId,
         String targetId,
         MappoTargetStage stage,
         String correlationId,
@@ -102,11 +104,11 @@ public class RunTargetStageService {
             message,
             normalize(correlationId)
         );
-        publishRunChange(runId);
+        publishRunChange(projectId, runId);
         return false;
     }
 
-    public void markSucceeded(String runId, String targetId, String correlationId) {
+    public void markSucceeded(String runId, String projectId, String targetId, String correlationId) {
         OffsetDateTime timestamp = now();
         runTargetCommandRepository.updateTargetExecutionStatus(runId, targetId, MappoTargetStage.SUCCEEDED);
         runTargetCommandRepository.appendTargetStage(
@@ -129,16 +131,16 @@ public class RunTargetStageService {
             "Target deployment succeeded.",
             normalize(correlationId)
         );
-        publishRunChange(runId);
+        publishRunChange(projectId, runId);
     }
 
     public String correlationId(String runId, String targetId, MappoTargetStage stage) {
         return "corr-" + runId + "-" + targetId + "-" + stage.name().toLowerCase();
     }
 
-    private void publishRunChange(String runId) {
-        liveUpdateService.emitRunsUpdated();
-        liveUpdateService.emitRunUpdated(runId);
+    private void publishRunChange(String projectId, String runId) {
+        liveUpdateService.emitRunsUpdated(projectId);
+        liveUpdateService.emitRunUpdated(projectId, runId);
     }
 
     private OffsetDateTime now() {

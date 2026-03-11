@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   type ColumnDef,
@@ -164,14 +164,62 @@ export default function FleetTable({ latestRelease, refreshKey, selectedProjectI
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] =
     usePersistentColumnVisibility("fleet-targets");
+  const previousQuerySignatureRef = useRef<string>("");
+
+  const querySignature = useMemo(
+    () =>
+      JSON.stringify({
+        selectedProjectId,
+        page,
+        pageSize,
+        targetIdFilter,
+        customerNameFilter,
+        tenantIdFilter,
+        subscriptionIdFilter,
+        targetGroupFilter,
+        regionFilter,
+        tierFilter,
+        versionFilter,
+        runtimeFilter,
+        lastDeploymentFilter,
+      }),
+    [
+      customerNameFilter,
+      lastDeploymentFilter,
+      page,
+      pageSize,
+      regionFilter,
+      runtimeFilter,
+      selectedProjectId,
+      subscriptionIdFilter,
+      targetGroupFilter,
+      targetIdFilter,
+      tenantIdFilter,
+      tierFilter,
+      versionFilter,
+    ]
+  );
 
   useEffect(() => {
     let active = true;
     const hasVisibleData =
       (pageData.items?.length ?? 0) > 0 || (pageData.page?.totalItems ?? 0) > 0;
-    if (hasVisibleData) {
+    const isBackgroundRefresh = previousQuerySignatureRef.current === querySignature;
+    previousQuerySignatureRef.current = querySignature;
+
+    if (!selectedProjectId) {
+      setPageData(EMPTY_PAGE);
+      setLoading(false);
+      setRefreshing(false);
+      setErrorMessage("");
+      return () => {
+        active = false;
+      };
+    }
+
+    if (hasVisibleData && !isBackgroundRefresh) {
       setRefreshing(true);
-    } else {
+    } else if (!hasVisibleData) {
       setLoading(true);
     }
     void listTargetsPage({
@@ -219,20 +267,8 @@ export default function FleetTable({ latestRelease, refreshKey, selectedProjectI
       active = false;
     };
   }, [
-    customerNameFilter,
-    lastDeploymentFilter,
-    page,
-    pageSize,
+    querySignature,
     refreshKey,
-    regionFilter,
-    runtimeFilter,
-    subscriptionIdFilter,
-    selectedProjectId,
-    targetGroupFilter,
-    targetIdFilter,
-    tenantIdFilter,
-    tierFilter,
-    versionFilter,
   ]);
 
   const rows = useMemo<FleetRow[]>(

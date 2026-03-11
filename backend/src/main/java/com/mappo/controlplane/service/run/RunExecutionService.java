@@ -27,18 +27,19 @@ public class RunExecutionService {
     public void executeRun(String runId, boolean azureConfigured) {
         RunExecutionContext context = runExecutionContextResolver.resolve(runId, azureConfigured);
         RunDetailRecord run = context.run();
+        String projectId = context.release().projectId();
         if (run.status() != com.mappo.controlplane.jooq.enums.MappoRunStatus.running) {
-            runCompletionService.publishRunChange(runId);
+            runCompletionService.publishRunChange(projectId, runId);
             return;
         }
 
         runPreparationService.failMissingTargets(context);
         runPreparationService.persistWarnings(context, azureConfigured);
-        runCompletionService.publishRunChange(runId);
+        runCompletionService.publishRunChange(projectId, runId);
 
         String haltReason = null;
         if (context.executableTargets().isEmpty()) {
-            runCompletionService.finalizeRun(runId, haltReason);
+            runCompletionService.finalizeRun(runId, projectId, haltReason);
             return;
         }
 
@@ -67,6 +68,6 @@ public class RunExecutionService {
             }
         }
 
-        runCompletionService.finalizeRun(runId, haltReason);
+        runCompletionService.finalizeRun(runId, projectId, haltReason);
     }
 }

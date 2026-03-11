@@ -79,8 +79,8 @@ public class RunService {
         );
         RunDetailRecord initialRun = getRun(runId);
         transactionHookService.afterCommitOrNow(() -> {
-            liveUpdateService.emitRunsUpdated();
-            liveUpdateService.emitRunUpdated(runId);
+            liveUpdateService.emitRunsUpdated(context.release().projectId());
+            liveUpdateService.emitRunUpdated(context.release().projectId(), runId);
             runDispatchService.dispatchRun(runId);
         });
         return initialRun;
@@ -102,8 +102,8 @@ public class RunService {
         }
         runLifecycleCommandRepository.markRunRunning(runId, null);
         transactionHookService.afterCommitOrNow(() -> {
-            liveUpdateService.emitRunsUpdated();
-            liveUpdateService.emitRunUpdated(runId);
+            liveUpdateService.emitRunsUpdated(detail.projectId());
+            liveUpdateService.emitRunUpdated(detail.projectId(), runId);
             runDispatchService.dispatchRun(runId);
         });
         return getRun(runId);
@@ -125,8 +125,8 @@ public class RunService {
         runTargetCommandRepository.requeueActiveTargets(runId, "Queued after execution recovery or retry.");
         runLifecycleCommandRepository.markRunRunning(runId, null);
         transactionHookService.afterCommitOrNow(() -> {
-            liveUpdateService.emitRunsUpdated();
-            liveUpdateService.emitRunUpdated(runId);
+            liveUpdateService.emitRunsUpdated(detail.projectId());
+            liveUpdateService.emitRunUpdated(detail.projectId(), runId);
             runDispatchService.dispatchRun(runId);
         });
         return getRun(runId);

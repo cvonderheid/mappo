@@ -10,8 +10,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class RunTargetExecutionService {
 
-    public boolean failValidation(String runId, String targetId, String message) {
-        return runTargetValidationService.failMissingContext(runId, targetId, message);
+    public boolean failValidation(String runId, String projectId, String targetId, String message) {
+        return runTargetValidationService.failMissingContext(runId, projectId, targetId, message);
     }
 
     private final RunTargetValidationService runTargetValidationService;
@@ -42,6 +42,7 @@ public class RunTargetExecutionService {
         if (context == null) {
             return runTargetValidationService.failMissingContext(
                 runId,
+                target.projectId(),
                 target.id(),
                 "Target is missing registration metadata required for execution."
             );
@@ -66,7 +67,7 @@ public class RunTargetExecutionService {
             return false;
         }
 
-        runTargetStageService.markSucceeded(runId, target.id(), deployment.correlationId());
+        runTargetStageService.markSucceeded(runId, target.projectId(), target.id(), deployment.correlationId());
         return true;
     }
 }

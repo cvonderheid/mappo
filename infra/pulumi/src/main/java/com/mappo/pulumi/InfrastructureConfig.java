@@ -4,7 +4,6 @@ import com.pulumi.Config;
 import com.pulumi.core.Output;
 
 record InfrastructureConfig(
-    FrontDoorConfig frontDoor,
     ControlPlanePostgresConfig controlPlanePostgres
 ) {
     static InfrastructureConfig load(Config config, String stackName) {
@@ -34,40 +33,6 @@ record InfrastructureConfig(
             );
         }
 
-        FrontDoorConfig frontDoor = new FrontDoorConfig(
-            PulumiSupport.booleanConfigWithEnvFallback(config, "frontDoorEnabled", "MAPPO_FRONT_DOOR_ENABLED", false),
-            PulumiSupport.optionalConfigWithEnvFallback(config, "frontDoorSubscriptionId", "MAPPO_FRONT_DOOR_SUBSCRIPTION_ID")
-                .orElse(controlPlaneSubscriptionId),
-            PulumiSupport.optionalConfigWithEnvFallback(config, "frontDoorResourceGroupName", "MAPPO_FRONT_DOOR_RESOURCE_GROUP")
-                .orElse("rg-mappo-edge-" + PulumiSupport.normalizeName(stackName, "demo", 16)),
-            PulumiSupport.optionalConfigWithEnvFallback(config, "frontDoorResourceGroupLocation", "MAPPO_FRONT_DOOR_RESOURCE_GROUP_LOCATION")
-                .orElse(controlPlaneLocation),
-            PulumiSupport.optionalConfigWithEnvFallback(config, "frontDoorProfileSku", "MAPPO_FRONT_DOOR_PROFILE_SKU")
-                .orElse("Standard_AzureFrontDoor"),
-            PulumiSupport.optionalConfigWithEnvFallback(config, "frontDoorProfileName", "MAPPO_FRONT_DOOR_PROFILE_NAME")
-                .orElse(PulumiSupport.normalizeName("afd-mappo-" + stackName, "afd-mappo-demo", 60)),
-            PulumiSupport.optionalConfigWithEnvFallback(config, "frontDoorEndpointName", "MAPPO_FRONT_DOOR_ENDPOINT_NAME")
-                .orElse(PulumiSupport.normalizeName("ep-mappo-" + stackName, "ep-mappo-demo", 46)),
-            PulumiSupport.optionalConfigWithEnvFallback(config, "frontDoorOriginGroupName", "MAPPO_FRONT_DOOR_ORIGIN_GROUP_NAME")
-                .orElse(PulumiSupport.normalizeName("og-mappo-api-" + stackName, "og-mappo-api-demo", 60)),
-            PulumiSupport.optionalConfigWithEnvFallback(config, "frontDoorOriginName", "MAPPO_FRONT_DOOR_ORIGIN_NAME")
-                .orElse(PulumiSupport.normalizeName("origin-mappo-api-" + stackName, "origin-mappo-api-demo", 60)),
-            PulumiSupport.optionalConfigWithEnvFallback(config, "frontDoorRouteName", "MAPPO_FRONT_DOOR_ROUTE_NAME")
-                .orElse(PulumiSupport.normalizeName("route-mappo-api-" + stackName, "route-mappo-api-demo", 60)),
-            PulumiSupport.optionalConfigWithEnvFallback(config, "frontDoorOriginHost", "MAPPO_FRONT_DOOR_ORIGIN_HOST")
-                .or(() -> PulumiSupport.optionalConfigWithEnvFallback(config, "frontDoorOriginUrl", "MAPPO_FRONT_DOOR_ORIGIN_URL").map(FrontDoorResources::extractHost))
-                .or(() -> PulumiSupport.optionalConfigWithEnvFallback(config, "runtimeBackendUrl", "MAPPO_RUNTIME_BACKEND_URL").map(FrontDoorResources::extractHost))
-                .orElse(""),
-            PulumiSupport.optionalConfigWithEnvFallback(config, "frontDoorHealthProbePath", "MAPPO_FRONT_DOOR_HEALTH_PROBE_PATH")
-                .orElse("/api/v1/health/live"),
-            PulumiSupport.optionalConfigWithEnvFallback(config, "frontDoorCustomDomainHostName", "MAPPO_FRONT_DOOR_CUSTOM_DOMAIN").orElse(null),
-            PulumiSupport.optionalConfigWithEnvFallback(config, "frontDoorDnsZoneSubscriptionId", "MAPPO_FRONT_DOOR_DNS_ZONE_SUBSCRIPTION_ID")
-                .orElse(PulumiSupport.optionalConfigWithEnvFallback(config, "frontDoorSubscriptionId", "MAPPO_FRONT_DOOR_SUBSCRIPTION_ID")
-                    .orElse(controlPlaneSubscriptionId)),
-            PulumiSupport.optionalConfigWithEnvFallback(config, "frontDoorDnsZoneResourceGroupName", "MAPPO_FRONT_DOOR_DNS_ZONE_RESOURCE_GROUP").orElse(null),
-            PulumiSupport.optionalConfigWithEnvFallback(config, "frontDoorDnsZoneName", "MAPPO_FRONT_DOOR_DNS_ZONE_NAME").orElse(null)
-        );
-
         ControlPlanePostgresConfig controlPlanePostgres = new ControlPlanePostgresConfig(
             PulumiSupport.booleanConfigWithEnvFallback(config, "controlPlanePostgresEnabled", "MAPPO_CONTROL_PLANE_DB_ENABLED", false),
             controlPlaneSubscriptionId,
@@ -89,6 +54,6 @@ record InfrastructureConfig(
             PulumiSupport.parseFirewallIpRanges(config, "controlPlanePostgresAllowedIpRanges", "MAPPO_CONTROL_PLANE_DB_ALLOWED_IPS")
         );
 
-        return new InfrastructureConfig(frontDoor, controlPlanePostgres);
+        return new InfrastructureConfig(controlPlanePostgres);
     }
 }

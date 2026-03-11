@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockTargets = [
   {
@@ -158,6 +158,25 @@ const apiMock = vi.hoisted(() => ({
 
 vi.mock("@/lib/api", () => apiMock);
 
+const eventSourceMock = vi.hoisted(() => {
+  const listeners = new Map<string, EventListenerOrEventListenerObject[]>();
+  return {
+    addEventListener: vi.fn((type: string, listener: EventListenerOrEventListenerObject) => {
+      const current = listeners.get(type) ?? [];
+      current.push(listener);
+      listeners.set(type, current);
+    }),
+    close: vi.fn(),
+  };
+});
+
+const liveUpdatesMock = vi.hoisted(() => ({
+  createLiveUpdatesEventSource: vi.fn(() => eventSourceMock as unknown as EventSource),
+  parseLiveUpdateEvent: vi.fn((rawData: string) => JSON.parse(rawData)),
+}));
+
+vi.mock("@/lib/live-updates", () => liveUpdatesMock);
+
 vi.mock("@/components/FleetTable", () => ({
   default: () => (
     <section>
@@ -171,6 +190,7 @@ import App from "@/App";
 
 describe("App", () => {
   beforeEach(() => {
+    vi.stubGlobal("EventSource", vi.fn());
     window.history.replaceState({}, "", "/fleet");
     apiMock.adminListForwarderLogs.mockReset();
     apiMock.adminListMarketplaceEvents.mockReset();
@@ -199,6 +219,14 @@ describe("App", () => {
       caveat: "",
       targets: [],
     });
+    liveUpdatesMock.createLiveUpdatesEventSource.mockClear();
+    eventSourceMock.addEventListener.mockClear();
+    eventSourceMock.close.mockClear();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
   });
 
   it("renders dashboard data from API", async () => {
@@ -253,6 +281,29 @@ describe("App", () => {
       expect(screen.getByRole("heading", { name: "Admin" })).toBeInTheDocument();
       expect(screen.getByText(/Recent Onboarding Events/i)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Ingest Managed-App Releases/i })).toBeInTheDocument();
+    });
+  });
+
+  it("does not open a live event stream on fleet routes", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Fleet Targets")).toBeInTheDocument();
+    });
+
+    expect(liveUpdatesMock.createLiveUpdatesEventSource).not.toHaveBeenCalled();
+  });
+
+  it("includes run live topics on deployments routes", async () => {
+    window.history.replaceState({}, "", "/deployments");
+    render(<App />);
+
+    await waitFor(() => {
+      expect(liveUpdatesMock.createLiveUpdatesEventSource).toHaveBeenCalledWith([
+        "targets",
+        "runs",
+        "releases",
+      ], "managed-app-demo");
     });
   });
 

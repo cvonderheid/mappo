@@ -20,23 +20,9 @@ public final class Main {
     }
 
     private void run() {
-        FrontDoorResources frontDoorResources = createFrontDoorResources();
         ControlPlanePostgresResources controlPlanePostgres = createControlPlanePostgresResources();
 
         InfrastructureExports.exportControlPlanePostgres(ctx, config.controlPlanePostgres(), controlPlanePostgres);
-        InfrastructureExports.exportFrontDoor(ctx, config.frontDoor(), frontDoorResources);
-    }
-
-    private FrontDoorResources createFrontDoorResources() {
-        if (!config.frontDoor().enabled()) {
-            return null;
-        }
-        return FrontDoorResources.create(
-            ctx,
-            config.frontDoor(),
-            providers.get(config.frontDoor().subscriptionId()),
-            config.frontDoor().hasAzureDnsZone() ? providers.get(config.frontDoor().dnsZoneSubscriptionId()) : null
-        );
     }
 
     private ControlPlanePostgresResources createControlPlanePostgresResources() {

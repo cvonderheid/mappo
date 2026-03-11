@@ -25,8 +25,8 @@ public class ReleaseService {
     private final TransactionHookService transactionHookService;
     private final ProjectCatalogService projectCatalogService;
 
-    public List<ReleaseRecord> listReleases() {
-        return releaseQueryRepository.listReleases();
+    public List<ReleaseRecord> listReleases(String projectId) {
+        return releaseQueryRepository.listReleases(projectId);
     }
 
     @Transactional
@@ -49,7 +49,7 @@ public class ReleaseService {
             command.releaseNotes(),
             command.verificationHints()
         ));
-        transactionHookService.afterCommitOrNow(liveUpdateService::emitReleasesUpdated);
+        transactionHookService.afterCommitOrNow(() -> liveUpdateService.emitReleasesUpdated(created.projectId()));
         return created;
     }
 

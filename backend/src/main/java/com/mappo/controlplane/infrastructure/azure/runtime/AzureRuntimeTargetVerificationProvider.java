@@ -109,6 +109,7 @@ public class AzureRuntimeTargetVerificationProvider implements TargetVerificatio
         }
         return new TargetRuntimeProbeContextRecord(
             target.id(),
+            target.projectId(),
             tenantId,
             subscriptionId,
             containerAppResourceId

@@ -33,13 +33,20 @@ public class RunTargetDeploymentService {
         TargetExecutionContextRecord context,
         boolean azureConfigured
     ) {
-        var start = runTargetStageService.beginStage(runId, context.targetId(), MappoTargetStage.DEPLOYING, "Deploying started.");
+        var start = runTargetStageService.beginStage(
+            runId,
+            release.projectId(),
+            context.targetId(),
+            MappoTargetStage.DEPLOYING,
+            "Deploying started."
+        );
 
         try {
             TargetDeploymentOutcome outcome = deployOutcome(runId, capabilities, release, context, azureConfigured);
             var completion = new RunTargetStageService.StageStart(outcome.correlationId(), start.startedAt());
             runTargetStageService.completeStage(
                 runId,
+                release.projectId(),
                 context.targetId(),
                 MappoTargetStage.DEPLOYING,
                 completion,
@@ -53,6 +60,7 @@ public class RunTargetDeploymentService {
                 : error.getCorrelationId();
             runTargetStageService.failStage(
                 runId,
+                release.projectId(),
                 context.targetId(),
                 MappoTargetStage.DEPLOYING,
                 correlationId,

@@ -18,6 +18,7 @@ public class RunPreparationService {
         for (String missingTargetId : context.missingTargetIds()) {
             runTargetExecutionService.failValidation(
                 context.runId(),
+                context.release().projectId(),
                 missingTargetId,
                 "Target registration is missing current metadata required for execution."
             );

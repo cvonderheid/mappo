@@ -49,7 +49,7 @@ public class RunBatchExecutionService {
                 TargetRunResult result = future.get();
                 if (result.succeeded()) {
                     targetCommandRepository.updateLastDeployedRelease(result.targetId(), release.sourceVersion());
-                    liveUpdateService.emitTargetsUpdated();
+                    liveUpdateService.emitTargetsUpdated(release.projectId());
                 }
             } catch (InterruptedException error) {
                 Thread.currentThread().interrupt();

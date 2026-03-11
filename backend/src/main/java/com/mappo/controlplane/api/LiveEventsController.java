@@ -22,8 +22,11 @@ public class LiveEventsController {
     private final LiveUpdateService liveUpdateService;
 
     @GetMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter stream(@RequestParam(value = "topics", required = false) String topics) {
-        return liveUpdateService.subscribe(parseTopics(topics));
+    public SseEmitter stream(
+        @RequestParam(value = "topics", required = false) String topics,
+        @RequestParam(value = "projectId", required = false) String projectId
+    ) {
+        return liveUpdateService.subscribe(parseTopics(topics), projectId);
     }
 
     private Set<String> parseTopics(String topics) {

@@ -29,7 +29,13 @@ public class RunTargetVerificationService {
         TargetExecutionContextRecord context,
         boolean azureConfigured
     ) {
-        var start = runTargetStageService.beginStage(runId, target.id(), MappoTargetStage.VERIFYING, "Verifying started.");
+        var start = runTargetStageService.beginStage(
+            runId,
+            target.projectId(),
+            target.id(),
+            MappoTargetStage.VERIFYING,
+            "Verifying started."
+        );
         var result = targetVerificationProviderRegistry.getProvider(
                 capabilities.project(),
                 release,
@@ -42,6 +48,7 @@ public class RunTargetVerificationService {
         if (!result.succeeded()) {
             return runTargetStageService.failStage(
                 runId,
+                target.projectId(),
                 target.id(),
                 MappoTargetStage.VERIFYING,
                 start.correlationId(),
@@ -51,6 +58,7 @@ public class RunTargetVerificationService {
         }
         runTargetStageService.completeStage(
             runId,
+            target.projectId(),
             target.id(),
             MappoTargetStage.VERIFYING,
             start,

@@ -17,19 +17,19 @@ public class RunCompletionService {
     private final RunExecutionPolicyService runExecutionPolicyService;
     private final LiveUpdateService liveUpdateService;
 
-    public void publishRunChange(String runId) {
-        liveUpdateService.emitRunsUpdated();
-        liveUpdateService.emitRunUpdated(runId);
+    public void publishRunChange(String projectId, String runId) {
+        liveUpdateService.emitRunsUpdated(projectId);
+        liveUpdateService.emitRunUpdated(projectId, runId);
     }
 
-    public void finalizeRun(String runId, String haltReason) {
+    public void finalizeRun(String runId, String projectId, String haltReason) {
         RunExecutionCountsRecord counts = runExecutionStateRepository.getExecutionCounts(runId);
         MappoRunStatus finalStatus = runExecutionPolicyService.finalRunStatus(counts, haltReason);
         if (finalStatus == MappoRunStatus.running) {
-            publishRunChange(runId);
+            publishRunChange(projectId, runId);
             return;
         }
         runLifecycleCommandRepository.markRunComplete(runId, finalStatus, haltReason);
-        publishRunChange(runId);
+        publishRunChange(projectId, runId);
     }
 }

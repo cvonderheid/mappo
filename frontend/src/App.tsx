@@ -81,6 +81,7 @@ function AppShell() {
   const [runIdFilter, setRunIdFilter] = useState<string>("");
   const [runReleaseFilter, setRunReleaseFilter] = useState<string>("");
   const [runStatusFilter, setRunStatusFilter] = useState<RunStatus | "">("");
+  const [activeRunCount, setActiveRunCount] = useState<number>(0);
   const [selectedReleaseId, setSelectedReleaseId] = useState<string>("");
   const [selectedRunId, setSelectedRunId] = useState<string>("");
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
@@ -103,9 +104,51 @@ function AppShell() {
   const [adminResult, setAdminResult] = useState<MarketplaceEventIngestResponse | null>(null);
   const [releaseIngestIsSubmitting, setReleaseIngestIsSubmitting] = useState<boolean>(false);
   const previewAbortControllerRef = useRef<AbortController | null>(null);
+  const targetsSnapshotSignatureRef = useRef<string>("");
+  const refreshTargetsRef = useRef<() => Promise<void>>(async () => {});
+  const refreshRunsRef = useRef<() => Promise<void>>(async () => {});
+  const refreshRunDetailRef = useRef<(runId: string) => Promise<void>>(async () => {});
+  const refreshReleasesRef = useRef<() => Promise<void>>(async () => {});
+  const refreshRegistrationOptionsRef = useRef<() => Promise<void>>(async () => {});
+  const selectedRunIdRef = useRef<string>("");
+  const selectedProjectIdRef = useRef<string>("");
+  const isDeploymentRouteRef = useRef<boolean>(false);
+  const isFleetRouteRef = useRef<boolean>(false);
+  const isAdminRouteRef = useRef<boolean>(false);
+  const isDeploymentRoute = useMemo(
+    () => location.pathname.startsWith("/deployments"),
+    [location.pathname]
+  );
+  const isFleetRoute = useMemo(
+    () => location.pathname === "/fleet",
+    [location.pathname]
+  );
+  const isAdminRoute = useMemo(
+    () => location.pathname === "/admin" || location.pathname === "/demo",
+    [location.pathname]
+  );
+
+  const targetsSnapshotSignature = useCallback((projectId: string, items: Target[]): string => {
+    return JSON.stringify({
+      projectId,
+      items: items.map((target) => ({
+        id: target.id ?? "",
+        customerName: target.customerName ?? "",
+        tenantId: target.tenantId ?? "",
+        subscriptionId: target.subscriptionId ?? "",
+        runtimeStatus: target.runtimeStatus ?? "",
+        runtimeCheckedAt: target.runtimeCheckedAt ?? "",
+        lastDeploymentStatus: target.lastDeploymentStatus ?? "",
+        lastDeploymentAt: target.lastDeploymentAt ?? "",
+        lastDeployedRelease: target.lastDeployedRelease ?? "",
+        tags: target.tags ?? {},
+      })),
+    });
+  }, []);
 
   const refreshTargets = useCallback(async () => {
     if (!selectedProjectId) {
+      targetsSnapshotSignatureRef.current = "";
       setTargets([]);
       setTargetsRefreshVersion((current) => current + 1);
       return;
@@ -119,13 +162,17 @@ function AppShell() {
         const nextPage = await listTargetsPage({ page, size: pageSize, projectId: selectedProjectId });
         items.push(...(nextPage.items ?? []));
       }
-      setTargets(items);
-      setTargetsRefreshVersion((current) => current + 1);
+      const nextSignature = targetsSnapshotSignature(selectedProjectId, items);
+      if (nextSignature !== targetsSnapshotSignatureRef.current) {
+        targetsSnapshotSignatureRef.current = nextSignature;
+        setTargets(items);
+        setTargetsRefreshVersion((current) => current + 1);
+      }
       setErrorMessage("");
     } catch (error) {
       setErrorMessage((error as Error).message);
     }
-  }, [selectedProjectId]);
+  }, [selectedProjectId, targetsSnapshotSignature]);
 
   const refreshRegistrationOptions = useCallback(async () => {
     try {
@@ -182,7 +229,7 @@ function AppShell() {
   }, []);
 
   const refreshRuns = useCallback(async () => {
-    if (!selectedProjectId) {
+    if (!selectedProjectId || !isDeploymentRouteRef.current) {
       setRunsPage(null);
       return;
     }
@@ -196,15 +243,44 @@ function AppShell() {
         status: runStatusFilter || undefined,
       });
       setRunsPage(payload);
-      if (!selectedRunId && (payload.items?.length ?? 0) > 0) {
+      setActiveRunCount(payload.activeRunCount ?? 0);
+      if (isDeploymentRouteRef.current && !selectedRunIdRef.current && (payload.items?.length ?? 0) > 0) {
         setSelectedRunId(payload.items?.[0]?.id ?? "");
       }
     } catch (error) {
       setErrorMessage((error as Error).message);
     }
-  }, [runIdFilter, runPage, runPageSize, runReleaseFilter, runStatusFilter, selectedProjectId, selectedRunId]);
+  }, [
+    runIdFilter,
+    runPage,
+    runPageSize,
+    runReleaseFilter,
+    runStatusFilter,
+    selectedProjectId,
+    selectedRunId,
+  ]);
+
+  const refreshRunSummary = useCallback(async () => {
+    if (!selectedProjectId || isDeploymentRouteRef.current) {
+      setActiveRunCount(0);
+      return;
+    }
+    try {
+      const payload = await listRuns({
+        page: 0,
+        size: 1,
+        projectId: selectedProjectId,
+      });
+      setActiveRunCount(payload.activeRunCount ?? 0);
+    } catch (error) {
+      setErrorMessage((error as Error).message);
+    }
+  }, [selectedProjectId]);
 
   const refreshRunDetail = useCallback(async (runId: string) => {
+    if (!runId || !isDeploymentRouteRef.current || runId !== selectedRunIdRef.current) {
+      return;
+    }
     try {
       setRunDetail(await getRun(runId));
     } catch (error) {
@@ -215,6 +291,30 @@ function AppShell() {
   useEffect(() => {
     void refreshProjects();
   }, [refreshProjects]);
+
+  useEffect(() => {
+    refreshTargetsRef.current = refreshTargets;
+    refreshRunsRef.current = refreshRuns;
+    refreshRunDetailRef.current = refreshRunDetail;
+    refreshReleasesRef.current = refreshReleases;
+    refreshRegistrationOptionsRef.current = refreshRegistrationOptions;
+    selectedRunIdRef.current = selectedRunId;
+    selectedProjectIdRef.current = selectedProjectId;
+    isDeploymentRouteRef.current = isDeploymentRoute;
+    isFleetRouteRef.current = isFleetRoute;
+    isAdminRouteRef.current = isAdminRoute;
+  }, [
+    refreshRegistrationOptions,
+    refreshReleases,
+    refreshRunDetail,
+    refreshRuns,
+    refreshTargets,
+    selectedProjectId,
+    selectedRunId,
+    isAdminRoute,
+    isDeploymentRoute,
+    isFleetRoute,
+  ]);
 
   useEffect(() => {
     void refreshRegistrationOptions();
@@ -235,56 +335,82 @@ function AppShell() {
     setSelectedTargetIds([]);
     setTargetGroupFilter("all");
     setRunPage(0);
-    void refreshTargets();
-    void refreshRuns();
-  }, [refreshRuns, refreshTargets, selectedProjectId]);
+    void refreshTargetsRef.current();
+    if (isDeploymentRoute) {
+      void refreshRunsRef.current();
+    } else {
+      void refreshRunSummary();
+    }
+  }, [selectedProjectId]);
 
   useEffect(() => {
-    if (selectedRunId) {
+    if (isDeploymentRoute && selectedRunId) {
       void refreshRunDetail(selectedRunId);
     } else {
       setRunDetail(null);
     }
-  }, [refreshRunDetail, selectedRunId]);
+  }, [isDeploymentRoute, refreshRunDetail, selectedRunId]);
+
+  useEffect(() => {
+    if (!isDeploymentRoute) {
+      setSelectedRunId("");
+      selectedRunIdRef.current = "";
+      setRunDetail(null);
+      setRunsPage(null);
+      setRunActionsMenuOpen(false);
+    }
+  }, [isDeploymentRoute]);
 
   const liveTopics = useMemo(() => {
-    const topics = new Set<string>(["targets", "runs", "releases"]);
-    if (location.pathname === "/admin" || location.pathname === "/demo") {
-      topics.add("admin");
+    if (isDeploymentRoute) {
+      return ["targets", "runs", "releases"];
     }
-    return Array.from(topics);
-  }, [location.pathname]);
+    if (isAdminRoute) {
+      return ["targets", "releases", "admin"];
+    }
+    return [];
+  }, [isAdminRoute, isDeploymentRoute]);
 
   useEffect(() => {
+    const intervalMs = isFleetRoute ? 30000 : 15000;
     const intervalId = window.setInterval(() => {
-      void refreshTargets();
-      void refreshRuns();
-      if (selectedRunId) {
-        void refreshRunDetail(selectedRunId);
+      if (isDeploymentRouteRef.current) {
+        void refreshTargetsRef.current();
+        void refreshRunsRef.current();
+        if (selectedRunIdRef.current) {
+          void refreshRunDetailRef.current(selectedRunIdRef.current);
+        }
+        void refreshReleasesRef.current();
+        return;
       }
-      void refreshReleases();
-      if (location.pathname === "/admin" || location.pathname === "/demo") {
-        void refreshRegistrationOptions();
+      if (isFleetRouteRef.current) {
+        void refreshTargetsRef.current();
+        void refreshReleasesRef.current();
+        void refreshRunSummary();
+        return;
       }
-    }, 15000);
+      if (isAdminRouteRef.current) {
+        void refreshReleasesRef.current();
+        void refreshRunSummary();
+        void refreshRegistrationOptionsRef.current();
+      }
+    }, intervalMs);
 
     return () => window.clearInterval(intervalId);
-  }, [
-    location.pathname,
-    refreshRegistrationOptions,
-    refreshRunDetail,
-    refreshReleases,
-    refreshRuns,
-    refreshTargets,
-    selectedRunId,
-  ]);
+  }, [isFleetRoute, refreshRunSummary]);
 
   useEffect(() => {
+    if (liveTopics.length === 0) {
+      return;
+    }
+    if (!selectedProjectId) {
+      return;
+    }
     if (typeof window === "undefined" || typeof EventSource === "undefined") {
       return;
     }
 
-    const eventSource = createLiveUpdatesEventSource(liveTopics);
+    const eventSource = createLiveUpdatesEventSource(liveTopics, selectedProjectId);
     const scheduledRefreshes = new Map<string, number>();
 
     const scheduleRefresh = (key: string, action: () => void): void => {
@@ -299,44 +425,72 @@ function AppShell() {
     };
 
     const refreshSelectedRun = (runId: string | null | undefined): void => {
-      if (runId && runId === selectedRunId) {
+      if (runId && runId === selectedRunIdRef.current) {
         scheduleRefresh(`run:${runId}`, () => {
-          void refreshRunDetail(runId);
+          void refreshRunDetailRef.current(runId);
         });
       }
     };
 
-    eventSource.addEventListener("targets-updated", () => {
+    const matchesSelectedProject = (projectId: string | null | undefined): boolean => {
+      if (!projectId) {
+        return true;
+      }
+      return projectId === selectedProjectIdRef.current;
+    };
+
+    eventSource.addEventListener("targets-updated", (event: MessageEvent<string>) => {
+      const payload = parseLiveUpdateEvent(event.data);
+      if (!matchesSelectedProject(payload?.projectId)) {
+        return;
+      }
       scheduleRefresh("targets", () => {
-        void refreshTargets();
+        void refreshTargetsRef.current();
       });
     });
 
-    eventSource.addEventListener("releases-updated", () => {
+    eventSource.addEventListener("releases-updated", (event: MessageEvent<string>) => {
+      const payload = parseLiveUpdateEvent(event.data);
+      if (!matchesSelectedProject(payload?.projectId)) {
+        return;
+      }
       scheduleRefresh("releases", () => {
-        void refreshReleases();
+        void refreshReleasesRef.current();
       });
     });
 
     eventSource.addEventListener("admin-updated", () => {
-      if (location.pathname === "/admin" || location.pathname === "/demo") {
+      if (isAdminRouteRef.current) {
         scheduleRefresh("admin", () => {
-          void refreshRegistrationOptions();
+          void refreshRegistrationOptionsRef.current();
         });
       }
     });
 
-    eventSource.addEventListener("runs-updated", () => {
+    eventSource.addEventListener("runs-updated", (event: MessageEvent<string>) => {
+      if (!isDeploymentRouteRef.current) {
+        return;
+      }
+      const payload = parseLiveUpdateEvent(event.data);
+      if (!matchesSelectedProject(payload?.projectId)) {
+        return;
+      }
       scheduleRefresh("runs", () => {
-        void refreshRuns();
+        void refreshRunsRef.current();
       });
-      refreshSelectedRun(selectedRunId);
+      refreshSelectedRun(selectedRunIdRef.current);
     });
 
     eventSource.addEventListener("run-updated", (event: MessageEvent<string>) => {
+      if (!isDeploymentRouteRef.current) {
+        return;
+      }
       const payload = parseLiveUpdateEvent(event.data);
+      if (!matchesSelectedProject(payload?.projectId)) {
+        return;
+      }
       scheduleRefresh("runs", () => {
-        void refreshRuns();
+        void refreshRunsRef.current();
       });
       refreshSelectedRun(payload?.subjectId);
     });
@@ -351,14 +505,10 @@ function AppShell() {
       eventSource.close();
     };
   }, [
+    isAdminRoute,
+    isDeploymentRoute,
     liveTopics,
-    location.pathname,
-    refreshRegistrationOptions,
-    refreshRunDetail,
-    refreshReleases,
-    refreshRuns,
-    refreshTargets,
-    selectedRunId,
+    selectedProjectId,
   ]);
 
   const deploymentTargets = useMemo(
@@ -434,8 +584,8 @@ function AppShell() {
   );
 
   const runStats = useMemo(() => {
-    return { running: runsPage?.activeRunCount ?? 0 };
-  }, [runsPage]);
+    return { running: activeRunCount };
+  }, [activeRunCount]);
 
   const runs = useMemo(() => runsPage?.items ?? [], [runsPage]);
   const runPageMetadata: PageMetadata = runsPage?.page ?? {

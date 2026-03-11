@@ -4,6 +4,7 @@ import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.TargetRegistrationPatchRequest;
 import com.mappo.controlplane.model.TargetRegistrationRecord;
 import com.mappo.controlplane.repository.TargetCommandRepository;
+import com.mappo.controlplane.repository.TargetRecordQueryRepository;
 import com.mappo.controlplane.repository.TargetRegistrationCommandRepository;
 import com.mappo.controlplane.repository.TargetRegistrationQueryRepository;
 import com.mappo.controlplane.service.TransactionHookService;
@@ -20,6 +21,7 @@ public class TargetRegistrationCommandService {
     private final TargetRegistrationQueryRepository targetRegistrationQueryRepository;
     private final TargetRegistrationCommandRepository targetRegistrationCommandRepository;
     private final TargetCommandRepository targetCommandRepository;
+    private final TargetRecordQueryRepository targetRecordQueryRepository;
     private final LiveUpdateService liveUpdateService;
     private final TransactionHookService transactionHookService;
 
@@ -34,9 +36,12 @@ public class TargetRegistrationCommandService {
         }
 
         targetRegistrationCommandRepository.updateRegistrationAndTarget(targetId, patch.toCommand());
+        String projectId = targetRecordQueryRepository.getTarget(targetId)
+            .map(target -> target.projectId() == null ? "" : target.projectId())
+            .orElse("");
         transactionHookService.afterCommitOrNow(() -> {
             liveUpdateService.emitAdminUpdated();
-            liveUpdateService.emitTargetsUpdated();
+            liveUpdateService.emitTargetsUpdated(projectId);
         });
         return targetRegistrationQueryRepository.getRegistration(targetId)
             .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "target registration not found: " + targetId));
@@ -44,11 +49,14 @@ public class TargetRegistrationCommandService {
 
     @Transactional
     public void delete(String targetId) {
+        String projectId = targetRecordQueryRepository.getTarget(targetId)
+            .map(target -> target.projectId() == null ? "" : target.projectId())
+            .orElse("");
         targetRegistrationCommandRepository.deleteRegistration(targetId);
         targetCommandRepository.deleteTarget(targetId);
         transactionHookService.afterCommitOrNow(() -> {
             liveUpdateService.emitAdminUpdated();
-            liveUpdateService.emitTargetsUpdated();
+            liveUpdateService.emitTargetsUpdated(projectId);
         });
     }
 }

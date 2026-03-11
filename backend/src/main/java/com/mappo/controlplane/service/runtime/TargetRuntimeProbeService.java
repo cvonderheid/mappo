@@ -5,6 +5,8 @@ import com.mappo.controlplane.model.TargetRuntimeProbeContextRecord;
 import com.mappo.controlplane.repository.TargetRuntimeProbeContextRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -48,31 +50,38 @@ public class TargetRuntimeProbeService {
                 return;
             }
 
+            Set<String> changedProjectIds = new LinkedHashSet<>();
             try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-                List<? extends Future<?>> tasks = targets.stream()
+                List<Future<String>> tasks = targets.stream()
                     .map(target -> executor.submit(() -> refreshRuntimeProbe(target)))
                     .toList();
-                for (Future<?> task : tasks) {
-                    waitFor(task);
+                for (Future<String> task : tasks) {
+                    String changedProjectId = waitFor(task);
+                    if (changedProjectId != null && !changedProjectId.isBlank()) {
+                        changedProjectIds.add(changedProjectId);
+                    }
                 }
             }
-            liveUpdateService.emitTargetsUpdated();
+            changedProjectIds.forEach(liveUpdateService::emitTargetsUpdated);
         } finally {
             refreshInProgress.set(false);
         }
     }
 
-    private void refreshRuntimeProbe(TargetRuntimeProbeContextRecord target) {
+    private String refreshRuntimeProbe(TargetRuntimeProbeContextRecord target) {
         targetRuntimeProbeExecutionService.probeAndPersist(target);
+        return target.projectId();
     }
 
-    private void waitFor(Future<?> task) {
+    private String waitFor(Future<String> task) {
         try {
-            task.get();
+            return task.get();
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
+            return null;
         } catch (ExecutionException ignored) {
             // Probe failures are captured per-target and persisted as unknown/unreachable results.
+            return null;
         }
     }
 }

@@ -37,12 +37,19 @@ public class RunTargetValidationService {
         TargetExecutionContextRecord context,
         boolean azureConfigured
     ) {
-        var start = runTargetStageService.beginStage(runId, target.id(), MappoTargetStage.VALIDATING, "Validating started.");
+        var start = runTargetStageService.beginStage(
+            runId,
+            target.projectId(),
+            target.id(),
+            MappoTargetStage.VALIDATING,
+            "Validating started."
+        );
 
         if (runExecutionPolicyService.isSimulatorMode(capabilities.project(), release, azureConfigured)
             && context.simulatedFailureMode() == MappoSimulatedFailureMode.validate_once) {
             return runTargetStageService.failStage(
                 runId,
+                target.projectId(),
                 target.id(),
                 MappoTargetStage.VALIDATING,
                 start.correlationId(),
@@ -72,6 +79,7 @@ public class RunTargetValidationService {
         if (!validation.valid()) {
             return runTargetStageService.failStage(
                 runId,
+                target.projectId(),
                 target.id(),
                 MappoTargetStage.VALIDATING,
                 start.correlationId(),
@@ -82,6 +90,7 @@ public class RunTargetValidationService {
 
         runTargetStageService.completeStage(
             runId,
+            target.projectId(),
             target.id(),
             MappoTargetStage.VALIDATING,
             start,
@@ -91,10 +100,11 @@ public class RunTargetValidationService {
         return true;
     }
 
-    public boolean failMissingContext(String runId, String targetId, String message) {
+    public boolean failMissingContext(String runId, String projectId, String targetId, String message) {
         String correlationId = runTargetStageService.correlationId(runId, targetId, MappoTargetStage.VALIDATING);
         return runTargetStageService.failStage(
             runId,
+            projectId,
             targetId,
             MappoTargetStage.VALIDATING,
             correlationId,

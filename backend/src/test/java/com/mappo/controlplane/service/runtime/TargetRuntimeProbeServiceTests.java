@@ -43,6 +43,7 @@ class TargetRuntimeProbeServiceTests {
         );
         TargetRuntimeProbeContextRecord target = new TargetRuntimeProbeContextRecord(
             "target-01",
+            "azure-managed-app-deployment-stack",
             UUID.fromString("11111111-1111-1111-1111-111111111111"),
             UUID.fromString("22222222-2222-2222-2222-222222222222"),
             "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-target-01/providers/Microsoft.App/containerApps/ca-target-01"
@@ -62,7 +63,7 @@ class TargetRuntimeProbeServiceTests {
         service.refreshRuntimeProbes();
 
         verify(targetRuntimeProbeExecutionService).probeAndPersist(target);
-        verify(liveUpdateService).emitTargetsUpdated();
+        verify(liveUpdateService).emitTargetsUpdated("azure-managed-app-deployment-stack");
     }
 
     @Test

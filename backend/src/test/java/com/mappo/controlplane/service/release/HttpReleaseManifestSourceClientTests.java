@@ -1,97 +1,79 @@
 package com.mappo.controlplane.service.release;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.mappo.controlplane.config.MappoProperties;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.atomic.AtomicReference;
-import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 class HttpReleaseManifestSourceClientTests {
 
-    private HttpServer server;
+    private HttpClient httpClient;
+    @SuppressWarnings("unchecked")
+    private HttpResponse<String> response = mock(HttpResponse.class);
 
-    @AfterEach
-    void tearDown() {
-        if (server != null) {
-            server.stop(0);
-        }
+    @BeforeEach
+    void setUp() throws Exception {
+        httpClient = mock(HttpClient.class);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
     }
 
     @Test
     void fetchGithubManifestUsesRawUrlWithoutToken() throws Exception {
-        AtomicReference<String> requestPath = new AtomicReference<>();
-        AtomicReference<String> authHeader = new AtomicReference<>();
-        startServer(requestPath, authHeader, "[1]");
-
         MappoProperties properties = new MappoProperties();
         HttpReleaseManifestSourceClient client = new TestHttpReleaseManifestSourceClient(
             properties,
-            HttpClient.newHttpClient(),
-            URI.create(baseUrl()),
-            URI.create(baseUrl())
+            httpClient,
+            URI.create("https://api.github.example"),
+            URI.create("https://raw.githubusercontent.example")
         );
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("[1]");
 
         String body = client.fetchGithubManifest("cvonderheid/mappo-managed-app", "releases/releases.manifest.json", "main");
+        ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
+        org.mockito.Mockito.verify(httpClient).send(requestCaptor.capture(), any(HttpResponse.BodyHandler.class));
 
         assertEquals("[1]", body);
-        assertEquals("/cvonderheid/mappo-managed-app/main/releases/releases.manifest.json", requestPath.get());
-        assertEquals(null, authHeader.get());
+        assertEquals(
+            URI.create("https://raw.githubusercontent.example/cvonderheid/mappo-managed-app/main/releases/releases.manifest.json"),
+            requestCaptor.getValue().uri()
+        );
+        assertEquals(null, requestCaptor.getValue().headers().firstValue("Authorization").orElse(null));
     }
 
     @Test
     void fetchGithubManifestUsesGithubApiWhenTokenConfigured() throws Exception {
-        AtomicReference<String> requestPath = new AtomicReference<>();
-        AtomicReference<String> authHeader = new AtomicReference<>();
-        startServer(requestPath, authHeader, "[2]");
-
         MappoProperties properties = new MappoProperties();
         properties.getManagedAppRelease().setGithubToken("test-token");
         HttpReleaseManifestSourceClient client = new TestHttpReleaseManifestSourceClient(
             properties,
-            HttpClient.newHttpClient(),
-            URI.create(baseUrl()),
-            URI.create(baseUrl())
+            httpClient,
+            URI.create("https://api.github.example"),
+            URI.create("https://raw.githubusercontent.example")
         );
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("[2]");
 
         String body = client.fetchGithubManifest("cvonderheid/mappo-managed-app", "releases/releases.manifest.json", "main");
+        ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
+        org.mockito.Mockito.verify(httpClient).send(requestCaptor.capture(), any(HttpResponse.BodyHandler.class));
 
         assertEquals("[2]", body);
-        assertEquals("/repos/cvonderheid/mappo-managed-app/contents/releases/releases.manifest.json?ref=main", requestPath.get());
-        assertEquals("Bearer test-token", authHeader.get());
-    }
-
-    private void startServer(AtomicReference<String> requestPath, AtomicReference<String> authHeader, String responseBody) throws IOException {
-        server = HttpServer.create(new InetSocketAddress(0), 0);
-        server.createContext("/", exchange -> handle(exchange, requestPath, authHeader, responseBody));
-        server.start();
-    }
-
-    private void handle(
-        HttpExchange exchange,
-        AtomicReference<String> requestPath,
-        AtomicReference<String> authHeader,
-        String responseBody
-    ) throws IOException {
-        requestPath.set(exchange.getRequestURI().toString());
-        authHeader.set(exchange.getRequestHeaders().getFirst("Authorization"));
-        byte[] bytes = responseBody.getBytes(StandardCharsets.UTF_8);
-        exchange.sendResponseHeaders(200, bytes.length);
-        try (OutputStream outputStream = exchange.getResponseBody()) {
-            outputStream.write(bytes);
-        }
-    }
-
-    private String baseUrl() {
-        return "http://127.0.0.1:%d".formatted(server.getAddress().getPort());
+        assertEquals(
+            URI.create("https://api.github.example/repos/cvonderheid/mappo-managed-app/contents/releases/releases.manifest.json?ref=main"),
+            requestCaptor.getValue().uri()
+        );
+        assertEquals("Bearer test-token", requestCaptor.getValue().headers().firstValue("Authorization").orElse(null));
     }
 
     private static final class TestHttpReleaseManifestSourceClient extends HttpReleaseManifestSourceClient {

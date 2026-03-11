@@ -1,21 +1,24 @@
 package com.mappo.controlplane;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.URL;
 import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.web.client.RestClient;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest(
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    webEnvironment = SpringBootTest.WebEnvironment.MOCK,
     properties = {
         "springdoc.api-docs.enabled=true",
         "springdoc.api-docs.path=/api/v1/openapi.json"
@@ -23,8 +26,15 @@ import org.springframework.web.client.RestClient;
 )
 class MappoApplicationTests extends PostgresIntegrationTestBase {
 
-    @LocalServerPort
-    private int port;
+    @Autowired
+    private WebApplicationContext webApplicationContext;
+
+    private MockMvc mockMvc;
+
+    @BeforeEach
+    void setUpMockMvc() {
+        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+    }
 
     @Test
     void contextLoads() {
@@ -72,32 +82,19 @@ class MappoApplicationTests extends PostgresIntegrationTestBase {
 
     @Test
     void liveEventsStreamStartsAsync() throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(baseUrl() + "/api/v1/events/stream")
-            .openConnection();
-        connection.setRequestMethod("GET");
-        connection.setConnectTimeout(5_000);
-        connection.setReadTimeout(5_000);
+        MvcResult result = mockMvc.perform(get("/api/v1/events/stream"))
+            .andExpect(status().isOk())
+            .andExpect(request().asyncStarted())
+            .andReturn();
 
-        try {
-            assertThat(connection.getResponseCode()).isEqualTo(200);
-            assertThat(connection.getContentType()).contains("text/event-stream");
-            try (InputStream ignored = connection.getInputStream()) {
-                // Opening the stream is sufficient to prove the endpoint is live.
-            }
-        } finally {
-            connection.disconnect();
-        }
+        assertThat(result.getResponse().getContentType()).contains("text/event-stream");
     }
 
-    private String fetchOpenApiJson() {
-        return RestClient.create()
-            .get()
-            .uri(URI.create(baseUrl() + "/api/v1/openapi.json"))
-            .retrieve()
-            .body(String.class);
-    }
-
-    private String baseUrl() {
-        return "http://127.0.0.1:" + port;
+    private String fetchOpenApiJson() throws Exception {
+        return mockMvc.perform(get("/api/v1/openapi.json"))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
     }
 }

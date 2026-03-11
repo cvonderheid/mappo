@@ -72,7 +72,11 @@ public class ReleaseManifestApplyService {
         }
 
         if (created > 0) {
-            transactionHookService.afterCommitOrNow(liveUpdateService::emitReleasesUpdated);
+            Set<String> createdProjectIds = parsedManifest.requests().stream()
+                .map(com.mappo.controlplane.api.request.ReleaseCreateRequest::projectId)
+                .map(projectCatalogService::resolveRequiredProjectId)
+                .collect(LinkedHashSet::new, LinkedHashSet::add, LinkedHashSet::addAll);
+            transactionHookService.afterCommitOrNow(() -> createdProjectIds.forEach(liveUpdateService::emitReleasesUpdated));
         }
 
         return new ReleaseManifestIngestResultRecord(

@@ -29,38 +29,58 @@ public class LiveUpdateService {
         this.properties = properties;
     }
 
-    public SseEmitter subscribe(Set<String> requestedTopics) {
+    public SseEmitter subscribe(Set<String> requestedTopics, String projectId) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         String emitterId = "sse-" + UUID.randomUUID();
-        emitters.put(emitterId, new EmitterRegistration(emitter, normalizeTopics(requestedTopics)));
+        emitters.put(emitterId, new EmitterRegistration(emitter, normalizeTopics(requestedTopics), normalize(projectId)));
         emitter.onCompletion(() -> emitters.remove(emitterId));
         emitter.onTimeout(() -> {
             emitter.complete();
             emitters.remove(emitterId);
         });
         emitter.onError(error -> emitters.remove(emitterId));
-        sendSafely(emitterId, emitter, "connected", new LiveUpdateEventRecord("connected", null, now()));
+        sendSafely(emitterId, emitter, "connected", new LiveUpdateEventRecord("connected", null, null, now()));
         return emitter;
     }
 
     public void emitTargetsUpdated() {
-        enqueue("targets-updated", null);
+        emitTargetsUpdated(null);
+    }
+
+    public void emitTargetsUpdated(String projectId) {
+        enqueue("targets-updated", projectId, null);
     }
 
     public void emitReleasesUpdated() {
-        enqueue("releases-updated", null);
+        emitReleasesUpdated(null);
+    }
+
+    public void emitReleasesUpdated(String projectId) {
+        enqueue("releases-updated", projectId, null);
     }
 
     public void emitAdminUpdated() {
-        enqueue("admin-updated", null);
+        emitAdminUpdated(null);
+    }
+
+    public void emitAdminUpdated(String projectId) {
+        enqueue("admin-updated", projectId, null);
     }
 
     public void emitRunsUpdated() {
-        enqueue("runs-updated", null);
+        emitRunsUpdated(null);
+    }
+
+    public void emitRunsUpdated(String projectId) {
+        enqueue("runs-updated", projectId, null);
     }
 
     public void emitRunUpdated(String runId) {
-        enqueue("run-updated", runId);
+        emitRunUpdated(null, runId);
+    }
+
+    public void emitRunUpdated(String projectId, String runId) {
+        enqueue("run-updated", projectId, runId);
     }
 
     @Scheduled(
@@ -71,7 +91,7 @@ public class LiveUpdateService {
         if (!properties.getSse().isEnabled() || emitters.isEmpty()) {
             return;
         }
-        publishDirect("heartbeat", null);
+        publishDirect("heartbeat", null, null);
     }
 
     @Scheduled(
@@ -89,25 +109,28 @@ public class LiveUpdateService {
                 snapshot.put(key, value);
             }
         });
-        snapshot.values().forEach(event -> publishDirect(event.type(), event.subjectId()));
+        snapshot.values().forEach(event -> publishDirect(event.type(), event.projectId(), event.subjectId()));
     }
 
-    private void enqueue(String type, String subjectId) {
+    private void enqueue(String type, String projectId, String subjectId) {
         if (!properties.getSse().isEnabled() || emitters.isEmpty()) {
             return;
         }
-        LiveUpdateEventRecord event = new LiveUpdateEventRecord(type, subjectId, now());
-        pendingEvents.put(eventKey(type, subjectId), event);
+        LiveUpdateEventRecord event = new LiveUpdateEventRecord(type, normalize(projectId), subjectId, now());
+        pendingEvents.put(eventKey(type, projectId, subjectId), event);
     }
 
-    private void publishDirect(String type, String subjectId) {
+    private void publishDirect(String type, String projectId, String subjectId) {
         if (!properties.getSse().isEnabled() || emitters.isEmpty()) {
             return;
         }
-        LiveUpdateEventRecord event = new LiveUpdateEventRecord(type, subjectId, now());
+        LiveUpdateEventRecord event = new LiveUpdateEventRecord(type, normalize(projectId), subjectId, now());
         String topic = topicFor(type);
         emitters.forEach((emitterId, registration) -> {
             if (!topic.isBlank() && !registration.topics().contains(topic)) {
+                return;
+            }
+            if (!registration.projectId().isBlank() && !registration.projectId().equals(event.projectId())) {
                 return;
             }
             sendSafely(emitterId, registration.emitter(), type, event);
@@ -149,8 +172,8 @@ public class LiveUpdateService {
         return normalized.isEmpty() ? ALL_TOPICS : Set.copyOf(normalized);
     }
 
-    private String eventKey(String type, String subjectId) {
-        return type + ":" + (subjectId == null ? "" : subjectId);
+    private String eventKey(String type, String projectId, String subjectId) {
+        return type + ":" + normalize(projectId) + ":" + (subjectId == null ? "" : subjectId);
     }
 
     private String topicFor(String type) {
@@ -165,7 +188,12 @@ public class LiveUpdateService {
 
     private record EmitterRegistration(
         SseEmitter emitter,
-        Set<String> topics
+        Set<String> topics,
+        String projectId
     ) {
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim();
     }
 }

@@ -5,6 +5,7 @@ import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.domain.execution.RunQueue;
 import com.mappo.controlplane.jooq.enums.MappoRunStatus;
 import com.mappo.controlplane.repository.RunExecutionStateRepository;
+import com.mappo.controlplane.repository.RunDetailQueryRepository;
 import com.mappo.controlplane.repository.RunLifecycleCommandRepository;
 import com.mappo.controlplane.repository.RunTargetCommandRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
@@ -27,6 +28,7 @@ public class RunDispatchService {
     private final RunLifecycleCommandRepository runLifecycleCommandRepository;
     private final RunTargetCommandRepository runTargetCommandRepository;
     private final RunExecutionStateRepository runExecutionStateRepository;
+    private final RunDetailQueryRepository runDetailQueryRepository;
     private final LiveUpdateService liveUpdateService;
     private final AzureExecutorClient azureExecutorClient;
     private final RunQueue runQueue;
@@ -39,6 +41,7 @@ public class RunDispatchService {
         RunLifecycleCommandRepository runLifecycleCommandRepository,
         RunTargetCommandRepository runTargetCommandRepository,
         RunExecutionStateRepository runExecutionStateRepository,
+        RunDetailQueryRepository runDetailQueryRepository,
         LiveUpdateService liveUpdateService,
         AzureExecutorClient azureExecutorClient,
         RunQueue runQueue,
@@ -49,6 +52,7 @@ public class RunDispatchService {
         this.runLifecycleCommandRepository = runLifecycleCommandRepository;
         this.runTargetCommandRepository = runTargetCommandRepository;
         this.runExecutionStateRepository = runExecutionStateRepository;
+        this.runDetailQueryRepository = runDetailQueryRepository;
         this.liveUpdateService = liveUpdateService;
         this.azureExecutorClient = azureExecutorClient;
         this.runQueue = runQueue;
@@ -120,8 +124,9 @@ public class RunDispatchService {
                 "Recovered stale running run and requeued interrupted targets."
             );
             forceDispatchRun(runId);
-            liveUpdateService.emitRunsUpdated();
-            liveUpdateService.emitRunUpdated(runId);
+            String projectId = lookupProjectId(runId);
+            liveUpdateService.emitRunsUpdated(projectId);
+            liveUpdateService.emitRunUpdated(projectId, runId);
         }
     }
 
@@ -152,13 +157,20 @@ public class RunDispatchService {
                 MappoRunStatus.failed,
                 "execution crashed before completion"
             );
-            liveUpdateService.emitRunsUpdated();
-            liveUpdateService.emitRunUpdated(runId);
+            String projectId = lookupProjectId(runId);
+            liveUpdateService.emitRunsUpdated(projectId);
+            liveUpdateService.emitRunUpdated(projectId, runId);
         } finally {
             activeRunIds.remove(runId);
             if (runQueue.isEnabled()) {
                 runQueue.releaseRunLease(runId);
             }
         }
+    }
+
+    private String lookupProjectId(String runId) {
+        return runDetailQueryRepository.getRunDetail(runId)
+            .map(detail -> detail.projectId() == null ? "" : detail.projectId())
+            .orElse("");
     }
 }
