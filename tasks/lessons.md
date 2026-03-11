@@ -225,3 +225,9 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Preventative rule: When deleting deprecated routes, update contract tests to assert the exact removed verb/path combination rather than broad path absence if any current operation still lives under that path.
 - Detection signal: OpenAPI regression tests fail after cleanup because a surviving POST or GET operation still exists under a partially deprecated path prefix.
 - Enforcement (test/lint/checklist): after deleting compatibility endpoints, inspect the generated OpenAPI and verify tests assert per-operation removal where needed.
+
+- Date: 2026-03-11
+- Pattern: Architecture docs drift quickly after an implementation seam changes shape, especially when a temporary provider/registry design is later replaced by persisted configuration.
+- Preventative rule: When a design milestone changes the real control path or persistence model, update the architecture note and roadmap in the same slice instead of leaving the intermediate story behind.
+- Detection signal: the code no longer contains classes named in the architecture doc, or the roadmap still lists a completed migration as open.
+- Enforcement (test/lint/checklist): after landing a structural milestone, grep the docs/roadmap for the replaced classes or old design phrases before closing the slice.

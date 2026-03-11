@@ -30,6 +30,7 @@ public class TargetRecordQueryRepository {
 
         var rows = dsl.select(
                 TARGETS.ID,
+                TARGETS.PROJECT_ID,
                 TARGETS.TENANT_ID,
                 TARGETS.SUBSCRIPTION_ID,
                 TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID,
@@ -60,6 +61,7 @@ public class TargetRecordQueryRepository {
         var latestExecution = support.latestExecutionTable();
         Record row = dsl.select(
                 TARGETS.ID,
+                TARGETS.PROJECT_ID,
                 TARGETS.TENANT_ID,
                 TARGETS.SUBSCRIPTION_ID,
                 TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID,
@@ -96,6 +98,7 @@ public class TargetRecordQueryRepository {
         var latestExecution = support.latestExecutionTable();
         var rows = dsl.select(
                 TARGETS.ID,
+                TARGETS.PROJECT_ID,
                 TARGETS.TENANT_ID,
                 TARGETS.SUBSCRIPTION_ID,
                 TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID,
@@ -122,6 +125,73 @@ public class TargetRecordQueryRepository {
 
     public List<TargetRecord> getTargetsByTagFilters(Map<String, String> filters) {
         return listTargets(filters == null ? Map.of() : filters);
+    }
+
+    public List<TargetRecord> getTargetsByIdsForProject(List<String> targetIds, String projectId) {
+        if (targetIds == null || targetIds.isEmpty()) {
+            return List.of();
+        }
+        var support = new TargetQuerySupport(dsl);
+        var latestExecution = support.latestExecutionTable();
+        var rows = dsl.select(
+                TARGETS.ID,
+                TARGETS.PROJECT_ID,
+                TARGETS.TENANT_ID,
+                TARGETS.SUBSCRIPTION_ID,
+                TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID,
+                TARGET_REGISTRATIONS.CUSTOMER_NAME,
+                TARGETS.LAST_DEPLOYED_RELEASE,
+                TARGETS.HEALTH_STATUS,
+                TARGET_RUNTIME_PROBES.RUNTIME_STATUS,
+                TARGET_RUNTIME_PROBES.CHECKED_AT,
+                TARGET_RUNTIME_PROBES.SUMMARY,
+                latestExecution.field("latest_status", com.mappo.controlplane.jooq.enums.MappoTargetStage.class),
+                latestExecution.field("latest_updated_at", OffsetDateTime.class),
+                TARGETS.LAST_CHECK_IN_AT,
+                TARGETS.SIMULATED_FAILURE_MODE
+            )
+            .from(TARGETS)
+            .leftJoin(TARGET_REGISTRATIONS).on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
+            .leftJoin(TARGET_RUNTIME_PROBES).on(TARGET_RUNTIME_PROBES.TARGET_ID.eq(TARGETS.ID))
+            .leftJoin(latestExecution).on(latestExecution.field("target_id", String.class).eq(TARGETS.ID))
+            .where(TARGETS.ID.in(targetIds))
+            .and(TARGETS.PROJECT_ID.eq(projectId))
+            .orderBy(TARGETS.ID.asc())
+            .fetch();
+        return mapTargets(rows, support);
+    }
+
+    public List<TargetRecord> getTargetsByTagFiltersForProject(Map<String, String> filters, String projectId) {
+        var support = new TargetQuerySupport(dsl);
+        var latestExecution = support.latestExecutionTable();
+        Condition condition = buildFilterCondition(filters, support).and(TARGETS.PROJECT_ID.eq(projectId));
+
+        var rows = dsl.select(
+                TARGETS.ID,
+                TARGETS.PROJECT_ID,
+                TARGETS.TENANT_ID,
+                TARGETS.SUBSCRIPTION_ID,
+                TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID,
+                TARGET_REGISTRATIONS.CUSTOMER_NAME,
+                TARGETS.LAST_DEPLOYED_RELEASE,
+                TARGETS.HEALTH_STATUS,
+                TARGET_RUNTIME_PROBES.RUNTIME_STATUS,
+                TARGET_RUNTIME_PROBES.CHECKED_AT,
+                TARGET_RUNTIME_PROBES.SUMMARY,
+                latestExecution.field("latest_status", com.mappo.controlplane.jooq.enums.MappoTargetStage.class),
+                latestExecution.field("latest_updated_at", OffsetDateTime.class),
+                TARGETS.LAST_CHECK_IN_AT,
+                TARGETS.SIMULATED_FAILURE_MODE
+            )
+            .from(TARGETS)
+            .leftJoin(TARGET_REGISTRATIONS).on(TARGET_REGISTRATIONS.TARGET_ID.eq(TARGETS.ID))
+            .leftJoin(TARGET_RUNTIME_PROBES).on(TARGET_RUNTIME_PROBES.TARGET_ID.eq(TARGETS.ID))
+            .leftJoin(latestExecution).on(latestExecution.field("target_id", String.class).eq(TARGETS.ID))
+            .where(condition)
+            .orderBy(TARGETS.ID.asc())
+            .fetch();
+
+        return mapTargets(rows, support);
     }
 
     private Condition buildFilterCondition(Map<String, String> filters, TargetQuerySupport support) {

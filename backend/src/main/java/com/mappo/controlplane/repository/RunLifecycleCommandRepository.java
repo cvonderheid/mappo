@@ -43,6 +43,7 @@ public class RunLifecycleCommandRepository {
 
         dsl.insertInto(RUNS)
             .set(RUNS.ID, runId)
+            .set(RUNS.PROJECT_ID, requiredText(request.projectId(), "project_id"))
             .set(RUNS.RELEASE_ID, normalize(request.releaseId()))
             .set(
                 RUNS.EXECUTION_SOURCE_TYPE,
@@ -218,6 +219,14 @@ public class RunLifecycleCommandRepository {
     private String nullableText(Object value) {
         String normalized = normalize(value);
         return normalized.isBlank() ? null : normalized;
+    }
+
+    private String requiredText(Object value, String field) {
+        String normalized = normalize(value);
+        if (normalized.isBlank()) {
+            throw new IllegalArgumentException(field + " is required");
+        }
+        return normalized;
     }
 
     private String defaultIfBlank(String value, String fallback) {

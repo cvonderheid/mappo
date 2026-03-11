@@ -67,6 +67,7 @@ final class TargetQuerySupport {
     TargetRecord toTargetRecord(Record row, Map<String, String> tags) {
         return new TargetRecord(
             row.get(TARGETS.ID),
+            row.get(TARGETS.PROJECT_ID),
             row.get(TARGETS.TENANT_ID),
             row.get(TARGETS.SUBSCRIPTION_ID),
             row.get(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID),

@@ -378,6 +378,7 @@ export interface components {
         };
         RunDetailRecord: {
             id?: string;
+            projectId?: string;
             releaseId?: string;
             /** @enum {string} */
             executionSourceType?: "template_spec" | "bicep" | "deployment_stack";
@@ -498,6 +499,7 @@ export interface components {
             changes?: components["schemas"]["RunPreviewChangeRecord"][];
         };
         ReleaseCreateRequest: {
+            projectId?: string;
             sourceRef: string;
             sourceVersion: string;
             /** @enum {string} */
@@ -526,6 +528,7 @@ export interface components {
         };
         ReleaseRecord: {
             id?: string;
+            projectId?: string;
             sourceRef?: string;
             sourceVersion?: string;
             /** @enum {string} */
@@ -607,6 +610,7 @@ export interface components {
             subscriptionId: string;
             targetId?: string;
             displayName?: string;
+            projectId?: string;
             managedApplicationId?: string;
             managedResourceGroupId?: string;
             containerAppResourceId?: string;
@@ -723,6 +727,7 @@ export interface components {
         };
         TargetRecord: {
             id?: string;
+            projectId?: string;
             /** Format: uuid */
             tenantId?: string;
             /** Format: uuid */
@@ -763,6 +768,7 @@ export interface components {
         };
         RunSummaryRecord: {
             id?: string;
+            projectId?: string;
             releaseId?: string;
             /** @enum {string} */
             executionSourceType?: "template_spec" | "bicep" | "deployment_stack";

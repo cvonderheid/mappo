@@ -2,6 +2,7 @@ package com.mappo.controlplane;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.mappo.controlplane.domain.project.BuiltinProjects;
 import com.mappo.controlplane.service.maintenance.OperationalRetentionService;
 import com.mappo.controlplane.service.maintenance.RetentionCleanupSummary;
 import java.sql.Timestamp;
@@ -135,6 +136,7 @@ class OperationalRetentionIntegrationTests extends PostgresIntegrationTestBase {
             """
             INSERT INTO runs (
               id,
+              project_id,
               release_id,
               execution_source_type,
               strategy_mode,
@@ -147,9 +149,10 @@ class OperationalRetentionIntegrationTests extends PostgresIntegrationTestBase {
               started_at,
               ended_at,
               updated_at
-            ) VALUES (?, ?, 'deployment_stack', 'all_at_once', 'ring', 1, 1, ?::mappo_run_status, NULL, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, 'deployment_stack', 'all_at_once', 'ring', 1, 1, ?::mappo_run_status, NULL, ?, ?, ?, ?)
             """,
             runId,
+            BuiltinProjects.AZURE_MANAGED_APP_DEPLOYMENT_STACK,
             "rel-retention",
             status,
             timestamp(createdAt),

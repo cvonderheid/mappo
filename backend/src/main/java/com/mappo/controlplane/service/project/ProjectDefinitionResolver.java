@@ -9,9 +9,9 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ProjectDefinitionResolver {
 
-    private final ProjectDefinitionProviderRegistry projectDefinitionProviderRegistry;
+    private final ProjectCatalogService projectCatalogService;
 
     public ProjectDefinition resolve(ReleaseRecord release) {
-        return projectDefinitionProviderRegistry.resolve(release);
+        return projectCatalogService.getRequired(release.projectId());
     }
 }

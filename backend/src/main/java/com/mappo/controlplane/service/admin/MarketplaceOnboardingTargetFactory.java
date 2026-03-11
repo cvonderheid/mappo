@@ -7,6 +7,7 @@ import com.mappo.controlplane.jooq.enums.MappoRegistryAuthMode;
 import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
 import com.mappo.controlplane.model.command.TargetRegistrationUpsertCommand;
 import com.mappo.controlplane.model.command.TargetUpsertCommand;
+import com.mappo.controlplane.service.project.ProjectCatalogService;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Component;
 public class MarketplaceOnboardingTargetFactory {
 
     private final MappoProperties properties;
+    private final ProjectCatalogService projectCatalogService;
 
     public MarketplaceOnboardingTargetPlan create(
         OnboardingEventRequest request,
@@ -25,6 +27,7 @@ public class MarketplaceOnboardingTargetFactory {
         OffsetDateTime now
     ) {
         String targetId = resolveTargetId(request);
+        String projectId = projectCatalogService.resolveProjectId(request.projectId(), null);
         String containerAppResourceId = normalize(request.containerAppResourceId());
         String managedResourceGroupId = normalize(request.managedResourceGroupId());
         if (managedResourceGroupId.isBlank()) {
@@ -35,6 +38,7 @@ public class MarketplaceOnboardingTargetFactory {
             targetId,
             new TargetUpsertCommand(
                 targetId,
+                projectId,
                 request.tenantId(),
                 request.subscriptionId(),
                 buildTags(request),

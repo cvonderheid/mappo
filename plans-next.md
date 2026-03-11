@@ -333,9 +333,9 @@ Status: demo green; live GitHub webhook delivery setup pending
 - [x] Extract execution/access/materialization/health contracts from the current deployment-stack path
 - [x] Resolve request/run execution through explicit project capability and execution-context objects
 - [x] Move post-deploy verification behind a verification-provider seam
-- [x] Move project-definition selection behind provider/registry seams
+- [x] Move project-definition selection behind the persisted project catalog
 - [x] Respect runtime-probe/project verification selection when choosing verification providers
 - [x] Split run orchestration into coordinator/preparation/batch/completion services
-- [ ] Introduce persistent project-level driver/access/health selection
-- [ ] Split the remaining workflow-heavy executor/parser classes by responsibility
+- [x] Introduce persistent project-level driver/access/health selection
+- [ ] Split the remaining workflow-heavy Azure executor helpers by responsibility
 - [ ] Add the first non-Deployment-Stack driver

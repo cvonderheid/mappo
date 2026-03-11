@@ -24,6 +24,7 @@ public record RunCreateRequest(
 
     public CreateRunCommand toCommand() {
         return new CreateRunCommand(
+            null,
             normalize(releaseId),
             sanitizeList(targetIds),
             sanitizeStringMap(targetTags),

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 public record CreateRunCommand(
+    String projectId,
     String releaseId,
     List<String> targetIds,
     Map<String, String> targetTags,

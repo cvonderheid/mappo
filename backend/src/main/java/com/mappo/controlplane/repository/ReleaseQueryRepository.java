@@ -26,6 +26,7 @@ public class ReleaseQueryRepository {
     public List<ReleaseRecord> listReleases() {
         var rows = dsl.select(
                 RELEASES.ID,
+                RELEASES.PROJECT_ID,
                 RELEASES.SOURCE_REF,
                 RELEASES.SOURCE_VERSION,
                 RELEASES.SOURCE_TYPE,
@@ -56,6 +57,7 @@ public class ReleaseQueryRepository {
     public Optional<ReleaseRecord> getRelease(String releaseId) {
         Record row = dsl.select(
                 RELEASES.ID,
+                RELEASES.PROJECT_ID,
                 RELEASES.SOURCE_REF,
                 RELEASES.SOURCE_VERSION,
                 RELEASES.SOURCE_TYPE,
@@ -129,6 +131,7 @@ public class ReleaseQueryRepository {
     private ReleaseRecord toReleaseRecord(Record row, Map<String, String> defaults, List<String> hints) {
         return new ReleaseRecord(
             row.get(RELEASES.ID),
+            row.get(RELEASES.PROJECT_ID),
             row.get(RELEASES.SOURCE_REF),
             row.get(RELEASES.SOURCE_VERSION),
             row.get(RELEASES.SOURCE_TYPE),

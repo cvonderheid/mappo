@@ -8,6 +8,7 @@ import java.util.Map;
 
 public record ReleaseRecord(
     String id,
+    String projectId,
     String sourceRef,
     String sourceVersion,
     MappoReleaseSourceType sourceType,

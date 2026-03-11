@@ -1,4 +1,4 @@
-FROM flyway/flyway:10
+FROM flyway/flyway:12.0.1
 
 # Bundle the backend-owned Flyway migrations so the ACA job can run fully in-cluster.
 COPY src/main/resources/db/migration /flyway/sql

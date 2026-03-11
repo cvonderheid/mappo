@@ -10,6 +10,7 @@ import java.util.UUID;
 
 public record TargetRecord(
     String id,
+    String projectId,
     UUID tenantId,
     UUID subscriptionId,
     String managedAppId,

@@ -44,7 +44,7 @@ public class RunExecutionContextResolver {
         );
 
         Map<String, TargetRecord> targetsById = new LinkedHashMap<>();
-        for (TargetRecord target : targetRecordQueryRepository.getTargetsByIds(queuedTargetIds)) {
+        for (TargetRecord target : targetRecordQueryRepository.getTargetsByIdsForProject(queuedTargetIds, release.projectId())) {
             targetsById.put(target.id(), target);
         }
 

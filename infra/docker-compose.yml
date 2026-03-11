@@ -34,7 +34,7 @@ services:
       retries: 20
 
   migrate:
-    image: flyway/flyway:10
+    image: flyway/flyway:12.0.1
     depends_on:
       postgres:
         condition: service_healthy

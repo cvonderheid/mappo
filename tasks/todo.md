@@ -273,8 +273,8 @@ Post-demo production-path planning and execution setup:
 - [x] Adapt the current Deployment Stack implementation behind those contracts.
 - [x] Resolve request and run execution through explicit project capability and execution-context objects.
 - [x] Move post-deploy verification behind a provider seam.
-- [x] Move project-definition selection behind provider/registry seams.
+- [x] Move project-definition selection behind the persisted project catalog.
 - [x] Respect runtime-probe/project verification selection when choosing verification providers.
 - [x] Split run orchestration into coordinator, preparation, batch execution, and completion services.
-- [ ] Add persistent project-level configuration to choose access/deployment/health behavior per product.
-- [ ] Split the remaining workflow-heavy classes (`AzureDeploymentStackExecutor`, `ReleaseManifestParser`) by responsibility.
+- [x] Add persistent project-level configuration to choose access/deployment/health behavior per product.
+- [ ] Split the remaining workflow-heavy Azure executor helpers by responsibility.

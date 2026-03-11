@@ -181,9 +181,9 @@ Implemented contracts:
 
 Implemented orchestration helpers:
 - `ProjectDefinition`
-- `ProjectDefinitionProvider`
 - `ProjectExecutionCapabilities`
 - `ProjectExecutionCapabilityResolver`
+- `ProjectCatalogService`
 - `RunRequestContext`
 - `RunExecutionContext`
 - `ReleaseMaterializerRegistry`
@@ -193,8 +193,8 @@ Implemented orchestration helpers:
 - `TargetVerificationProviderRegistry`
 
 Current concrete adapters:
-- `azure_deployment_stack` project definition provider
-- `azure_template_spec` project definition provider
+- persisted project definitions in the `projects` table
+- built-in seeded projects for `azure_deployment_stack` and `azure_template_spec`
 - `azure_deployment_stack`
 - `azure_template_spec`
 - default target access validation
@@ -210,7 +210,7 @@ Current request/execution flow:
 5. execute through the selected deployment driver
 
 This is enough to treat the current Azure Deployment Stack implementation as the first driver adapter instead of the permanent control-plane default.
-Project definition resolution is also now provider-based instead of a hard-coded source-type switch.
+Project definition resolution is now backed by the persisted project catalog instead of a hard-coded source-type switch.
 
 Current run orchestration split:
 - `RunExecutionService` coordinates the run lifecycle only
@@ -366,12 +366,18 @@ Status:
 - [x] current Deployment Stack path adapted behind those contracts
 - [x] request and run execution now resolve explicit project capabilities
 - [x] post-deploy verification now resolves through a verification-provider seam
-- [x] project-definition selection now resolves through provider/registry seams
+- [x] project-definition selection now resolves through the persisted project catalog
 - [ ] runtime-health-backed verification is not yet the active verification adapter
 
 ### Phase 2: Project definition layer
 - add `ProjectDefinition` and associate targets/releases/runs with a project
 - move driver/access/health selection to project config
+
+Status:
+- [x] `projects` table added and seeded with built-in project definitions
+- [x] `project_id` persisted on releases, targets, and runs
+- [x] onboarding, release ingest, and run creation now resolve/store project identity
+- [ ] operator/project-management UI does not exist yet
 
 ### Phase 3: Add one new deployment driver
 Choose one:
@@ -387,8 +393,8 @@ Choose one:
 
 ## Recommendation
 The next code slice should be:
-1. replace the default verification provider with a runtime-health-backed adapter,
-2. introduce explicit persistent `project` modeling in the data layer,
+1. split the remaining workflow-heavy Azure executor helpers by responsibility,
+2. replace the default verification provider with a runtime-health-backed adapter,
 3. add one second deployment driver after the current seams settle,
 4. only then migrate package structure toward the full `application` / `infrastructure` layout.
 

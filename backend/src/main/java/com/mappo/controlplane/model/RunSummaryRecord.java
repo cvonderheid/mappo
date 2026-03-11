@@ -8,6 +8,7 @@ import java.util.List;
 
 public record RunSummaryRecord(
     String id,
+    String projectId,
     String releaseId,
     MappoReleaseSourceType executionSourceType,
     MappoRunStatus status,

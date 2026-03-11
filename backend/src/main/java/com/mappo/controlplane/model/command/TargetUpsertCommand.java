@@ -8,6 +8,7 @@ import java.util.UUID;
 
 public record TargetUpsertCommand(
     String id,
+    String projectId,
     UUID tenantId,
     UUID subscriptionId,
     Map<String, String> tags,

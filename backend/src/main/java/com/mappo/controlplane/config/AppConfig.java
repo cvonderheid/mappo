@@ -19,8 +19,9 @@ public class AppConfig {
         executor.setCorePoolSize(2);
         executor.setMaxPoolSize(4);
         executor.setQueueCapacity(100);
-        executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.setAwaitTerminationSeconds(30);
+        // Run dispatch is durable through Redis; blocking JVM shutdown here only slows tests
+        // and redeploys without improving recovery semantics.
+        executor.setWaitForTasksToCompleteOnShutdown(false);
         executor.initialize();
         return executor;
     }

@@ -13,6 +13,7 @@ import com.azure.resourcemanager.resources.fluent.models.DeploymentStackInner;
 import com.azure.resourcemanager.resources.models.DeploymentStackProvisioningState;
 import com.mappo.controlplane.infrastructure.azure.auth.AzureExecutorClient;
 import com.mappo.controlplane.config.MappoProperties;
+import com.mappo.controlplane.domain.project.BuiltinProjects;
 import com.mappo.controlplane.domain.project.ProjectAccessStrategyType;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
@@ -107,6 +108,7 @@ class AzureDeploymentStackExecutorTests {
         );
         ReleaseRecord release = new ReleaseRecord(
             "rel-demo",
+            BuiltinProjects.AZURE_MANAGED_APP_DEPLOYMENT_STACK,
             "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
             "2026.03.09.1",
             MappoReleaseSourceType.deployment_stack,

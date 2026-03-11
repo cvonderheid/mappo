@@ -1,6 +1,9 @@
 spring:
   application:
     name: mappo-control-plane
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration
   datasource:
     url: ${MAPPO_JDBC_DATABASE_URL:jdbc:postgresql://localhost:5433/mappo}
     username: ${MAPPO_DB_USER:mappo}
@@ -20,6 +23,8 @@ spring:
     sql-dialect: POSTGRES
   data:
     redis:
+      repositories:
+        enabled: false
       host: ${MAPPO_REDIS_HOST:localhost}
       port: ${MAPPO_REDIS_PORT:6379}
       password: ${MAPPO_REDIS_PASSWORD:}
@@ -36,6 +41,7 @@ springdoc:
 
 logging:
   level:
+    org.jooq.Constants: OFF
     org.jooq.impl.DefaultExecuteContext.logVersionSupport: ERROR
 
 server:

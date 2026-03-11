@@ -3,9 +3,11 @@ package com.mappo.controlplane.service;
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ReleaseCreateRequest;
 import com.mappo.controlplane.model.ReleaseRecord;
+import com.mappo.controlplane.model.command.CreateReleaseCommand;
 import com.mappo.controlplane.repository.ReleaseCommandRepository;
 import com.mappo.controlplane.repository.ReleaseQueryRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
+import com.mappo.controlplane.service.project.ProjectCatalogService;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ public class ReleaseService {
     private final ReleaseCommandRepository releaseCommandRepository;
     private final LiveUpdateService liveUpdateService;
     private final TransactionHookService transactionHookService;
+    private final ProjectCatalogService projectCatalogService;
 
     public List<ReleaseRecord> listReleases() {
         return releaseQueryRepository.listReleases();
@@ -31,7 +34,21 @@ public class ReleaseService {
         if (request == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "release request is required");
         }
-        ReleaseRecord created = releaseCommandRepository.createRelease(request.toCommand());
+        var command = request.toCommand();
+        ReleaseRecord created = releaseCommandRepository.createRelease(new CreateReleaseCommand(
+            projectCatalogService.resolveProjectId(command.projectId(), command.sourceType()),
+            command.sourceRef(),
+            command.sourceVersion(),
+            command.sourceType(),
+            command.sourceVersionRef(),
+            command.deploymentScope(),
+            command.armDeploymentMode(),
+            command.whatIfOnCanary(),
+            command.verifyAfterDeploy(),
+            command.parameterDefaults(),
+            command.releaseNotes(),
+            command.verificationHints()
+        ));
         transactionHookService.afterCommitOrNow(liveUpdateService::emitReleasesUpdated);
         return created;
     }

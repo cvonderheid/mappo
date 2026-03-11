@@ -42,6 +42,7 @@ public class ReleaseCommandRepository {
 
         dsl.insertInto(RELEASES)
             .set(RELEASES.ID, releaseId)
+            .set(RELEASES.PROJECT_ID, normalize(request.projectId()))
             .set(RELEASES.SOURCE_REF, normalize(request.sourceRef()))
             .set(RELEASES.SOURCE_VERSION, normalize(request.sourceVersion()))
             .set(RELEASES.SOURCE_TYPE, sourceType)

@@ -43,6 +43,7 @@ public class TargetPageQueryRepository {
 
         var rows = dsl.select(
                 TARGETS.ID,
+                TARGETS.PROJECT_ID,
                 TARGETS.TENANT_ID,
                 TARGETS.SUBSCRIPTION_ID,
                 TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID,

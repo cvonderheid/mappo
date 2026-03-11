@@ -11,14 +11,14 @@ import org.springframework.stereotype.Service;
 @Service
 public class GithubWebhookPayloadService {
 
-    private final ReleaseManifestParser releaseManifestParser;
+    private final ReleaseManifestDocumentReader releaseManifestDocumentReader;
 
-    public GithubWebhookPayloadService(ReleaseManifestParser releaseManifestParser) {
-        this.releaseManifestParser = releaseManifestParser;
+    public GithubWebhookPayloadService(ReleaseManifestDocumentReader releaseManifestDocumentReader) {
+        this.releaseManifestDocumentReader = releaseManifestDocumentReader;
     }
 
     public GithubWebhookPayloadRecord parse(String rawPayload, String manifestPath) {
-        Map<?, ?> payload = releaseManifestParser.readJsonObject(rawPayload, "github webhook payload is not valid JSON");
+        Map<?, ?> payload = releaseManifestDocumentReader.readJsonObject(rawPayload, "github webhook payload is not valid JSON");
         String repo = normalize(readNestedValue(payload, "repository", "full_name"));
         if (repo.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "github webhook payload missing repository.full_name");

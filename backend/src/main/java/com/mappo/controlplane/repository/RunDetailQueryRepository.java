@@ -23,6 +23,7 @@ public class RunDetailQueryRepository {
     public Optional<RunDetailRecord> getRunDetail(String runId) {
         Record row = dsl.select(
                 RUNS.ID,
+                RUNS.PROJECT_ID,
                 RUNS.RELEASE_ID,
                 RUNS.EXECUTION_SOURCE_TYPE,
                 RUNS.STATUS,
@@ -53,6 +54,7 @@ public class RunDetailQueryRepository {
 
         RunDetailRecord detail = new RunDetailRecord(
             runId,
+            row.get(RUNS.PROJECT_ID),
             row.get(RUNS.RELEASE_ID),
             row.get(RUNS.EXECUTION_SOURCE_TYPE),
             row.get(RUNS.STATUS),

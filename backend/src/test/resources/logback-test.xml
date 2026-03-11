@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+  <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+  <logger name="org.flywaydb" level="WARN"/>
+  <logger name="org.springframework.boot.test.context.SpringBootTestContextBootstrapper" level="WARN"/>
+  <logger name="org.springframework.test.context.support.AnnotationConfigContextLoaderUtils" level="WARN"/>
+  <logger name="org.springframework.data.repository.config.RepositoryConfigurationDelegate" level="WARN"/>
+  <logger name="org.springdoc.core.events.SpringDocAppInitializer" level="ERROR"/>
+  <logger name="org.springdoc.api.AbstractOpenApiResource" level="WARN"/>
+  <logger name="org.jooq.Constants" level="OFF"/>
+  <logger name="org.jooq.impl.DefaultExecuteContext.logVersionSupport" level="ERROR"/>
+
+  <root level="WARN">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+</configuration>

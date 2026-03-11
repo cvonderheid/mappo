@@ -34,6 +34,7 @@ public class TargetCommandRepository {
 
         dsl.insertInto(TARGETS)
             .set(TARGETS.ID, targetId)
+            .set(TARGETS.PROJECT_ID, requiredText(target.projectId(), "project_id"))
             .set(TARGETS.TENANT_ID, requiredUuid(target.tenantId(), "tenant_id"))
             .set(TARGETS.SUBSCRIPTION_ID, requiredUuid(target.subscriptionId(), "subscription_id"))
             .set(TARGETS.LAST_DEPLOYED_RELEASE, release)
@@ -43,6 +44,7 @@ public class TargetCommandRepository {
             .set(TARGETS.UPDATED_AT, now)
             .onConflict(TARGETS.ID)
             .doUpdate()
+            .set(TARGETS.PROJECT_ID, requiredText(target.projectId(), "project_id"))
             .set(TARGETS.TENANT_ID, requiredUuid(target.tenantId(), "tenant_id"))
             .set(TARGETS.SUBSCRIPTION_ID, requiredUuid(target.subscriptionId(), "subscription_id"))
             .set(TARGETS.LAST_DEPLOYED_RELEASE, release)

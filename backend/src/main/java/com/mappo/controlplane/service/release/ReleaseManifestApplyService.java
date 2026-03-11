@@ -2,10 +2,12 @@ package com.mappo.controlplane.service.release;
 
 import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
 import com.mappo.controlplane.model.ReleaseRecord;
+import com.mappo.controlplane.model.command.CreateReleaseCommand;
 import com.mappo.controlplane.repository.ReleaseCommandRepository;
 import com.mappo.controlplane.repository.ReleaseQueryRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import com.mappo.controlplane.service.TransactionHookService;
+import com.mappo.controlplane.service.project.ProjectCatalogService;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -22,6 +24,7 @@ public class ReleaseManifestApplyService {
     private final ReleaseCommandRepository releaseCommandRepository;
     private final LiveUpdateService liveUpdateService;
     private final TransactionHookService transactionHookService;
+    private final ProjectCatalogService projectCatalogService;
 
     @Transactional
     public ReleaseManifestIngestResultRecord apply(
@@ -34,7 +37,7 @@ public class ReleaseManifestApplyService {
         Set<String> existingKeys = new LinkedHashSet<>();
         if (!allowDuplicates) {
             for (ReleaseRecord row : releaseQueryRepository.listReleases()) {
-                existingKeys.add(releaseKey(row.sourceRef(), row.sourceVersion()));
+                existingKeys.add(releaseKey(row.projectId(), row.sourceRef(), row.sourceVersion()));
             }
         }
 
@@ -42,12 +45,27 @@ public class ReleaseManifestApplyService {
         int skipped = 0;
         List<String> createdReleaseIds = new ArrayList<>();
         for (var candidate : parsedManifest.requests()) {
-            String key = releaseKey(candidate.sourceRef(), candidate.sourceVersion());
+            String resolvedProjectId = projectCatalogService.resolveProjectId(candidate.projectId(), candidate.sourceType());
+            String key = releaseKey(resolvedProjectId, candidate.sourceRef(), candidate.sourceVersion());
             if (!allowDuplicates && existingKeys.contains(key)) {
                 skipped += 1;
                 continue;
             }
-            ReleaseRecord createdRelease = releaseCommandRepository.createRelease(candidate.toCommand());
+            var command = candidate.toCommand();
+            ReleaseRecord createdRelease = releaseCommandRepository.createRelease(new CreateReleaseCommand(
+                resolvedProjectId,
+                command.sourceRef(),
+                command.sourceVersion(),
+                command.sourceType(),
+                command.sourceVersionRef(),
+                command.deploymentScope(),
+                command.armDeploymentMode(),
+                command.whatIfOnCanary(),
+                command.verifyAfterDeploy(),
+                command.parameterDefaults(),
+                command.releaseNotes(),
+                command.verificationHints()
+            ));
             created += 1;
             createdReleaseIds.add(createdRelease.id());
             existingKeys.add(key);
@@ -69,8 +87,8 @@ public class ReleaseManifestApplyService {
         );
     }
 
-    private String releaseKey(String sourceRef, String sourceVersion) {
-        return normalize(sourceRef) + "::" + normalize(sourceVersion);
+    private String releaseKey(String projectId, String sourceRef, String sourceVersion) {
+        return normalize(projectId) + "::" + normalize(sourceRef) + "::" + normalize(sourceVersion);
     }
 
     private String normalize(Object value) {

@@ -61,7 +61,22 @@ public class RunService {
 
         String runId = "run-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
         MappoReleaseSourceType executionSourceType = context.release().sourceType();
-        runLifecycleCommandRepository.createRun(runId, command, context.targets(), executionSourceType);
+        runLifecycleCommandRepository.createRun(
+            runId,
+            new CreateRunCommand(
+                context.release().projectId(),
+                command.releaseId(),
+                command.targetIds(),
+                command.targetTags(),
+                command.strategyMode(),
+                command.waveTag(),
+                command.waveOrder(),
+                command.concurrency(),
+                command.stopPolicy()
+            ),
+            context.targets(),
+            executionSourceType
+        );
         RunDetailRecord initialRun = getRun(runId);
         transactionHookService.afterCommitOrNow(() -> {
             liveUpdateService.emitRunsUpdated();

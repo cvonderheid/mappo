@@ -11,6 +11,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.mappo.controlplane.config.MappoProperties;
+import com.mappo.controlplane.domain.project.BuiltinProjects;
 import com.mappo.controlplane.service.run.RunDispatchService;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -116,6 +117,7 @@ class RedisRunQueueIntegrationTests extends PostgresRedisIntegrationTestBase {
         event.put("subscriptionId", subscriptionId);
         event.put("targetId", targetId);
         event.put("displayName", targetId);
+        event.put("projectId", BuiltinProjects.AZURE_MANAGED_APP_TEMPLATE_SPEC);
         event.put("containerAppResourceId", "/subscriptions/" + subscriptionId + "/resourceGroups/rg-" + targetId + "/providers/Microsoft.App/containerApps/ca-" + targetId);
         event.put("managedResourceGroupId", "/subscriptions/" + subscriptionId + "/resourceGroups/rg-" + targetId);
         event.put("customerName", "Demo Customer");

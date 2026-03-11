@@ -17,6 +17,7 @@ public record OnboardingEventRequest(
     @NotNull UUID subscriptionId,
     String targetId,
     String displayName,
+    String projectId,
     String managedApplicationId,
     String managedResourceGroupId,
     String containerAppResourceId,

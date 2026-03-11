@@ -13,6 +13,7 @@ import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ReleaseCreateRequest(
+    String projectId,
     @NotBlank String sourceRef,
     @NotBlank String sourceVersion,
     MappoReleaseSourceType sourceType,
@@ -26,6 +27,7 @@ public record ReleaseCreateRequest(
 
     public CreateReleaseCommand toCommand() {
         return new CreateReleaseCommand(
+            nullable(projectId),
             normalize(sourceRef),
             normalize(sourceVersion),
             sourceType == null ? MappoReleaseSourceType.template_spec : sourceType,

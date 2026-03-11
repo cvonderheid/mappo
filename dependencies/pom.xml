@@ -11,6 +11,7 @@
 
   <properties>
     <spring.boot.version>4.0.3</spring.boot.version>
+    <flyway.version>12.0.1</flyway.version>
     <jooq.version>3.20.8</jooq.version>
     <testcontainers.version>1.21.4</testcontainers.version>
     <azure.identity.version>1.14.2</azure.identity.version>
@@ -81,6 +82,17 @@
         <groupId>org.testcontainers</groupId>
         <artifactId>jdbc</artifactId>
         <version>${testcontainers.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.flywaydb</groupId>
+        <artifactId>flyway-core</artifactId>
+        <version>${flyway.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.flywaydb</groupId>
+        <artifactId>flyway-database-postgresql</artifactId>
+        <version>${flyway.version}</version>
       </dependency>
 
       <dependency>

@@ -34,12 +34,11 @@ public class RunRequestResolverService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "releaseId is required");
         }
 
-        List<TargetRecord> targets = resolveTargets(command);
+        ReleaseRecord release = releaseService.getRelease(releaseId);
+        List<TargetRecord> targets = resolveTargets(command, release.projectId());
         if (targets.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "no matching targets found");
         }
-
-        ReleaseRecord release = releaseService.getRelease(releaseId);
         return new RunRequestContext(
             command,
             projectExecutionCapabilityResolver.resolve(release, azureExecutorClient.isConfigured()),
@@ -48,15 +47,19 @@ public class RunRequestResolverService {
         );
     }
 
-    private List<TargetRecord> resolveTargets(CreateRunCommand request) {
+    private List<TargetRecord> resolveTargets(CreateRunCommand request, String projectId) {
         if (!request.targetIds().isEmpty()) {
-            return targetRecordQueryRepository.getTargetsByIds(request.targetIds());
+            List<TargetRecord> targets = targetRecordQueryRepository.getTargetsByIdsForProject(request.targetIds(), projectId);
+            if (targets.size() != request.targetIds().size()) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "one or more selected targets do not belong to the release project");
+            }
+            return targets;
         }
 
         if (!request.targetTags().isEmpty()) {
-            return targetRecordQueryRepository.getTargetsByTagFilters(request.targetTags());
+            return targetRecordQueryRepository.getTargetsByTagFiltersForProject(request.targetTags(), projectId);
         }
 
-        return targetRecordQueryRepository.listTargets(Map.of());
+        return targetRecordQueryRepository.getTargetsByTagFiltersForProject(Map.of(), projectId);
     }
 }
