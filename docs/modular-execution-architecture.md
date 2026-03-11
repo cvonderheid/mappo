@@ -367,6 +367,7 @@ Status:
 - [x] request and run execution now resolve explicit project capabilities
 - [x] post-deploy verification now resolves through a verification-provider seam
 - [x] project-definition selection now resolves through the persisted project catalog
+- [x] remaining Deployment Stack executors split into context resolution, apply/recovery translation, and preview operation helpers
 - [ ] runtime-health-backed verification is not yet the active verification adapter
 
 ### Phase 2: Project definition layer
@@ -377,7 +378,7 @@ Status:
 - [x] `projects` table added and seeded with built-in project definitions
 - [x] `project_id` persisted on releases, targets, and runs
 - [x] onboarding, release ingest, and run creation now resolve/store project identity
-- [ ] operator/project-management UI does not exist yet
+- [x] operator-facing project switcher in the app shell scopes fleet and deployment views by project
 
 ### Phase 3: Add one new deployment driver
 Choose one:

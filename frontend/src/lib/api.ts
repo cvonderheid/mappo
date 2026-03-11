@@ -12,6 +12,7 @@ import type {
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
   MarketplaceEventPage,
+  ProjectDefinition,
   Release,
   ReleaseManifestIngestRequest,
   ReleaseManifestIngestResponse,
@@ -60,6 +61,7 @@ export async function listTargetsPage(query: ListTargetsPageQuery = {}): Promise
       query: {
         page: query.page,
         size: query.size,
+        projectId: query.projectId,
         targetId: query.targetId,
         customerName: query.customerName,
         tenantId: query.tenantId,
@@ -76,6 +78,11 @@ export async function listTargetsPage(query: ListTargetsPageQuery = {}): Promise
   return requireData("listTargetsPage", { data, error, response });
 }
 
+export async function listProjects(): Promise<ProjectDefinition[]> {
+  const { data, error, response } = await apiClient.GET("/api/v1/projects");
+  return requireData("listProjects", { data, error, response });
+}
+
 export async function listReleases(): Promise<Release[]> {
   const { data, error, response } = await apiClient.GET("/api/v1/releases");
   return requireData("listReleases", { data, error, response });
@@ -87,6 +94,7 @@ export async function listRuns(query: ListRunsQuery = {}): Promise<RunSummaryPag
       query: {
         page: query.page,
         size: query.size,
+        projectId: query.projectId,
         runId: query.runId,
         releaseId: query.releaseId,
         status: query.status,

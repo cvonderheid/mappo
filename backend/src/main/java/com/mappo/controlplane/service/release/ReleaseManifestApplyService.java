@@ -45,7 +45,7 @@ public class ReleaseManifestApplyService {
         int skipped = 0;
         List<String> createdReleaseIds = new ArrayList<>();
         for (var candidate : parsedManifest.requests()) {
-            String resolvedProjectId = projectCatalogService.resolveProjectId(candidate.projectId(), candidate.sourceType());
+            String resolvedProjectId = projectCatalogService.resolveRequiredProjectId(candidate.projectId());
             String key = releaseKey(resolvedProjectId, candidate.sourceRef(), candidate.sourceVersion());
             if (!allowDuplicates && existingKeys.contains(key)) {
                 skipped += 1;

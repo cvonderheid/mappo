@@ -162,6 +162,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
                   "releases": [
                     {
                       "publication_status": "published",
+                      "project_id": "azure-managed-app-deployment-stack",
                       "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
                       "source_version": "2026.03.06.1",
                       "source_type": "deployment_stack",
@@ -174,6 +175,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
                     },
                     {
                       "publication_status": "published",
+                      "project_id": "azure-managed-app-deployment-stack",
                       "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
                       "source_version": "2026.03.07.1",
                       "source_type": "deployment_stack",
@@ -186,6 +188,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
                     },
                     {
                       "publication_status": "draft",
+                      "project_id": "azure-managed-app-deployment-stack",
                       "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
                       "source_version": "2026.03.08.1",
                       "source_type": "deployment_stack",

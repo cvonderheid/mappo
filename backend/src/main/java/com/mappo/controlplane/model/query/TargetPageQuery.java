@@ -6,6 +6,7 @@ import com.mappo.controlplane.jooq.enums.MappoTargetStage;
 public record TargetPageQuery(
     Integer page,
     Integer size,
+    String projectId,
     String targetId,
     String customerName,
     String tenantId,

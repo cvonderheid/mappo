@@ -27,17 +27,21 @@ public class RunSummaryQueryRepository {
     private final DSLContext dsl;
 
     public List<RunSummaryRecord> listRunSummaries() {
-        return listRunSummariesPage(new RunPageQuery(0, 500, null, null, null)).items();
+        return listRunSummariesPage(new RunPageQuery(0, 500, null, null, null, null)).items();
     }
 
     public RunSummaryPageRecord listRunSummariesPage(RunPageQuery query) {
         int page = normalizePage(query == null ? null : query.page());
         int size = normalizeSize(query == null ? null : query.size());
+        String projectIdFilter = normalize(query == null ? null : query.projectId());
         String runIdFilter = normalize(query == null ? null : query.runId());
         String releaseIdFilter = normalize(query == null ? null : query.releaseId());
         MappoRunStatus statusFilter = query == null ? null : query.status();
 
         org.jooq.Condition condition = DSL.trueCondition();
+        if (!projectIdFilter.isBlank()) {
+            condition = condition.and(RUNS.PROJECT_ID.eq(projectIdFilter));
+        }
         if (!runIdFilter.isBlank()) {
             condition = condition.and(RUNS.ID.containsIgnoreCase(runIdFilter));
         }

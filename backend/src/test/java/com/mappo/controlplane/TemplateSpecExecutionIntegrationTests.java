@@ -57,6 +57,7 @@ class TemplateSpecExecutionIntegrationTests extends PostgresIntegrationTestBase 
         registerTarget("target-template-01", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
         Map<String, Object> releaseRequest = new LinkedHashMap<>();
+        releaseRequest.put("projectId", BuiltinProjects.AZURE_MANAGED_APP_TEMPLATE_SPEC);
         releaseRequest.put("sourceRef", "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-mappo-def/providers/Microsoft.Resources/templateSpecs/mappo-app");
         releaseRequest.put("sourceVersion", "2026.03.06.1");
         releaseRequest.put("sourceType", "template_spec");

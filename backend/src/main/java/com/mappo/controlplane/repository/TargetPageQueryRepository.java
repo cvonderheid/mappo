@@ -30,6 +30,10 @@ public class TargetPageQueryRepository {
         int size = support.normalizeSize(query == null ? null : query.size());
         var latestExecution = support.latestExecutionTable();
         Condition condition = support.buildTargetPageCondition(query, latestExecution);
+        String projectIdFilter = query == null ? "" : support.normalize(query.projectId());
+        if (!projectIdFilter.isBlank()) {
+            condition = condition.and(TARGETS.PROJECT_ID.eq(projectIdFilter));
+        }
 
         long totalItems = dsl.fetchCount(
             dsl.select(TARGETS.ID)

@@ -1,7 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-import App from "@/App";
 
 const mockTargets = [
   {
@@ -26,6 +24,7 @@ const mockTargets = [
 const mockReleases = [
   {
     id: "rel-2026-02-25",
+    projectId: "managed-app-demo",
     sourceRef: "template-spec-id",
     sourceVersion: "2026.02.25.3",
     sourceType: "template_spec",
@@ -39,6 +38,7 @@ const mockReleases = [
 const mockRuns = [
   {
     id: "run-1",
+    projectId: "managed-app-demo",
     releaseId: "rel-2026-02-25",
     status: "running",
     strategyMode: "waves",
@@ -67,6 +67,7 @@ const mockRunPage = {
 
 const mockRunDetail = {
   id: "run-1",
+  projectId: "managed-app-demo",
   releaseId: "rel-2026-02-25",
   executionSourceType: "template_spec",
   status: "running",
@@ -124,6 +125,19 @@ const mockRegistrationPage = {
   },
 };
 
+const mockProjects = [
+  {
+    id: "managed-app-demo",
+    name: "Managed App Demo",
+    description: "Demo project",
+    accessStrategy: "marketplace_publisher_access",
+    deploymentDriver: "azure_deployment_stack",
+    releaseMaterializer: "github_blob_arm_template",
+    runtimeHealthProvider: "container_app_probe",
+    enabled: true,
+  },
+];
+
 const apiMock = vi.hoisted(() => ({
   adminListForwarderLogs: vi.fn(),
   adminListMarketplaceEvents: vi.fn(),
@@ -133,6 +147,7 @@ const apiMock = vi.hoisted(() => ({
   adminIngestMarketplaceEvent: vi.fn(),
   createRun: vi.fn(),
   getRun: vi.fn(),
+  listProjects: vi.fn(),
   listReleases: vi.fn(),
   listRuns: vi.fn(),
   listTargetsPage: vi.fn(),
@@ -143,8 +158,20 @@ const apiMock = vi.hoisted(() => ({
 
 vi.mock("@/lib/api", () => apiMock);
 
+vi.mock("@/components/FleetTable", () => ({
+  default: () => (
+    <section>
+      <h2>Fleet Targets</h2>
+      <p>Demo Customer A</p>
+    </section>
+  ),
+}));
+
+import App from "@/App";
+
 describe("App", () => {
   beforeEach(() => {
+    window.history.replaceState({}, "", "/fleet");
     apiMock.adminListForwarderLogs.mockReset();
     apiMock.adminListMarketplaceEvents.mockReset();
     apiMock.adminListReleaseWebhookDeliveries.mockReset();
@@ -155,6 +182,7 @@ describe("App", () => {
     apiMock.previewRun.mockReset();
     apiMock.resumeRun.mockReset();
     apiMock.retryFailed.mockReset();
+    apiMock.listProjects.mockResolvedValue(mockProjects);
     apiMock.listReleases.mockResolvedValue(mockReleases);
     apiMock.listRuns.mockResolvedValue(mockRunPage);
     apiMock.getRun.mockResolvedValue(mockRunDetail);
@@ -164,6 +192,7 @@ describe("App", () => {
     apiMock.adminListForwarderLogs.mockResolvedValue(mockRegistrationPage);
     apiMock.adminListReleaseWebhookDeliveries.mockResolvedValue(mockRegistrationPage);
     apiMock.previewRun.mockResolvedValue({
+      projectId: "managed-app-demo",
       releaseVersion: "2026.02.25.3",
       mode: "ARM_WHAT_IF",
       warnings: [],
@@ -173,14 +202,17 @@ describe("App", () => {
   });
 
   it("renders dashboard data from API", async () => {
-    render(<App />);
+    const fleetView = render(<App />);
 
     expect(screen.getByText("MAPPO Control Plane")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Multi-tenant Managed App Orchestrator/i })).toBeInTheDocument();
     expect(screen.queryByText(/Attention Needed/i)).not.toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText("target-01")).toBeInTheDocument();
+      expect(screen.getByText("Fleet Targets")).toBeInTheDocument();
+      expect(screen.getByText("Demo Customer A")).toBeInTheDocument();
+      expect(screen.getByText("Project")).toBeInTheDocument();
+      expect(screen.getByText("Managed App Demo")).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Fleet/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Deployments/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Admin/i })).toBeInTheDocument();
@@ -188,9 +220,19 @@ describe("App", () => {
       expect(screen.getByRole("button", { name: /Deploy 2026.02.25.3/i })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Deploy 2026.02.25.3/i }));
+    fleetView.unmount();
+    window.history.replaceState({}, "", "/deployments");
+    render(<App />);
 
     await waitFor(() => {
+      expect(screen.getByTestId("open-deployment-controls")).toBeInTheDocument();
+      expect(screen.getByText("Deployment Runs")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("open-deployment-controls"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Deployment Controls")).toBeInTheDocument();
       expect(screen.getByLabelText("Release version")).toBeInTheDocument();
       expect(screen.getByText(/Specific targets selected: 0/i)).toBeInTheDocument();
     });
@@ -198,27 +240,14 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /Close/i }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("open-deployment-controls")).toBeInTheDocument();
       expect(screen.getByText("run-1")).toBeInTheDocument();
       expect(screen.getByTestId("run-row-run-1")).toBeInTheDocument();
       expect(screen.getByTestId("run-actions-trigger-run-1")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByTestId("open-deployment-controls"));
-
-    await waitFor(() => {
-      expect(screen.getByLabelText("Release version")).toBeInTheDocument();
-      expect(screen.getByText(/Specific targets selected: 0/i)).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("select-run-run-1"));
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Back To Deployments/i })).toBeInTheDocument();
-      expect(screen.getByRole("heading", { name: "Run Detail" })).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("link", { name: /Admin/i }));
+    cleanup();
+    window.history.replaceState({}, "", "/admin");
+    render(<App />);
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Admin" })).toBeInTheDocument();

@@ -3,6 +3,8 @@ import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNaviga
 import { Toaster } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DEFAULT_FORM, type StartRunFormState } from "@/lib/deployment-form";
 import { releaseAvailabilitySummary } from "@/lib/fleet";
 import { createLiveUpdatesEventSource, parseLiveUpdateEvent } from "@/lib/live-updates";
@@ -15,6 +17,7 @@ import {
   adminUpdateTargetRegistration,
   createRun,
   getRun,
+  listProjects,
   listReleases,
   listRuns,
   listTargetsPage,
@@ -27,6 +30,7 @@ import type {
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
   PageMetadata,
+  ProjectDefinition,
   Release,
   ReleaseManifestIngestRequest,
   ReleaseManifestIngestResponse,
@@ -64,6 +68,8 @@ export default function App() {
 }
 
 function AppShell() {
+  const [projects, setProjects] = useState<ProjectDefinition[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const navigate = useNavigate();
   const location = useLocation();
   const [targets, setTargets] = useState<Target[]>([]);
@@ -99,13 +105,18 @@ function AppShell() {
   const previewAbortControllerRef = useRef<AbortController | null>(null);
 
   const refreshTargets = useCallback(async () => {
+    if (!selectedProjectId) {
+      setTargets([]);
+      setTargetsRefreshVersion((current) => current + 1);
+      return;
+    }
     try {
       const pageSize = 200;
-      const firstPage = await listTargetsPage({ page: 0, size: pageSize });
+      const firstPage = await listTargetsPage({ page: 0, size: pageSize, projectId: selectedProjectId });
       const items = [...(firstPage.items ?? [])];
       const totalPages = firstPage.page?.totalPages ?? 0;
       for (let page = 1; page < totalPages; page += 1) {
-        const nextPage = await listTargetsPage({ page, size: pageSize });
+        const nextPage = await listTargetsPage({ page, size: pageSize, projectId: selectedProjectId });
         items.push(...(nextPage.items ?? []));
       }
       setTargets(items);
@@ -114,7 +125,7 @@ function AppShell() {
     } catch (error) {
       setErrorMessage((error as Error).message);
     }
-  }, []);
+  }, [selectedProjectId]);
 
   const refreshRegistrationOptions = useCallback(async () => {
     try {
@@ -152,11 +163,34 @@ function AppShell() {
     }
   }, []);
 
+  const refreshProjects = useCallback(async () => {
+    try {
+      const payload = await listProjects();
+      setProjects(payload);
+      setSelectedProjectId((current) => {
+        if (payload.length === 0) {
+          return "";
+        }
+        if (current && payload.some((project) => project.id === current)) {
+          return current;
+        }
+        return payload[0]?.id ?? "";
+      });
+    } catch (error) {
+      setErrorMessage((error as Error).message);
+    }
+  }, []);
+
   const refreshRuns = useCallback(async () => {
+    if (!selectedProjectId) {
+      setRunsPage(null);
+      return;
+    }
     try {
       const payload = await listRuns({
         page: runPage,
         size: runPageSize,
+        projectId: selectedProjectId,
         runId: runIdFilter || undefined,
         releaseId: runReleaseFilter || undefined,
         status: runStatusFilter || undefined,
@@ -168,7 +202,7 @@ function AppShell() {
     } catch (error) {
       setErrorMessage((error as Error).message);
     }
-  }, [runIdFilter, runPage, runPageSize, runReleaseFilter, runStatusFilter, selectedRunId]);
+  }, [runIdFilter, runPage, runPageSize, runReleaseFilter, runStatusFilter, selectedProjectId, selectedRunId]);
 
   const refreshRunDetail = useCallback(async (runId: string) => {
     try {
@@ -179,14 +213,31 @@ function AppShell() {
   }, []);
 
   useEffect(() => {
-    void refreshTargets();
-  }, [refreshTargets]);
+    void refreshProjects();
+  }, [refreshProjects]);
 
   useEffect(() => {
-    void refreshReleases();
-    void refreshRuns();
     void refreshRegistrationOptions();
-  }, [refreshRegistrationOptions, refreshReleases, refreshRuns]);
+    void refreshReleases();
+  }, [refreshRegistrationOptions, refreshReleases]);
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      setSelectedRunId("");
+      setRunDetail(null);
+      setSelectedTargetIds([]);
+      setTargetGroupFilter("all");
+      setRunPage(0);
+      return;
+    }
+    setSelectedRunId("");
+    setRunDetail(null);
+    setSelectedTargetIds([]);
+    setTargetGroupFilter("all");
+    setRunPage(0);
+    void refreshTargets();
+    void refreshRuns();
+  }, [refreshRuns, refreshTargets, selectedProjectId]);
 
   useEffect(() => {
     if (selectedRunId) {
@@ -394,15 +445,31 @@ function AppShell() {
     totalPages: 0,
   };
 
-  const selectedRelease = useMemo(
-    () => releases.find((release) => release.id === selectedReleaseId) ?? null,
-    [releases, selectedReleaseId]
+  const projectReleases = useMemo(
+    () => releases.filter((release) => release.projectId === selectedProjectId),
+    [releases, selectedProjectId]
   );
-  const latestRelease = useMemo(() => releases[0] ?? null, [releases]);
+  const selectedRelease = useMemo(
+    () => projectReleases.find((release) => release.id === selectedReleaseId) ?? null,
+    [projectReleases, selectedReleaseId]
+  );
+  const latestRelease = useMemo(() => projectReleases[0] ?? null, [projectReleases]);
   const releaseSummary = useMemo(
     () => releaseAvailabilitySummary(targets, latestRelease),
     [latestRelease, targets]
   );
+
+  useEffect(() => {
+    setSelectedReleaseId((current) => {
+      if (projectReleases.length === 0) {
+        return "";
+      }
+      if (current && projectReleases.some((release) => release.id === current)) {
+        return current;
+      }
+      return projectReleases[0]?.id ?? "";
+    });
+  }, [projectReleases]);
 
   const previewProgressPercent = useMemo(() => {
     if (!isPreviewing) {
@@ -698,6 +765,23 @@ function AppShell() {
               <Kpi label="Total Targets" value={String(targets.length)} />
               <Kpi label="Active Runs" value={String(runStats.running)} />
             </div>
+            <div className="rounded-lg border border-border/60 bg-background/40 p-2">
+              <Label htmlFor="project-switcher" className="mb-1 block text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Project
+              </Label>
+              <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+                <SelectTrigger id="project-switcher" className="h-10 w-full bg-background/90 text-sm">
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.id ?? ""}>
+                      {project.name ?? project.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-4 gap-2">
               <TopNavLink label="Fleet" to="/fleet" />
               <TopNavLink label="Deployments" to="/deployments" />
@@ -743,6 +827,7 @@ function AppShell() {
               <FleetTable
                 latestRelease={latestRelease}
                 refreshKey={targetsRefreshVersion}
+                selectedProjectId={selectedProjectId}
               />
             }
           />
@@ -758,7 +843,7 @@ function AppShell() {
                 previewErrorMessage={previewErrorMessage}
                 previewProgressPercent={previewProgressPercent}
                 previewTargetCount={previewTargetCount}
-                releases={releases}
+                releases={projectReleases}
                 runPreview={runPreview}
                 runs={runs}
                 runPage={runPageMetadata.page ?? 0}

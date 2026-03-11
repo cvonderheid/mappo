@@ -110,6 +110,7 @@ class RunConcurrencyIntegrationTests extends PostgresIntegrationTestBase {
 
     private String createTemplateSpecRelease(String version) throws Exception {
         Map<String, Object> releaseRequest = new LinkedHashMap<>();
+        releaseRequest.put("projectId", BuiltinProjects.AZURE_MANAGED_APP_TEMPLATE_SPEC);
         releaseRequest.put("sourceRef", "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-mappo-def/providers/Microsoft.Resources/templateSpecs/mappo-app");
         releaseRequest.put("sourceVersion", version);
         releaseRequest.put("sourceType", "template_spec");

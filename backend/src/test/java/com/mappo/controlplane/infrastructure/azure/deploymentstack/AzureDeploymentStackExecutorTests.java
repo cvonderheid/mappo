@@ -39,7 +39,13 @@ class AzureDeploymentStackExecutorTests {
         MappoProperties properties = new MappoProperties();
         properties.getAzure().setDeploymentStackAttachTimeoutMs(2_000L);
         properties.getAzure().setDeploymentStackAttachPollIntervalMs(10L);
-        AzureDeploymentStackRequestFactory requestFactory = new AzureDeploymentStackRequestFactory();
+        AzureDeploymentStackSupport support = new AzureDeploymentStackSupport();
+        AzureDeploymentStackOperationContextFactory contextFactory = new AzureDeploymentStackOperationContextFactory(
+            azureExecutorClient,
+            releaseMaterializerRegistry,
+            support
+        );
+        AzureDeploymentStackRequestFactory requestFactory = new AzureDeploymentStackRequestFactory(support);
         AzureDeploymentStackStateService stateService = new AzureDeploymentStackStateService(properties);
         AzureDeploymentStackFailureFactory failureFactory = new AzureDeploymentStackFailureFactory();
         AzureDeploymentStackRecoveryService recoveryService = new AzureDeploymentStackRecoveryService(
@@ -47,13 +53,21 @@ class AzureDeploymentStackExecutorTests {
             requestFactory,
             failureFactory
         );
-        AzureDeploymentStackExecutor executor = new AzureDeploymentStackExecutor(
-            azureExecutorClient,
-            releaseMaterializerRegistry,
+        AzureDeploymentStackApplyService applyService = new AzureDeploymentStackApplyService(
             requestFactory,
             stateService,
+            failureFactory
+        );
+        AzureDeploymentStackExceptionTranslator exceptionTranslator = new AzureDeploymentStackExceptionTranslator(
+            stateService,
+            requestFactory,
             recoveryService,
             failureFactory
+        );
+        AzureDeploymentStackExecutor executor = new AzureDeploymentStackExecutor(
+            contextFactory,
+            applyService,
+            exceptionTranslator
         );
 
         ResourceManager resourceManager = mock(ResourceManager.class, RETURNS_DEEP_STUBS);

@@ -36,6 +36,7 @@ import type {
 type FleetTableProps = {
   latestRelease: Release | null;
   refreshKey: number;
+  selectedProjectId: string;
 };
 
 type FleetRow = {
@@ -142,7 +143,7 @@ function optionValues(values: string[], selectedValue: string): string[] {
   return [...uniqueValues].sort();
 }
 
-export default function FleetTable({ latestRelease, refreshKey }: FleetTableProps) {
+export default function FleetTable({ latestRelease, refreshKey, selectedProjectId }: FleetTableProps) {
   const latestVersion = latestRelease?.sourceVersion ?? "";
   const [pageData, setPageData] = useState<TargetPage>(EMPTY_PAGE);
   const [loading, setLoading] = useState(false);
@@ -176,6 +177,7 @@ export default function FleetTable({ latestRelease, refreshKey }: FleetTableProp
     void listTargetsPage({
       page,
       size: pageSize,
+      projectId: selectedProjectId || undefined,
       targetId: targetIdFilter || undefined,
       customerName: customerNameFilter || undefined,
       tenantId: tenantIdFilter || undefined,
@@ -225,6 +227,7 @@ export default function FleetTable({ latestRelease, refreshKey }: FleetTableProp
     regionFilter,
     runtimeFilter,
     subscriptionIdFilter,
+    selectedProjectId,
     targetGroupFilter,
     targetIdFilter,
     tenantIdFilter,

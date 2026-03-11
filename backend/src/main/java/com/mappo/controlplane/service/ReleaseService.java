@@ -36,7 +36,7 @@ public class ReleaseService {
         }
         var command = request.toCommand();
         ReleaseRecord created = releaseCommandRepository.createRelease(new CreateReleaseCommand(
-            projectCatalogService.resolveProjectId(command.projectId(), command.sourceType()),
+            projectCatalogService.resolveRequiredProjectId(command.projectId()),
             command.sourceRef(),
             command.sourceVersion(),
             command.sourceType(),

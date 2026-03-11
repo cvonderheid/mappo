@@ -10,6 +10,9 @@ import lombok.Setter;
 @Setter
 public class RunPageParameters extends PageQueryParameters {
 
+    @Schema(description = "Filter by project identifier.", example = "managed-app-demo")
+    private String projectId;
+
     @Schema(description = "Filter by run identifier.", example = "run-2a8daf6089")
     private String runId;
 
@@ -20,6 +23,6 @@ public class RunPageParameters extends PageQueryParameters {
     private MappoRunStatus status;
 
     public RunPageQuery toQuery() {
-        return new RunPageQuery(getPage(), getSize(), runId, releaseId, status);
+        return new RunPageQuery(getPage(), getSize(), projectId, runId, releaseId, status);
     }
 }

@@ -334,6 +334,8 @@ Status: demo green; live GitHub webhook delivery setup pending
 - [x] Resolve request/run execution through explicit project capability and execution-context objects
 - [x] Move post-deploy verification behind a verification-provider seam
 - [x] Move project-definition selection behind the persisted project catalog
+- [x] Split the remaining workflow-heavy Deployment Stack executor helpers by responsibility
+- [x] Expose project selection in the frontend shell so fleet/deployments are visibly scoped per project
 - [x] Respect runtime-probe/project verification selection when choosing verification providers
 - [x] Split run orchestration into coordinator/preparation/batch/completion services
 - [x] Introduce persistent project-level driver/access/health selection

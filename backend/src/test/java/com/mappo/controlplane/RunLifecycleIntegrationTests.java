@@ -51,6 +51,7 @@ class RunLifecycleIntegrationTests extends PostgresIntegrationTestBase {
         registerTarget("target-run-01", "33333333-3333-3333-3333-333333333333", "44444444-4444-4444-4444-444444444444");
 
         Map<String, Object> releaseRequest = new LinkedHashMap<>();
+        releaseRequest.put("projectId", BuiltinProjects.AZURE_MANAGED_APP_TEMPLATE_SPEC);
         releaseRequest.put("sourceRef", "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-mappo-def/providers/Microsoft.Resources/templateSpecs/mappo-app");
         releaseRequest.put("sourceVersion", "2026.03.05.1");
         releaseRequest.put("sourceType", "template_spec");

@@ -11,6 +11,9 @@ import lombok.Setter;
 @Setter
 public class TargetPageParameters extends PageQueryParameters {
 
+    @Schema(description = "Filter by project identifier.", example = "managed-app-demo")
+    private String projectId;
+
     @Schema(description = "Filter by target identifier.", example = "demo-target-01")
     private String targetId;
 
@@ -45,6 +48,7 @@ public class TargetPageParameters extends PageQueryParameters {
         return new TargetPageQuery(
             getPage(),
             getSize(),
+            projectId,
             targetId,
             customerName,
             tenantId,

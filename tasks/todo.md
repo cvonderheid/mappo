@@ -277,4 +277,5 @@ Post-demo production-path planning and execution setup:
 - [x] Respect runtime-probe/project verification selection when choosing verification providers.
 - [x] Split run orchestration into coordinator, preparation, batch execution, and completion services.
 - [x] Add persistent project-level configuration to choose access/deployment/health behavior per product.
-- [ ] Split the remaining workflow-heavy Azure executor helpers by responsibility.
+- [x] Split the remaining workflow-heavy Azure executor helpers by responsibility.
+- [x] Expose the persisted project model through the frontend shell project switcher so fleet/deployments are visibly project-scoped.

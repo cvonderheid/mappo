@@ -2,6 +2,7 @@ package com.mappo.controlplane.service.admin;
 
 import com.mappo.controlplane.api.request.OnboardingEventRequest;
 import com.mappo.controlplane.config.MappoProperties;
+import com.mappo.controlplane.domain.project.BuiltinProjects;
 import com.mappo.controlplane.jooq.enums.MappoHealthStatus;
 import com.mappo.controlplane.jooq.enums.MappoRegistryAuthMode;
 import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
@@ -27,7 +28,7 @@ public class MarketplaceOnboardingTargetFactory {
         OffsetDateTime now
     ) {
         String targetId = resolveTargetId(request);
-        String projectId = projectCatalogService.resolveProjectId(request.projectId(), null);
+        String projectId = resolveProjectId(request.projectId());
         String containerAppResourceId = normalize(request.containerAppResourceId());
         String managedResourceGroupId = normalize(request.managedResourceGroupId());
         if (managedResourceGroupId.isBlank()) {
@@ -124,6 +125,14 @@ public class MarketplaceOnboardingTargetFactory {
             normalized = normalized.substring(0, 48);
         }
         return "mappo-stack-" + normalized;
+    }
+
+    private String resolveProjectId(String explicitProjectId) {
+        String normalized = normalize(explicitProjectId);
+        if (!normalized.isBlank()) {
+            return projectCatalogService.resolveRequiredProjectId(normalized);
+        }
+        return projectCatalogService.getRequired(BuiltinProjects.AZURE_MANAGED_APP_DEPLOYMENT_STACK).id();
     }
 
     private MappoRegistryAuthMode defaultRegistryAuthMode() {

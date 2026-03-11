@@ -2,6 +2,7 @@ import type { Page, Route } from "@playwright/test";
 
 type Target = {
   id: string;
+  projectId: string;
   tenantId: string;
   subscriptionId: string;
   managedAppId: string;
@@ -20,6 +21,7 @@ type Target = {
 
 type Release = {
   id: string;
+  projectId: string;
   sourceRef: string;
   sourceVersion: string;
   sourceType: "template_spec" | "bicep" | "deployment_stack";
@@ -31,6 +33,7 @@ type Release = {
 
 type RunSummary = {
   id: string;
+  projectId: string;
   releaseId: string;
   executionSourceType: "template_spec" | "bicep" | "deployment_stack";
   status: "running" | "succeeded" | "failed" | "partial" | "halted";
@@ -70,6 +73,7 @@ type TargetExecutionRecord = {
 
 type RunDetail = {
   id: string;
+  projectId: string;
   releaseId: string;
   executionSourceType: "template_spec" | "bicep" | "deployment_stack";
   status: "running" | "succeeded" | "failed" | "partial" | "halted";
@@ -110,15 +114,16 @@ const NOW = "2026-02-26T00:00:00Z";
 
 export function createMockApiState(): MockApiState {
   const targets: Target[] = [
-    makeTarget("target-01", "canary", "eastus", "gold"),
-    makeTarget("target-02", "canary", "westus", "gold"),
-    makeTarget("target-03", "prod", "eastus", "silver"),
-    makeTarget("target-04", "prod", "westus", "silver"),
+    makeTarget("managed-app-demo", "target-01", "canary", "eastus", "gold"),
+    makeTarget("managed-app-demo", "target-02", "canary", "westus", "gold"),
+    makeTarget("managed-app-demo", "target-03", "prod", "eastus", "silver"),
+    makeTarget("managed-app-demo", "target-04", "prod", "westus", "silver"),
   ];
 
   const releases: Release[] = [
     {
       id: "rel-2026-02-25",
+      projectId: "managed-app-demo",
       sourceRef: "template-spec-id",
       sourceVersion: "2026.02.25.3",
       sourceType: "template_spec",
@@ -129,6 +134,7 @@ export function createMockApiState(): MockApiState {
     },
     {
       id: "rel-2026-02-20",
+      projectId: "managed-app-demo",
       sourceRef: "template-spec-id",
       sourceVersion: "2026.02.20.1",
       sourceType: "template_spec",
@@ -187,6 +193,7 @@ async function handleRoute(route: Route, state: MockApiState): Promise<void> {
   const method = request.method();
 
   if (method === "GET" && path === "/api/v1/targets/page") {
+    const projectIdFilter = (url.searchParams.get("projectId") ?? "").toLowerCase();
     const targetIdFilter = (url.searchParams.get("targetId") ?? "").toLowerCase();
     const customerNameFilter = (url.searchParams.get("customerName") ?? "").toLowerCase();
     const tenantIdFilter = (url.searchParams.get("tenantId") ?? "").toLowerCase();
@@ -200,6 +207,7 @@ async function handleRoute(route: Route, state: MockApiState): Promise<void> {
     const size = Math.max(1, Number.parseInt(url.searchParams.get("size") ?? "10", 10) || 10);
 
     const filtered = state.targets.filter((target) => {
+      if (projectIdFilter && target.projectId.toLowerCase() !== projectIdFilter) return false;
       if (targetIdFilter && !target.id.toLowerCase().includes(targetIdFilter)) return false;
       if (customerNameFilter && !(target.customerName ?? "").toLowerCase().includes(customerNameFilter)) return false;
       if (tenantIdFilter && !target.tenantId.toLowerCase().includes(tenantIdFilter)) return false;
@@ -218,6 +226,22 @@ async function handleRoute(route: Route, state: MockApiState): Promise<void> {
 
   if (method === "GET" && path === "/api/v1/releases") {
     await respond(route, 200, state.releases);
+    return;
+  }
+
+  if (method === "GET" && path === "/api/v1/projects") {
+    await respond(route, 200, [
+      {
+        id: "managed-app-demo",
+        name: "Managed App Demo",
+        description: "Demo project",
+        accessStrategy: "marketplace_publisher_access",
+        deploymentDriver: "azure_deployment_stack",
+        releaseMaterializer: "github_blob_arm_template",
+        runtimeHealthProvider: "container_app_probe",
+        enabled: true,
+      },
+    ]);
     return;
   }
 
@@ -250,12 +274,16 @@ async function handleRoute(route: Route, state: MockApiState): Promise<void> {
   }
 
   if (method === "GET" && path === "/api/v1/runs") {
+    const projectIdFilter = (url.searchParams.get("projectId") ?? "").toLowerCase();
     const runIdFilter = (url.searchParams.get("runId") ?? "").toLowerCase();
     const releaseFilter = (url.searchParams.get("releaseId") ?? "").toLowerCase();
     const statusFilter = (url.searchParams.get("status") ?? "").toLowerCase();
     const page = Math.max(0, Number.parseInt(url.searchParams.get("page") ?? "0", 10) || 0);
     const size = Math.max(1, Number.parseInt(url.searchParams.get("size") ?? "25", 10) || 25);
     const filtered = state.runs.filter((run) => {
+      if (projectIdFilter && run.projectId.toLowerCase() !== projectIdFilter) {
+        return false;
+      }
       if (runIdFilter && !run.id.toLowerCase().includes(runIdFilter)) {
         return false;
       }
@@ -416,6 +444,7 @@ function matchesTags(targetTags: Record<string, string>, requestedTags: Record<s
 }
 
 function makeTarget(
+  projectId: string,
   id: string,
   ring: "canary" | "prod",
   region: string,
@@ -423,6 +452,7 @@ function makeTarget(
 ): Target {
   return {
     id,
+    projectId,
     tenantId: `tenant-${id}`,
     subscriptionId: `sub-${id}`,
     managedAppId: `/subscriptions/sub-${id}/resourceGroups/rg-${id}`,
@@ -447,6 +477,7 @@ function makeTarget(
 
 function makeRunDetail(input: {
   id: string;
+  projectId?: string;
   releaseId: string;
   strategyMode: "all_at_once" | "waves";
   status: "running" | "succeeded" | "failed" | "partial" | "halted";
@@ -569,6 +600,7 @@ function makeRunDetail(input: {
 
   return {
     id: input.id,
+    projectId: input.projectId ?? "managed-app-demo",
     releaseId: input.releaseId,
     executionSourceType: "template_spec",
     status: input.status,
@@ -611,6 +643,7 @@ function toRunSummary(detail: RunDetail): RunSummary {
 
   return {
     id: detail.id,
+    projectId: detail.projectId,
     releaseId: detail.releaseId,
     executionSourceType: detail.executionSourceType,
     status: detail.status,

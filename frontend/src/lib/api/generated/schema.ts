@@ -276,6 +276,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List projects
+         * @description Returns the configured projects available to the control plane.
+         */
+        get: operations["listProjects"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -499,7 +519,7 @@ export interface components {
             changes?: components["schemas"]["RunPreviewChangeRecord"][];
         };
         ReleaseCreateRequest: {
-            projectId?: string;
+            projectId: string;
             sourceRef: string;
             sourceVersion: string;
             /** @enum {string} */
@@ -797,6 +817,18 @@ export interface components {
             haltReason?: string;
             guardrailWarnings?: string[];
         };
+        ProjectDefinition: {
+            id?: string;
+            name?: string;
+            /** @enum {string} */
+            accessStrategy?: "simulator" | "azure_workload_rbac";
+            /** @enum {string} */
+            deploymentDriver?: "azure_deployment_stack" | "azure_template_spec";
+            /** @enum {string} */
+            releaseArtifactSource?: "blob_arm_template" | "template_spec_resource";
+            /** @enum {string} */
+            runtimeHealthProvider?: "azure_container_app_http";
+        };
         ReleaseWebhookDeliveryPageRecord: {
             /** @description GitHub release-webhook deliveries for the current page. */
             items: components["schemas"]["ReleaseWebhookDeliveryRecord"][];
@@ -920,6 +952,11 @@ export interface operations {
     listRuns: {
         parameters: {
             query?: {
+                /**
+                 * @description Filter by project identifier.
+                 * @example managed-app-demo
+                 */
+                projectId?: string;
                 /**
                  * @description Filter by run identifier.
                  * @example run-2a8daf6089
@@ -1352,6 +1389,11 @@ export interface operations {
         parameters: {
             query?: {
                 /**
+                 * @description Filter by project identifier.
+                 * @example managed-app-demo
+                 */
+                projectId?: string;
+                /**
                  * @description Filter by target identifier.
                  * @example demo-target-01
                  */
@@ -1441,6 +1483,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["RunDetailRecord"];
+                };
+            };
+        };
+    };
+    listProjects: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ProjectDefinition"][];
                 };
             };
         };

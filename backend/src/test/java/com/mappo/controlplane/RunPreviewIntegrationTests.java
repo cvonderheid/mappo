@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.mappo.controlplane.domain.project.BuiltinProjects;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.RunPreviewChangeRecord;
@@ -53,6 +54,7 @@ class RunPreviewIntegrationTests extends PostgresIntegrationTestBase {
         registerTarget("target-preview-01", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
         Map<String, Object> releaseRequest = new LinkedHashMap<>();
+        releaseRequest.put("projectId", BuiltinProjects.AZURE_MANAGED_APP_DEPLOYMENT_STACK);
         releaseRequest.put("sourceRef", "github://cvonderheid/mappo-managed-app/releases/releases.manifest.json");
         releaseRequest.put("sourceVersion", "2026.03.08.2");
         releaseRequest.put("sourceType", "deployment_stack");

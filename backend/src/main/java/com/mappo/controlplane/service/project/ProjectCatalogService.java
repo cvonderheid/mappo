@@ -1,10 +1,9 @@
 package com.mappo.controlplane.service.project;
 
 import com.mappo.controlplane.api.ApiException;
-import com.mappo.controlplane.domain.project.BuiltinProjects;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
-import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.repository.ProjectQueryRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -21,15 +20,17 @@ public class ProjectCatalogService {
             .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "project not found: " + normalized));
     }
 
-    public String resolveProjectId(String explicitProjectId, MappoReleaseSourceType sourceType) {
+    public String resolveRequiredProjectId(String explicitProjectId) {
         String normalized = normalize(explicitProjectId);
-        if (!normalized.isBlank()) {
-            getRequired(normalized);
-            return normalized;
+        if (normalized.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "projectId is required");
         }
-        String inferred = BuiltinProjects.defaultProjectIdFor(sourceType);
-        getRequired(inferred);
-        return inferred;
+        getRequired(normalized);
+        return normalized;
+    }
+
+    public List<ProjectDefinition> listProjects() {
+        return projectQueryRepository.listProjects();
     }
 
     private String normalize(Object value) {
