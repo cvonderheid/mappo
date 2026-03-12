@@ -115,6 +115,7 @@ function AppShell() {
   const isDeploymentRouteRef = useRef<boolean>(false);
   const isFleetRouteRef = useRef<boolean>(false);
   const isAdminRouteRef = useRef<boolean>(false);
+  const previousRouteSectionRef = useRef<string | null>(null);
   const isDeploymentRoute = useMemo(
     () => location.pathname.startsWith("/deployments"),
     [location.pathname]
@@ -342,6 +343,49 @@ function AppShell() {
       void refreshRunSummary();
     }
   }, [selectedProjectId]);
+
+  useEffect(() => {
+    const currentRouteSection = isDeploymentRoute
+      ? "deployments"
+      : isFleetRoute
+        ? "fleet"
+        : isAdminRoute
+          ? "admin"
+          : "other";
+    const previousRouteSection = previousRouteSectionRef.current;
+    previousRouteSectionRef.current = currentRouteSection;
+
+    if (!selectedProjectId || previousRouteSection === currentRouteSection) {
+      return;
+    }
+
+    if (currentRouteSection === "deployments") {
+      void refreshRunsRef.current();
+      if (selectedRunIdRef.current) {
+        void refreshRunDetailRef.current(selectedRunIdRef.current);
+      }
+      return;
+    }
+
+    if (currentRouteSection === "fleet") {
+      void refreshTargetsRef.current();
+      void refreshReleasesRef.current();
+      void refreshRunSummary();
+      return;
+    }
+
+    if (currentRouteSection === "admin") {
+      void refreshRegistrationOptionsRef.current();
+      void refreshReleasesRef.current();
+      void refreshRunSummary();
+    }
+  }, [
+    isAdminRoute,
+    isDeploymentRoute,
+    isFleetRoute,
+    refreshRunSummary,
+    selectedProjectId,
+  ]);
 
   useEffect(() => {
     if (isDeploymentRoute && selectedRunId) {

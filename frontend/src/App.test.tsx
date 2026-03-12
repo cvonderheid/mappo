@@ -307,4 +307,34 @@ describe("App", () => {
     });
   });
 
+  it("fetches runs immediately when navigating from fleet to deployments", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Fleet Targets")).toBeInTheDocument();
+    });
+
+    apiMock.listRuns.mockClear();
+    liveUpdatesMock.createLiveUpdatesEventSource.mockClear();
+
+    fireEvent.click(screen.getByRole("link", { name: /Deployments/i }));
+
+    await waitFor(() => {
+      expect(apiMock.listRuns).toHaveBeenCalledWith({
+        page: 0,
+        size: 25,
+        projectId: "managed-app-demo",
+        releaseId: undefined,
+        runId: undefined,
+        status: undefined,
+      });
+      expect(liveUpdatesMock.createLiveUpdatesEventSource).toHaveBeenCalledWith([
+        "targets",
+        "runs",
+        "releases",
+      ], "managed-app-demo");
+      expect(screen.getByText("Deployment Runs")).toBeInTheDocument();
+    });
+  });
+
 });
