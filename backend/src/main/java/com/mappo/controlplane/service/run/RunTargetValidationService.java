@@ -29,7 +29,7 @@ public class RunTargetValidationService {
         this.runTargetStageService = runTargetStageService;
     }
 
-    public boolean validate(
+    public TargetAccessValidation validate(
         String runId,
         ProjectExecutionCapabilities capabilities,
         ReleaseRecord release,
@@ -47,7 +47,7 @@ public class RunTargetValidationService {
 
         if (runExecutionPolicyService.isSimulatorMode(capabilities.project(), release, azureConfigured)
             && context.simulatedFailureMode() == MappoSimulatedFailureMode.validate_once) {
-            return runTargetStageService.failStage(
+            runTargetStageService.failStage(
                 runId,
                 target.projectId(),
                 target.id(),
@@ -72,12 +72,16 @@ public class RunTargetValidationService {
                     )
                 )
             );
+            return TargetAccessValidation.failure(
+                "Simulated validation failure. Retry the run after clearing the target failure mode.",
+                null
+            );
         }
 
         TargetAccessValidation validation = capabilities.targetAccessResolver()
             .validate(capabilities.project(), release, target, context, azureConfigured);
         if (!validation.valid()) {
-            return runTargetStageService.failStage(
+            runTargetStageService.failStage(
                 runId,
                 target.projectId(),
                 target.id(),
@@ -86,6 +90,7 @@ public class RunTargetValidationService {
                 validation.message(),
                 validation.error()
             );
+            return validation;
         }
 
         runTargetStageService.completeStage(
@@ -97,7 +102,7 @@ public class RunTargetValidationService {
             validation.message(),
             ""
         );
-        return true;
+        return validation;
     }
 
     public boolean failMissingContext(String runId, String projectId, String targetId, String message) {

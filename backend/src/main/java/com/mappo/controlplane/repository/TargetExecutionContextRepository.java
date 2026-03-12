@@ -1,6 +1,7 @@
 package com.mappo.controlplane.repository;
 
 import static com.mappo.controlplane.jooq.Tables.TARGETS;
+import static com.mappo.controlplane.jooq.Tables.TARGET_EXECUTION_CONFIG_ENTRIES;
 import static com.mappo.controlplane.jooq.Tables.TARGET_REGISTRATIONS;
 import static com.mappo.controlplane.jooq.Tables.TARGET_TAGS;
 
@@ -46,6 +47,7 @@ public class TargetExecutionContextRepository {
             .fetch();
 
         Map<String, Map<String, String>> tagsByTarget = loadTags(targetIds);
+        Map<String, Map<String, String>> executionConfigByTarget = loadExecutionConfig(targetIds);
         List<TargetExecutionContextRecord> contexts = new ArrayList<>(rows.size());
         for (Record row : rows) {
             String targetId = row.get(TARGETS.ID);
@@ -61,7 +63,8 @@ public class TargetExecutionContextRepository {
                 row.get(TARGET_REGISTRATIONS.REGISTRY_USERNAME),
                 row.get(TARGET_REGISTRATIONS.REGISTRY_PASSWORD_SECRET_NAME),
                 tagsByTarget.getOrDefault(targetId, Map.of()),
-                row.get(TARGETS.SIMULATED_FAILURE_MODE)
+                row.get(TARGETS.SIMULATED_FAILURE_MODE),
+                executionConfigByTarget.getOrDefault(targetId, Map.of())
             ));
         }
         return contexts;
@@ -84,5 +87,31 @@ public class TargetExecutionContextRepository {
                 .put(row.get(TARGET_TAGS.TAG_KEY), row.get(TARGET_TAGS.TAG_VALUE));
         }
         return tags;
+    }
+
+    private Map<String, Map<String, String>> loadExecutionConfig(List<String> targetIds) {
+        if (targetIds == null || targetIds.isEmpty()) {
+            return Map.of();
+        }
+
+        var rows = dsl.select(
+                TARGET_EXECUTION_CONFIG_ENTRIES.TARGET_ID,
+                TARGET_EXECUTION_CONFIG_ENTRIES.CONFIG_KEY,
+                TARGET_EXECUTION_CONFIG_ENTRIES.CONFIG_VALUE
+            )
+            .from(TARGET_EXECUTION_CONFIG_ENTRIES)
+            .where(TARGET_EXECUTION_CONFIG_ENTRIES.TARGET_ID.in(targetIds))
+            .fetch();
+
+        Map<String, Map<String, String>> config = new LinkedHashMap<>();
+        for (Record row : rows) {
+            String targetId = row.get(TARGET_EXECUTION_CONFIG_ENTRIES.TARGET_ID);
+            config.computeIfAbsent(targetId, key -> new LinkedHashMap<>())
+                .put(
+                    row.get(TARGET_EXECUTION_CONFIG_ENTRIES.CONFIG_KEY),
+                    row.get(TARGET_EXECUTION_CONFIG_ENTRIES.CONFIG_VALUE)
+                );
+        }
+        return config;
     }
 }

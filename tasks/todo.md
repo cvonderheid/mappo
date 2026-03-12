@@ -252,6 +252,7 @@ Post-demo production-path planning and execution setup:
 
 ## Detailed Plan Reference
 - `/Users/cvonderheid/workspace/mappo/docs/azure-production-execution-plan.md`
+- `/Users/cvonderheid/workspace/mappo/docs/ado-multi-project-sprint-plan.md`
 
 ### Milestone 5: Modular Execution Platform
 **Goal**
@@ -279,3 +280,28 @@ Post-demo production-path planning and execution setup:
 - [x] Add persistent project-level configuration to choose access/deployment/health behavior per product.
 - [x] Split the remaining workflow-heavy Azure executor helpers by responsibility.
 - [x] Expose the persisted project model through the frontend shell project switcher so fleet/deployments are visibly project-scoped.
+
+### Sprint 1: Platform And Azure Prep For ADO
+- [x] Finalize generic deployment-driver capability contracts for external drivers.
+- [x] Finalize access-resolution seams and resolved access-context objects.
+- [x] Define the project/release/target configuration model for `pipeline_trigger`.
+- [x] Add the App Service fleet Pulumi module and wire it into the root Maven reactor.
+- [x] Add sample App Service workload packaging plus operator scripts for configure/up/down/package.
+- [x] Generalize inventory ingest so non-managed-app projects can register targets with project-specific execution config.
+- [ ] Provision simple Azure App Service targets in subscriptions:
+  - `1adaaa48-139a-477b-a8c8-0e6289d6d199`
+  - `597f46c7-2ce0-440e-962d-453e486f159d`
+- [ ] Create and validate the Azure DevOps project and Azure service connection backed by a managing-tenant service principal with Lighthouse delegation.
+
+### Sprint 2: ADO Driver MVP
+- [ ] Implement the first Azure DevOps `pipeline_trigger` deployment driver.
+- [ ] Implement external run persistence for ADO pipeline run ID and URL.
+- [ ] Implement status polling and log-summary normalization for ADO runs.
+- [ ] Define and wire the ADO release-ingest path using service hooks.
+- [ ] Validate that project switching cleanly separates the Deployment Stack project and the ADO project in Fleet, Deployments, Demo, and Admin.
+
+### Sprint 3: Multi-Project Hardening
+- [ ] Add driver-specific capability UX for preview, cancel, and log support.
+- [ ] Add ADO service-hook and external-run auditability.
+- [ ] Harden retry/resume semantics for pipeline-driven runs.
+- [ ] Decide whether the next driver should be `pulumi_automation` or whether ADO/Lighthouse needs another hardening sprint first.

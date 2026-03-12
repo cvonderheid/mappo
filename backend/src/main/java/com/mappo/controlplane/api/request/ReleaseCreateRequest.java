@@ -21,6 +21,7 @@ public record ReleaseCreateRequest(
     MappoDeploymentScope deploymentScope,
     ReleaseExecutionSettingsRequest executionSettings,
     Map<String, String> parameterDefaults,
+    Map<String, String> externalInputs,
     String releaseNotes,
     List<String> verificationHints
 ) {
@@ -37,6 +38,7 @@ public record ReleaseCreateRequest(
             deploymentSettingBoolean(executionSettings == null ? null : executionSettings.whatIfOnCanary(), false),
             deploymentSettingBoolean(executionSettings == null ? null : executionSettings.verifyAfterDeploy(), true),
             sanitizeStringMap(parameterDefaults),
+            sanitizeStringMap(externalInputs),
             normalize(releaseNotes),
             sanitizeList(verificationHints)
         );

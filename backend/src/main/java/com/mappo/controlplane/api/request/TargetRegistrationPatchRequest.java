@@ -33,6 +33,7 @@ public record TargetRegistrationPatchRequest(
             metadata == null ? null : nullable(metadata.registryServer()),
             metadata == null ? null : nullable(metadata.registryUsername()),
             metadata == null ? null : nullable(metadata.registryPasswordSecretName()),
+            metadata == null ? null : metadata.sanitizedExecutionConfig(),
             nullable(lastDeployedRelease),
             healthStatus,
             sanitizeTags(tags)

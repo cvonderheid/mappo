@@ -9,14 +9,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.mappo.controlplane.domain.access.ResolvedTargetAccessContext;
 import com.mappo.controlplane.domain.health.TargetVerificationProvider;
 import com.mappo.controlplane.domain.project.BuiltinProjects;
 import com.mappo.controlplane.domain.project.ProjectRuntimeHealthProviderType;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
+import com.mappo.controlplane.model.ExternalExecutionHandleRecord;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.model.TargetVerificationResultRecord;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import com.mappo.controlplane.service.run.DeploymentStackExecutor;
 import com.mappo.controlplane.service.run.TargetDeploymentOutcome;
 import java.util.LinkedHashMap;
@@ -104,6 +108,8 @@ class DeploymentStackExecutionIntegrationTests extends PostgresIntegrationTestBa
                     .andExpect(jsonPath("$.status").value("succeeded"))
                     .andExpect(jsonPath("$.guardrailWarnings").isEmpty())
                     .andExpect(jsonPath("$.targetRecords[0].status").value("SUCCEEDED"))
+                    .andExpect(jsonPath("$.targetRecords[0].externalExecutionHandle.provider").value("azure_deployment_stack"))
+                    .andExpect(jsonPath("$.targetRecords[0].externalExecutionHandle.executionName").value("mappo-stack-target-stack-01"))
                     .andExpect(jsonPath("$.targetRecords[0].stages[1].message").value(containsString("updating deployment stack scope")))
                     .andExpect(jsonPath("$.targetRecords[0].stages[2].message").value("Deployment Stack mappo-stack-target-stack-01 succeeded."))
                     .andExpect(jsonPath("$.targetRecords[0].stages[3].message").value("Runtime verification passed: Runtime responded with HTTP 200."))
@@ -158,7 +164,8 @@ class DeploymentStackExecutionIntegrationTests extends PostgresIntegrationTestBa
             String runId,
             ProjectDefinition project,
             ReleaseRecord release,
-            TargetExecutionContextRecord target
+            TargetExecutionContextRecord target,
+            ResolvedTargetAccessContext accessContext
         ) {
             String stackName = target.deploymentStackName() == null || target.deploymentStackName().isBlank()
                 ? "mappo-stack-target-stack-01"
@@ -166,7 +173,16 @@ class DeploymentStackExecutionIntegrationTests extends PostgresIntegrationTestBa
             return new TargetDeploymentOutcome(
                 "corr-" + runId + "-" + target.targetId() + "-deploy",
                 "Deployment Stack " + stackName + " succeeded.",
-                ""
+                "",
+                new ExternalExecutionHandleRecord(
+                    "azure_deployment_stack",
+                    "stack/" + stackName,
+                    stackName,
+                    "succeeded",
+                    null,
+                    null,
+                    OffsetDateTime.now(ZoneOffset.UTC)
+                )
             );
         }
     }

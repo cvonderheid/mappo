@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.mappo.controlplane.domain.access.ResolvedTargetAccessContext;
 import com.mappo.controlplane.domain.project.BuiltinProjects;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.model.ReleaseRecord;
@@ -205,7 +206,8 @@ class RunConcurrencyIntegrationTests extends PostgresIntegrationTestBase {
             String runId,
             ProjectDefinition project,
             ReleaseRecord release,
-            TargetExecutionContextRecord target
+            TargetExecutionContextRecord target,
+            ResolvedTargetAccessContext accessContext
         ) {
             INVOCATION_ORDER.add(target.targetId());
             int current = ACTIVE.incrementAndGet();

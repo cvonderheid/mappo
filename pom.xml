@@ -37,6 +37,7 @@
     <pulumi.stack>dev</pulumi.stack>
     <pulumi.dir>infra/pulumi</pulumi.dir>
     <pulumi.demoFleetDir>infra/demo-fleet</pulumi.demoFleetDir>
+    <pulumi.appServiceFleetDir>infra/appservice-fleet</pulumi.appServiceFleetDir>
   </properties>
 
   <dependencyManagement>
@@ -59,6 +60,7 @@
     <module>integrations/marketplace-forwarder-function</module>
     <module>infra/pulumi</module>
     <module>infra/demo-fleet</module>
+    <module>infra/appservice-fleet</module>
     <module>delivery</module>
   </modules>
 
@@ -223,6 +225,40 @@
             <configuration>
               <executable>pulumi</executable>
               <workingDirectory>${project.basedir}/${pulumi.demoFleetDir}</workingDirectory>
+              <arguments>
+                <argument>destroy</argument>
+                <argument>--stack</argument>
+                <argument>${pulumi.stack}</argument>
+                <argument>--yes</argument>
+                <argument>--non-interactive</argument>
+              </arguments>
+            </configuration>
+          </execution>
+          <execution>
+            <id>appservice-fleet-pulumi-up</id>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>pulumi</executable>
+              <workingDirectory>${project.basedir}/${pulumi.appServiceFleetDir}</workingDirectory>
+              <arguments>
+                <argument>up</argument>
+                <argument>--stack</argument>
+                <argument>${pulumi.stack}</argument>
+                <argument>--yes</argument>
+                <argument>--non-interactive</argument>
+              </arguments>
+            </configuration>
+          </execution>
+          <execution>
+            <id>appservice-fleet-pulumi-destroy</id>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>pulumi</executable>
+              <workingDirectory>${project.basedir}/${pulumi.appServiceFleetDir}</workingDirectory>
               <arguments>
                 <argument>destroy</argument>
                 <argument>--stack</argument>

@@ -1,6 +1,7 @@
 package com.mappo.controlplane.repository;
 
 import static com.mappo.controlplane.jooq.Tables.RELEASES;
+import static com.mappo.controlplane.jooq.Tables.RELEASE_EXTERNAL_INPUT_ENTRIES;
 import static com.mappo.controlplane.jooq.Tables.RELEASE_PARAMETER_DEFAULTS;
 import static com.mappo.controlplane.jooq.Tables.RELEASE_VERIFICATION_HINTS;
 
@@ -64,6 +65,15 @@ public class ReleaseCommandRepository {
                 .set(RELEASE_PARAMETER_DEFAULTS.RELEASE_ID, releaseId)
                 .set(RELEASE_PARAMETER_DEFAULTS.PARAM_KEY, entry.getKey())
                 .set(RELEASE_PARAMETER_DEFAULTS.PARAM_VALUE, entry.getValue())
+                .execute();
+        }
+
+        Map<String, String> externalInputs = sanitizeDefaults(request.externalInputs());
+        for (Map.Entry<String, String> entry : externalInputs.entrySet()) {
+            dsl.insertInto(RELEASE_EXTERNAL_INPUT_ENTRIES)
+                .set(RELEASE_EXTERNAL_INPUT_ENTRIES.RELEASE_ID, releaseId)
+                .set(RELEASE_EXTERNAL_INPUT_ENTRIES.INPUT_KEY, entry.getKey())
+                .set(RELEASE_EXTERNAL_INPUT_ENTRIES.INPUT_VALUE, entry.getValue())
                 .execute();
         }
 

@@ -166,6 +166,17 @@ const eventSourceMock = vi.hoisted(() => {
       current.push(listener);
       listeners.set(type, current);
     }),
+    emit: (type: string, data: string) => {
+      const current = listeners.get(type) ?? [];
+      const event = { data } as MessageEvent<string>;
+      current.forEach((listener) => {
+        if (typeof listener === "function") {
+          listener(event);
+          return;
+        }
+        listener.handleEvent(event);
+      });
+    },
     close: vi.fn(),
   };
 });
@@ -334,6 +345,37 @@ describe("App", () => {
         "releases",
       ], "managed-app-demo");
       expect(screen.getByText("Deployment Runs")).toBeInTheDocument();
+    });
+  });
+
+  it("refreshes deployments immediately after the live stream connects", async () => {
+    window.history.replaceState({}, "", "/deployments");
+    render(<App />);
+
+    await waitFor(() => {
+      expect(liveUpdatesMock.createLiveUpdatesEventSource).toHaveBeenCalledWith([
+        "targets",
+        "runs",
+        "releases",
+      ], "managed-app-demo");
+    });
+
+    apiMock.listRuns.mockClear();
+
+    eventSourceMock.emit("connected", JSON.stringify({
+      type: "connected",
+      projectId: "managed-app-demo",
+    }));
+
+    await waitFor(() => {
+      expect(apiMock.listRuns).toHaveBeenCalledWith({
+        page: 0,
+        size: 25,
+        projectId: "managed-app-demo",
+        releaseId: undefined,
+        runId: undefined,
+        status: undefined,
+      });
     });
   });
 

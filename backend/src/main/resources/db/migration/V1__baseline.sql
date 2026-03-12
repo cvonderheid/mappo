@@ -23,7 +23,7 @@ CREATE TYPE mappo_marketplace_event_type AS ENUM (
   'unknown'
 );
 CREATE TYPE mappo_forwarder_log_level AS ENUM ('info', 'warning', 'error');
-CREATE TYPE mappo_release_source_type AS ENUM ('template_spec', 'bicep', 'deployment_stack');
+CREATE TYPE mappo_release_source_type AS ENUM ('template_spec', 'bicep', 'deployment_stack', 'external_deployment_inputs');
 CREATE TYPE mappo_deployment_scope AS ENUM ('resource_group', 'subscription');
 CREATE TYPE mappo_arm_deployment_mode AS ENUM ('incremental', 'complete');
 
@@ -88,6 +88,13 @@ CREATE TABLE release_parameter_defaults (
   param_key VARCHAR(128) NOT NULL,
   param_value VARCHAR(2048) NOT NULL,
   PRIMARY KEY (release_id, param_key)
+);
+
+CREATE TABLE release_external_input_entries (
+  release_id VARCHAR(128) NOT NULL REFERENCES releases (id) ON DELETE CASCADE,
+  input_key VARCHAR(128) NOT NULL,
+  input_value VARCHAR(4096) NOT NULL,
+  PRIMARY KEY (release_id, input_key)
 );
 
 CREATE TABLE release_verification_hints (

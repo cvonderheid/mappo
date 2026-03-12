@@ -7,7 +7,10 @@ import com.azure.resourcemanager.resources.fluent.models.DeploymentOperationInne
 import com.azure.resourcemanager.resources.models.Deployment;
 import com.mappo.controlplane.infrastructure.azure.auth.AzureExecutorClient;
 import com.mappo.controlplane.infrastructure.azure.AzureFailureDiagnostics;
+import com.mappo.controlplane.domain.access.AzureWorkloadRbacTargetAccessContext;
+import com.mappo.controlplane.domain.access.ResolvedTargetAccessContext;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
+import com.mappo.controlplane.model.ExternalExecutionHandleRecord;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.StageErrorDetailsRecord;
 import com.mappo.controlplane.model.StageErrorRecord;
@@ -16,6 +19,8 @@ import com.mappo.controlplane.service.run.ReleaseMaterializerRegistry;
 import com.mappo.controlplane.service.run.TargetDeploymentException;
 import com.mappo.controlplane.service.run.TargetDeploymentOutcome;
 import com.mappo.controlplane.service.run.TemplateSpecExecutor;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -34,7 +39,8 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
         String runId,
         ProjectDefinition project,
         ReleaseRecord release,
-        TargetExecutionContextRecord target
+        TargetExecutionContextRecord target,
+        ResolvedTargetAccessContext accessContext
     ) {
         TemplateSpecDeploymentInputs inputs = releaseMaterializerRegistry.materialize(
             project,
@@ -43,8 +49,9 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
             azureExecutorClient.isConfigured(),
             TemplateSpecDeploymentInputs.class
         );
-        String tenantId = inputs.tenantId();
-        String subscriptionId = inputs.subscriptionId();
+        AzureWorkloadRbacTargetAccessContext azureAccessContext = requireAzureAccessContext(accessContext);
+        String tenantId = azureAccessContext.tenantId();
+        String subscriptionId = azureAccessContext.subscriptionId();
         String resourceGroupName = inputs.resourceGroupName();
         String deploymentName = requestFactory.buildDeploymentName(runId, target.targetId());
 
@@ -108,7 +115,8 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
             return new TargetDeploymentOutcome(
                 correlationId,
                 "Template Spec deployment " + deploymentName + " succeeded.",
-                ""
+                "",
+                externalExecutionHandle(deploymentName, deployment.id(), provisioningState)
             );
         } catch (ManagementException error) {
             ManagementError managementError = error.getValue();
@@ -189,7 +197,8 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
                 snapshot.details()
             ),
             correlationId,
-            ""
+            "",
+            externalExecutionHandle(deploymentName, resourceId, "failed")
         );
     }
 
@@ -199,5 +208,24 @@ public class AzureTemplateSpecExecutor implements TemplateSpecExecutor {
             return "";
         }
         return requestFactory.normalize(error.getResponse().getHeaders().getValue(name));
+    }
+
+    private AzureWorkloadRbacTargetAccessContext requireAzureAccessContext(ResolvedTargetAccessContext accessContext) {
+        if (accessContext instanceof AzureWorkloadRbacTargetAccessContext azureAccessContext) {
+            return azureAccessContext;
+        }
+        throw new IllegalArgumentException("template_spec execution requires an Azure workload RBAC access context");
+    }
+
+    private ExternalExecutionHandleRecord externalExecutionHandle(String deploymentName, String executionId, String status) {
+        return new ExternalExecutionHandleRecord(
+            "azure_template_spec",
+            requestFactory.normalize(executionId),
+            requestFactory.normalize(deploymentName),
+            requestFactory.normalize(status),
+            null,
+            null,
+            OffsetDateTime.now(ZoneOffset.UTC)
+        );
     }
 }

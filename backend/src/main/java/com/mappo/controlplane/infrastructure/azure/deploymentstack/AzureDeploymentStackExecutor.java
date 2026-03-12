@@ -1,6 +1,8 @@
 package com.mappo.controlplane.infrastructure.azure.deploymentstack;
 
 import com.azure.core.management.exception.ManagementException;
+import com.mappo.controlplane.domain.access.AzureWorkloadRbacTargetAccessContext;
+import com.mappo.controlplane.domain.access.ResolvedTargetAccessContext;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
@@ -22,17 +24,26 @@ public class AzureDeploymentStackExecutor implements DeploymentStackExecutor {
         String runId,
         ProjectDefinition project,
         ReleaseRecord release,
-        TargetExecutionContextRecord target
+        TargetExecutionContextRecord target,
+        ResolvedTargetAccessContext accessContext
     ) {
         AzureDeploymentStackOperationContext context = null;
+        AzureWorkloadRbacTargetAccessContext azureAccessContext = requireAzureAccessContext(accessContext);
 
         try {
-            context = contextFactory.resolve(project, release, target);
+            context = contextFactory.resolve(project, release, target, azureAccessContext);
             return applyService.apply(context, runId, target.targetId());
         } catch (ManagementException error) {
             return exceptionTranslator.handleManagementException(context, runId, target.targetId(), error);
         } catch (IllegalArgumentException error) {
             throw exceptionTranslator.configurationFailure(context, runId, target.targetId(), error);
         }
+    }
+
+    private AzureWorkloadRbacTargetAccessContext requireAzureAccessContext(ResolvedTargetAccessContext accessContext) {
+        if (accessContext instanceof AzureWorkloadRbacTargetAccessContext azureAccessContext) {
+            return azureAccessContext;
+        }
+        throw new IllegalArgumentException("deployment_stack execution requires an Azure workload RBAC access context");
     }
 }

@@ -15,7 +15,6 @@ final class MarketplaceIngestEventsCommand {
     };
     private static final TypeReference<LinkedHashMap<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
-
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpSupport httpSupport = new HttpSupport(objectMapper);
 
@@ -77,24 +76,34 @@ final class MarketplaceIngestEventsCommand {
             String targetId = stringValue(row.get("id"));
             Map<String, String> tags = stringMap(mapValue(row.get("tags")));
             Map<String, Object> metadata = mapValue(row.get("metadata"));
+            Map<String, String> executionConfig = stringMap(mapValue(metadata.get("execution_config")));
             Map<String, Object> payload = new LinkedHashMap<>();
-            payload.put("eventId", "%s-%s-%03d".formatted(eventIdPrefix, batchId, index + 1));
+            String payloadEventId = "%s-%s-%03d".formatted(eventIdPrefix, batchId, index + 1);
+            payload.put("eventId", payloadEventId);
             payload.put("eventType", eventType);
             payload.put("tenantId", stringValue(row.get("tenant_id")));
             payload.put("subscriptionId", stringValue(row.get("subscription_id")));
-            payload.put("containerAppResourceId", stringValue(row.get("managed_app_id")));
             payload.put("targetId", targetId);
-            payload.put("displayName", firstNonBlank(stringValue(metadata.get("managed_application_name")), targetId));
+            payload.put("displayName", firstNonBlank(stringValue(metadata.get("display_name")), stringValue(metadata.get("managed_application_name")), targetId));
+            String projectId = firstNonBlank(stringValue(row.get("project_id")), stringValue(metadata.get("project_id")));
+            if (!projectId.isBlank()) {
+                payload.put("projectId", projectId);
+            }
             payload.put("targetGroup", firstNonBlank(tags.get("ring"), "prod"));
             payload.put("environment", firstNonBlank(tags.get("environment"), "prod"));
             payload.put("tier", firstNonBlank(tags.get("tier"), "standard"));
             payload.put("healthStatus", "registered");
             payload.put("lastDeployedRelease", "unknown");
-            if (!stringValue(metadata.get("managed_application_id")).isBlank()) {
-                payload.put("managedApplicationId", stringValue(metadata.get("managed_application_id")));
+            String managedApplicationId = firstNonBlank(stringValue(row.get("managed_app_id")), stringValue(metadata.get("managed_application_id")));
+            if (!managedApplicationId.isBlank()) {
+                payload.put("managedApplicationId", managedApplicationId);
             }
             if (!stringValue(metadata.get("managed_resource_group_id")).isBlank()) {
                 payload.put("managedResourceGroupId", stringValue(metadata.get("managed_resource_group_id")));
+            }
+            String containerAppResourceId = firstNonBlank(stringValue(row.get("container_app_resource_id")), stringValue(metadata.get("container_app_resource_id")));
+            if (!containerAppResourceId.isBlank()) {
+                payload.put("containerAppResourceId", containerAppResourceId);
             }
             if (!stringValue(metadata.get("container_app_name")).isBlank()) {
                 payload.put("containerAppName", stringValue(metadata.get("container_app_name")));
@@ -109,12 +118,8 @@ final class MarketplaceIngestEventsCommand {
             payload.put("tags", tags);
             payload.put(
                 "metadata",
-                Map.of(
-                    "source", sourceLabel,
-                    "inventoryTargetId", targetId,
-                    "inventoryManagedApplicationId", stringValue(metadata.get("managed_application_id")),
-                    "inventoryManagedResourceGroupId", stringValue(metadata.get("managed_resource_group_id"))
-                )
+                buildMetadataPayload(sourceLabel, payloadEventId, targetId, managedApplicationId, stringValue(metadata.get("managed_resource_group_id")),
+                    executionConfig)
             );
 
             if (dryRun) {
@@ -206,10 +211,31 @@ final class MarketplaceIngestEventsCommand {
         if (stringValue(row.get("subscription_id")).isBlank()) {
             missing.add("subscription_id");
         }
-        if (stringValue(row.get("managed_app_id")).isBlank()) {
-            missing.add("managed_app_id");
-        }
         return missing;
+    }
+
+    private Map<String, Object> buildMetadataPayload(
+        String sourceLabel,
+        String payloadEventId,
+        String targetId,
+        String managedApplicationId,
+        String managedResourceGroupId,
+        Map<String, String> executionConfig
+    ) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("source", sourceLabel);
+        metadata.put("marketplacePayloadId", payloadEventId);
+        metadata.put("inventoryTargetId", targetId);
+        if (!managedApplicationId.isBlank()) {
+            metadata.put("inventoryManagedApplicationId", managedApplicationId);
+        }
+        if (!managedResourceGroupId.isBlank()) {
+            metadata.put("inventoryManagedResourceGroupId", managedResourceGroupId);
+        }
+        if (!executionConfig.isEmpty()) {
+            metadata.put("executionConfig", executionConfig);
+        }
+        return metadata;
     }
 
     private Path resolvePath(String value) {

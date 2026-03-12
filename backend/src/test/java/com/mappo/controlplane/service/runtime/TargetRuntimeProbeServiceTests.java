@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.mappo.controlplane.config.MappoProperties;
+import com.mappo.controlplane.domain.project.ProjectRuntimeHealthProviderType;
 import com.mappo.controlplane.jooq.enums.MappoRuntimeProbeStatus;
 import com.mappo.controlplane.model.TargetRuntimeProbeContextRecord;
 import com.mappo.controlplane.model.TargetRuntimeProbeRecord;
@@ -46,7 +47,12 @@ class TargetRuntimeProbeServiceTests {
             "azure-managed-app-deployment-stack",
             UUID.fromString("11111111-1111-1111-1111-111111111111"),
             UUID.fromString("22222222-2222-2222-2222-222222222222"),
-            "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-target-01/providers/Microsoft.App/containerApps/ca-target-01"
+            "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-target-01/providers/Microsoft.App/containerApps/ca-target-01",
+            ProjectRuntimeHealthProviderType.azure_container_app_http,
+            "/health",
+            200,
+            5000L,
+            java.util.Map.of()
         );
         TargetRuntimeProbeRecord probe = new TargetRuntimeProbeRecord(
             "target-01",

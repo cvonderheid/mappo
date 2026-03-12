@@ -40,6 +40,17 @@ public class JsonUtil {
         }
     }
 
+    public <T> T read(String value, Class<T> type, T fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        try {
+            return objectMapper.readValue(value, type);
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
     public String write(Object value) {
         try {
             return objectMapper.writeValueAsString(value == null ? Collections.emptyMap() : value);

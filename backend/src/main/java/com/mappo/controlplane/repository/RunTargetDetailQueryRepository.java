@@ -1,9 +1,11 @@
 package com.mappo.controlplane.repository;
 
 import static com.mappo.controlplane.jooq.Tables.TARGET_EXECUTION_RECORDS;
+import static com.mappo.controlplane.jooq.Tables.TARGET_EXTERNAL_EXECUTION_HANDLES;
 import static com.mappo.controlplane.jooq.Tables.TARGET_LOG_EVENTS;
 import static com.mappo.controlplane.jooq.Tables.TARGET_STAGE_RECORDS;
 
+import com.mappo.controlplane.model.ExternalExecutionHandleRecord;
 import com.mappo.controlplane.model.RunTargetRecord;
 import com.mappo.controlplane.model.StageErrorDetailsRecord;
 import com.mappo.controlplane.model.StageErrorRecord;
@@ -40,6 +42,7 @@ public class RunTargetDetailQueryRepository {
 
         Map<String, List<TargetStageRecord>> stages = loadStages(runId);
         Map<String, List<TargetLogEventRecord>> logs = loadLogs(runId);
+        Map<String, ExternalExecutionHandleRecord> externalExecutionHandles = loadExternalExecutionHandles(runId);
 
         List<RunTargetRecord> targetRecords = new ArrayList<>(rows.size());
         for (Record row : rows) {
@@ -52,10 +55,44 @@ public class RunTargetDetailQueryRepository {
                 row.get(TARGET_EXECUTION_RECORDS.ATTEMPT),
                 row.get(TARGET_EXECUTION_RECORDS.UPDATED_AT),
                 stages.getOrDefault(targetId, List.of()),
-                logs.getOrDefault(targetId, List.of())
+                logs.getOrDefault(targetId, List.of()),
+                externalExecutionHandles.get(targetId)
             ));
         }
         return targetRecords;
+    }
+
+    private Map<String, ExternalExecutionHandleRecord> loadExternalExecutionHandles(String runId) {
+        var rows = dsl.select(
+                TARGET_EXTERNAL_EXECUTION_HANDLES.TARGET_ID,
+                TARGET_EXTERNAL_EXECUTION_HANDLES.PROVIDER,
+                TARGET_EXTERNAL_EXECUTION_HANDLES.EXECUTION_ID,
+                TARGET_EXTERNAL_EXECUTION_HANDLES.EXECUTION_NAME,
+                TARGET_EXTERNAL_EXECUTION_HANDLES.EXECUTION_STATUS,
+                TARGET_EXTERNAL_EXECUTION_HANDLES.EXECUTION_URL,
+                TARGET_EXTERNAL_EXECUTION_HANDLES.LOGS_URL,
+                TARGET_EXTERNAL_EXECUTION_HANDLES.UPDATED_AT
+            )
+            .from(TARGET_EXTERNAL_EXECUTION_HANDLES)
+            .where(TARGET_EXTERNAL_EXECUTION_HANDLES.RUN_ID.eq(runId))
+            .fetch();
+
+        Map<String, ExternalExecutionHandleRecord> handles = new LinkedHashMap<>();
+        for (Record row : rows) {
+            handles.put(
+                row.get(TARGET_EXTERNAL_EXECUTION_HANDLES.TARGET_ID),
+                new ExternalExecutionHandleRecord(
+                    row.get(TARGET_EXTERNAL_EXECUTION_HANDLES.PROVIDER),
+                    nullableText(row.get(TARGET_EXTERNAL_EXECUTION_HANDLES.EXECUTION_ID)),
+                    nullableText(row.get(TARGET_EXTERNAL_EXECUTION_HANDLES.EXECUTION_NAME)),
+                    nullableText(row.get(TARGET_EXTERNAL_EXECUTION_HANDLES.EXECUTION_STATUS)),
+                    nullableText(row.get(TARGET_EXTERNAL_EXECUTION_HANDLES.EXECUTION_URL)),
+                    nullableText(row.get(TARGET_EXTERNAL_EXECUTION_HANDLES.LOGS_URL)),
+                    row.get(TARGET_EXTERNAL_EXECUTION_HANDLES.UPDATED_AT)
+                )
+            );
+        }
+        return handles;
     }
 
     private Map<String, List<TargetStageRecord>> loadStages(String runId) {

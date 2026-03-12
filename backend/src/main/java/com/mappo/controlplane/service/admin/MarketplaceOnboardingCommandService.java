@@ -9,8 +9,10 @@ import com.mappo.controlplane.model.MarketplaceEventType;
 import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.repository.MarketplaceEventCommandRepository;
 import com.mappo.controlplane.repository.TargetCommandRepository;
+import com.mappo.controlplane.repository.TargetExecutionConfigCommandRepository;
 import com.mappo.controlplane.repository.TargetRegistrationCommandRepository;
 import com.mappo.controlplane.repository.TargetRecordQueryRepository;
+import com.mappo.controlplane.service.project.ProjectCatalogService;
 import com.mappo.controlplane.service.TransactionHookService;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
@@ -29,7 +31,9 @@ public class MarketplaceOnboardingCommandService {
     private final TargetRecordQueryRepository targetRecordQueryRepository;
     private final TargetCommandRepository targetCommandRepository;
     private final TargetRegistrationCommandRepository targetRegistrationCommandRepository;
+    private final TargetExecutionConfigCommandRepository targetExecutionConfigCommandRepository;
     private final MarketplaceOnboardingTargetFactory targetFactory;
+    private final ProjectCatalogService projectCatalogService;
     private final LiveUpdateService liveUpdateService;
     private final TransactionHookService transactionHookService;
 
@@ -109,14 +113,22 @@ public class MarketplaceOnboardingCommandService {
             return "Target not found; suspension acknowledged.";
         }
 
-        String containerAppResourceId = normalize(request.containerAppResourceId());
-        if (containerAppResourceId.isBlank()) {
+        if (requiresContainerAppResourceId(targetPlan.targetCommand().projectId())
+            && normalize(request.containerAppResourceId()).isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "container_app_resource_id is required for registration events");
         }
         targetCommandRepository.upsertTarget(targetPlan.targetCommand());
         targetRegistrationCommandRepository.upsertRegistration(targetPlan.registrationCommand());
+        targetExecutionConfigCommandRepository.replaceConfigEntries(targetId, targetPlan.executionConfig());
 
         return "Registered target " + targetId + " for subscription " + subscriptionId + ".";
+    }
+
+    private boolean requiresContainerAppResourceId(String projectId) {
+        return switch (projectCatalogService.getRequired(projectId).deploymentDriver()) {
+            case azure_deployment_stack, azure_template_spec -> true;
+            default -> false;
+        };
     }
 
     private String normalize(Object value) {

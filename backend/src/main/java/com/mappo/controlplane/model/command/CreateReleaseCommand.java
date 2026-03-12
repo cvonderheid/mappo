@@ -17,11 +17,13 @@ public record CreateReleaseCommand(
     boolean whatIfOnCanary,
     boolean verifyAfterDeploy,
     Map<String, String> parameterDefaults,
+    Map<String, String> externalInputs,
     String releaseNotes,
     List<String> verificationHints
 ) {
     public CreateReleaseCommand {
         parameterDefaults = parameterDefaults == null ? Map.of() : parameterDefaults;
+        externalInputs = externalInputs == null ? Map.of() : externalInputs;
         verificationHints = verificationHints == null ? List.of() : verificationHints;
     }
 }

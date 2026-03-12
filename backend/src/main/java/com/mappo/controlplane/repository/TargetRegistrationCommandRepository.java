@@ -30,8 +30,8 @@ public class TargetRegistrationCommandRepository {
             .set(TARGET_REGISTRATIONS.DISPLAY_NAME, AdminCommandSupport.normalize(registration.displayName()))
             .set(TARGET_REGISTRATIONS.CUSTOMER_NAME, AdminCommandSupport.nullableText(registration.customerName()))
             .set(TARGET_REGISTRATIONS.MANAGED_APPLICATION_ID, AdminCommandSupport.nullableText(registration.managedApplicationId()))
-            .set(TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID, AdminCommandSupport.normalize(registration.managedResourceGroupId()))
-            .set(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID, AdminCommandSupport.normalize(registration.containerAppResourceId()))
+            .set(TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID, AdminCommandSupport.nullableText(registration.managedResourceGroupId()))
+            .set(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID, AdminCommandSupport.nullableText(registration.containerAppResourceId()))
             .set(TARGET_REGISTRATIONS.CONTAINER_APP_NAME, AdminCommandSupport.nullableText(registration.containerAppName()))
             .set(TARGET_REGISTRATIONS.DEPLOYMENT_STACK_NAME, AdminCommandSupport.nullableText(registration.deploymentStackName()))
             .set(TARGET_REGISTRATIONS.REGISTRY_AUTH_MODE, registration.registryAuthMode())
@@ -50,8 +50,8 @@ public class TargetRegistrationCommandRepository {
             .set(TARGET_REGISTRATIONS.DISPLAY_NAME, AdminCommandSupport.normalize(registration.displayName()))
             .set(TARGET_REGISTRATIONS.CUSTOMER_NAME, AdminCommandSupport.nullableText(registration.customerName()))
             .set(TARGET_REGISTRATIONS.MANAGED_APPLICATION_ID, AdminCommandSupport.nullableText(registration.managedApplicationId()))
-            .set(TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID, AdminCommandSupport.normalize(registration.managedResourceGroupId()))
-            .set(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID, AdminCommandSupport.normalize(registration.containerAppResourceId()))
+            .set(TARGET_REGISTRATIONS.MANAGED_RESOURCE_GROUP_ID, AdminCommandSupport.nullableText(registration.managedResourceGroupId()))
+            .set(TARGET_REGISTRATIONS.CONTAINER_APP_RESOURCE_ID, AdminCommandSupport.nullableText(registration.containerAppResourceId()))
             .set(TARGET_REGISTRATIONS.CONTAINER_APP_NAME, AdminCommandSupport.nullableText(registration.containerAppName()))
             .set(TARGET_REGISTRATIONS.DEPLOYMENT_STACK_NAME, AdminCommandSupport.nullableText(registration.deploymentStackName()))
             .set(TARGET_REGISTRATIONS.REGISTRY_AUTH_MODE, registration.registryAuthMode())
@@ -87,11 +87,11 @@ public class TargetRegistrationCommandRepository {
             patch.managedApplicationId(),
             current.managedApplicationId()
         );
-        String managedResourceGroupId = AdminCommandSupport.firstNonBlank(
+        String managedResourceGroupId = AdminCommandSupport.firstNullableText(
             patch.managedResourceGroupId(),
             current.managedResourceGroupId()
         );
-        String containerAppResourceId = AdminCommandSupport.firstNonBlank(
+        String containerAppResourceId = AdminCommandSupport.firstNullableText(
             patch.containerAppResourceId(),
             current.containerAppResourceId()
         );

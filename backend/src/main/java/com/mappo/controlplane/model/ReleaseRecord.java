@@ -16,6 +16,7 @@ public record ReleaseRecord(
     MappoDeploymentScope deploymentScope,
     ReleaseExecutionSettingsRecord executionSettings,
     Map<String, String> parameterDefaults,
+    Map<String, String> externalInputs,
     String releaseNotes,
     List<String> verificationHints,
     OffsetDateTime createdAt

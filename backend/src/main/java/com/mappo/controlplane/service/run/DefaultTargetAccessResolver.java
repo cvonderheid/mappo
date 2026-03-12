@@ -1,5 +1,6 @@
 package com.mappo.controlplane.service.run;
 
+import com.mappo.controlplane.domain.access.SimulatorTargetAccessContext;
 import com.mappo.controlplane.domain.access.TargetAccessResolver;
 import com.mappo.controlplane.domain.access.TargetAccessValidation;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
@@ -38,7 +39,10 @@ public class DefaultTargetAccessResolver implements TargetAccessResolver {
                 )
             );
         }
-        return TargetAccessValidation.success("Validated target " + target.id() + " for simulator execution.");
+        return TargetAccessValidation.success(
+            "Validated target " + target.id() + " for simulator execution.",
+            SimulatorTargetAccessContext.defaults()
+        );
     }
 
     public static StageErrorRecord invalidTargetConfiguration(

@@ -13,7 +13,12 @@ import com.azure.resourcemanager.resources.fluent.models.DeploymentStackInner;
 import com.azure.resourcemanager.resources.models.DeploymentStackProvisioningState;
 import com.mappo.controlplane.infrastructure.azure.auth.AzureExecutorClient;
 import com.mappo.controlplane.config.MappoProperties;
+import com.mappo.controlplane.domain.access.AzureWorkloadRbacTargetAccessContext;
 import com.mappo.controlplane.domain.project.BuiltinProjects;
+import com.mappo.controlplane.domain.project.AzureContainerAppHttpRuntimeHealthProviderConfig;
+import com.mappo.controlplane.domain.project.AzureDeploymentStackDriverConfig;
+import com.mappo.controlplane.domain.project.AzureWorkloadRbacAccessStrategyConfig;
+import com.mappo.controlplane.domain.project.BlobArmTemplateArtifactSourceConfig;
 import com.mappo.controlplane.domain.project.ProjectAccessStrategyType;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
@@ -130,6 +135,7 @@ class AzureDeploymentStackExecutorTests {
             MappoDeploymentScope.resource_group,
             null,
             Map.of(),
+            Map.of(),
             "test release",
             java.util.List.of(),
             OffsetDateTime.now()
@@ -138,12 +144,26 @@ class AzureDeploymentStackExecutorTests {
             "azure-managed-app-deployment-stack",
             "Azure Managed App Deployment Stack",
             ProjectAccessStrategyType.azure_workload_rbac,
+            AzureWorkloadRbacAccessStrategyConfig.defaults(),
             ProjectDeploymentDriverType.azure_deployment_stack,
+            AzureDeploymentStackDriverConfig.defaults(),
             ProjectReleaseArtifactSourceType.blob_arm_template,
-            ProjectRuntimeHealthProviderType.azure_container_app_http
+            BlobArmTemplateArtifactSourceConfig.defaults(),
+            ProjectRuntimeHealthProviderType.azure_container_app_http,
+            AzureContainerAppHttpRuntimeHealthProviderConfig.defaults()
         );
 
-        TargetDeploymentOutcome outcome = executor.deploy("run-demo", project, release, target);
+        TargetDeploymentOutcome outcome = executor.deploy(
+            "run-demo",
+            project,
+            release,
+            target,
+            new AzureWorkloadRbacTargetAccessContext(
+                "00000000-0000-0000-0000-000000000001",
+                "00000000-0000-0000-0000-000000000002",
+                "provider_service_principal"
+            )
+        );
 
         assertThat(outcome.message()).contains("reattaching to the in-flight Azure operation");
         assertThat(outcome.correlationId()).isEqualTo("azure-corr-123");

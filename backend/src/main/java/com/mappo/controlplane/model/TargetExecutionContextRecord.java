@@ -17,6 +17,37 @@ public record TargetExecutionContextRecord(
     String registryUsername,
     String registryPasswordSecretName,
     Map<String, String> tags,
-    MappoSimulatedFailureMode simulatedFailureMode
+    MappoSimulatedFailureMode simulatedFailureMode,
+    Map<String, String> executionConfig
 ) {
+    public TargetExecutionContextRecord(
+        String targetId,
+        UUID subscriptionId,
+        UUID tenantId,
+        String managedResourceGroupId,
+        String containerAppResourceId,
+        String deploymentStackName,
+        MappoRegistryAuthMode registryAuthMode,
+        String registryServer,
+        String registryUsername,
+        String registryPasswordSecretName,
+        Map<String, String> tags,
+        MappoSimulatedFailureMode simulatedFailureMode
+    ) {
+        this(
+            targetId,
+            subscriptionId,
+            tenantId,
+            managedResourceGroupId,
+            containerAppResourceId,
+            deploymentStackName,
+            registryAuthMode,
+            registryServer,
+            registryUsername,
+            registryPasswordSecretName,
+            tags,
+            simulatedFailureMode,
+            Map.of()
+        );
+    }
 }

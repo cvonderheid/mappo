@@ -1,5 +1,6 @@
 package com.mappo.controlplane.service.run;
 
+import com.mappo.controlplane.domain.access.TargetAccessValidation;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
@@ -48,7 +49,15 @@ public class RunTargetExecutionService {
             );
         }
 
-        if (!runTargetValidationService.validate(runId, capabilities, release, target, context, azureConfigured)) {
+        TargetAccessValidation validation = runTargetValidationService.validate(
+            runId,
+            capabilities,
+            release,
+            target,
+            context,
+            azureConfigured
+        );
+        if (!validation.valid()) {
             return false;
         }
 
@@ -57,6 +66,7 @@ public class RunTargetExecutionService {
             capabilities,
             release,
             context,
+            validation.accessContext(),
             azureConfigured
         );
         if (!deployment.succeeded()) {

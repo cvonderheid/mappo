@@ -1,6 +1,7 @@
 package com.mappo.controlplane.repository;
 
 import static com.mappo.controlplane.jooq.Tables.RELEASES;
+import static com.mappo.controlplane.jooq.Tables.RELEASE_EXTERNAL_INPUT_ENTRIES;
 import static com.mappo.controlplane.jooq.Tables.RELEASE_PARAMETER_DEFAULTS;
 import static com.mappo.controlplane.jooq.Tables.RELEASE_VERIFICATION_HINTS;
 
@@ -24,7 +25,11 @@ public class ReleaseQueryRepository {
     private final DSLContext dsl;
 
     public List<ReleaseRecord> listReleases() {
-        var rows = dsl.select(
+        return listReleases(null);
+    }
+
+    public List<ReleaseRecord> listReleases(String projectId) {
+        var select = dsl.select(
                 RELEASES.ID,
                 RELEASES.PROJECT_ID,
                 RELEASES.SOURCE_REF,
@@ -38,18 +43,30 @@ public class ReleaseQueryRepository {
                 RELEASES.RELEASE_NOTES,
                 RELEASES.CREATED_AT
             )
-            .from(RELEASES)
+            .from(RELEASES);
+
+        var rows = (projectId != null && !projectId.isBlank()
+            ? select.where(RELEASES.PROJECT_ID.eq(projectId))
+            : select)
             .orderBy(RELEASES.CREATED_AT.desc())
             .fetch();
 
         List<String> ids = rows.stream().map(row -> row.get(RELEASES.ID)).toList();
         Map<String, Map<String, String>> defaults = loadDefaults(ids);
+        Map<String, Map<String, String>> externalInputs = loadExternalInputs(ids);
         Map<String, List<String>> hints = loadHints(ids);
 
         List<ReleaseRecord> releases = new ArrayList<>(rows.size());
         for (Record row : rows) {
             String id = row.get(RELEASES.ID);
-            releases.add(toReleaseRecord(row, defaults.getOrDefault(id, Map.of()), hints.getOrDefault(id, List.of())));
+            releases.add(
+                toReleaseRecord(
+                    row,
+                    defaults.getOrDefault(id, Map.of()),
+                    externalInputs.getOrDefault(id, Map.of()),
+                    hints.getOrDefault(id, List.of())
+                )
+            );
         }
         return releases;
     }
@@ -78,8 +95,9 @@ public class ReleaseQueryRepository {
         }
 
         Map<String, String> defaults = loadDefaults(List.of(releaseId)).getOrDefault(releaseId, Map.of());
+        Map<String, String> externalInputs = loadExternalInputs(List.of(releaseId)).getOrDefault(releaseId, Map.of());
         List<String> hints = loadHints(List.of(releaseId)).getOrDefault(releaseId, List.of());
-        return Optional.of(toReleaseRecord(row, defaults, hints));
+        return Optional.of(toReleaseRecord(row, defaults, externalInputs, hints));
     }
 
     private Map<String, Map<String, String>> loadDefaults(List<String> releaseIds) {
@@ -105,6 +123,32 @@ public class ReleaseQueryRepository {
         return defaults;
     }
 
+    private Map<String, Map<String, String>> loadExternalInputs(List<String> releaseIds) {
+        if (releaseIds == null || releaseIds.isEmpty()) {
+            return Map.of();
+        }
+
+        var rows = dsl.select(
+                RELEASE_EXTERNAL_INPUT_ENTRIES.RELEASE_ID,
+                RELEASE_EXTERNAL_INPUT_ENTRIES.INPUT_KEY,
+                RELEASE_EXTERNAL_INPUT_ENTRIES.INPUT_VALUE
+            )
+            .from(RELEASE_EXTERNAL_INPUT_ENTRIES)
+            .where(RELEASE_EXTERNAL_INPUT_ENTRIES.RELEASE_ID.in(releaseIds))
+            .fetch();
+
+        Map<String, Map<String, String>> inputs = new LinkedHashMap<>();
+        for (Record row : rows) {
+            String releaseId = row.get(RELEASE_EXTERNAL_INPUT_ENTRIES.RELEASE_ID);
+            inputs.computeIfAbsent(releaseId, ignored -> new LinkedHashMap<>())
+                .put(
+                    row.get(RELEASE_EXTERNAL_INPUT_ENTRIES.INPUT_KEY),
+                    row.get(RELEASE_EXTERNAL_INPUT_ENTRIES.INPUT_VALUE)
+                );
+        }
+        return inputs;
+    }
+
     private Map<String, List<String>> loadHints(List<String> releaseIds) {
         if (releaseIds == null || releaseIds.isEmpty()) {
             return Map.of();
@@ -128,7 +172,12 @@ public class ReleaseQueryRepository {
         return hints;
     }
 
-    private ReleaseRecord toReleaseRecord(Record row, Map<String, String> defaults, List<String> hints) {
+    private ReleaseRecord toReleaseRecord(
+        Record row,
+        Map<String, String> defaults,
+        Map<String, String> externalInputs,
+        List<String> hints
+    ) {
         return new ReleaseRecord(
             row.get(RELEASES.ID),
             row.get(RELEASES.PROJECT_ID),
@@ -139,6 +188,7 @@ public class ReleaseQueryRepository {
             row.get(RELEASES.DEPLOYMENT_SCOPE),
             executionSettings(row),
             defaults,
+            externalInputs,
             row.get(RELEASES.RELEASE_NOTES),
             hints,
             row.get(RELEASES.CREATED_AT)

@@ -1,13 +1,16 @@
 package com.mappo.controlplane.service.run;
 
+import com.mappo.controlplane.domain.access.ResolvedTargetAccessContext;
 import com.mappo.controlplane.domain.execution.DeploymentDriver;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
+import com.mappo.controlplane.model.ExternalExecutionHandleRecord;
 import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
 import com.mappo.controlplane.jooq.enums.MappoTargetStage;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.StageErrorDetailsRecord;
 import com.mappo.controlplane.model.StageErrorRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
+import com.mappo.controlplane.repository.RunTargetCommandRepository;
 import java.util.Optional;
 import com.mappo.controlplane.service.project.ProjectExecutionCapabilities;
 import org.springframework.stereotype.Service;
@@ -16,13 +19,16 @@ import org.springframework.stereotype.Service;
 public class RunTargetDeploymentService {
 
     private final DeploymentDriverRegistry deploymentDriverRegistry;
+    private final RunTargetCommandRepository runTargetCommandRepository;
     private final RunTargetStageService runTargetStageService;
 
     public RunTargetDeploymentService(
         DeploymentDriverRegistry deploymentDriverRegistry,
+        RunTargetCommandRepository runTargetCommandRepository,
         RunTargetStageService runTargetStageService
     ) {
         this.deploymentDriverRegistry = deploymentDriverRegistry;
+        this.runTargetCommandRepository = runTargetCommandRepository;
         this.runTargetStageService = runTargetStageService;
     }
 
@@ -31,6 +37,7 @@ public class RunTargetDeploymentService {
         ProjectExecutionCapabilities capabilities,
         ReleaseRecord release,
         TargetExecutionContextRecord context,
+        ResolvedTargetAccessContext accessContext,
         boolean azureConfigured
     ) {
         var start = runTargetStageService.beginStage(
@@ -42,7 +49,8 @@ public class RunTargetDeploymentService {
         );
 
         try {
-            TargetDeploymentOutcome outcome = deployOutcome(runId, capabilities, release, context, azureConfigured);
+            TargetDeploymentOutcome outcome = deployOutcome(runId, capabilities, release, context, accessContext, azureConfigured);
+            persistExternalExecutionHandle(runId, context.targetId(), outcome.externalExecutionHandle());
             var completion = new RunTargetStageService.StageStart(outcome.correlationId(), start.startedAt());
             runTargetStageService.completeStage(
                 runId,
@@ -55,6 +63,7 @@ public class RunTargetDeploymentService {
             );
             return DeploymentResult.success(outcome.correlationId());
         } catch (TargetDeploymentException error) {
+            persistExternalExecutionHandle(runId, context.targetId(), error.getExternalExecutionHandle());
             String correlationId = error.getCorrelationId() == null || error.getCorrelationId().trim().isEmpty()
                 ? start.correlationId()
                 : error.getCorrelationId();
@@ -76,11 +85,12 @@ public class RunTargetDeploymentService {
         ProjectExecutionCapabilities capabilities,
         ReleaseRecord release,
         TargetExecutionContextRecord context,
+        ResolvedTargetAccessContext accessContext,
         boolean azureConfigured
     ) {
         Optional<DeploymentDriver> driver = capabilities.deploymentDriver();
         if (driver.isPresent()) {
-            return driver.get().deploy(runId, capabilities.project(), release, context);
+            return driver.get().deploy(runId, capabilities.project(), release, context, accessContext);
         }
         return simulateDeployment(runId, release, context);
     }
@@ -120,8 +130,24 @@ public class RunTargetDeploymentService {
         return new TargetDeploymentOutcome(
             correlationId,
             "Simulator applied release " + release.sourceVersion() + " to " + context.targetId() + ".",
-            ""
+            "",
+            new ExternalExecutionHandleRecord(
+                "simulator",
+                runId + ":" + context.targetId(),
+                "simulated-deployment",
+                "succeeded",
+                null,
+                null,
+                java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC)
+            )
         );
+    }
+
+    private void persistExternalExecutionHandle(String runId, String targetId, ExternalExecutionHandleRecord handle) {
+        if (handle == null) {
+            return;
+        }
+        runTargetCommandRepository.upsertExternalExecutionHandle(runId, targetId, handle);
     }
 
     public record DeploymentResult(boolean succeeded, String correlationId) {

@@ -2,10 +2,13 @@ package com.mappo.controlplane.infrastructure.azure.deploymentstack;
 
 import com.azure.core.management.exception.ManagementError;
 import com.azure.core.management.exception.ManagementException;
+import com.mappo.controlplane.model.ExternalExecutionHandleRecord;
 import com.mappo.controlplane.model.StageErrorDetailsRecord;
 import com.mappo.controlplane.model.StageErrorRecord;
 import com.mappo.controlplane.service.run.TargetDeploymentException;
 import com.mappo.controlplane.service.run.TargetDeploymentOutcome;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -83,7 +86,18 @@ public class AzureDeploymentStackExceptionTranslator {
                 )
             ),
             requestFactory.fallbackCorrelationId(null, runId, targetId),
-            ""
+            "",
+            context == null
+                ? null
+                : new ExternalExecutionHandleRecord(
+                    "azure_deployment_stack",
+                    context.deploymentScope(),
+                    context.stackName(),
+                    "configuration_invalid",
+                    null,
+                    null,
+                    OffsetDateTime.now(ZoneOffset.UTC)
+                )
         );
     }
 

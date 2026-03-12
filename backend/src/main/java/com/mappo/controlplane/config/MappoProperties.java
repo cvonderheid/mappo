@@ -18,6 +18,7 @@ public class MappoProperties {
     private AzureProperties azure = new AzureProperties();
     private ManagedAppReleaseProperties managedAppRelease = new ManagedAppReleaseProperties();
     private PublisherAcrProperties publisherAcr = new PublisherAcrProperties();
+    private AzureDevOpsProperties azureDevOps = new AzureDevOpsProperties();
     private RuntimeProbeProperties runtimeProbe = new RuntimeProbeProperties();
     private SseProperties sse = new SseProperties();
     private RetentionProperties retention = new RetentionProperties();
@@ -50,6 +51,16 @@ public class MappoProperties {
         private String pullClientId = "";
         private String pullClientSecret = "";
         private String pullSecretName = "publisher-acr-pull";
+    }
+
+    @Getter
+    @Setter
+    public static class AzureDevOpsProperties {
+        private String baseUrl = "https://dev.azure.com";
+        private String personalAccessToken = "";
+        private String apiVersion = "7.1";
+        private long connectTimeoutMs = 10_000L;
+        private long readTimeoutMs = 30_000L;
     }
 
     @Getter

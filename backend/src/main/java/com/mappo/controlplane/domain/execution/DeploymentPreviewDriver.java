@@ -1,5 +1,6 @@
 package com.mappo.controlplane.domain.execution;
 
+import com.mappo.controlplane.domain.access.ResolvedTargetAccessContext;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.RunPreviewMode;
@@ -12,5 +13,10 @@ public interface DeploymentPreviewDriver {
 
     RunPreviewMode mode();
 
-    TargetPreviewOutcome preview(ProjectDefinition project, ReleaseRecord release, TargetExecutionContextRecord target);
+    TargetPreviewOutcome preview(
+        ProjectDefinition project,
+        ReleaseRecord release,
+        TargetExecutionContextRecord target,
+        ResolvedTargetAccessContext accessContext
+    );
 }

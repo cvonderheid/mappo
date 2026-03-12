@@ -13,6 +13,19 @@ public record RunTargetRecord(
     Integer attempt,
     OffsetDateTime updatedAt,
     List<TargetStageRecord> stages,
-    List<TargetLogEventRecord> logs
+    List<TargetLogEventRecord> logs,
+    ExternalExecutionHandleRecord externalExecutionHandle
 ) {
+    public RunTargetRecord(
+        String targetId,
+        UUID subscriptionId,
+        UUID tenantId,
+        MappoTargetStage status,
+        Integer attempt,
+        OffsetDateTime updatedAt,
+        List<TargetStageRecord> stages,
+        List<TargetLogEventRecord> logs
+    ) {
+        this(targetId, subscriptionId, tenantId, status, attempt, updatedAt, stages, logs, null);
+    }
 }

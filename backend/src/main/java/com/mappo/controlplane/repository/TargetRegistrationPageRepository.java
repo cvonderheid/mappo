@@ -1,6 +1,7 @@
 package com.mappo.controlplane.repository;
 
 import static com.mappo.controlplane.jooq.Tables.TARGETS;
+import static com.mappo.controlplane.jooq.Tables.TARGET_EXECUTION_CONFIG_ENTRIES;
 import static com.mappo.controlplane.jooq.Tables.TARGET_REGISTRATIONS;
 import static com.mappo.controlplane.jooq.Tables.TARGET_TAGS;
 
@@ -73,11 +74,18 @@ public class TargetRegistrationPageRepository {
 
         List<String> targetIds = rows.stream().map(row -> row.get(TARGET_REGISTRATIONS.TARGET_ID)).toList();
         Map<String, Map<String, String>> tagsByTarget = loadTags(targetIds);
+        Map<String, Map<String, String>> executionConfigByTarget = loadExecutionConfig(targetIds);
 
         List<TargetRegistrationRecord> registrations = new ArrayList<>(rows.size());
         for (Record row : rows) {
             String targetId = row.get(TARGET_REGISTRATIONS.TARGET_ID);
-            registrations.add(toRegistrationRecord(row, tagsByTarget.getOrDefault(targetId, Map.of())));
+            registrations.add(
+                toRegistrationRecord(
+                    row,
+                    tagsByTarget.getOrDefault(targetId, Map.of()),
+                    executionConfigByTarget.getOrDefault(targetId, Map.of())
+                )
+            );
         }
         return new TargetRegistrationPageRecord(
             registrations,
@@ -104,7 +112,37 @@ public class TargetRegistrationPageRepository {
         return tags;
     }
 
-    private TargetRegistrationRecord toRegistrationRecord(Record row, Map<String, String> tags) {
+    private Map<String, Map<String, String>> loadExecutionConfig(List<String> targetIds) {
+        if (targetIds == null || targetIds.isEmpty()) {
+            return Map.of();
+        }
+
+        var rows = dsl.select(
+                TARGET_EXECUTION_CONFIG_ENTRIES.TARGET_ID,
+                TARGET_EXECUTION_CONFIG_ENTRIES.CONFIG_KEY,
+                TARGET_EXECUTION_CONFIG_ENTRIES.CONFIG_VALUE
+            )
+            .from(TARGET_EXECUTION_CONFIG_ENTRIES)
+            .where(TARGET_EXECUTION_CONFIG_ENTRIES.TARGET_ID.in(targetIds))
+            .fetch();
+
+        Map<String, Map<String, String>> config = new LinkedHashMap<>();
+        for (Record row : rows) {
+            String targetId = row.get(TARGET_EXECUTION_CONFIG_ENTRIES.TARGET_ID);
+            config.computeIfAbsent(targetId, ignored -> new LinkedHashMap<>())
+                .put(
+                    row.get(TARGET_EXECUTION_CONFIG_ENTRIES.CONFIG_KEY),
+                    row.get(TARGET_EXECUTION_CONFIG_ENTRIES.CONFIG_VALUE)
+                );
+        }
+        return config;
+    }
+
+    private TargetRegistrationRecord toRegistrationRecord(
+        Record row,
+        Map<String, String> tags,
+        Map<String, String> executionConfig
+    ) {
         return new TargetRegistrationRecord(
             row.get(TARGET_REGISTRATIONS.TARGET_ID),
             row.get(TARGETS.TENANT_ID),
@@ -122,7 +160,8 @@ public class TargetRegistrationPageRepository {
                 row.get(TARGET_REGISTRATIONS.REGISTRY_AUTH_MODE),
                 nullableText(row.get(TARGET_REGISTRATIONS.REGISTRY_SERVER)),
                 nullableText(row.get(TARGET_REGISTRATIONS.REGISTRY_USERNAME)),
-                nullableText(row.get(TARGET_REGISTRATIONS.REGISTRY_PASSWORD_SECRET_NAME))
+                nullableText(row.get(TARGET_REGISTRATIONS.REGISTRY_PASSWORD_SECRET_NAME)),
+                executionConfig == null || executionConfig.isEmpty() ? null : Map.copyOf(executionConfig)
             ),
             row.get(TARGET_REGISTRATIONS.LAST_EVENT_ID),
             row.get(TARGETS.LAST_DEPLOYED_RELEASE),

@@ -56,6 +56,7 @@ abstract class PostgresIntegrationTestBase {
             TRUNCATE TABLE
               target_log_events,
               target_stage_records,
+              target_external_execution_handles,
               target_execution_records,
               run_targets,
               run_guardrail_warnings,
@@ -68,6 +69,7 @@ abstract class PostgresIntegrationTestBase {
               marketplace_events,
               forwarder_logs,
               target_runtime_probes,
+              target_execution_config_entries,
               target_registrations,
               target_tags,
               targets

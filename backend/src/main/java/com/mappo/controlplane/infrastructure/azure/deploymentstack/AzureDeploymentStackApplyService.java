@@ -2,7 +2,10 @@ package com.mappo.controlplane.infrastructure.azure.deploymentstack;
 
 import com.azure.core.management.exception.ManagementError;
 import com.azure.resourcemanager.resources.fluent.models.DeploymentOperationInner;
+import com.mappo.controlplane.model.ExternalExecutionHandleRecord;
 import com.mappo.controlplane.service.run.TargetDeploymentOutcome;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -81,7 +84,16 @@ public class AzureDeploymentStackApplyService {
         return new TargetDeploymentOutcome(
             correlationId,
             "Deployment Stack " + stackName + " succeeded.",
-            ""
+            "",
+            new ExternalExecutionHandleRecord(
+                "azure_deployment_stack",
+                requestFactory.firstNonBlank(requestFactory.normalize(diagnosticsStack.id()), requestFactory.normalize(diagnosticsStack.deploymentId())),
+                stackName,
+                requestFactory.firstNonBlank(provisioningState, "succeeded"),
+                null,
+                null,
+                OffsetDateTime.now(ZoneOffset.UTC)
+            )
         );
     }
 }

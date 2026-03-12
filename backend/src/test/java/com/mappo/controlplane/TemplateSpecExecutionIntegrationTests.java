@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.mappo.controlplane.domain.access.ResolvedTargetAccessContext;
 import com.mappo.controlplane.domain.health.TargetVerificationProvider;
 import com.mappo.controlplane.domain.project.BuiltinProjects;
 import com.mappo.controlplane.domain.project.ProjectRuntimeHealthProviderType;
@@ -158,7 +159,8 @@ class TemplateSpecExecutionIntegrationTests extends PostgresIntegrationTestBase 
             String runId,
             ProjectDefinition project,
             ReleaseRecord release,
-            TargetExecutionContextRecord target
+            TargetExecutionContextRecord target,
+            ResolvedTargetAccessContext accessContext
         ) {
             return new TargetDeploymentOutcome(
                 "corr-" + runId + "-" + target.targetId() + "-deploy",

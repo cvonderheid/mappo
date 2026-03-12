@@ -5,7 +5,10 @@ import com.azure.core.management.exception.ManagementException;
 import com.azure.resourcemanager.resources.ResourceManager;
 import com.azure.resourcemanager.resources.fluent.models.DeploymentOperationInner;
 import com.azure.resourcemanager.resources.fluent.models.DeploymentStackInner;
+import com.mappo.controlplane.model.ExternalExecutionHandleRecord;
 import com.mappo.controlplane.service.run.TargetDeploymentOutcome;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -65,7 +68,16 @@ public class AzureDeploymentStackRecoveryService {
             return new TargetDeploymentOutcome(
                 correlationId,
                 "Deployment Stack " + stackName + " succeeded after reattaching to the in-flight Azure operation.",
-                ""
+                "",
+                new ExternalExecutionHandleRecord(
+                    "azure_deployment_stack",
+                    requestFactory.firstNonBlank(requestFactory.normalize(diagnosticsStack.id()), requestFactory.normalize(diagnosticsStack.deploymentId())),
+                    stackName,
+                    "reattached_succeeded",
+                    null,
+                    null,
+                    OffsetDateTime.now(ZoneOffset.UTC)
+                )
             );
         }
 

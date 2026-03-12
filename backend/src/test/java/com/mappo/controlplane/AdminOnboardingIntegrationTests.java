@@ -72,7 +72,12 @@ class AdminOnboardingIntegrationTests extends PostgresIntegrationTestBase {
                         "registryAuthMode": "shared_service_principal_secret",
                         "registryServer": "acrmappodemo.azurecr.io",
                         "registryUsername": "00000000-0000-0000-0000-000000000123",
-                        "registryPasswordSecretName": "publisher-acr-pull"
+                        "registryPasswordSecretName": "publisher-acr-pull",
+                        "executionConfig": {
+                          "pipeline.organization": "contoso",
+                          "pipeline.project": "platform",
+                          "pipeline.id": "42"
+                        }
                       }
                     }
                     """))
@@ -80,7 +85,10 @@ class AdminOnboardingIntegrationTests extends PostgresIntegrationTestBase {
             .andExpect(jsonPath("$.targetId").value("target-admin-01"))
             .andExpect(jsonPath("$.customerName").value("Acme Updated"))
             .andExpect(jsonPath("$.metadata.deploymentStackName").value("mappo-stack-acme-01"))
-            .andExpect(jsonPath("$.metadata.registryAuthMode").value("shared_service_principal_secret"));
+            .andExpect(jsonPath("$.metadata.registryAuthMode").value("shared_service_principal_secret"))
+            .andExpect(jsonPath("$.metadata.executionConfig['pipeline.organization']").value("contoso"))
+            .andExpect(jsonPath("$.metadata.executionConfig['pipeline.project']").value("platform"))
+            .andExpect(jsonPath("$.metadata.executionConfig['pipeline.id']").value("42"));
 
         mockMvc.perform(get("/api/v1/targets/page"))
             .andExpect(status().isOk())
@@ -107,7 +115,10 @@ class AdminOnboardingIntegrationTests extends PostgresIntegrationTestBase {
             .andExpect(jsonPath("$.items[0].metadata.registryAuthMode").value("shared_service_principal_secret"))
             .andExpect(jsonPath("$.items[0].metadata.registryServer").value("acrmappodemo.azurecr.io"))
             .andExpect(jsonPath("$.items[0].metadata.registryUsername").value("00000000-0000-0000-0000-000000000123"))
-            .andExpect(jsonPath("$.items[0].metadata.registryPasswordSecretName").value("publisher-acr-pull"));
+            .andExpect(jsonPath("$.items[0].metadata.registryPasswordSecretName").value("publisher-acr-pull"))
+            .andExpect(jsonPath("$.items[0].metadata.executionConfig['pipeline.organization']").value("contoso"))
+            .andExpect(jsonPath("$.items[0].metadata.executionConfig['pipeline.project']").value("platform"))
+            .andExpect(jsonPath("$.items[0].metadata.executionConfig['pipeline.id']").value("42"));
 
         mockMvc.perform(get("/api/v1/admin/onboarding/events"))
             .andExpect(status().isOk())

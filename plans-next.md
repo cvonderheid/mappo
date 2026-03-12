@@ -316,6 +316,7 @@ Status: demo green; live GitHub webhook delivery setup pending
 
 ## Detailed Plan
 - `/Users/cvonderheid/workspace/mappo/docs/azure-production-execution-plan.md`
+- `/Users/cvonderheid/workspace/mappo/docs/ado-multi-project-sprint-plan.md`
 
 ## Milestone M: Modular Execution Platform
 **Scope**
@@ -339,5 +340,11 @@ Status: demo green; live GitHub webhook delivery setup pending
 - [x] Respect runtime-probe/project verification selection when choosing verification providers
 - [x] Split run orchestration into coordinator/preparation/batch/completion services
 - [x] Introduce persistent project-level driver/access/health selection
-- [ ] Split the remaining workflow-heavy Azure executor helpers by responsibility
-- [ ] Add the first non-Deployment-Stack driver
+- [x] Split the remaining workflow-heavy Azure executor helpers by responsibility
+- [ ] Sprint 1: prepare the platform and Azure environment for the first ADO-backed project
+  - [x] generic driver/access contracts finalized
+  - [x] App Service fleet module + scripts added
+  - [ ] target subscriptions provisioned
+  - [ ] ADO service connection + Lighthouse validated
+- [ ] Sprint 2: implement the Azure DevOps `pipeline_trigger` driver MVP
+- [ ] Sprint 3: harden the multi-project, multi-driver experience and decide on Pulumi next

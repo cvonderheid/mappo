@@ -46,6 +46,7 @@ public class ReleaseService {
             command.whatIfOnCanary(),
             command.verifyAfterDeploy(),
             command.parameterDefaults(),
+            command.externalInputs(),
             command.releaseNotes(),
             command.verificationHints()
         ));

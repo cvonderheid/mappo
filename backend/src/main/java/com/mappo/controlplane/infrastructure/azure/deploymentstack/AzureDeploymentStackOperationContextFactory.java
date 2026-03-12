@@ -1,6 +1,7 @@
 package com.mappo.controlplane.infrastructure.azure.deploymentstack;
 
 import com.azure.resourcemanager.resources.ResourceManager;
+import com.mappo.controlplane.domain.access.AzureWorkloadRbacTargetAccessContext;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.infrastructure.azure.auth.AzureExecutorClient;
 import com.mappo.controlplane.model.ReleaseRecord;
@@ -20,10 +21,11 @@ public class AzureDeploymentStackOperationContextFactory {
     public AzureDeploymentStackOperationContext resolve(
         ProjectDefinition project,
         ReleaseRecord release,
-        TargetExecutionContextRecord target
+        TargetExecutionContextRecord target,
+        AzureWorkloadRbacTargetAccessContext accessContext
     ) {
-        String tenantId = support.uuidText(target.tenantId(), "tenantId", "deployment_stack execution");
-        String subscriptionId = support.uuidText(target.subscriptionId(), "subscriptionId", "deployment_stack execution");
+        String tenantId = support.uuidText(accessContext.tenantId(), "tenantId", "deployment_stack execution");
+        String subscriptionId = support.uuidText(accessContext.subscriptionId(), "subscriptionId", "deployment_stack execution");
         ResourceManager resourceManager = azureExecutorClient.createResourceManager(tenantId, subscriptionId);
         DeploymentStackTemplateInputs inputs = releaseMaterializerRegistry.materialize(
             project,

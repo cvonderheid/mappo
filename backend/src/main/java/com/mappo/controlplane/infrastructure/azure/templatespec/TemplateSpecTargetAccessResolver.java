@@ -1,7 +1,9 @@
 package com.mappo.controlplane.infrastructure.azure.templatespec;
 
+import com.mappo.controlplane.domain.access.AzureWorkloadRbacTargetAccessContext;
 import com.mappo.controlplane.domain.access.TargetAccessResolver;
 import com.mappo.controlplane.domain.access.TargetAccessValidation;
+import com.mappo.controlplane.domain.project.AzureWorkloadRbacAccessStrategyConfig;
 import com.mappo.controlplane.domain.project.ProjectAccessStrategyType;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
@@ -41,6 +43,7 @@ public class TemplateSpecTargetAccessResolver implements TargetAccessResolver {
                 )
             );
         }
+        AzureWorkloadRbacAccessStrategyConfig config = (AzureWorkloadRbacAccessStrategyConfig) project.accessStrategyConfig();
 
         if (azureConfigured && release.deploymentScope() == MappoDeploymentScope.resource_group) {
             if (blank(context.managedResourceGroupId())) {
@@ -54,11 +57,23 @@ public class TemplateSpecTargetAccessResolver implements TargetAccessResolver {
                 );
             }
             return TargetAccessValidation.success(
-                "Validated target " + target.id() + "; deploying into resource group " + resourceGroupName(context.managedResourceGroupId()) + "."
+                "Validated target " + target.id() + "; deploying into resource group " + resourceGroupName(context.managedResourceGroupId()) + ".",
+                new AzureWorkloadRbacTargetAccessContext(
+                    context.tenantId() == null ? "" : context.tenantId().toString(),
+                    context.subscriptionId() == null ? "" : context.subscriptionId().toString(),
+                    config.authModel()
+                )
             );
         }
 
-        return TargetAccessValidation.success("Validated target " + target.id() + " for simulator execution.");
+        return TargetAccessValidation.success(
+            "Validated target " + target.id() + " for simulator execution.",
+            new AzureWorkloadRbacTargetAccessContext(
+                context.tenantId() == null ? "" : context.tenantId().toString(),
+                context.subscriptionId() == null ? "" : context.subscriptionId().toString(),
+                config.authModel()
+            )
+        );
     }
 
     private String resourceGroupName(String resourceId) {

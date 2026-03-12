@@ -116,6 +116,9 @@ function AppShell() {
   const isFleetRouteRef = useRef<boolean>(false);
   const isAdminRouteRef = useRef<boolean>(false);
   const previousRouteSectionRef = useRef<string | null>(null);
+  const previousIsDeploymentRouteRef = useRef<boolean>(false);
+  const previousIsFleetRouteRef = useRef<boolean>(false);
+  const previousIsAdminRouteRef = useRef<boolean>(false);
   const isDeploymentRoute = useMemo(
     () => location.pathname.startsWith("/deployments"),
     [location.pathname]
@@ -230,8 +233,7 @@ function AppShell() {
   }, []);
 
   const refreshRuns = useCallback(async () => {
-    if (!selectedProjectId || !isDeploymentRouteRef.current) {
-      setRunsPage(null);
+    if (!selectedProjectId) {
       return;
     }
     try {
@@ -343,6 +345,64 @@ function AppShell() {
       void refreshRunSummary();
     }
   }, [selectedProjectId]);
+
+  useEffect(() => {
+    if (!selectedProjectId || !isDeploymentRoute) {
+      return;
+    }
+    void refreshRuns();
+  }, [
+    isDeploymentRoute,
+    refreshRuns,
+    runIdFilter,
+    runPage,
+    runPageSize,
+    runReleaseFilter,
+    runStatusFilter,
+    selectedProjectId,
+  ]);
+
+  useEffect(() => {
+    const wasDeploymentRoute = previousIsDeploymentRouteRef.current;
+    previousIsDeploymentRouteRef.current = isDeploymentRoute;
+
+    if (!selectedProjectId || !isDeploymentRoute || wasDeploymentRoute) {
+      return;
+    }
+
+    void refreshRunsRef.current();
+    void refreshTargetsRef.current();
+    void refreshReleasesRef.current();
+    if (selectedRunIdRef.current) {
+      void refreshRunDetailRef.current(selectedRunIdRef.current);
+    }
+  }, [isDeploymentRoute, selectedProjectId]);
+
+  useEffect(() => {
+    const wasFleetRoute = previousIsFleetRouteRef.current;
+    previousIsFleetRouteRef.current = isFleetRoute;
+
+    if (!selectedProjectId || !isFleetRoute || wasFleetRoute) {
+      return;
+    }
+
+    void refreshTargetsRef.current();
+    void refreshReleasesRef.current();
+    void refreshRunSummary();
+  }, [isFleetRoute, refreshRunSummary, selectedProjectId]);
+
+  useEffect(() => {
+    const wasAdminRoute = previousIsAdminRouteRef.current;
+    previousIsAdminRouteRef.current = isAdminRoute;
+
+    if (!selectedProjectId || !isAdminRoute || wasAdminRoute) {
+      return;
+    }
+
+    void refreshRegistrationOptionsRef.current();
+    void refreshReleasesRef.current();
+    void refreshRunSummary();
+  }, [isAdminRoute, refreshRunSummary, selectedProjectId]);
 
   useEffect(() => {
     const currentRouteSection = isDeploymentRoute
@@ -507,6 +567,43 @@ function AppShell() {
       if (isAdminRouteRef.current) {
         scheduleRefresh("admin", () => {
           void refreshRegistrationOptionsRef.current();
+        });
+      }
+    });
+
+    eventSource.addEventListener("connected", (event: MessageEvent<string>) => {
+      const payload = parseLiveUpdateEvent(event.data);
+      if (!matchesSelectedProject(payload?.projectId)) {
+        return;
+      }
+      if (isDeploymentRouteRef.current) {
+        scheduleRefresh("targets", () => {
+          void refreshTargetsRef.current();
+        });
+        scheduleRefresh("releases", () => {
+          void refreshReleasesRef.current();
+        });
+        scheduleRefresh("runs", () => {
+          void refreshRunsRef.current();
+        });
+        refreshSelectedRun(selectedRunIdRef.current);
+        return;
+      }
+      if (isAdminRouteRef.current) {
+        scheduleRefresh("admin", () => {
+          void refreshRegistrationOptionsRef.current();
+        });
+        scheduleRefresh("releases", () => {
+          void refreshReleasesRef.current();
+        });
+        return;
+      }
+      if (isFleetRouteRef.current) {
+        scheduleRefresh("targets", () => {
+          void refreshTargetsRef.current();
+        });
+        scheduleRefresh("releases", () => {
+          void refreshReleasesRef.current();
         });
       }
     });

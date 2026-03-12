@@ -4,6 +4,7 @@ import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.TargetRegistrationPatchRequest;
 import com.mappo.controlplane.model.TargetRegistrationRecord;
 import com.mappo.controlplane.repository.TargetCommandRepository;
+import com.mappo.controlplane.repository.TargetExecutionConfigCommandRepository;
 import com.mappo.controlplane.repository.TargetRecordQueryRepository;
 import com.mappo.controlplane.repository.TargetRegistrationCommandRepository;
 import com.mappo.controlplane.repository.TargetRegistrationQueryRepository;
@@ -21,6 +22,7 @@ public class TargetRegistrationCommandService {
     private final TargetRegistrationQueryRepository targetRegistrationQueryRepository;
     private final TargetRegistrationCommandRepository targetRegistrationCommandRepository;
     private final TargetCommandRepository targetCommandRepository;
+    private final TargetExecutionConfigCommandRepository targetExecutionConfigCommandRepository;
     private final TargetRecordQueryRepository targetRecordQueryRepository;
     private final LiveUpdateService liveUpdateService;
     private final TransactionHookService transactionHookService;
@@ -36,6 +38,12 @@ public class TargetRegistrationCommandService {
         }
 
         targetRegistrationCommandRepository.updateRegistrationAndTarget(targetId, patch.toCommand());
+        if (patch.metadata() != null && patch.metadata().executionConfig() != null) {
+            targetExecutionConfigCommandRepository.replaceConfigEntries(
+                targetId,
+                patch.metadata().sanitizedExecutionConfig()
+            );
+        }
         String projectId = targetRecordQueryRepository.getTarget(targetId)
             .map(target -> target.projectId() == null ? "" : target.projectId())
             .orElse("");

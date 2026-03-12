@@ -2,11 +2,13 @@ package com.mappo.controlplane.repository;
 
 import static com.mappo.controlplane.jooq.Tables.RUNS;
 import static com.mappo.controlplane.jooq.Tables.TARGET_EXECUTION_RECORDS;
+import static com.mappo.controlplane.jooq.Tables.TARGET_EXTERNAL_EXECUTION_HANDLES;
 import static com.mappo.controlplane.jooq.Tables.TARGET_LOG_EVENTS;
 import static com.mappo.controlplane.jooq.Tables.TARGET_STAGE_RECORDS;
 
 import com.mappo.controlplane.jooq.enums.MappoForwarderLogLevel;
 import com.mappo.controlplane.jooq.enums.MappoTargetStage;
+import com.mappo.controlplane.model.ExternalExecutionHandleRecord;
 import com.mappo.controlplane.model.StageErrorDetailsRecord;
 import com.mappo.controlplane.model.StageErrorRecord;
 import java.time.OffsetDateTime;
@@ -95,6 +97,35 @@ public class RunTargetCommandRepository {
             .set(TARGET_LOG_EVENTS.CORRELATION_ID, normalize(correlationId))
             .execute();
         touchRun(runId, OffsetDateTime.now(ZoneOffset.UTC));
+    }
+
+    public void upsertExternalExecutionHandle(String runId, String targetId, ExternalExecutionHandleRecord handle) {
+        if (handle == null) {
+            return;
+        }
+
+        OffsetDateTime updatedAt = handle.updatedAt() == null ? OffsetDateTime.now(ZoneOffset.UTC) : handle.updatedAt();
+        dsl.insertInto(TARGET_EXTERNAL_EXECUTION_HANDLES)
+            .set(TARGET_EXTERNAL_EXECUTION_HANDLES.RUN_ID, runId)
+            .set(TARGET_EXTERNAL_EXECUTION_HANDLES.TARGET_ID, targetId)
+            .set(TARGET_EXTERNAL_EXECUTION_HANDLES.PROVIDER, handle.provider())
+            .set(TARGET_EXTERNAL_EXECUTION_HANDLES.EXECUTION_ID, nullableText(handle.executionId()))
+            .set(TARGET_EXTERNAL_EXECUTION_HANDLES.EXECUTION_NAME, nullableText(handle.executionName()))
+            .set(TARGET_EXTERNAL_EXECUTION_HANDLES.EXECUTION_STATUS, nullableText(handle.executionStatus()))
+            .set(TARGET_EXTERNAL_EXECUTION_HANDLES.EXECUTION_URL, nullableText(handle.executionUrl()))
+            .set(TARGET_EXTERNAL_EXECUTION_HANDLES.LOGS_URL, nullableText(handle.logsUrl()))
+            .set(TARGET_EXTERNAL_EXECUTION_HANDLES.UPDATED_AT, updatedAt)
+            .onConflict(TARGET_EXTERNAL_EXECUTION_HANDLES.RUN_ID, TARGET_EXTERNAL_EXECUTION_HANDLES.TARGET_ID)
+            .doUpdate()
+            .set(TARGET_EXTERNAL_EXECUTION_HANDLES.PROVIDER, handle.provider())
+            .set(TARGET_EXTERNAL_EXECUTION_HANDLES.EXECUTION_ID, nullableText(handle.executionId()))
+            .set(TARGET_EXTERNAL_EXECUTION_HANDLES.EXECUTION_NAME, nullableText(handle.executionName()))
+            .set(TARGET_EXTERNAL_EXECUTION_HANDLES.EXECUTION_STATUS, nullableText(handle.executionStatus()))
+            .set(TARGET_EXTERNAL_EXECUTION_HANDLES.EXECUTION_URL, nullableText(handle.executionUrl()))
+            .set(TARGET_EXTERNAL_EXECUTION_HANDLES.LOGS_URL, nullableText(handle.logsUrl()))
+            .set(TARGET_EXTERNAL_EXECUTION_HANDLES.UPDATED_AT, updatedAt)
+            .execute();
+        touchRun(runId, updatedAt);
     }
 
     public List<String> requeueFailedTargets(String runId, String message) {

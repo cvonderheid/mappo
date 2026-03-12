@@ -17,6 +17,7 @@ public record TargetRegistrationPatchCommand(
     String registryServer,
     String registryUsername,
     String registryPasswordSecretName,
+    Map<String, String> executionConfig,
     String lastDeployedRelease,
     MappoHealthStatus healthStatus,
     Map<String, String> tags

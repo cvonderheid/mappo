@@ -1,6 +1,7 @@
 package com.mappo.controlplane.infrastructure.azure.runtime;
 
 import com.mappo.controlplane.domain.health.TargetVerificationProvider;
+import com.mappo.controlplane.domain.project.AzureContainerAppHttpRuntimeHealthProviderConfig;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectRuntimeHealthProviderType;
 import com.mappo.controlplane.config.MappoProperties;
@@ -53,7 +54,7 @@ public class AzureRuntimeTargetVerificationProvider implements TargetVerificatio
             || !release.executionSettings().verifyAfterDeploy()) {
             return false;
         }
-        TargetRuntimeProbeContextRecord probeContext = toProbeContext(target, context);
+        TargetRuntimeProbeContextRecord probeContext = toProbeContext(project, target, context);
         return probeContext != null && runtimeHealthProviderRegistry.findConfigured(probeContext).isPresent();
     }
 
@@ -65,7 +66,7 @@ public class AzureRuntimeTargetVerificationProvider implements TargetVerificatio
         TargetExecutionContextRecord context,
         boolean azureConfigured
     ) {
-        TargetRuntimeProbeContextRecord probeContext = toProbeContext(target, context);
+        TargetRuntimeProbeContextRecord probeContext = toProbeContext(project, target, context);
         if (probeContext == null) {
             String message = "Runtime verification could not run because the target is missing probe metadata.";
             return TargetVerificationResultRecord.failure(
@@ -97,7 +98,11 @@ public class AzureRuntimeTargetVerificationProvider implements TargetVerificatio
         );
     }
 
-    private TargetRuntimeProbeContextRecord toProbeContext(TargetRecord target, TargetExecutionContextRecord context) {
+    private TargetRuntimeProbeContextRecord toProbeContext(
+        ProjectDefinition project,
+        TargetRecord target,
+        TargetExecutionContextRecord context
+    ) {
         if (target == null || context == null) {
             return null;
         }
@@ -112,8 +117,34 @@ public class AzureRuntimeTargetVerificationProvider implements TargetVerificatio
             target.projectId(),
             tenantId,
             subscriptionId,
-            containerAppResourceId
+            containerAppResourceId,
+            project.runtimeHealthProvider(),
+            runtimeHealthPath(project),
+            runtimeHealthExpectedStatus(project),
+            runtimeHealthTimeoutMs(project),
+            context.executionConfig()
         );
+    }
+
+    private String runtimeHealthPath(ProjectDefinition project) {
+        if (project.runtimeHealthProviderConfig() instanceof AzureContainerAppHttpRuntimeHealthProviderConfig config) {
+            return config.path();
+        }
+        return AzureContainerAppHttpRuntimeHealthProviderConfig.defaults().path();
+    }
+
+    private int runtimeHealthExpectedStatus(ProjectDefinition project) {
+        if (project.runtimeHealthProviderConfig() instanceof AzureContainerAppHttpRuntimeHealthProviderConfig config) {
+            return config.expectedStatus();
+        }
+        return AzureContainerAppHttpRuntimeHealthProviderConfig.defaults().expectedStatus();
+    }
+
+    private long runtimeHealthTimeoutMs(ProjectDefinition project) {
+        if (project.runtimeHealthProviderConfig() instanceof AzureContainerAppHttpRuntimeHealthProviderConfig config) {
+            return config.timeoutMs();
+        }
+        return AzureContainerAppHttpRuntimeHealthProviderConfig.defaults().timeoutMs();
     }
 
     private StageErrorRecord stageError(

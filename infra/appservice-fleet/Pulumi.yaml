@@ -1,0 +1,3 @@
+name: mappo-appservice-fleet
+runtime: java
+description: Demo App Service target fleet infrastructure for the ADO pipeline project

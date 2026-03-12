@@ -1,5 +1,6 @@
 package com.mappo.controlplane.service.run;
 
+import com.mappo.controlplane.domain.access.ResolvedTargetAccessContext;
 import com.mappo.controlplane.domain.execution.DeploymentDriver;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
@@ -21,6 +22,7 @@ public interface DeploymentStackExecutor extends DeploymentDriver {
         String runId,
         ProjectDefinition project,
         ReleaseRecord release,
-        TargetExecutionContextRecord target
+        TargetExecutionContextRecord target,
+        ResolvedTargetAccessContext accessContext
     );
 }

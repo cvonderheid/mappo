@@ -396,12 +396,22 @@ export interface components {
             /** Format: double */
             maxFailureRate?: number;
         };
+        ExternalExecutionHandleRecord: {
+            provider?: string;
+            executionId?: string;
+            executionName?: string;
+            executionStatus?: string;
+            executionUrl?: string;
+            logsUrl?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
         RunDetailRecord: {
             id?: string;
             projectId?: string;
             releaseId?: string;
             /** @enum {string} */
-            executionSourceType?: "template_spec" | "bicep" | "deployment_stack";
+            executionSourceType?: "template_spec" | "bicep" | "deployment_stack" | "external_deployment_inputs";
             /** @enum {string} */
             status?: "running" | "succeeded" | "failed" | "partial" | "halted";
             /** @enum {string} */
@@ -445,6 +455,7 @@ export interface components {
             updatedAt?: string;
             stages?: components["schemas"]["TargetStageRecord"][];
             logs?: components["schemas"]["TargetLogEventRecord"][];
+            externalExecutionHandle?: components["schemas"]["ExternalExecutionHandleRecord"];
         };
         StageErrorDetailsRecord: {
             /** Format: int32 */
@@ -523,12 +534,15 @@ export interface components {
             sourceRef: string;
             sourceVersion: string;
             /** @enum {string} */
-            sourceType?: "template_spec" | "bicep" | "deployment_stack";
+            sourceType?: "template_spec" | "bicep" | "deployment_stack" | "external_deployment_inputs";
             sourceVersionRef?: string;
             /** @enum {string} */
             deploymentScope?: "resource_group" | "subscription";
             executionSettings?: components["schemas"]["ReleaseExecutionSettingsRequest"];
             parameterDefaults?: {
+                [key: string]: string;
+            };
+            externalInputs?: {
                 [key: string]: string;
             };
             releaseNotes?: string;
@@ -552,12 +566,15 @@ export interface components {
             sourceRef?: string;
             sourceVersion?: string;
             /** @enum {string} */
-            sourceType?: "template_spec" | "bicep" | "deployment_stack";
+            sourceType?: "template_spec" | "bicep" | "deployment_stack" | "external_deployment_inputs";
             sourceVersionRef?: string;
             /** @enum {string} */
             deploymentScope?: "resource_group" | "subscription";
             executionSettings?: components["schemas"]["ReleaseExecutionSettingsRecord"];
             parameterDefaults?: {
+                [key: string]: string;
+            };
+            externalInputs?: {
                 [key: string]: string;
             };
             releaseNotes?: string;
@@ -619,6 +636,9 @@ export interface components {
         OnboardingEventMetadataRequest: {
             source?: string;
             marketplacePayloadId?: string;
+            executionConfig?: {
+                [key: string]: string;
+            };
         };
         OnboardingEventRequest: {
             eventId: string;
@@ -664,6 +684,9 @@ export interface components {
             registryServer?: string;
             registryUsername?: string;
             registryPasswordSecretName?: string;
+            executionConfig?: {
+                [key: string]: string;
+            };
         };
         TargetRegistrationPatchRequest: {
             displayName?: string;
@@ -688,6 +711,9 @@ export interface components {
             registryServer?: string;
             registryUsername?: string;
             registryPasswordSecretName?: string;
+            executionConfig?: {
+                [key: string]: string;
+            };
         };
         TargetRegistrationRecord: {
             targetId?: string;
@@ -791,7 +817,7 @@ export interface components {
             projectId?: string;
             releaseId?: string;
             /** @enum {string} */
-            executionSourceType?: "template_spec" | "bicep" | "deployment_stack";
+            executionSourceType?: "template_spec" | "bicep" | "deployment_stack" | "external_deployment_inputs";
             /** @enum {string} */
             status?: "running" | "succeeded" | "failed" | "partial" | "halted";
             /** @enum {string} */
@@ -817,17 +843,82 @@ export interface components {
             haltReason?: string;
             guardrailWarnings?: string[];
         };
+        AzureContainerAppHttpRuntimeHealthProviderConfig: components["schemas"]["ProjectRuntimeHealthProviderConfig"] & {
+            path?: string;
+            /** Format: int32 */
+            expectedStatus?: number;
+            /** Format: int64 */
+            timeoutMs?: number;
+        };
+        AzureDeploymentStackDriverConfig: components["schemas"]["ProjectDeploymentDriverConfig"] & {
+            supportsPreview?: boolean;
+            previewMode?: string;
+            supportsExternalExecutionHandle?: boolean;
+        };
+        AzureTemplateSpecDriverConfig: components["schemas"]["ProjectDeploymentDriverConfig"] & {
+            supportsPreview?: boolean;
+            supportsExternalExecutionHandle?: boolean;
+        };
+        AzureWorkloadRbacAccessStrategyConfig: components["schemas"]["ProjectAccessStrategyConfig"] & {
+            authModel?: string;
+            requiresAzureCredential?: boolean;
+            requiresTargetExecutionMetadata?: boolean;
+        };
+        BlobArmTemplateArtifactSourceConfig: components["schemas"]["ProjectReleaseArtifactSourceConfig"] & {
+            descriptor?: string;
+            templateUriField?: string;
+        };
+        ExternalDeploymentInputsArtifactSourceConfig: components["schemas"]["ProjectReleaseArtifactSourceConfig"] & {
+            sourceSystem?: string;
+            descriptorPath?: string;
+            versionField?: string;
+        };
+        HttpEndpointRuntimeHealthProviderConfig: components["schemas"]["ProjectRuntimeHealthProviderConfig"] & {
+            path?: string;
+            /** Format: int32 */
+            expectedStatus?: number;
+            /** Format: int64 */
+            timeoutMs?: number;
+        };
+        LighthouseDelegatedAccessStrategyConfig: components["schemas"]["ProjectAccessStrategyConfig"] & {
+            azureServiceConnectionName?: string;
+            managingTenantId?: string;
+            managingPrincipalClientId?: string;
+            requiresDelegation?: boolean;
+        };
+        PipelineTriggerDriverConfig: components["schemas"]["ProjectDeploymentDriverConfig"] & {
+            pipelineSystem?: string;
+            organization?: string;
+            project?: string;
+            pipelineId?: string;
+            branch?: string;
+            supportsExternalExecutionHandle?: boolean;
+            supportsExternalLogs?: boolean;
+        };
+        ProjectAccessStrategyConfig: unknown;
         ProjectDefinition: {
             id?: string;
             name?: string;
             /** @enum {string} */
-            accessStrategy?: "simulator" | "azure_workload_rbac";
+            accessStrategy?: "simulator" | "azure_workload_rbac" | "lighthouse_delegated_access";
+            accessStrategyConfig?: components["schemas"]["AzureWorkloadRbacAccessStrategyConfig"] | components["schemas"]["LighthouseDelegatedAccessStrategyConfig"] | components["schemas"]["SimulatorAccessStrategyConfig"];
             /** @enum {string} */
-            deploymentDriver?: "azure_deployment_stack" | "azure_template_spec";
+            deploymentDriver?: "azure_deployment_stack" | "azure_template_spec" | "pipeline_trigger";
+            deploymentDriverConfig?: components["schemas"]["AzureDeploymentStackDriverConfig"] | components["schemas"]["AzureTemplateSpecDriverConfig"] | components["schemas"]["PipelineTriggerDriverConfig"];
             /** @enum {string} */
-            releaseArtifactSource?: "blob_arm_template" | "template_spec_resource";
+            releaseArtifactSource?: "blob_arm_template" | "template_spec_resource" | "external_deployment_inputs";
+            releaseArtifactSourceConfig?: components["schemas"]["BlobArmTemplateArtifactSourceConfig"] | components["schemas"]["ExternalDeploymentInputsArtifactSourceConfig"] | components["schemas"]["TemplateSpecResourceArtifactSourceConfig"];
             /** @enum {string} */
-            runtimeHealthProvider?: "azure_container_app_http";
+            runtimeHealthProvider?: "azure_container_app_http" | "http_endpoint";
+            runtimeHealthProviderConfig?: components["schemas"]["AzureContainerAppHttpRuntimeHealthProviderConfig"] | components["schemas"]["HttpEndpointRuntimeHealthProviderConfig"];
+        };
+        ProjectDeploymentDriverConfig: unknown;
+        ProjectReleaseArtifactSourceConfig: unknown;
+        ProjectRuntimeHealthProviderConfig: unknown;
+        SimulatorAccessStrategyConfig: components["schemas"]["ProjectAccessStrategyConfig"];
+        TemplateSpecResourceArtifactSourceConfig: components["schemas"]["ProjectReleaseArtifactSourceConfig"] & {
+            descriptor?: string;
+            versionRefField?: string;
         };
         ReleaseWebhookDeliveryPageRecord: {
             /** @description GitHub release-webhook deliveries for the current page. */
@@ -1091,7 +1182,9 @@ export interface operations {
     };
     listReleases: {
         parameters: {
-            query?: never;
+            query?: {
+                projectId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;

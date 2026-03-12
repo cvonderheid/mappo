@@ -69,6 +69,12 @@ mappo:
     pull-client-id: ${MAPPO_PUBLISHER_ACR_PULL_CLIENT_ID:}
     pull-client-secret: ${MAPPO_PUBLISHER_ACR_PULL_CLIENT_SECRET:}
     pull-secret-name: ${MAPPO_PUBLISHER_ACR_PULL_SECRET_NAME:publisher-acr-pull}
+  azure-devops:
+    base-url: ${MAPPO_AZURE_DEVOPS_BASE_URL:https://dev.azure.com}
+    personal-access-token: ${MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN:}
+    api-version: ${MAPPO_AZURE_DEVOPS_API_VERSION:7.1}
+    connect-timeout-ms: ${MAPPO_AZURE_DEVOPS_CONNECT_TIMEOUT_MS:10000}
+    read-timeout-ms: ${MAPPO_AZURE_DEVOPS_READ_TIMEOUT_MS:30000}
   runtime-probe:
     enabled: ${MAPPO_RUNTIME_PROBE_ENABLED:true}
     interval-ms: ${MAPPO_RUNTIME_PROBE_INTERVAL_MS:60000}

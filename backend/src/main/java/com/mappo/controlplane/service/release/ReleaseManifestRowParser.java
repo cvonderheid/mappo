@@ -63,6 +63,18 @@ public class ReleaseManifestRowParser {
             firstNonNull(row.get("execution_settings"), row.get("executionSettings"), row.get("deployment_mode_settings"))
         );
         Map<String, String> parameterDefaults = sanitizeStringMap(asMap(firstNonNull(row.get("parameter_defaults"), row.get("parameterDefaults"))));
+        Map<String, String> externalInputs = sanitizeStringMap(
+            asMap(
+                firstNonNull(
+                    row.get("external_inputs"),
+                    row.get("externalInputs"),
+                    row.get("deployment_inputs"),
+                    row.get("deploymentInputs"),
+                    row.get("pipeline_inputs"),
+                    row.get("pipelineInputs")
+                )
+            )
+        );
         List<String> verificationHints = sanitizeStringList(asList(firstNonNull(row.get("verification_hints"), row.get("verificationHints"))));
 
         ReleaseExecutionSettingsRequest executionSettings = new ReleaseExecutionSettingsRequest(
@@ -106,6 +118,7 @@ public class ReleaseManifestRowParser {
             ),
             executionSettings,
             parameterDefaults,
+            externalInputs,
             normalize(firstNonBlank(stringValue(row.get("release_notes")), stringValue(row.get("releaseNotes")))),
             verificationHints
         );

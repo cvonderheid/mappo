@@ -1,5 +1,6 @@
 package com.mappo.controlplane.service.run;
 
+import com.mappo.controlplane.domain.access.ResolvedTargetAccessContext;
 import com.mappo.controlplane.domain.execution.DeploymentPreviewDriver;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
@@ -23,5 +24,10 @@ public interface DeploymentStackPreviewExecutor extends DeploymentPreviewDriver 
     }
 
     @Override
-    TargetPreviewOutcome preview(ProjectDefinition project, ReleaseRecord release, TargetExecutionContextRecord target);
+    TargetPreviewOutcome preview(
+        ProjectDefinition project,
+        ReleaseRecord release,
+        TargetExecutionContextRecord target,
+        ResolvedTargetAccessContext accessContext
+    );
 }

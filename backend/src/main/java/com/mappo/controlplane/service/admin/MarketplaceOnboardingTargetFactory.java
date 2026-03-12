@@ -34,6 +34,7 @@ public class MarketplaceOnboardingTargetFactory {
         if (managedResourceGroupId.isBlank()) {
             managedResourceGroupId = deriveResourceGroupIdFromContainerApp(containerAppResourceId);
         }
+        Map<String, String> executionConfig = resolveExecutionConfig(request);
 
         return new MarketplaceOnboardingTargetPlan(
             targetId,
@@ -62,9 +63,11 @@ public class MarketplaceOnboardingTargetFactory {
                 nullable(properties.getPublisherAcr().getServer()),
                 nullable(properties.getPublisherAcr().getPullClientId()),
                 nullable(properties.getPublisherAcr().getPullSecretName()),
+                executionConfig,
                 eventId,
                 now
-            )
+            ),
+            executionConfig
         );
     }
 
@@ -133,6 +136,14 @@ public class MarketplaceOnboardingTargetFactory {
             return projectCatalogService.resolveRequiredProjectId(normalized);
         }
         return projectCatalogService.getRequired(BuiltinProjects.AZURE_MANAGED_APP_DEPLOYMENT_STACK).id();
+    }
+
+    private Map<String, String> resolveExecutionConfig(OnboardingEventRequest request) {
+        if (request.metadata() == null) {
+            return Map.of();
+        }
+        Map<String, String> executionConfig = request.metadata().sanitizedExecutionConfig();
+        return executionConfig == null || executionConfig.isEmpty() ? Map.of() : Map.copyOf(executionConfig);
     }
 
     private MappoRegistryAuthMode defaultRegistryAuthMode() {

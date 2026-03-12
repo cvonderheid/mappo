@@ -109,7 +109,12 @@ public class RunPreviewService {
             }
             DeploymentPreviewDriver previewDriver = capabilities.previewDriver()
                 .orElseThrow(() -> new IllegalStateException("preview driver not found for supported release"));
-            TargetPreviewOutcome outcome = previewDriver.preview(capabilities.project(), release, context);
+            TargetPreviewOutcome outcome = previewDriver.preview(
+                capabilities.project(),
+                release,
+                context,
+                validation.accessContext()
+            );
             return new RunTargetPreviewRecord(
                 target.id(),
                 firstNonBlank(target.customerName(), target.id()),

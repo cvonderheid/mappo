@@ -63,6 +63,7 @@ public class ReleaseManifestApplyService {
                 command.whatIfOnCanary(),
                 command.verifyAfterDeploy(),
                 command.parameterDefaults(),
+                command.externalInputs(),
                 command.releaseNotes(),
                 command.verificationHints()
             ));
