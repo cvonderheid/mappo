@@ -98,6 +98,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List projects
+         * @description Returns the configured projects available to the control plane.
+         */
+        get: operations["listProjects"];
+        put?: never;
+        /**
+         * Create project
+         * @description Creates a new project definition including access strategy, deployment driver, release source, and runtime health provider settings.
+         */
+        post: operations["createProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate project configuration
+         * @description Runs credential, webhook, and target-contract checks for the selected project.
+         */
+        post: operations["validateProjectConfiguration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/releases/webhooks/github": {
         parameters: {
             query?: never;
@@ -185,6 +229,26 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch project configuration
+         * @description Updates project display name and config objects used by access, driver, release source, and runtime health providers.
+         */
+        patch: operations["patchProjectConfiguration"];
         trace?: never;
     };
     "/api/v1/admin/onboarding/registrations/{targetId}": {
@@ -293,7 +357,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects": {
+    "/api/v1/projects/{projectId}/audit": {
         parameters: {
             query?: never;
             header?: never;
@@ -301,10 +365,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List projects
-         * @description Returns the configured projects available to the control plane.
+         * List project configuration audit events
+         * @description Returns paginated project configuration mutation audit history.
          */
-        get: operations["listProjects"];
+        get: operations["listProjectAudit"];
         put?: never;
         post?: never;
         delete?: never;
@@ -599,6 +663,147 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
         };
+        ProjectCreateRequest: {
+            id: string;
+            name: string;
+            /** @enum {string} */
+            accessStrategy: "simulator" | "azure_workload_rbac" | "lighthouse_delegated_access";
+            accessStrategyConfig?: {
+                [key: string]: unknown;
+            };
+            /** @enum {string} */
+            deploymentDriver: "azure_deployment_stack" | "azure_template_spec" | "pipeline_trigger";
+            deploymentDriverConfig?: {
+                [key: string]: unknown;
+            };
+            /** @enum {string} */
+            releaseArtifactSource: "blob_arm_template" | "template_spec_resource" | "external_deployment_inputs";
+            releaseArtifactSourceConfig?: {
+                [key: string]: unknown;
+            };
+            /** @enum {string} */
+            runtimeHealthProvider: "azure_container_app_http" | "http_endpoint";
+            runtimeHealthProviderConfig?: {
+                [key: string]: unknown;
+            };
+        };
+        AzureContainerAppHttpRuntimeHealthProviderConfig: components["schemas"]["ProjectRuntimeHealthProviderConfig"] & {
+            path?: string;
+            /** Format: int32 */
+            expectedStatus?: number;
+            /** Format: int64 */
+            timeoutMs?: number;
+        };
+        AzureDeploymentStackDriverConfig: components["schemas"]["ProjectDeploymentDriverConfig"] & {
+            supportsPreview?: boolean;
+            previewMode?: string;
+            supportsExternalExecutionHandle?: boolean;
+        };
+        AzureTemplateSpecDriverConfig: components["schemas"]["ProjectDeploymentDriverConfig"] & {
+            supportsPreview?: boolean;
+            supportsExternalExecutionHandle?: boolean;
+        };
+        AzureWorkloadRbacAccessStrategyConfig: components["schemas"]["ProjectAccessStrategyConfig"] & {
+            authModel?: string;
+            requiresAzureCredential?: boolean;
+            requiresTargetExecutionMetadata?: boolean;
+        };
+        BlobArmTemplateArtifactSourceConfig: components["schemas"]["ProjectReleaseArtifactSourceConfig"] & {
+            descriptor?: string;
+            templateUriField?: string;
+        };
+        ExternalDeploymentInputsArtifactSourceConfig: components["schemas"]["ProjectReleaseArtifactSourceConfig"] & {
+            sourceSystem?: string;
+            descriptorPath?: string;
+            versionField?: string;
+        };
+        HttpEndpointRuntimeHealthProviderConfig: components["schemas"]["ProjectRuntimeHealthProviderConfig"] & {
+            path?: string;
+            /** Format: int32 */
+            expectedStatus?: number;
+            /** Format: int64 */
+            timeoutMs?: number;
+        };
+        LighthouseDelegatedAccessStrategyConfig: components["schemas"]["ProjectAccessStrategyConfig"] & {
+            azureServiceConnectionName?: string;
+            managingTenantId?: string;
+            managingPrincipalClientId?: string;
+            requiresDelegation?: boolean;
+        };
+        PipelineTriggerDriverConfig: components["schemas"]["ProjectDeploymentDriverConfig"] & {
+            pipelineSystem?: string;
+            organization?: string;
+            project?: string;
+            pipelineId?: string;
+            branch?: string;
+            azureServiceConnectionName?: string;
+            supportsExternalExecutionHandle?: boolean;
+            supportsExternalLogs?: boolean;
+        };
+        ProjectAccessStrategyConfig: unknown;
+        ProjectDefinition: {
+            id?: string;
+            name?: string;
+            /** @enum {string} */
+            accessStrategy?: "simulator" | "azure_workload_rbac" | "lighthouse_delegated_access";
+            accessStrategyConfig?: components["schemas"]["AzureWorkloadRbacAccessStrategyConfig"] | components["schemas"]["LighthouseDelegatedAccessStrategyConfig"] | components["schemas"]["SimulatorAccessStrategyConfig"];
+            /** @enum {string} */
+            deploymentDriver?: "azure_deployment_stack" | "azure_template_spec" | "pipeline_trigger";
+            deploymentDriverConfig?: components["schemas"]["AzureDeploymentStackDriverConfig"] | components["schemas"]["AzureTemplateSpecDriverConfig"] | components["schemas"]["PipelineTriggerDriverConfig"];
+            /** @enum {string} */
+            releaseArtifactSource?: "blob_arm_template" | "template_spec_resource" | "external_deployment_inputs";
+            releaseArtifactSourceConfig?: components["schemas"]["BlobArmTemplateArtifactSourceConfig"] | components["schemas"]["ExternalDeploymentInputsArtifactSourceConfig"] | components["schemas"]["TemplateSpecResourceArtifactSourceConfig"];
+            /** @enum {string} */
+            runtimeHealthProvider?: "azure_container_app_http" | "http_endpoint";
+            runtimeHealthProviderConfig?: components["schemas"]["AzureContainerAppHttpRuntimeHealthProviderConfig"] | components["schemas"]["HttpEndpointRuntimeHealthProviderConfig"];
+        };
+        ProjectDeploymentDriverConfig: unknown;
+        ProjectReleaseArtifactSourceConfig: unknown;
+        ProjectRuntimeHealthProviderConfig: unknown;
+        SimulatorAccessStrategyConfig: components["schemas"]["ProjectAccessStrategyConfig"];
+        TemplateSpecResourceArtifactSourceConfig: components["schemas"]["ProjectReleaseArtifactSourceConfig"] & {
+            descriptor?: string;
+            versionRefField?: string;
+        };
+        ProjectValidationRequest: {
+            scopes?: ("credentials" | "webhook" | "target_contract")[];
+            targetId?: string;
+        };
+        ProjectValidationFindingRecord: {
+            /**
+             * @description Validation scope category.
+             * @enum {string}
+             */
+            scope?: "credentials" | "webhook" | "target_contract";
+            /**
+             * @description Validation outcome status.
+             * @enum {string}
+             */
+            status?: "pass" | "warning" | "fail";
+            /**
+             * @description Machine-readable finding code.
+             * @example AZURE_CREDENTIALS_MISSING
+             */
+            code?: string;
+            /** @description Human-readable finding message. */
+            message?: string;
+        };
+        ProjectValidationResultRecord: {
+            /**
+             * @description Project id validated by this request.
+             * @example azure-appservice-ado-pipeline
+             */
+            projectId?: string;
+            /** @description Overall validation status. */
+            valid: boolean;
+            /**
+             * Format: date-time
+             * @description Timestamp when validation completed (UTC).
+             */
+            validatedAt?: string;
+            /** @description Detailed validation findings. */
+            findings?: components["schemas"]["ProjectValidationFindingRecord"][];
+        };
         ReleaseManifestIngestResultRecord: {
             repo?: string;
             path?: string;
@@ -691,6 +896,29 @@ export interface components {
             status?: "applied" | "duplicate" | "rejected";
             message?: string;
             targetId?: string;
+        };
+        ProjectConfigurationPatchRequest: {
+            name?: string;
+            /** @enum {string} */
+            accessStrategy?: "simulator" | "azure_workload_rbac" | "lighthouse_delegated_access";
+            accessStrategyConfig?: {
+                [key: string]: unknown;
+            };
+            /** @enum {string} */
+            deploymentDriver?: "azure_deployment_stack" | "azure_template_spec" | "pipeline_trigger";
+            deploymentDriverConfig?: {
+                [key: string]: unknown;
+            };
+            /** @enum {string} */
+            releaseArtifactSource?: "blob_arm_template" | "template_spec_resource" | "external_deployment_inputs";
+            releaseArtifactSourceConfig?: {
+                [key: string]: unknown;
+            };
+            /** @enum {string} */
+            runtimeHealthProvider?: "azure_container_app_http" | "http_endpoint";
+            runtimeHealthProviderConfig?: {
+                [key: string]: unknown;
+            };
         };
         TargetRegistrationMetadataRequest: {
             containerAppName?: string;
@@ -860,83 +1088,51 @@ export interface components {
             haltReason?: string;
             guardrailWarnings?: string[];
         };
-        AzureContainerAppHttpRuntimeHealthProviderConfig: components["schemas"]["ProjectRuntimeHealthProviderConfig"] & {
-            path?: string;
-            /** Format: int32 */
-            expectedStatus?: number;
-            /** Format: int64 */
-            timeoutMs?: number;
+        ProjectConfigurationAuditPageRecord: {
+            /** @description Project configuration audit events for the current page. */
+            items: components["schemas"]["ProjectConfigurationAuditRecord"][];
+            /** @description Pagination metadata for the audit event page. */
+            page: components["schemas"]["PageMetadataRecord"];
         };
-        AzureDeploymentStackDriverConfig: components["schemas"]["ProjectDeploymentDriverConfig"] & {
-            supportsPreview?: boolean;
-            previewMode?: string;
-            supportsExternalExecutionHandle?: boolean;
-        };
-        AzureTemplateSpecDriverConfig: components["schemas"]["ProjectDeploymentDriverConfig"] & {
-            supportsPreview?: boolean;
-            supportsExternalExecutionHandle?: boolean;
-        };
-        AzureWorkloadRbacAccessStrategyConfig: components["schemas"]["ProjectAccessStrategyConfig"] & {
-            authModel?: string;
-            requiresAzureCredential?: boolean;
-            requiresTargetExecutionMetadata?: boolean;
-        };
-        BlobArmTemplateArtifactSourceConfig: components["schemas"]["ProjectReleaseArtifactSourceConfig"] & {
-            descriptor?: string;
-            templateUriField?: string;
-        };
-        ExternalDeploymentInputsArtifactSourceConfig: components["schemas"]["ProjectReleaseArtifactSourceConfig"] & {
-            sourceSystem?: string;
-            descriptorPath?: string;
-            versionField?: string;
-        };
-        HttpEndpointRuntimeHealthProviderConfig: components["schemas"]["ProjectRuntimeHealthProviderConfig"] & {
-            path?: string;
-            /** Format: int32 */
-            expectedStatus?: number;
-            /** Format: int64 */
-            timeoutMs?: number;
-        };
-        LighthouseDelegatedAccessStrategyConfig: components["schemas"]["ProjectAccessStrategyConfig"] & {
-            azureServiceConnectionName?: string;
-            managingTenantId?: string;
-            managingPrincipalClientId?: string;
-            requiresDelegation?: boolean;
-        };
-        PipelineTriggerDriverConfig: components["schemas"]["ProjectDeploymentDriverConfig"] & {
-            pipelineSystem?: string;
-            organization?: string;
-            project?: string;
-            pipelineId?: string;
-            branch?: string;
-            azureServiceConnectionName?: string;
-            supportsExternalExecutionHandle?: boolean;
-            supportsExternalLogs?: boolean;
-        };
-        ProjectAccessStrategyConfig: unknown;
-        ProjectDefinition: {
+        ProjectConfigurationAuditRecord: {
+            /**
+             * @description Audit event id.
+             * @example pca-c2f9fbc5ad
+             */
             id?: string;
-            name?: string;
-            /** @enum {string} */
-            accessStrategy?: "simulator" | "azure_workload_rbac" | "lighthouse_delegated_access";
-            accessStrategyConfig?: components["schemas"]["AzureWorkloadRbacAccessStrategyConfig"] | components["schemas"]["LighthouseDelegatedAccessStrategyConfig"] | components["schemas"]["SimulatorAccessStrategyConfig"];
-            /** @enum {string} */
-            deploymentDriver?: "azure_deployment_stack" | "azure_template_spec" | "pipeline_trigger";
-            deploymentDriverConfig?: components["schemas"]["AzureDeploymentStackDriverConfig"] | components["schemas"]["AzureTemplateSpecDriverConfig"] | components["schemas"]["PipelineTriggerDriverConfig"];
-            /** @enum {string} */
-            releaseArtifactSource?: "blob_arm_template" | "template_spec_resource" | "external_deployment_inputs";
-            releaseArtifactSourceConfig?: components["schemas"]["BlobArmTemplateArtifactSourceConfig"] | components["schemas"]["ExternalDeploymentInputsArtifactSourceConfig"] | components["schemas"]["TemplateSpecResourceArtifactSourceConfig"];
-            /** @enum {string} */
-            runtimeHealthProvider?: "azure_container_app_http" | "http_endpoint";
-            runtimeHealthProviderConfig?: components["schemas"]["AzureContainerAppHttpRuntimeHealthProviderConfig"] | components["schemas"]["HttpEndpointRuntimeHealthProviderConfig"];
-        };
-        ProjectDeploymentDriverConfig: unknown;
-        ProjectReleaseArtifactSourceConfig: unknown;
-        ProjectRuntimeHealthProviderConfig: unknown;
-        SimulatorAccessStrategyConfig: components["schemas"]["ProjectAccessStrategyConfig"];
-        TemplateSpecResourceArtifactSourceConfig: components["schemas"]["ProjectReleaseArtifactSourceConfig"] & {
-            descriptor?: string;
-            versionRefField?: string;
+            /**
+             * @description Project id associated with this audit event.
+             * @example azure-appservice-ado-pipeline
+             */
+            projectId?: string;
+            /**
+             * @description Action type for the recorded configuration mutation.
+             * @enum {string}
+             */
+            action?: "created" | "updated";
+            /**
+             * @description Actor label associated with this change.
+             * @example api
+             */
+            actor?: string;
+            /**
+             * @description Human-readable change summary.
+             * @example Updated project configuration.
+             */
+            changeSummary?: string;
+            /** @description Configuration snapshot before mutation. */
+            beforeSnapshot?: {
+                [key: string]: unknown;
+            };
+            /** @description Configuration snapshot after mutation. */
+            afterSnapshot?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Format: date-time
+             * @description Audit event timestamp (UTC).
+             */
+            createdAt?: string;
         };
         ReleaseWebhookDeliveryPageRecord: {
             /** @description GitHub release-webhook deliveries for the current page. */
@@ -1244,6 +1440,76 @@ export interface operations {
             };
         };
     };
+    listProjects: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ProjectDefinition"][];
+                };
+            };
+        };
+    };
+    createProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ProjectDefinition"];
+                };
+            };
+        };
+    };
+    validateProjectConfiguration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ProjectValidationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ProjectValidationResultRecord"];
+                };
+            };
+        };
+    };
     ingestGithubReleaseWebhook: {
         parameters: {
             query?: never;
@@ -1413,6 +1679,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["EventIngestResultRecord"];
+                };
+            };
+        };
+    };
+    patchProjectConfiguration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ProjectConfigurationPatchRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ProjectDefinition"];
                 };
             };
         };
@@ -1629,11 +1921,26 @@ export interface operations {
             };
         };
     };
-    listProjects: {
+    listProjectAudit: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional action filter for project audit events. */
+                action?: "created" | "updated";
+                /**
+                 * @description Zero-based page index.
+                 * @example 0
+                 */
+                page?: number;
+                /**
+                 * @description Page size.
+                 * @example 25
+                 */
+                size?: number;
+            };
             header?: never;
-            path?: never;
+            path: {
+                projectId: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -1644,7 +1951,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ProjectDefinition"][];
+                    "*/*": components["schemas"]["ProjectConfigurationAuditPageRecord"];
                 };
             };
         };

@@ -65,6 +65,7 @@ abstract class PostgresIntegrationTestBase {
               release_parameter_defaults,
               release_verification_hints,
               releases,
+              project_configuration_audit_events,
               release_webhook_deliveries,
               marketplace_events,
               forwarder_logs,

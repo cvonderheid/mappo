@@ -2,7 +2,7 @@ FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
-# The Maven reactor packages the backend jar before the Docker deploy phase.
+# The Maven reactor packages the backend jar before Docker image build.
 COPY target/backend-*.jar /app/backend.jar
 
 EXPOSE 8010

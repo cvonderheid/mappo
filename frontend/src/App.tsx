@@ -14,23 +14,33 @@ import {
   adminDeleteTargetRegistration,
   adminIngestGithubReleaseManifest,
   adminIngestMarketplaceEvent,
+  createProject,
   adminUpdateTargetRegistration,
   createRun,
   getRun,
+  listProjectAudit,
   listProjects,
   listReleases,
   listRuns,
   listTargetsPage,
+  patchProjectConfiguration,
   previewRun,
   resumeRun,
   retryFailed,
+  validateProjectConfiguration,
 } from "@/lib/api";
 import type {
   CreateRunRequest,
+  ListProjectAuditQuery,
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
   PageMetadata,
+  ProjectConfigurationAuditPage,
+  ProjectConfigurationPatchRequest,
+  ProjectCreateRequest,
   ProjectDefinition,
+  ProjectValidationRequest,
+  ProjectValidationResult,
   Release,
   ReleaseManifestIngestRequest,
   ReleaseManifestIngestResponse,
@@ -55,6 +65,7 @@ const AdminPanel = lazy(() => import("@/components/AdminPanel"));
 const DemoPanel = lazy(() => import("@/components/DemoPanel"));
 const DeploymentsPage = lazy(() => import("@/components/DeploymentsPage"));
 const FleetTable = lazy(() => import("@/components/FleetTable"));
+const ProjectSettingsPage = lazy(() => import("@/components/ProjectSettingsPage"));
 const RunDetailPanel = lazy(() =>
   import("@/components/RunPanels").then((module) => ({ default: module.RunDetailPanel }))
 );
@@ -728,6 +739,11 @@ function AppShell() {
     return { running: activeRunCount };
   }, [activeRunCount]);
 
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === selectedProjectId) ?? null,
+    [projects, selectedProjectId]
+  );
+
   const runs = useMemo(() => runsPage?.items ?? [], [runsPage]);
   const runPageMetadata: PageMetadata = runsPage?.page ?? {
     page: runPage,
@@ -1038,6 +1054,42 @@ function AppShell() {
     }
   }
 
+  async function handleCreateProject(request: ProjectCreateRequest): Promise<ProjectDefinition> {
+    const created = await createProject(request);
+    await refreshProjects();
+    if (created.id) {
+      setSelectedProjectId(created.id);
+      navigate("/projects");
+    }
+    return created;
+  }
+
+  async function handlePatchProject(
+    projectId: string,
+    request: ProjectConfigurationPatchRequest
+  ): Promise<ProjectDefinition> {
+    const updated = await patchProjectConfiguration(projectId, request);
+    await refreshProjects();
+    if (updated.id) {
+      setSelectedProjectId(updated.id);
+    }
+    return updated;
+  }
+
+  async function handleValidateProject(
+    projectId: string,
+    request: ProjectValidationRequest
+  ): Promise<ProjectValidationResult> {
+    return validateProjectConfiguration(projectId, request);
+  }
+
+  async function handleListProjectAudit(
+    projectId: string,
+    query: ListProjectAuditQuery
+  ): Promise<ProjectConfigurationAuditPage> {
+    return listProjectAudit(projectId, query);
+  }
+
   return (
     <main className="mx-auto flex w-[min(1400px,96vw)] flex-col gap-4 py-6">
       <Toaster richColors position="top-right" />
@@ -1073,9 +1125,10 @@ function AppShell() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-5 gap-2">
               <TopNavLink label="Fleet" to="/fleet" />
               <TopNavLink label="Deployments" to="/deployments" />
+              <TopNavLink label="Projects" to="/projects" />
               <TopNavLink label="Demo" to="/demo" />
               <TopNavLink label="Admin" to="/admin" />
             </div>
@@ -1119,6 +1172,21 @@ function AppShell() {
                 latestRelease={latestRelease}
                 refreshKey={targetsRefreshVersion}
                 selectedProjectId={selectedProjectId}
+              />
+            }
+          />
+          <Route
+            path="/projects"
+            element={
+              <ProjectSettingsPage
+                project={selectedProject}
+                projects={projects}
+                selectedProjectId={selectedProjectId}
+                targets={targets}
+                onCreateProject={handleCreateProject}
+                onPatchProject={handlePatchProject}
+                onValidateProject={handleValidateProject}
+                onListProjectAudit={handleListProjectAudit}
               />
             }
           />

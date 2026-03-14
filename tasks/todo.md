@@ -12,15 +12,15 @@ Operator-first setup and integration clarity before additional coding:
 
 ## Plan (Current Slice)
 - [ ] Sprint 0: Identity boundary cleanup and baseline reconciliation.
-- [ ] Sprint 1: Project configuration backend (CRUD + validation + audit).
-- [ ] Sprint 2: Project settings UI (tabbed setup flow).
+- [x] Sprint 1: Project configuration backend (CRUD + validation + audit).
+- [x] Sprint 2: Project settings UI (tabbed setup flow).
 - [ ] Sprint 3: Target onboarding UI and bulk onboarding validation.
 - [ ] Sprint 4: Integration setup UX + first-time operator guidance.
 - [ ] Sprint 5: Script decommission and final hardening sweep.
 
 ## Sprint 0: Identity Boundary Cleanup and Baseline Reconciliation
 ### Tasks
-- [ ] Remove retired ADO service-hook/service-connection identities in safe order:
+- [x] Remove retired ADO service-hook/service-connection identities in safe order:
 - Remove ADO service hook.
 - Remove ADO service connection.
 - Remove SP RBAC assignments.
@@ -29,13 +29,13 @@ Operator-first setup and integration clarity before additional coding:
 - Script: `/Users/cvonderheid/workspace/mappo/scripts/ado_cleanup_service_connection_identity.sh`
 - Runbook: `/Users/cvonderheid/workspace/mappo/docs/ado-identity-cleanup-runbook.md`
 - [x] Execute the cleanup against live `pg123/demo-app-service` and capture verification output.
-- [ ] Confirm tenant role separation is documented and visible:
+- [x] Confirm tenant role separation is documented and visible:
 - Provider tenant: `abe468b2-18bb-4dd2-90b9-5b8982337eb7`.
 - Customer-mimic tenant: `5476530d-fba1-4cd5-b2c0-fa118c5ff36e`.
 - [ ] Reconcile DB runtime state:
 - Verify active projects/targets/releases align with intended demo.
 - Remove or archive legacy/deprecated project history from default operator views.
-- [ ] Publish a post-cleanup state snapshot doc.
+- [x] Publish a post-cleanup state snapshot doc.
 
 ### Acceptance
 - [ ] No unknown stale identities remain.
@@ -44,28 +44,28 @@ Operator-first setup and integration clarity before additional coding:
 
 ## Sprint 1: Project Configuration Backend
 ### Tasks
-- [ ] Finalize project write APIs as operator-facing setup contract.
-- [ ] Add project validation endpoints (`credentials`, `webhook`, `target contract`).
-- [ ] Add audit history for project configuration mutations.
-- [ ] Ensure generated OpenAPI/client stays in lockstep.
+- [x] Finalize project write APIs as operator-facing setup contract.
+- [x] Add project validation endpoints (`credentials`, `webhook`, `target contract`).
+- [x] Add audit history for project configuration mutations.
+- [x] Ensure generated OpenAPI/client stays in lockstep.
 
 ### Acceptance
-- [ ] A project can be configured and validated via API only (no scripts).
-- [ ] Validation failures are explicit and actionable.
-- [ ] Project config changes are auditable.
+- [x] A project can be configured and validated via API only (no scripts).
+- [x] Validation failures are explicit and actionable.
+- [x] Project config changes are auditable.
 
 ## Sprint 2: Project Settings UI
 ### Tasks
-- [ ] Add Project Settings route and navigation.
-- [ ] Implement tabs from spec:
+- [x] Add Project Settings route and navigation.
+- [x] Implement tabs from spec:
 - General, Release Ingest, Deployment Driver, Access & Identity, Target Contract, Runtime Health, Validation, Audit.
-- [ ] Add Save/Validate/Publish workflow with Sonner notifications.
-- [ ] Add project config payload preview and inline field validation.
+- [x] Add Save/Validate/Publish workflow with Sonner notifications.
+- [x] Add project config payload preview and inline field validation.
 
 ### Acceptance
-- [ ] Operator can configure an existing project fully from UI.
-- [ ] Operator can onboard a new project without shell scripts.
-- [ ] All setup API interactions are visible and recoverable from UI.
+- [x] Operator can configure an existing project fully from UI.
+- [x] Operator can onboard a new project without shell scripts.
+- [x] All setup API interactions are visible and recoverable from UI.
 
 ## Sprint 3: Target Onboarding UI
 ### Tasks
@@ -203,6 +203,9 @@ Post-demo production-path planning and execution setup:
 - 2026-03-13: Reverted unsafe edits to historical migration `V8__project_execution_profile_configs.sql` and kept ADO evolution in new migrations (`V12`/`V13`) to avoid Flyway checksum drift on already-applied environments.
 - 2026-03-13: Added `docs/project-configuration-screen-spec.md` to define a production-grade MAPPO Project Settings UX (tabs, validation actions, API write contract, and rollout plan) so project configuration can move from migration-seeded defaults to operator-managed workflow.
 - 2026-03-13: Removed seeded ADO demo defaults from baseline/new migration paths (`B11`, `V14`) and added runtime project patching (`PATCH /api/v1/projects/{projectId}` + `scripts/project_configure_ado.sh`) so environment-specific ADO org/project/pipeline/service-connection values are no longer hard-coded in schema seeds.
+- 2026-03-14: Completed Sprint 1 backend APIs for operator-managed project setup: added `POST /api/v1/projects`, `POST /api/v1/projects/{projectId}/validate`, and `GET /api/v1/projects/{projectId}/audit`; added migration `V15__project_configuration_audit.sql`; added project validation + audit services/repositories; and verified with backend integration tests.
+- 2026-03-14: Regenerated backend OpenAPI (`backend/target/openapi/openapi.json`) and frontend generated client schema (`frontend/src/lib/api/generated/schema.ts`), then validated lockstep with `./mvnw -pl backend integration-test` and `./mvnw -pl frontend test`.
+- 2026-03-14: Completed Sprint 2 MVP for project setup UX by shipping a dedicated `/projects` screen with tabbed configuration sections (General, Release Ingest, Deployment Driver, Access & Identity, Target Contract, Runtime Health, Validation, Audit), sticky Save/Validate/Publish actions, Sonner notifications, inline validation, normalized payload preview, and create/patch/validate/audit API wiring.
 
 ## Milestones
 

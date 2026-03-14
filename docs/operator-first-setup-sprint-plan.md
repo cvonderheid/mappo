@@ -39,6 +39,8 @@ Establish a clean, understandable baseline before new implementation work.
 ### Goal
 Make project setup first-class in backend APIs and persistence.
 
+Status: completed (2026-03-14)
+
 ### Scope
 1. Project CRUD and configuration patch model hardening.
 2. Typed config validation for each driver/integration.
@@ -61,6 +63,8 @@ Make project setup first-class in backend APIs and persistence.
 ## Sprint 2: Project Settings UI
 ### Goal
 Ship a full in-product setup workflow for projects.
+
+Status: completed (2026-03-14)
 
 ### Scope
 1. New Project Settings route and navigation entry.

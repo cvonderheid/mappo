@@ -16,6 +16,7 @@
 
   <properties>
     <mappo.jooq.codegen.skip>false</mappo.jooq.codegen.skip>
+    <mappo.local.backend.image>mappo-backend:local</mappo.local.backend.image>
   </properties>
 
   <dependencies>
@@ -198,6 +199,22 @@
                 <argument>http://127.0.0.1:18010/api/v1/openapi.json</argument>
                 <argument>--output</argument>
                 <argument>${project.build.directory}/openapi/openapi.json</argument>
+              </arguments>
+            </configuration>
+          </execution>
+          <execution>
+            <id>build-local-backend-image</id>
+            <phase>package</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>docker</executable>
+              <arguments>
+                <argument>build</argument>
+                <argument>--tag</argument>
+                <argument>${mappo.local.backend.image}</argument>
+                <argument>${project.basedir}</argument>
               </arguments>
             </configuration>
           </execution>

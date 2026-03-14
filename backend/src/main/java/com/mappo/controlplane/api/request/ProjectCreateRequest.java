@@ -5,18 +5,22 @@ import com.mappo.controlplane.domain.project.ProjectAccessStrategyType;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
 import com.mappo.controlplane.domain.project.ProjectReleaseArtifactSourceType;
 import com.mappo.controlplane.domain.project.ProjectRuntimeHealthProviderType;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record ProjectConfigurationPatchRequest(
-    String name,
-    ProjectAccessStrategyType accessStrategy,
+public record ProjectCreateRequest(
+    @NotBlank String id,
+    @NotBlank String name,
+    @NotNull ProjectAccessStrategyType accessStrategy,
     Map<String, Object> accessStrategyConfig,
-    ProjectDeploymentDriverType deploymentDriver,
+    @NotNull ProjectDeploymentDriverType deploymentDriver,
     Map<String, Object> deploymentDriverConfig,
-    ProjectReleaseArtifactSourceType releaseArtifactSource,
+    @NotNull ProjectReleaseArtifactSourceType releaseArtifactSource,
     Map<String, Object> releaseArtifactSourceConfig,
-    ProjectRuntimeHealthProviderType runtimeHealthProvider,
+    @NotNull ProjectRuntimeHealthProviderType runtimeHealthProvider,
     Map<String, Object> runtimeHealthProviderConfig
 ) {
 }
+

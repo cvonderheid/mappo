@@ -1,14 +1,13 @@
-package com.mappo.controlplane.api.request;
+package com.mappo.controlplane.service.project;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.mappo.controlplane.domain.project.ProjectAccessStrategyType;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
 import com.mappo.controlplane.domain.project.ProjectReleaseArtifactSourceType;
 import com.mappo.controlplane.domain.project.ProjectRuntimeHealthProviderType;
 import java.util.Map;
 
-@JsonIgnoreProperties(ignoreUnknown = true)
-public record ProjectConfigurationPatchRequest(
+public record ProjectConfigurationMutationRecord(
+    String id,
     String name,
     ProjectAccessStrategyType accessStrategy,
     Map<String, Object> accessStrategyConfig,

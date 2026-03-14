@@ -12,7 +12,13 @@ import type {
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
   MarketplaceEventPage,
+  ListProjectAuditQuery,
   ProjectDefinition,
+  ProjectCreateRequest,
+  ProjectConfigurationAuditPage,
+  ProjectConfigurationPatchRequest,
+  ProjectValidationRequest,
+  ProjectValidationResult,
   Release,
   ReleaseManifestIngestRequest,
   ReleaseManifestIngestResponse,
@@ -81,6 +87,54 @@ export async function listTargetsPage(query: ListTargetsPageQuery = {}): Promise
 export async function listProjects(): Promise<ProjectDefinition[]> {
   const { data, error, response } = await apiClient.GET("/api/v1/projects");
   return requireData("listProjects", { data, error, response });
+}
+
+export async function createProject(
+  request: ProjectCreateRequest
+): Promise<ProjectDefinition> {
+  const { data, error, response } = await apiClient.POST("/api/v1/projects", {
+    body: request,
+  });
+  return requireData("createProject", { data, error, response });
+}
+
+export async function patchProjectConfiguration(
+  projectId: string,
+  request: ProjectConfigurationPatchRequest
+): Promise<ProjectDefinition> {
+  const { data, error, response } = await apiClient.PATCH("/api/v1/projects/{projectId}", {
+    params: { path: { projectId } },
+    body: request,
+  });
+  return requireData("patchProjectConfiguration", { data, error, response });
+}
+
+export async function validateProjectConfiguration(
+  projectId: string,
+  request: ProjectValidationRequest
+): Promise<ProjectValidationResult> {
+  const { data, error, response } = await apiClient.POST("/api/v1/projects/{projectId}/validate", {
+    params: { path: { projectId } },
+    body: request,
+  });
+  return requireData("validateProjectConfiguration", { data, error, response });
+}
+
+export async function listProjectAudit(
+  projectId: string,
+  query: ListProjectAuditQuery = {}
+): Promise<ProjectConfigurationAuditPage> {
+  const { data, error, response } = await apiClient.GET("/api/v1/projects/{projectId}/audit", {
+    params: {
+      path: { projectId },
+      query: {
+        page: query.page,
+        size: query.size,
+        action: query.action,
+      },
+    },
+  });
+  return requireData("listProjectAudit", { data, error, response });
 }
 
 export async function listReleases(): Promise<Release[]> {

@@ -14,6 +14,7 @@ export type ForwarderLogPage = Schemas["ForwarderLogPageRecord"];
 export type PageMetadata = Schemas["PageMetadataRecord"];
 export type ListRunsQuery = NonNullable<operations["listRuns"]["parameters"]["query"]>;
 export type ListTargetsPageQuery = NonNullable<operations["listTargetsPage"]["parameters"]["query"]>;
+export type ListProjectAuditQuery = NonNullable<operations["listProjectAudit"]["parameters"]["query"]>;
 export type ListTargetRegistrationsQuery =
   NonNullable<operations["listRegistrations"]["parameters"]["query"]>;
 export type ListMarketplaceEventsQuery =
@@ -28,6 +29,15 @@ export type MarketplaceEventRecord = Schemas["MarketplaceEventRecord"];
 export type MarketplaceEventPage = Schemas["MarketplaceEventPageRecord"];
 export type MarketplaceEventStatus = NonNullable<Schemas["MarketplaceEventRecord"]["status"]>;
 export type ProjectDefinition = Schemas["ProjectDefinition"];
+export type ProjectCreateRequest = Schemas["ProjectCreateRequest"];
+export type ProjectConfigurationPatchRequest = Schemas["ProjectConfigurationPatchRequest"];
+export type ProjectConfigurationAuditAction =
+  NonNullable<Schemas["ProjectConfigurationAuditRecord"]["action"]>;
+export type ProjectConfigurationAuditRecord = Schemas["ProjectConfigurationAuditRecord"];
+export type ProjectConfigurationAuditPage = Schemas["ProjectConfigurationAuditPageRecord"];
+export type ProjectValidationRequest = Schemas["ProjectValidationRequest"];
+export type ProjectValidationResult = Schemas["ProjectValidationResultRecord"];
+export type ProjectValidationFinding = Schemas["ProjectValidationFindingRecord"];
 export type Release = Schemas["ReleaseRecord"];
 export type ReleaseWebhookDeliveryRecord = Schemas["ReleaseWebhookDeliveryRecord"];
 export type ReleaseWebhookDeliveryPage = Schemas["ReleaseWebhookDeliveryPageRecord"];

@@ -145,15 +145,19 @@ const apiMock = vi.hoisted(() => ({
   adminListTargetRegistrations: vi.fn(),
   adminIngestGithubReleaseManifest: vi.fn(),
   adminIngestMarketplaceEvent: vi.fn(),
+  createProject: vi.fn(),
   createRun: vi.fn(),
   getRun: vi.fn(),
+  listProjectAudit: vi.fn(),
   listProjects: vi.fn(),
   listReleases: vi.fn(),
   listRuns: vi.fn(),
   listTargetsPage: vi.fn(),
+  patchProjectConfiguration: vi.fn(),
   previewRun: vi.fn(),
   resumeRun: vi.fn(),
   retryFailed: vi.fn(),
+  validateProjectConfiguration: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => apiMock);
@@ -209,15 +213,19 @@ describe("App", () => {
     apiMock.adminListTargetRegistrations.mockReset();
     apiMock.adminIngestGithubReleaseManifest.mockReset();
     apiMock.adminIngestMarketplaceEvent.mockReset();
+    apiMock.createProject.mockReset();
     apiMock.createRun.mockReset();
     apiMock.previewRun.mockReset();
     apiMock.resumeRun.mockReset();
     apiMock.retryFailed.mockReset();
+    apiMock.listProjectAudit.mockReset();
     apiMock.listProjects.mockResolvedValue(mockProjects);
     apiMock.listReleases.mockResolvedValue(mockReleases);
     apiMock.listRuns.mockResolvedValue(mockRunPage);
     apiMock.getRun.mockResolvedValue(mockRunDetail);
     apiMock.listTargetsPage.mockResolvedValue(mockTargetPage);
+    apiMock.patchProjectConfiguration.mockReset();
+    apiMock.validateProjectConfiguration.mockReset();
     apiMock.adminListTargetRegistrations.mockResolvedValue(mockRegistrationPage);
     apiMock.adminListMarketplaceEvents.mockResolvedValue(mockRegistrationPage);
     apiMock.adminListForwarderLogs.mockResolvedValue(mockRegistrationPage);
@@ -254,6 +262,7 @@ describe("App", () => {
       expect(screen.getByText("Managed App Demo")).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Fleet/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Deployments/i })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Projects/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Admin/i })).toBeInTheDocument();
       expect(screen.getByText(/New release 2026.02.25.3 is available/i)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Deploy 2026.02.25.3/i })).toBeInTheDocument();

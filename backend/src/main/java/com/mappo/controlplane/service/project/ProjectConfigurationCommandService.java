@@ -2,13 +2,19 @@ package com.mappo.controlplane.service.project;
 
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ProjectConfigurationPatchRequest;
+import com.mappo.controlplane.api.request.ProjectCreateRequest;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
+import com.mappo.controlplane.model.ProjectConfigurationAuditAction;
+import com.mappo.controlplane.model.command.ProjectConfigurationAuditCommand;
+import com.mappo.controlplane.repository.ProjectConfigurationAuditRepository;
 import com.mappo.controlplane.repository.ProjectCommandRepository;
-import com.mappo.controlplane.util.JsonUtil;
-import java.util.LinkedHashMap;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,7 +24,31 @@ public class ProjectConfigurationCommandService {
 
     private final ProjectCatalogService projectCatalogService;
     private final ProjectCommandRepository projectCommandRepository;
-    private final JsonUtil jsonUtil;
+    private final ProjectConfigurationMutationService projectConfigurationMutationService;
+    private final ProjectConfigurationAuditRepository projectConfigurationAuditRepository;
+
+    @Transactional
+    public ProjectDefinition createProject(ProjectCreateRequest request) {
+        ProjectConfigurationMutationRecord mutation = projectConfigurationMutationService.fromCreate(request);
+        try {
+            projectCommandRepository.createProject(mutation);
+        } catch (DataAccessException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "project already exists: " + mutation.id());
+        }
+
+        ProjectDefinition created = projectCatalogService.getRequired(mutation.id());
+        projectConfigurationAuditRepository.saveAuditEvent(new ProjectConfigurationAuditCommand(
+            newAuditId(),
+            created.id(),
+            ProjectConfigurationAuditAction.created,
+            "api",
+            "Created project configuration.",
+            null,
+            projectConfigurationMutationService.snapshot(created),
+            OffsetDateTime.now(ZoneOffset.UTC)
+        ));
+        return created;
+    }
 
     @Transactional
     public ProjectDefinition patchProjectConfiguration(String projectId, ProjectConfigurationPatchRequest patchRequest) {
@@ -27,69 +57,29 @@ public class ProjectConfigurationCommandService {
             return current;
         }
 
-        String name = firstNonBlank(patchRequest.name(), current.name());
-        if (name.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "project name must not be blank");
-        }
+        ProjectConfigurationMutationRecord mutation = projectConfigurationMutationService.fromPatch(current, patchRequest);
+        projectCommandRepository.updateProjectConfiguration(mutation);
 
-        Map<String, Object> accessStrategyConfig = merge(
-            jsonUtil.toMap(current.accessStrategyConfig()),
-            patchRequest.accessStrategyConfig()
-        );
-        Map<String, Object> deploymentDriverConfig = merge(
-            jsonUtil.toMap(current.deploymentDriverConfig()),
-            patchRequest.deploymentDriverConfig()
-        );
-        Map<String, Object> releaseArtifactSourceConfig = merge(
-            jsonUtil.toMap(current.releaseArtifactSourceConfig()),
-            patchRequest.releaseArtifactSourceConfig()
-        );
-        Map<String, Object> runtimeHealthProviderConfig = merge(
-            jsonUtil.toMap(current.runtimeHealthProviderConfig()),
-            patchRequest.runtimeHealthProviderConfig()
-        );
-
-        projectCommandRepository.updateProjectConfiguration(
-            current.id(),
-            name,
-            accessStrategyConfig,
-            deploymentDriverConfig,
-            releaseArtifactSourceConfig,
-            runtimeHealthProviderConfig
-        );
-        return projectCatalogService.getRequired(current.id());
+        ProjectDefinition updated = projectCatalogService.getRequired(current.id());
+        projectConfigurationAuditRepository.saveAuditEvent(new ProjectConfigurationAuditCommand(
+            newAuditId(),
+            updated.id(),
+            ProjectConfigurationAuditAction.updated,
+            "api",
+            "Updated project configuration.",
+            projectConfigurationMutationService.snapshot(current),
+            projectConfigurationMutationService.snapshot(updated),
+            OffsetDateTime.now(ZoneOffset.UTC)
+        ));
+        return updated;
     }
 
-    private Map<String, Object> merge(Map<String, Object> base, Map<String, Object> patch) {
-        Map<String, Object> merged = new LinkedHashMap<>(base == null ? Map.of() : base);
-        if (patch == null || patch.isEmpty()) {
-            return merged;
-        }
-        patch.forEach((rawKey, value) -> {
-            String key = normalize(rawKey);
-            if (key.isBlank()) {
-                return;
-            }
-            if (value == null) {
-                merged.remove(key);
-                return;
-            }
-            merged.put(key, value);
-        });
-        return merged;
+    public Map<String, Object> snapshot(String projectId) {
+        ProjectDefinition project = projectCatalogService.getRequired(projectId);
+        return projectConfigurationMutationService.snapshot(project);
     }
 
-    private String firstNonBlank(String... values) {
-        for (String value : values) {
-            String normalized = normalize(value);
-            if (!normalized.isBlank()) {
-                return normalized;
-            }
-        }
-        return "";
-    }
-
-    private String normalize(Object value) {
-        return value == null ? "" : String.valueOf(value).trim();
+    private String newAuditId() {
+        return "pca-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
     }
 }

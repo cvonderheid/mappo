@@ -10,6 +10,9 @@
 ### Maven workflow
 
 ```bash
+# full build (includes backend local runtime image: mappo-backend:local)
+./mvnw clean install
+
 # compile backend
 ./mvnw -pl backend compile
 
@@ -22,6 +25,20 @@
 # run backend API
 ./mvnw -pl backend spring-boot:run
 ```
+
+### Local compose runtime
+
+```bash
+# 1) build everything first (especially backend image)
+./mvnw clean install
+
+# 2) run local stack (backend image + hot-reload frontend)
+docker compose -f infra/docker-compose.yml up --build
+```
+
+Notes:
+- `backend` service in compose uses the prebuilt `mappo-backend:local` image.
+- `frontend` service is still hot-reload (`npm run dev`).
 
 ### Backend module
 - `/Users/cvonderheid/workspace/mappo/backend`
