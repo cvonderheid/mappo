@@ -25,6 +25,10 @@ Operator-first setup and integration clarity before additional coding:
 - Remove ADO service connection.
 - Remove SP RBAC assignments.
 - Remove Entra service principal and app registration if no active dependency remains.
+- [x] Add safe teardown automation for ADO identity cleanup:
+- Script: `/Users/cvonderheid/workspace/mappo/scripts/ado_cleanup_service_connection_identity.sh`
+- Runbook: `/Users/cvonderheid/workspace/mappo/docs/ado-identity-cleanup-runbook.md`
+- [x] Execute the cleanup against live `pg123/demo-app-service` and capture verification output.
 - [ ] Confirm tenant role separation is documented and visible:
 - Provider tenant: `abe468b2-18bb-4dd2-90b9-5b8982337eb7`.
 - Customer-mimic tenant: `5476530d-fba1-4cd5-b2c0-fa118c5ff36e`.

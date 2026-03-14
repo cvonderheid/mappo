@@ -5,6 +5,15 @@
 - Confirm how projects/targets/releases are actually registered today.
 - Identify hardcoded/demo coupling that conflicts with production-like operation.
 
+## Update (2026-03-14, post-audit cleanup)
+- Executed ADO identity cleanup using:
+  - `/Users/cvonderheid/workspace/mappo/scripts/ado_cleanup_service_connection_identity.sh`
+- Cleanup outcome:
+  - Deleted ADO service connection `mappo-ado-demo-rg-contributor` (`de2c3812-602d-40da-abc7-a3f46dc4b65b`)
+  - Deleted tenant-local service principal for app/client `35bd7871-e6eb-406e-8909-34711fb3f8dc`
+  - Deleted app registration `35bd7871-e6eb-406e-8909-34711fb3f8dc`
+  - No matching ADO service-hook subscriptions found for the default MAPPO ADO webhook URL filter
+
 ## Ground Truth
 
 ### 1) Identity and account context
@@ -106,6 +115,9 @@
   - new behavior for existing DBs must come from a new migration version
 
 ## Recommended next actions (audit-first order)
+0. Run the dedicated ADO identity cleanup dry-run and execute path:
+   - script: `/Users/cvonderheid/workspace/mappo/scripts/ado_cleanup_service_connection_identity.sh`
+   - runbook: `/Users/cvonderheid/workspace/mappo/docs/ado-identity-cleanup-runbook.md`
 1. Apply pending migrations to runtime DB (`V14+`) and verify `flyway_schema_history`.
 2. Explicitly configure the ADO project in MAPPO (organization/project/pipelineId/service connection) via API/script.
 3. Trigger one end-to-end ADO release webhook and verify:

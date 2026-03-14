@@ -1,7 +1,7 @@
 # MAPPO Operator-First Setup Sprint Plan
 
 Date: 2026-03-14  
-Status: planned
+Status: in progress
 
 ## Purpose
 Move MAPPO from script-led setup to operator-led setup in the product UI so project configuration, target onboarding, and release notifications are explicit, auditable, and understandable for first-time Azure/GitHub/ADO users.
@@ -25,7 +25,8 @@ Establish a clean, understandable baseline before new implementation work.
 4. Capture a one-page environment inventory (what exists, why it exists).
 
 ### Deliverables
-- Cleanup script with dry-run mode for ADO service-connection identity teardown.
+- [x] Cleanup script with dry-run mode for ADO service-connection identity teardown.
+- [x] Cleanup runbook for operator execution and verification.
 - Updated environment inventory and ownership map.
 - Verified post-cleanup baseline checks.
 
