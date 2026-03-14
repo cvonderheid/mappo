@@ -10,6 +10,30 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Enforcement (test/lint/checklist):
 
 ## Entries
+- Date: 2026-03-14
+- Pattern: Azure/Entra terminology confusion (App registration vs Enterprise app vs Managed Application resource) leads to incorrect cleanup and support assumptions.
+- Preventative rule: In every identity-related change, record object type + tenant + object ID + owning system (ADO/GitHub/MAPPO/Azure resource) in one place before deleting or updating anything.
+- Detection signal: statements such as “managed app in Entra” where the object is actually a service principal/app registration.
+- Enforcement (test/lint/checklist): require a pre-change identity inventory note in `docs/` for auth/integration work and verify references in cleanup scripts.
+
+- Date: 2026-03-14
+- Pattern: Script-first onboarding hides source-of-truth changes from operators and creates architecture drift between UI state and operational reality.
+- Preventative rule: Any script that mutates project config, target registration, or release-ingest wiring must either be temporary with a planned UI replacement milestone or blocked from production runbooks.
+- Detection signal: operators cannot explain how a project/target was configured without inspecting shell history.
+- Enforcement (test/lint/checklist): every setup mutation path must map to an explicit UI/API endpoint and audit record before the slice is marked complete.
+
+- Date: 2026-03-14
+- Pattern: Updating historical Flyway migrations to reflect new intent causes false confidence because existing environments will not apply those edits.
+- Preventative rule: Never change behavior in already-applied migrations; introduce a new migration version for live environments and update baseline files only for fresh installs with explicit note.
+- Detection signal: a schema/config change appears in `V1`/older migration but is missing in live DB `flyway_schema_history`.
+- Enforcement (test/lint/checklist): verify migration version progression against live `flyway_schema_history` whenever schema/config behavior changes.
+
+- Date: 2026-03-14
+- Pattern: Multi-tenant demos degrade into confusion when provider/customer boundaries are implicit in scripts and ad hoc docs.
+- Preventative rule: Keep provider vs customer-mimic boundaries explicit in project setup UX, runbooks, and audit snapshots using concrete tenant/subscription IDs.
+- Detection signal: operators ask “which tenant owns this identity/resource?” during normal setup/deploy flows.
+- Enforcement (test/lint/checklist): each sprint touching identity/integration must update an environment topology doc and include tenant/subscription ownership annotations.
+
 - Date: 2026-03-06
 - Pattern: Command-surface cutovers regress when active docs keep referencing removed workflows after the underlying build/deploy model changes.
 - Preventative rule: When replacing a primary workflow surface, rewrite the active README/runbooks/checklists in the same slice and add a negative docs check for the retired command form.

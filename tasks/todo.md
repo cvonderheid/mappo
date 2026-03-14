@@ -1,7 +1,109 @@
 # MAPPO Task Plan
 
-Date: 2026-03-07
+Date: 2026-03-14
 Owner: Codex
+
+## Current Slice (Pre-Implementation Program)
+Operator-first setup and integration clarity before additional coding:
+- reduce identity/integration ambiguity between provider and customer-mimic tenants,
+- replace script-dependent project setup with explicit UI/API workflows,
+- provide first-time operator guidance for Azure/GitHub/ADO setup tasks,
+- keep infra bootstrap scripts only where a UI/API flow is not yet appropriate.
+
+## Plan (Current Slice)
+- [ ] Sprint 0: Identity boundary cleanup and baseline reconciliation.
+- [ ] Sprint 1: Project configuration backend (CRUD + validation + audit).
+- [ ] Sprint 2: Project settings UI (tabbed setup flow).
+- [ ] Sprint 3: Target onboarding UI and bulk onboarding validation.
+- [ ] Sprint 4: Integration setup UX + first-time operator guidance.
+- [ ] Sprint 5: Script decommission and final hardening sweep.
+
+## Sprint 0: Identity Boundary Cleanup and Baseline Reconciliation
+### Tasks
+- [ ] Remove retired ADO service-hook/service-connection identities in safe order:
+- Remove ADO service hook.
+- Remove ADO service connection.
+- Remove SP RBAC assignments.
+- Remove Entra service principal and app registration if no active dependency remains.
+- [ ] Confirm tenant role separation is documented and visible:
+- Provider tenant: `abe468b2-18bb-4dd2-90b9-5b8982337eb7`.
+- Customer-mimic tenant: `5476530d-fba1-4cd5-b2c0-fa118c5ff36e`.
+- [ ] Reconcile DB runtime state:
+- Verify active projects/targets/releases align with intended demo.
+- Remove or archive legacy/deprecated project history from default operator views.
+- [ ] Publish a post-cleanup state snapshot doc.
+
+### Acceptance
+- [ ] No unknown stale identities remain.
+- [ ] DB/API state matches intended architecture.
+- [ ] One authoritative state snapshot exists in `docs/`.
+
+## Sprint 1: Project Configuration Backend
+### Tasks
+- [ ] Finalize project write APIs as operator-facing setup contract.
+- [ ] Add project validation endpoints (`credentials`, `webhook`, `target contract`).
+- [ ] Add audit history for project configuration mutations.
+- [ ] Ensure generated OpenAPI/client stays in lockstep.
+
+### Acceptance
+- [ ] A project can be configured and validated via API only (no scripts).
+- [ ] Validation failures are explicit and actionable.
+- [ ] Project config changes are auditable.
+
+## Sprint 2: Project Settings UI
+### Tasks
+- [ ] Add Project Settings route and navigation.
+- [ ] Implement tabs from spec:
+- General, Release Ingest, Deployment Driver, Access & Identity, Target Contract, Runtime Health, Validation, Audit.
+- [ ] Add Save/Validate/Publish workflow with Sonner notifications.
+- [ ] Add project config payload preview and inline field validation.
+
+### Acceptance
+- [ ] Operator can configure an existing project fully from UI.
+- [ ] Operator can onboard a new project without shell scripts.
+- [ ] All setup API interactions are visible and recoverable from UI.
+
+## Sprint 3: Target Onboarding UI
+### Tasks
+- [ ] Add target registration CRUD flows in UI.
+- [ ] Add project-aware onboarding wizard and validation.
+- [ ] Add bulk import/preview/commit onboarding flow.
+- [ ] Add target-registration audit trail and error diagnostics.
+
+### Acceptance
+- [ ] Targets can be onboarded/updated without CLI ingestion scripts.
+- [ ] Target metadata contract errors are clear and fixable by operators.
+- [ ] Fleet/Admin remain consistent for all overlapping target fields.
+
+## Sprint 4: Integration Setup and Operator Guidance
+### Tasks
+- [ ] Add integration setup screens/checklists:
+- GitHub webhook setup.
+- Azure DevOps service hook setup.
+- [ ] Add guided tenant/subscription/principal help text in-app.
+- [ ] Add first-time operator docs/runbooks with explicit manual steps.
+- [ ] Add troubleshooting guides mapped to common setup errors.
+
+### Acceptance
+- [ ] First-time users can complete integration setup without hidden scripts.
+- [ ] Tenant/subscription/identity responsibilities are clear in UI and docs.
+- [ ] Error remediation paths are linked directly from setup screens.
+
+## Sprint 5: Script Decommission and Hardening
+### Tasks
+- [ ] Inventory scripts by category: keep (infra bootstrap) vs deprecate (runtime config).
+- [ ] Remove or clearly deprecate script paths replaced by UI/API.
+- [ ] Add docs consistency checks preventing old script-first instructions from reappearing.
+- [ ] Complete hardening sweep for project-scoped UX/data consistency.
+
+### Acceptance
+- [ ] Core operator workflows are UI/API-first.
+- [ ] Script usage is optional tooling, not required product operation.
+- [ ] Docs/runbooks and implementation are coherent.
+
+## Detailed Plan Reference (Current Slice)
+- `/Users/cvonderheid/workspace/mappo/docs/operator-first-setup-sprint-plan.md`
+- `/Users/cvonderheid/workspace/mappo/docs/2026-03-14-state-audit.md`
 
 ## Current State
 - Canonical backend module is `/Users/cvonderheid/workspace/mappo/backend`.
