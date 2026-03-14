@@ -95,6 +95,8 @@ Post-demo production-path planning and execution setup:
 - 2026-03-13: Completed Sprint 2 ADO driver MVP wiring in the backend: added a real `pipeline_trigger` executor + ADO REST client polling path, persisted external run handles, and validated through integration tests.
 - 2026-03-13: Added `/api/v1/admin/releases/webhooks/ado` with secret-based auth, payload parsing, project/pipeline/branch gating, release creation for `azure-appservice-ado-pipeline`, and webhook-delivery audit logging.
 - 2026-03-13: Reverted unsafe edits to historical migration `V8__project_execution_profile_configs.sql` and kept ADO evolution in new migrations (`V12`/`V13`) to avoid Flyway checksum drift on already-applied environments.
+- 2026-03-13: Added `docs/project-configuration-screen-spec.md` to define a production-grade MAPPO Project Settings UX (tabs, validation actions, API write contract, and rollout plan) so project configuration can move from migration-seeded defaults to operator-managed workflow.
+- 2026-03-13: Removed seeded ADO demo defaults from baseline/new migration paths (`B11`, `V14`) and added runtime project patching (`PATCH /api/v1/projects/{projectId}` + `scripts/project_configure_ado.sh`) so environment-specific ADO org/project/pipeline/service-connection values are no longer hard-coded in schema seeds.
 
 ## Milestones
 

@@ -68,6 +68,17 @@ That inventory is meant to feed MAPPO onboarding through:
   --api-base-url https://api.mappopoc.com
 ```
 
+2.5 Configure the ADO project runtime settings in MAPPO (no seeded demo defaults):
+
+```bash
+./scripts/project_configure_ado.sh \
+  --api-base-url https://api.mappopoc.com \
+  --ado-organization https://dev.azure.com/<org> \
+  --ado-project <project> \
+  --ado-pipeline-id <pipeline-id> \
+  --service-connection-name <service-connection-name>
+```
+
 3. Tear the fleet down when needed:
 
 ```bash

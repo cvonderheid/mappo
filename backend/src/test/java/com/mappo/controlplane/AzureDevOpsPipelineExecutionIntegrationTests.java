@@ -3,6 +3,7 @@ package com.mappo.controlplane;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -51,6 +52,7 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
 
     @Test
     void createRunUsesAzureDevOpsPipelineDriver() throws Exception {
+        configureAdoProjectForTest();
         registerAdoTarget(
             "target-ado-01",
             "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
@@ -79,6 +81,7 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
 
     @Test
     void createRunFailsValidationWhenAppServiceExecutionConfigIsMissing() throws Exception {
+        configureAdoProjectForTest();
         registerAdoTarget(
             "target-ado-02",
             "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
@@ -133,6 +136,29 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
             .andExpect(status().isCreated())
             .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsByteArray()).get("id").asText();
+    }
+
+    private void configureAdoProjectForTest() throws Exception {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("deploymentDriverConfig", Map.of(
+            "pipelineSystem", "azure_devops",
+            "organization", "https://dev.azure.com/pg123",
+            "project", "demo-app-service",
+            "pipelineId", "1",
+            "branch", "main",
+            "azureServiceConnectionName", "mappo-ado-demo-rg-contributor",
+            "supportsExternalExecutionHandle", true,
+            "supportsExternalLogs", true
+        ));
+        request.put("accessStrategyConfig", Map.of(
+            "authModel", "ado_service_connection",
+            "requiresAzureCredential", false,
+            "requiresTargetExecutionMetadata", true
+        ));
+        mockMvc.perform(patch("/api/v1/projects/{projectId}", BuiltinProjects.AZURE_APPSERVICE_ADO_PIPELINE)
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(request)))
+            .andExpect(status().isOk());
     }
 
     private org.springframework.test.web.servlet.ResultActions awaitTerminalRun(String runId) throws Exception {

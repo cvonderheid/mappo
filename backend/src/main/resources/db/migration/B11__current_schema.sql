@@ -115,7 +115,7 @@ INSERT INTO projects (
     'azure_workload_rbac',
     '{"authModel":"ado_service_connection","requiresAzureCredential":false,"requiresTargetExecutionMetadata":true}'::jsonb,
     'pipeline_trigger',
-    '{"pipelineSystem":"azure_devops","organization":"https://dev.azure.com/pg123","project":"demo-app-service","pipelineId":"1","branch":"main","azureServiceConnectionName":"mappo-ado-demo-rg-contributor","supportsExternalExecutionHandle":true,"supportsExternalLogs":true}'::jsonb,
+    '{"pipelineSystem":"azure_devops","organization":"","project":"","pipelineId":"","branch":"main","azureServiceConnectionName":"","supportsExternalExecutionHandle":true,"supportsExternalLogs":true}'::jsonb,
     'external_deployment_inputs',
     '{"sourceSystem":"azure_devops","descriptorPath":"pipelineInputs","versionField":"artifactVersion"}'::jsonb,
     'http_endpoint',

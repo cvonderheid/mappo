@@ -29,6 +29,13 @@ public class JsonUtil {
         }
     }
 
+    public Map<String, Object> toMap(Object value) {
+        if (value == null) {
+            return new HashMap<>();
+        }
+        return readMap(write(value));
+    }
+
     public List<String> readStringList(String value) {
         if (value == null || value.isBlank()) {
             return Collections.emptyList();
