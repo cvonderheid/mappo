@@ -383,8 +383,8 @@ export function RegistrationsDataTable({
       { accessorKey: "region", header: "Region" },
       { accessorKey: "tier", header: "Tier" },
       { accessorKey: "environment", header: "Env" },
-      { accessorKey: "subscriptionId", header: "Subscription" },
       { accessorKey: "tenantId", header: "Tenant" },
+      { accessorKey: "subscriptionId", header: "Subscription" },
       {
         accessorKey: "updatedAt",
         header: "Updated",
@@ -596,8 +596,8 @@ export function EventsDataTable({ refreshKey }: EventsDataTableProps) {
       },
       { accessorKey: "eventType", header: "Event Type" },
       { accessorKey: "targetId", header: "Target" },
-      { accessorKey: "subscriptionId", header: "Subscription" },
       { accessorKey: "tenantId", header: "Tenant" },
+      { accessorKey: "subscriptionId", header: "Subscription" },
       {
         accessorKey: "createdAt",
         header: "Created",

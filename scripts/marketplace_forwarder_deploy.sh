@@ -8,6 +8,7 @@ LOCATION="eastus"
 FUNCTION_APP_NAME=""
 STORAGE_ACCOUNT_NAME=""
 RUNTIME="java"
+RUNTIME_VERSION="21.0"
 FUNCTIONS_VERSION="4"
 SUBSCRIPTION_ID=""
 PACKAGE_ZIP="${ROOT_DIR}/.data/marketplace-forwarder-function.zip"
@@ -200,7 +201,7 @@ if ! az functionapp show --name "${FUNCTION_APP_NAME}" --resource-group "${RESOU
     --storage-account "${STORAGE_ACCOUNT_NAME}" \
     --functions-version "${FUNCTIONS_VERSION}" \
     --runtime "${RUNTIME}" \
-    --runtime-version 21 \
+    --runtime-version "${RUNTIME_VERSION}" \
     --os-type Linux \
     --only-show-errors \
     >/dev/null

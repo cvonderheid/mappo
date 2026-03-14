@@ -1,8 +1,26 @@
-import { FormEvent, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Toaster } from "sonner";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
 import { DEFAULT_FORM, type StartRunFormState } from "@/lib/deployment-form";
 import { releaseAvailabilitySummary } from "@/lib/fleet";
 import { createLiveUpdatesEventSource, parseLiveUpdateEvent } from "@/lib/live-updates";
@@ -52,22 +70,63 @@ import type {
   TargetRegistrationRecord,
   UpdateTargetRegistrationRequest,
 } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 const ROUTER_FUTURE_FLAGS = {
   v7_relativeSplatPath: true,
   v7_startTransition: true,
 } as const;
 
-const AdminPanel = lazy(() => import("@/components/AdminPanel"));
 const DemoPanel = lazy(() => import("@/components/DemoPanel"));
 const DeploymentsPage = lazy(() => import("@/components/DeploymentsPage"));
 const FleetTable = lazy(() => import("@/components/FleetTable"));
+const ManagedAppPage = lazy(() => import("@/components/ManagedAppPage"));
 const ProjectSwitcherMenu = lazy(() => import("@/components/ProjectSwitcherMenu"));
 const ProjectSettingsPage = lazy(() => import("@/components/ProjectSettingsPage"));
+const ReleasesPage = lazy(() => import("@/components/ReleasesPage"));
 const RunDetailPanel = lazy(() =>
   import("@/components/RunPanels").then((module) => ({ default: module.RunDetailPanel }))
 );
+const TargetsPage = lazy(() => import("@/components/TargetsPage"));
+
+type SidebarNavigationItem = {
+  label: string;
+  to: string;
+};
+
+type SidebarNavigationGroup = {
+  label: string;
+  items: SidebarNavigationItem[];
+};
+
+type BreadcrumbEntry = {
+  label: string;
+  to?: string;
+};
+
+const SIDEBAR_NAVIGATION: SidebarNavigationGroup[] = [
+  {
+    label: "Operate",
+    items: [
+      { label: "Fleet", to: "/fleet" },
+      { label: "Deployments", to: "/deployments" },
+      { label: "Releases", to: "/releases" },
+    ],
+  },
+  {
+    label: "Configure",
+    items: [
+      { label: "Projects", to: "/projects" },
+      { label: "Targets", to: "/targets" },
+    ],
+  },
+  {
+    label: "Observe",
+    items: [
+      { label: "Managed App", to: "/managed-app" },
+      { label: "Demo", to: "/demo" },
+    ],
+  },
+];
 
 export default function App() {
   return (
@@ -138,7 +197,11 @@ function AppShell() {
     [location.pathname]
   );
   const isAdminRoute = useMemo(
-    () => location.pathname === "/admin" || location.pathname === "/demo",
+    () =>
+      location.pathname === "/demo" ||
+      location.pathname === "/targets" ||
+      location.pathname === "/releases" ||
+      location.pathname === "/managed-app",
     [location.pathname]
   );
 
@@ -764,6 +827,51 @@ function AppShell() {
     () => releaseAvailabilitySummary(targets, latestRelease),
     [latestRelease, targets]
   );
+  const breadcrumbEntries = useMemo<BreadcrumbEntry[]>(() => {
+    const projectLabel = selectedProject?.name ?? selectedProject?.id ?? "No Project";
+    const projectLink = projects.length > 0 ? "/projects" : undefined;
+    const path = location.pathname;
+
+    const items: BreadcrumbEntry[] = [{ label: projectLabel, to: projectLink }];
+    if (path.startsWith("/fleet")) {
+      items.push({ label: "Operate", to: "/fleet" }, { label: "Fleet" });
+      return items;
+    }
+    if (path.startsWith("/deployments/")) {
+      const runId = decodeURIComponent(path.split("/")[2] ?? "");
+      items.push(
+        { label: "Operate", to: "/deployments" },
+        { label: "Deployments", to: "/deployments" },
+        { label: runId || "Run Detail" }
+      );
+      return items;
+    }
+    if (path.startsWith("/deployments")) {
+      items.push({ label: "Operate", to: "/deployments" }, { label: "Deployments" });
+      return items;
+    }
+    if (path.startsWith("/releases")) {
+      items.push({ label: "Operate", to: "/releases" }, { label: "Releases" });
+      return items;
+    }
+    if (path.startsWith("/projects")) {
+      items.push({ label: "Configure", to: "/projects" }, { label: "Projects" });
+      return items;
+    }
+    if (path.startsWith("/targets")) {
+      items.push({ label: "Configure", to: "/targets" }, { label: "Targets" });
+      return items;
+    }
+    if (path.startsWith("/managed-app")) {
+      items.push({ label: "Observe", to: "/managed-app" }, { label: "Managed App" });
+      return items;
+    }
+    if (path.startsWith("/demo")) {
+      items.push({ label: "Observe", to: "/demo" }, { label: "Demo" });
+      return items;
+    }
+    return items;
+  }, [location.pathname, projects.length, selectedProject?.id, selectedProject?.name]);
 
   useEffect(() => {
     setSelectedReleaseId((current) => {
@@ -1090,44 +1198,27 @@ function AppShell() {
   }
 
   return (
-    <main className="mx-auto flex w-[min(1400px,96vw)] flex-col gap-4 py-6">
+    <main className="mx-auto flex w-[min(1480px,96vw)] flex-col gap-4 py-6">
       <Toaster richColors position="top-right" />
-      <Card className="glass-card hero-gradient animate-fade-up [animation-fill-mode:forwards]">
-        <CardHeader className="flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="space-y-2">
-            <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-primary">
-              MAPPO Control Plane
-            </p>
-            <CardTitle className="text-2xl uppercase md:text-3xl">
-              Multi-tenant Managed App Orchestrator
-            </CardTitle>
+      <div className="glass-card animate-fade-up [animation-fill-mode:forwards]">
+        <div className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="w-full min-w-0 lg:max-w-2xl">
+            <Suspense fallback={<RouteLoadingFallback />}>
+              <ProjectSwitcherMenu
+                projects={projects}
+                selectedProjectId={selectedProjectId}
+                onSelectProject={setSelectedProjectId}
+                onOpenProjectSettings={() => navigate("/projects")}
+                onOpenCreateProject={() => navigate("/projects?new=1")}
+              />
+            </Suspense>
           </div>
-          <div className="w-full space-y-2 md:max-w-md">
-            <div className="grid grid-cols-2 gap-2">
-              <Kpi label="Total Targets" value={String(targets.length)} />
-              <Kpi label="Active Runs" value={String(runStats.running)} />
-            </div>
-            <div className="rounded-lg border border-border/60 bg-background/40 p-2">
-              <Suspense fallback={<RouteLoadingFallback />}>
-                <ProjectSwitcherMenu
-                  projects={projects}
-                  selectedProjectId={selectedProjectId}
-                  onSelectProject={setSelectedProjectId}
-                  onOpenProjectSettings={() => navigate("/projects")}
-                  onOpenCreateProject={() => navigate("/projects?new=1")}
-                />
-              </Suspense>
-            </div>
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-              <TopNavLink label="Fleet" to="/fleet" />
-              <TopNavLink label="Deployments" to="/deployments" />
-              <TopNavLink label="Projects" to="/projects" />
-              <TopNavLink label="Demo" to="/demo" />
-              <TopNavLink label="Admin" to="/admin" />
-            </div>
+          <div className="grid grid-cols-2 gap-2 lg:w-[320px]">
+            <Kpi label="Total Targets" value={String(targets.length)} />
+            <Kpi label="Active Runs" value={String(runStats.running)} />
           </div>
-        </CardHeader>
-      </Card>
+        </div>
+      </div>
 
       {projects.length === 0 ? (
         <div className="rounded-lg border border-primary/40 bg-primary/10 p-4">
@@ -1171,155 +1262,230 @@ function AppShell() {
         </div>
       ) : null}
 
-      <Suspense fallback={<RouteLoadingFallback />}>
-        <Routes>
-          <Route path="/" element={<Navigate to="/fleet" replace />} />
-          <Route
-            path="/fleet"
-            element={
-              <FleetTable
-                latestRelease={latestRelease}
-                refreshKey={targetsRefreshVersion}
-                selectedProjectId={selectedProjectId}
+      <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <Sidebar className="h-fit">
+          <SidebarHeader>
+            <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-primary">
+              MAPPO Control Plane
+            </p>
+            <p className="text-lg font-semibold uppercase">Navigation</p>
+          </SidebarHeader>
+          <SidebarContent>
+            {SIDEBAR_NAVIGATION.map((group) => (
+              <SidebarGroup key={group.label}>
+                <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+                <SidebarMenu>
+                  {group.items.map((item) => (
+                    <SidebarMenuItem key={item.to}>
+                      <SidebarMenuButton asChild isActive={location.pathname.startsWith(item.to)}>
+                        <NavLink to={item.to}>{item.label}</NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroup>
+            ))}
+          </SidebarContent>
+        </Sidebar>
+
+        <section className="min-w-0 space-y-4">
+          <Card className="glass-card hero-gradient animate-fade-up [animation-delay:30ms] [animation-fill-mode:forwards]">
+            <CardHeader className="space-y-3">
+              <div className="space-y-2">
+                <CardTitle className="text-2xl uppercase md:text-3xl">
+                  Multi-tenant Managed App Orchestrator
+                </CardTitle>
+                <Breadcrumb>
+                  <BreadcrumbList>
+                    {breadcrumbEntries.map((entry, index) => {
+                      const isLast = index === breadcrumbEntries.length - 1;
+                      return (
+                        <Fragment key={`${entry.label}-${index}`}>
+                          {index > 0 ? <BreadcrumbSeparator /> : null}
+                          <BreadcrumbItem>
+                            {isLast || !entry.to ? (
+                              <BreadcrumbPage>{entry.label}</BreadcrumbPage>
+                            ) : (
+                              <BreadcrumbLink asChild>
+                                <NavLink to={entry.to}>{entry.label}</NavLink>
+                              </BreadcrumbLink>
+                            )}
+                          </BreadcrumbItem>
+                        </Fragment>
+                      );
+                    })}
+                  </BreadcrumbList>
+                </Breadcrumb>
+              </div>
+            </CardHeader>
+          </Card>
+
+          <Suspense fallback={<RouteLoadingFallback />}>
+            <Routes>
+              <Route path="/" element={<Navigate to="/fleet" replace />} />
+              <Route
+                path="/fleet"
+                element={
+                  <FleetTable
+                    latestRelease={latestRelease}
+                    refreshKey={targetsRefreshVersion}
+                    selectedProjectId={selectedProjectId}
+                  />
+                }
               />
-            }
-          />
-          <Route
-            path="/projects"
-            element={
-              <ProjectSettingsPage
-                project={selectedProject}
-                projects={projects}
-                selectedProjectId={selectedProjectId}
-                targets={targets}
-                projectReleaseCount={projectReleases.length}
-                onOpenTargetOnboarding={() => navigate("/admin?onboard=1")}
-                onOpenReleaseIngest={() => navigate("/admin?ingest=1")}
-                onOpenDeployments={() => navigate("/deployments?controls=open")}
-                onCreateProject={handleCreateProject}
-                onPatchProject={handlePatchProject}
-                onValidateProject={handleValidateProject}
-                onListProjectAudit={handleListProjectAudit}
+              <Route
+                path="/projects"
+                element={
+                  <ProjectSettingsPage
+                    project={selectedProject}
+                    projects={projects}
+                    selectedProjectId={selectedProjectId}
+                    targets={targets}
+                    projectReleaseCount={projectReleases.length}
+                    onOpenTargetOnboarding={() => navigate("/targets?onboard=1")}
+                    onOpenReleaseIngest={() => navigate("/releases?ingest=1")}
+                    onOpenDeployments={() => navigate("/deployments?controls=open")}
+                    onCreateProject={handleCreateProject}
+                    onPatchProject={handlePatchProject}
+                    onValidateProject={handleValidateProject}
+                    onListProjectAudit={handleListProjectAudit}
+                  />
+                }
               />
-            }
-          />
-          <Route
-            path="/deployments"
-            element={
-              <DeploymentsPage
-                errorMessage={errorMessage}
-                formState={formState}
-                isSubmitting={isSubmitting}
-                isPreviewing={isPreviewing}
-                previewElapsedSeconds={previewElapsedSeconds}
-                previewErrorMessage={previewErrorMessage}
-                previewProgressPercent={previewProgressPercent}
-                previewTargetCount={previewTargetCount}
-                releases={projectReleases}
-                runPreview={runPreview}
-                runs={runs}
-                runPage={runPageMetadata.page ?? 0}
-                runPageSize={runPageMetadata.size ?? runPageSize}
-                runTotalItems={runPageMetadata.totalItems ?? 0}
-                runTotalPages={runPageMetadata.totalPages ?? 0}
-                runIdFilter={runIdFilter}
-                runReleaseFilter={runReleaseFilter}
-                runStatusFilter={runStatusFilter}
-                selectedRelease={selectedRelease}
-                selectedReleaseId={selectedReleaseId}
-                selectedTargetIds={selectedTargetIds}
-                targetGroupFilter={targetGroupFilter}
-                targets={deploymentTargets}
-                controlsOpen={deploymentControlsOpen}
-                onFormStateChange={setFormState}
-                onOpenRun={(runId) => {
-                  setSelectedRunId(runId);
-                  navigate(`/deployments/${encodeURIComponent(runId)}`);
-                }}
-                onReleaseChange={setSelectedReleaseId}
-                onCloneRun={(runId) => {
-                  void handleCloneRun(runId);
-                }}
-                onRetryFailed={(runId) => {
-                  void handleRetryFailed(runId);
-                }}
-                onRunIdFilterChange={(value) => {
-                  setRunIdFilter(value);
-                  setRunPage(0);
-                }}
-                onRunReleaseFilterChange={(value) => {
-                  setRunReleaseFilter(value);
-                  setRunPage(0);
-                }}
-                onRunStatusFilterChange={(value) => {
-                  setRunStatusFilter(value as RunStatus | "");
-                  setRunPage(0);
-                }}
-                onRunsPageChange={setRunPage}
-                onRunsPageSizeChange={(size) => {
-                  setRunPageSize(size);
-                  setRunPage(0);
-                }}
-                onResumeRun={(runId) => {
-                  void handleResumeRun(runId);
-                }}
-                onSelectedTargetIdsChange={setSelectedTargetIds}
-                onStartRun={handleStartRun}
-                onControlsOpenChange={setDeploymentControlsOpen}
-                onTargetGroupFilterChange={setTargetGroupFilter}
-                onRunActionsMenuOpenChange={setRunActionsMenuOpen}
-                onPreviewRun={handlePreviewRun}
-                onCancelPreview={handleCancelPreview}
+              <Route
+                path="/deployments"
+                element={
+                  <DeploymentsPage
+                    errorMessage={errorMessage}
+                    formState={formState}
+                    isSubmitting={isSubmitting}
+                    isPreviewing={isPreviewing}
+                    previewElapsedSeconds={previewElapsedSeconds}
+                    previewErrorMessage={previewErrorMessage}
+                    previewProgressPercent={previewProgressPercent}
+                    previewTargetCount={previewTargetCount}
+                    releases={projectReleases}
+                    runPreview={runPreview}
+                    runs={runs}
+                    runPage={runPageMetadata.page ?? 0}
+                    runPageSize={runPageMetadata.size ?? runPageSize}
+                    runTotalItems={runPageMetadata.totalItems ?? 0}
+                    runTotalPages={runPageMetadata.totalPages ?? 0}
+                    runIdFilter={runIdFilter}
+                    runReleaseFilter={runReleaseFilter}
+                    runStatusFilter={runStatusFilter}
+                    selectedRelease={selectedRelease}
+                    selectedReleaseId={selectedReleaseId}
+                    selectedTargetIds={selectedTargetIds}
+                    targetGroupFilter={targetGroupFilter}
+                    targets={deploymentTargets}
+                    controlsOpen={deploymentControlsOpen}
+                    onFormStateChange={setFormState}
+                    onOpenRun={(runId) => {
+                      setSelectedRunId(runId);
+                      navigate(`/deployments/${encodeURIComponent(runId)}`);
+                    }}
+                    onReleaseChange={setSelectedReleaseId}
+                    onCloneRun={(runId) => {
+                      void handleCloneRun(runId);
+                    }}
+                    onRetryFailed={(runId) => {
+                      void handleRetryFailed(runId);
+                    }}
+                    onRunIdFilterChange={(value) => {
+                      setRunIdFilter(value);
+                      setRunPage(0);
+                    }}
+                    onRunReleaseFilterChange={(value) => {
+                      setRunReleaseFilter(value);
+                      setRunPage(0);
+                    }}
+                    onRunStatusFilterChange={(value) => {
+                      setRunStatusFilter(value as RunStatus | "");
+                      setRunPage(0);
+                    }}
+                    onRunsPageChange={setRunPage}
+                    onRunsPageSizeChange={(size) => {
+                      setRunPageSize(size);
+                      setRunPage(0);
+                    }}
+                    onResumeRun={(runId) => {
+                      void handleResumeRun(runId);
+                    }}
+                    onSelectedTargetIdsChange={setSelectedTargetIds}
+                    onStartRun={handleStartRun}
+                    onControlsOpenChange={setDeploymentControlsOpen}
+                    onTargetGroupFilterChange={setTargetGroupFilter}
+                    onRunActionsMenuOpenChange={setRunActionsMenuOpen}
+                    onPreviewRun={handlePreviewRun}
+                    onCancelPreview={handleCancelPreview}
+                  />
+                }
               />
-            }
-          />
-          <Route
-            path="/deployments/:runId"
-            element={
-              <DeploymentRunDetailRoute
-                errorMessage={errorMessage}
-                runDetail={runDetail}
-                onBack={() => navigate("/deployments")}
-                onRunChange={setSelectedRunId}
+              <Route
+                path="/deployments/:runId"
+                element={
+                  <DeploymentRunDetailRoute
+                    errorMessage={errorMessage}
+                    runDetail={runDetail}
+                    onBack={() => navigate("/deployments")}
+                    onRunChange={setSelectedRunId}
+                  />
+                }
               />
-            }
-          />
-          <Route
-            path="/demo"
-            element={
-              <DemoPanel
-                adminErrorMessage={adminErrorMessage}
-                adminIsSubmitting={adminIsSubmitting}
-                adminResult={adminResult}
-                registrations={registrationOptions}
-                onIngestMarketplaceEvent={handleAdminIngestMarketplaceEvent}
-                onRefreshRegistrations={refreshRegistrationOptions}
+              <Route
+                path="/demo"
+                element={
+                  <DemoPanel
+                    adminErrorMessage={adminErrorMessage}
+                    adminIsSubmitting={adminIsSubmitting}
+                    adminResult={adminResult}
+                    registrations={registrationOptions}
+                    onIngestMarketplaceEvent={handleAdminIngestMarketplaceEvent}
+                    onRefreshRegistrations={refreshRegistrationOptions}
+                  />
+                }
               />
-            }
-          />
-          <Route
-            path="/admin"
-            element={
-              <AdminPanel
-                adminErrorMessage={adminErrorMessage}
-                adminIsSubmitting={adminIsSubmitting}
-                adminResult={adminResult}
-                projects={projects}
-                selectedProjectId={selectedProjectId}
-                registrations={registrationOptions}
-                refreshKey={adminRefreshVersion}
-                onIngestMarketplaceEvent={handleAdminIngestMarketplaceEvent}
-                releaseIngestIsSubmitting={releaseIngestIsSubmitting}
-                onIngestManagedAppReleases={handleIngestManagedAppReleases}
-                onUpdateTargetRegistration={handleAdminUpdateRegistration}
-                onDeleteTargetRegistration={handleAdminDeleteRegistration}
-                onRefreshRegistrations={refreshRegistrationOptions}
+              <Route
+                path="/targets"
+                element={
+                  <TargetsPage
+                    adminErrorMessage={adminErrorMessage}
+                    adminIsSubmitting={adminIsSubmitting}
+                    adminResult={adminResult}
+                    projects={projects}
+                    selectedProjectId={selectedProjectId}
+                    registrations={registrationOptions}
+                    refreshKey={adminRefreshVersion}
+                    onIngestMarketplaceEvent={handleAdminIngestMarketplaceEvent}
+                    onUpdateTargetRegistration={handleAdminUpdateRegistration}
+                    onDeleteTargetRegistration={handleAdminDeleteRegistration}
+                    onRefreshRegistrations={refreshRegistrationOptions}
+                  />
+                }
               />
-            }
-          />
-          <Route path="*" element={<Navigate to="/fleet" replace />} />
-        </Routes>
-      </Suspense>
+              <Route
+                path="/releases"
+                element={
+                  <ReleasesPage
+                    releases={projectReleases}
+                    releaseIngestIsSubmitting={releaseIngestIsSubmitting}
+                    refreshKey={adminRefreshVersion}
+                    onIngestManagedAppReleases={handleIngestManagedAppReleases}
+                  />
+                }
+              />
+              <Route
+                path="/managed-app"
+                element={
+                  <ManagedAppPage refreshKey={adminRefreshVersion} />
+                }
+              />
+              <Route path="*" element={<Navigate to="/fleet" replace />} />
+            </Routes>
+          </Suspense>
+        </section>
+      </div>
     </main>
   );
 }
@@ -1361,22 +1527,6 @@ function DeploymentRunDetailRoute({
       ) : null}
       <RunDetailPanel run={runDetail && runDetail.id === runId ? runDetail : null} />
     </>
-  );
-}
-
-function TopNavLink({ label, to }: { label: string; to: string }) {
-  return (
-    <NavLink
-      className={({ isActive }) =>
-        cn(
-          buttonVariants({ variant: isActive ? "default" : "outline", size: "sm" }),
-          "w-full text-center"
-        )
-      }
-      to={to}
-    >
-      {label}
-    </NavLink>
   );
 }
 
