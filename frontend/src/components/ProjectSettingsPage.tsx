@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import DataTablePagination from "@/components/DataTablePagination";
@@ -325,6 +326,8 @@ export default function ProjectSettingsPage({
   onValidateProject,
   onListProjectAudit,
 }: ProjectSettingsPageProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ProjectTab>("general");
   const [draft, setDraft] = useState<ProjectDraft>(() => projectToDraft(project));
   const [isSaving, setIsSaving] = useState(false);
@@ -356,6 +359,23 @@ export default function ProjectSettingsPage({
     setAuditPage(null);
     setAuditPageIndex(0);
   }, [project, selectedProjectId]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("new") !== "1") {
+      return;
+    }
+    setCreateDrawerOpen(true);
+    params.delete("new");
+    const nextSearch = params.toString();
+    void navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch ? `?${nextSearch}` : "",
+      },
+      { replace: true }
+    );
+  }, [location.pathname, location.search, navigate]);
 
   useEffect(() => {
     if (!validationTargetId && targets.length > 0) {

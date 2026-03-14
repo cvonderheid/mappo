@@ -3,8 +3,6 @@ import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNaviga
 import { Toaster } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DEFAULT_FORM, type StartRunFormState } from "@/lib/deployment-form";
 import { releaseAvailabilitySummary } from "@/lib/fleet";
 import { createLiveUpdatesEventSource, parseLiveUpdateEvent } from "@/lib/live-updates";
@@ -65,6 +63,7 @@ const AdminPanel = lazy(() => import("@/components/AdminPanel"));
 const DemoPanel = lazy(() => import("@/components/DemoPanel"));
 const DeploymentsPage = lazy(() => import("@/components/DeploymentsPage"));
 const FleetTable = lazy(() => import("@/components/FleetTable"));
+const ProjectSwitcherMenu = lazy(() => import("@/components/ProjectSwitcherMenu"));
 const ProjectSettingsPage = lazy(() => import("@/components/ProjectSettingsPage"));
 const RunDetailPanel = lazy(() =>
   import("@/components/RunPanels").then((module) => ({ default: module.RunDetailPanel }))
@@ -1109,26 +1108,19 @@ function AppShell() {
               <Kpi label="Active Runs" value={String(runStats.running)} />
             </div>
             <div className="rounded-lg border border-border/60 bg-background/40 p-2">
-              <Label htmlFor="project-switcher" className="mb-1 block text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                Project
-              </Label>
-              <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                <SelectTrigger id="project-switcher" className="h-10 w-full bg-background/90 text-sm">
-                  <SelectValue placeholder="Select project" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id ?? ""}>
-                      {project.name ?? project.id}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <ProjectSwitcherMenu
+                  projects={projects}
+                  selectedProjectId={selectedProjectId}
+                  onSelectProject={setSelectedProjectId}
+                  onOpenProjectSettings={() => navigate("/projects")}
+                  onOpenCreateProject={() => navigate("/projects?new=1")}
+                />
+              </Suspense>
             </div>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               <TopNavLink label="Fleet" to="/fleet" />
               <TopNavLink label="Deployments" to="/deployments" />
-              <TopNavLink label="Projects" to="/projects" />
               <TopNavLink label="Demo" to="/demo" />
               <TopNavLink label="Admin" to="/admin" />
             </div>

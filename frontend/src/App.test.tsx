@@ -258,11 +258,10 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText("Fleet Targets")).toBeInTheDocument();
       expect(screen.getByText("Demo Customer A")).toBeInTheDocument();
-      expect(screen.getByText("Project")).toBeInTheDocument();
+      expect(screen.getByTestId("project-switcher-trigger")).toBeInTheDocument();
       expect(screen.getByText("Managed App Demo")).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Fleet/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Deployments/i })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /Projects/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Admin/i })).toBeInTheDocument();
       expect(screen.getByText(/New release 2026.02.25.3 is available/i)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Deploy 2026.02.25.3/i })).toBeInTheDocument();
@@ -312,6 +311,24 @@ describe("App", () => {
     });
 
     expect(liveUpdatesMock.createLiveUpdatesEventSource).not.toHaveBeenCalled();
+  });
+
+  it("opens project settings create drawer from project switcher", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("project-switcher-trigger")).toBeInTheDocument();
+    });
+
+    fireEvent.pointerDown(screen.getByTestId("project-switcher-trigger"));
+
+    const newProjectAction = await screen.findByTestId("project-switcher-new-project");
+    fireEvent.click(newProjectAction);
+
+    await waitFor(() => {
+      expect(screen.getByText("Project Settings")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Create Project" })).toBeInTheDocument();
+    });
   });
 
   it("includes run live topics on deployments routes", async () => {
