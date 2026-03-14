@@ -118,6 +118,26 @@ public class AdminController {
         return releaseManifestIngestService.ingestGithubWebhook(payload, githubEvent, signatureHeader, githubDeliveryId);
     }
 
+    @PostMapping("/releases/webhooks/ado")
+    @Operation(summary = "Receive Azure DevOps release webhook")
+    public ReleaseManifestIngestResultRecord ingestAzureDevOpsReleaseWebhook(
+        @RequestBody String payload,
+        @RequestHeader(value = "x-vss-event", required = false) String eventType,
+        @RequestHeader(value = "x-vss-deliveryid", required = false) String deliveryId,
+        @RequestHeader(value = "authorization", required = false) String authorization,
+        @RequestParam(value = "token", required = false) String token,
+        @RequestParam(value = "projectId", required = false) String projectId
+    ) {
+        return releaseManifestIngestService.ingestAzureDevOpsWebhook(
+            payload,
+            eventType,
+            deliveryId,
+            authorization,
+            token,
+            projectId
+        );
+    }
+
     @PatchMapping("/onboarding/registrations/{targetId}")
     @Operation(summary = "Update registered target metadata")
     public TargetRegistrationRecord updateRegistration(

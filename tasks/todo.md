@@ -92,6 +92,9 @@ Post-demo production-path planning and execution setup:
 - 2026-03-09: Added explicit operational retention settings plus scheduled cleanup for old terminal runs, marketplace events, forwarder logs, and release-webhook deliveries, and added supporting indexes for the paginated run/admin query hot paths.
 - 2026-03-10: Removed deprecated compatibility endpoints and snapshot models, rewired the frontend to current paginated onboarding/target APIs only, and deleted stale docs/scripts from the old marketplace/template-spec path.
 - 2026-03-10: Reduced `infra/pulumi` to the current control-plane/edge responsibility set, moved exports/config helpers out of `Main.java`, and removed stale managed-app-era Pulumi config keys and helper tooling commands.
+- 2026-03-13: Completed Sprint 2 ADO driver MVP wiring in the backend: added a real `pipeline_trigger` executor + ADO REST client polling path, persisted external run handles, and validated through integration tests.
+- 2026-03-13: Added `/api/v1/admin/releases/webhooks/ado` with secret-based auth, payload parsing, project/pipeline/branch gating, release creation for `azure-appservice-ado-pipeline`, and webhook-delivery audit logging.
+- 2026-03-13: Reverted unsafe edits to historical migration `V8__project_execution_profile_configs.sql` and kept ADO evolution in new migrations (`V12`/`V13`) to avoid Flyway checksum drift on already-applied environments.
 
 ## Milestones
 
@@ -288,17 +291,17 @@ Post-demo production-path planning and execution setup:
 - [x] Add the App Service fleet Pulumi module and wire it into the root Maven reactor.
 - [x] Add sample App Service workload packaging plus operator scripts for configure/up/down/package.
 - [x] Generalize inventory ingest so non-managed-app projects can register targets with project-specific execution config.
-- [ ] Provision simple Azure App Service targets in subscriptions:
+- [x] Provision simple Azure App Service targets in subscriptions:
   - `1adaaa48-139a-477b-a8c8-0e6289d6d199`
   - `597f46c7-2ce0-440e-962d-453e486f159d`
-- [ ] Create and validate the Azure DevOps project and Azure service connection backed by a managing-tenant service principal with Lighthouse delegation.
+- [x] Create and validate the Azure DevOps project and Azure service connection backed by a managing-tenant service principal with direct RBAC on target resource groups.
 
 ### Sprint 2: ADO Driver MVP
-- [ ] Implement the first Azure DevOps `pipeline_trigger` deployment driver.
-- [ ] Implement external run persistence for ADO pipeline run ID and URL.
-- [ ] Implement status polling and log-summary normalization for ADO runs.
-- [ ] Define and wire the ADO release-ingest path using service hooks.
-- [ ] Validate that project switching cleanly separates the Deployment Stack project and the ADO project in Fleet, Deployments, Demo, and Admin.
+- [x] Implement the first Azure DevOps `pipeline_trigger` deployment driver.
+- [x] Implement external run persistence for ADO pipeline run ID and URL.
+- [x] Implement status polling and log-summary normalization for ADO runs.
+- [x] Define and wire the ADO release-ingest path using service hooks.
+- [x] Validate that project switching cleanly separates the Deployment Stack project and the ADO project in Fleet, Deployments, Demo, and Admin.
 
 ### Sprint 3: Multi-Project Hardening
 - [ ] Add driver-specific capability UX for preview, cancel, and log support.

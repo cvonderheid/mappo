@@ -77,6 +77,33 @@ public class RunTargetDeploymentService {
                 error.getError()
             );
             return DeploymentResult.failure();
+        } catch (RuntimeException error) {
+            runTargetStageService.failStage(
+                runId,
+                release.projectId(),
+                context.targetId(),
+                MappoTargetStage.DEPLOYING,
+                start.correlationId(),
+                "Deployment execution failed unexpectedly: " + error.getMessage(),
+                new StageErrorRecord(
+                    "TARGET_DEPLOYMENT_UNEXPECTED_ERROR",
+                    "Deployment execution failed unexpectedly: " + error.getMessage(),
+                    new StageErrorDetailsRecord(
+                        null,
+                        error.getClass().getName() + ": " + error.getMessage(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        start.correlationId(),
+                        null,
+                        null,
+                        context.containerAppResourceId()
+                    )
+                )
+            );
+            return DeploymentResult.failure();
         }
     }
 

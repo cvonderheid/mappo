@@ -17,7 +17,7 @@ The first non-Deployment-Stack driver will be:
 - deployment driver: `pipeline_trigger`
 - external system: Azure DevOps Pipelines
 - target platform: Azure App Service
-- access strategy: `lighthouse_delegated_access`
+- access strategy: `azure_workload_rbac`
 
 ## Current Ground Truth
 Today, MAPPO effectively has:
@@ -65,7 +65,7 @@ This is the first proof that MAPPO can orchestrate a non-Deployment-Stack projec
 `pipeline_trigger`
 
 ### Access strategy
-`lighthouse_delegated_access`
+`azure_workload_rbac`
 
 ### Platform
 Azure App Service
@@ -82,16 +82,13 @@ Keep the deployed app intentionally simple:
 - no database required for the first ADO project
 
 ## Auth Model
-### MAPPO to Azure
-MAPPO continues to use its provider-side Azure control-plane identity model.
-
 ### ADO to Azure
-The ADO pipeline should use:
+The ADO pipeline uses:
 - an Azure service connection
 - backed by a service principal in the managing tenant
-- delegated access to the customer subscriptions through Azure Lighthouse
+- with direct RBAC on the App Service target resource groups in the customer subscriptions for this demo
 
-This should not depend on the MAPPO ACA managed identity.
+This does not depend on the MAPPO ACA managed identity, and it does not currently depend on Lighthouse delegation.
 
 ### ADO to MAPPO
 ADO should notify MAPPO that a release is ready through a webhook or service hook.
@@ -140,7 +137,7 @@ Prepare the platform and Azure environment for the first ADO-backed project.
 5. Azure DevOps project bootstrap completed
 - ADO project created
 - service connection created
-- Lighthouse delegation validated for the service principal
+- App Service deployment access validated for the service principal in both target subscriptions
 
 ### Progress
 - [x] Added the second-project Azure target module under `infra/appservice-fleet`
@@ -148,13 +145,14 @@ Prepare the platform and Azure environment for the first ADO-backed project.
 - [x] Added sample App Service workload packaging under `delivery/appservice-demo-app`
 - [x] Added `appservice_fleet_configure/up/down/package.sh` operator scripts
 - [x] Generalized inventory ingest so non-managed-app projects can register targets with project-specific execution config
-- [ ] Provision App Service targets in both customer subscriptions
-- [ ] Bootstrap the Azure DevOps project and service connection
+- [x] Provision App Service targets in both customer subscriptions
+- [x] Bootstrap the Azure DevOps project and service connection
+- [x] Validate direct service-connection RBAC for the ADO managing-tenant principal in both target subscriptions
 
 ### Acceptance criteria
 - MAPPO data model can represent an ADO-backed project without Azure Deployment Stack assumptions
 - the second project's Azure targets exist
-- ADO auth model is proven against both customer subscriptions
+- ADO service connection auth model is proven against both customer subscriptions through direct RBAC on the target resource groups
 - no ADO deployment driver code is required to manually prove the service connection works
 
 ## Sprint 2
@@ -191,12 +189,23 @@ Implement the first real `pipeline_trigger` driver for Azure DevOps.
 - MAPPO fetches canonical release metadata from ADO repo or artifact source
 - release is created in project 2
 
+Current implementation detail:
+- endpoint: `POST /api/v1/admin/releases/webhooks/ado`
+- auth: `token` query parameter or HTTP Basic password matching `MAPPO_AZURE_DEVOPS_WEBHOOK_SECRET`
+- project targeting: optional `projectId` query parameter (defaults to `azure-appservice-ado-pipeline`)
+
 4. UI validation
 - project switcher cleanly scopes:
   - Fleet
   - Deployments
   - Demo
   - Admin
+
+### Progress
+- [x] Implemented Azure DevOps `pipeline_trigger` driver (`queue -> poll -> terminal mapping`)
+- [x] Persisted external pipeline execution handle metadata (run ID/name/URLs/status)
+- [x] Added canonical ADO template parameter materialization and validation for App Service targets
+- [x] Define and wire the ADO release-ingest path using Azure DevOps service hooks
 
 ### Acceptance criteria
 - project 2 can deploy through ADO to both target subscriptions

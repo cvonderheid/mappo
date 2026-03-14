@@ -58,9 +58,12 @@ public class MappoProperties {
     public static class AzureDevOpsProperties {
         private String baseUrl = "https://dev.azure.com";
         private String personalAccessToken = "";
+        private String webhookSecret = "";
         private String apiVersion = "7.1";
         private long connectTimeoutMs = 10_000L;
         private long readTimeoutMs = 30_000L;
+        private long runPollIntervalMs = 5_000L;
+        private long runPollTimeoutMs = 900_000L;
     }
 
     @Getter

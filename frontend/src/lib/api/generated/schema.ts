@@ -115,6 +115,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/releases/webhooks/ado": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Receive Azure DevOps release webhook */
+        post: operations["ingestAzureDevOpsReleaseWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/releases/ingest/github": {
         parameters: {
             query?: never;
@@ -892,6 +909,7 @@ export interface components {
             project?: string;
             pipelineId?: string;
             branch?: string;
+            azureServiceConnectionName?: string;
             supportsExternalExecutionHandle?: boolean;
             supportsExternalLogs?: boolean;
         };
@@ -1233,6 +1251,37 @@ export interface operations {
                 "x-github-event"?: string;
                 "x-hub-signature-256"?: string;
                 "x-github-delivery"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": string;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReleaseManifestIngestResultRecord"];
+                };
+            };
+        };
+    };
+    ingestAzureDevOpsReleaseWebhook: {
+        parameters: {
+            query?: {
+                token?: string;
+                projectId?: string;
+            };
+            header?: {
+                "x-vss-event"?: string;
+                "x-vss-deliveryid"?: string;
+                authorization?: string;
             };
             path?: never;
             cookie?: never;

@@ -28,7 +28,7 @@ public class ReleaseWebhookAuditService {
     }
 
     public String newDeliveryLogId(String externalDeliveryId, String eventType, String payload, OffsetDateTime receivedAt) {
-        String basis = firstNonBlank(normalize(externalDeliveryId), normalize(eventType), "github")
+        String basis = firstNonBlank(normalize(externalDeliveryId), normalize(eventType), "release-webhook")
             + "::" + normalize(payload)
             + "::" + receivedAt.toInstant().toEpochMilli();
         return "rwh-" + sha256Hex(basis).substring(0, 12);
@@ -55,7 +55,7 @@ public class ReleaseWebhookAuditService {
             nullable(ref),
             nullable(manifestPath),
             status,
-            defaultIfBlank(message, "GitHub release webhook processed."),
+            defaultIfBlank(message, "Release webhook processed."),
             changedPaths == null ? List.of() : List.copyOf(changedPaths),
             result == null ? 0 : result.manifestReleaseCount(),
             result == null ? 0 : result.createdCount(),

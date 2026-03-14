@@ -31,3 +31,4 @@ test-results/
 
 # Local data
 .data/
+.tmp/

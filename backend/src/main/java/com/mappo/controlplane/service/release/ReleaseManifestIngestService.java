@@ -16,6 +16,7 @@ public class ReleaseManifestIngestService {
     private final ReleaseManifestParser releaseManifestParser;
     private final ReleaseManifestApplyService releaseManifestApplyService;
     private final GithubReleaseWebhookService githubReleaseWebhookService;
+    private final AzureDevOpsReleaseWebhookService azureDevOpsReleaseWebhookService;
     private final MappoProperties properties;
 
     public ReleaseManifestIngestResultRecord ingestGithubManifest(ReleaseManifestIngestRequest request) {
@@ -40,6 +41,24 @@ public class ReleaseManifestIngestService {
         String githubDeliveryId
     ) {
         return githubReleaseWebhookService.handle(rawPayload, githubEvent, signatureHeader, githubDeliveryId);
+    }
+
+    public ReleaseManifestIngestResultRecord ingestAzureDevOpsWebhook(
+        String rawPayload,
+        String eventTypeHeader,
+        String deliveryIdHeader,
+        String authorizationHeader,
+        String queryToken,
+        String projectId
+    ) {
+        return azureDevOpsReleaseWebhookService.handle(
+            rawPayload,
+            eventTypeHeader,
+            deliveryIdHeader,
+            authorizationHeader,
+            queryToken,
+            projectId
+        );
     }
 
     private String firstNonBlank(String... values) {

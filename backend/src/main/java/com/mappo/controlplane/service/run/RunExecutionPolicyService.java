@@ -61,6 +61,9 @@ public class RunExecutionPolicyService {
         if (useRealDeploymentStackExecution(project, release, azureConfigured)) {
             return "Verification passed: deployment stack completed successfully.";
         }
+        if (useRealPipelineTriggerExecution(project)) {
+            return "Verification passed: external pipeline deployment completed successfully.";
+        }
         return "Verification passed in simulator mode.";
     }
 
@@ -76,9 +79,14 @@ public class RunExecutionPolicyService {
             && release.deploymentScope().getLiteral().equals("resource_group");
     }
 
+    public boolean useRealPipelineTriggerExecution(ProjectDefinition project) {
+        return project.deploymentDriver() == ProjectDeploymentDriverType.pipeline_trigger;
+    }
+
     public boolean useRealExecution(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
         return useRealTemplateSpecExecution(project, release, azureConfigured)
-            || useRealDeploymentStackExecution(project, release, azureConfigured);
+            || useRealDeploymentStackExecution(project, release, azureConfigured)
+            || useRealPipelineTriggerExecution(project);
     }
 
     public boolean isSimulatorMode(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {

@@ -72,9 +72,12 @@ mappo:
   azure-devops:
     base-url: ${MAPPO_AZURE_DEVOPS_BASE_URL:https://dev.azure.com}
     personal-access-token: ${MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN:}
+    webhook-secret: ${MAPPO_AZURE_DEVOPS_WEBHOOK_SECRET:}
     api-version: ${MAPPO_AZURE_DEVOPS_API_VERSION:7.1}
     connect-timeout-ms: ${MAPPO_AZURE_DEVOPS_CONNECT_TIMEOUT_MS:10000}
     read-timeout-ms: ${MAPPO_AZURE_DEVOPS_READ_TIMEOUT_MS:30000}
+    run-poll-interval-ms: ${MAPPO_AZURE_DEVOPS_RUN_POLL_INTERVAL_MS:5000}
+    run-poll-timeout-ms: ${MAPPO_AZURE_DEVOPS_RUN_POLL_TIMEOUT_MS:900000}
   runtime-probe:
     enabled: ${MAPPO_RUNTIME_PROBE_ENABLED:true}
     interval-ms: ${MAPPO_RUNTIME_PROBE_INTERVAL_MS:60000}
