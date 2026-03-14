@@ -1,4 +1,5 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import {
@@ -8,6 +9,7 @@ import {
   RegistrationsDataTable,
 } from "@/components/AdminTables";
 import ReleaseIngestDrawer from "@/components/ReleaseIngestDrawer";
+import TargetOnboardingDrawer from "@/components/TargetOnboardingDrawer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -24,6 +26,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
+  MarketplaceEventIngestRequest,
+  MarketplaceEventIngestResponse,
+  ProjectDefinition,
   ReleaseManifestIngestRequest,
   ReleaseManifestIngestResponse,
   TargetRegistrationRecord,
@@ -32,9 +37,17 @@ import type {
 
 type AdminPanelProps = {
   adminErrorMessage: string;
+  adminIsSubmitting: boolean;
+  adminResult: MarketplaceEventIngestResponse | null;
+  projects: ProjectDefinition[];
+  selectedProjectId: string;
   registrations: TargetRegistrationRecord[];
   refreshKey: number;
   releaseIngestIsSubmitting: boolean;
+  onIngestMarketplaceEvent: (
+    request: MarketplaceEventIngestRequest,
+    ingestToken?: string
+  ) => Promise<void>;
   onIngestManagedAppReleases: (
     request: ReleaseManifestIngestRequest
   ) => Promise<ReleaseManifestIngestResponse>;
@@ -57,15 +70,24 @@ function normalizeTagValue(value: unknown, fallback: string): string {
 
 export default function AdminPanel({
   adminErrorMessage,
+  adminIsSubmitting,
+  adminResult,
+  projects,
+  selectedProjectId,
   registrations,
   refreshKey,
   releaseIngestIsSubmitting,
+  onIngestMarketplaceEvent,
   onIngestManagedAppReleases,
   onUpdateTargetRegistration,
   onDeleteTargetRegistration,
   onRefreshRegistrations,
 }: AdminPanelProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
+  const [onboardingDrawerOpen, setOnboardingDrawerOpen] = useState(false);
+  const [releaseIngestDrawerOpen, setReleaseIngestDrawerOpen] = useState(false);
 
   const [editingTargetId, setEditingTargetId] = useState<string>("");
   const [editDisplayName, setEditDisplayName] = useState<string>("");
@@ -88,11 +110,46 @@ export default function AdminPanel({
   const [isRefreshingSnapshot, setIsRefreshingSnapshot] = useState<boolean>(false);
 
   const [deletingTargetId, setDeletingTargetId] = useState<string | null>(null);
+  const selectedProjectLabel = useMemo(() => {
+    const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
+    if (!selectedProjectId) {
+      return "No project selected";
+    }
+    return selectedProject?.name || selectedProject?.id || selectedProjectId;
+  }, [projects, selectedProjectId]);
 
   const canSubmitEdit =
     editingTargetId.trim() !== "" &&
     editDisplayName.trim() !== "" &&
     editContainerAppResourceId.trim() !== "";
+
+  useEffect(() => {
+    if (location.pathname !== "/admin") {
+      return;
+    }
+    const params = new URLSearchParams(location.search);
+    const openOnboard = params.get("onboard") === "1";
+    const openIngest = params.get("ingest") === "1";
+    if (!openOnboard && !openIngest) {
+      return;
+    }
+    if (openOnboard) {
+      setOnboardingDrawerOpen(true);
+    }
+    if (openIngest) {
+      setReleaseIngestDrawerOpen(true);
+    }
+    params.delete("onboard");
+    params.delete("ingest");
+    const nextSearch = params.toString();
+    void navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch ? `?${nextSearch}` : "",
+      },
+      { replace: true }
+    );
+  }, [location.pathname, location.search, navigate]);
 
   function openEditDrawer(registration: TargetRegistrationRecord): void {
     setEditingTargetId(registration.targetId ?? "");
@@ -215,8 +272,19 @@ export default function AdminPanel({
           Marketplace onboarding registrations and operational logs.
         </p>
         <div className="flex items-center gap-2">
+          <TargetOnboardingDrawer
+            projects={projects}
+            selectedProjectId={selectedProjectId}
+            isSubmitting={adminIsSubmitting}
+            open={onboardingDrawerOpen}
+            onOpenChange={setOnboardingDrawerOpen}
+            onIngestMarketplaceEvent={onIngestMarketplaceEvent}
+            onRefreshRegistrations={onRefreshRegistrations}
+          />
           <ReleaseIngestDrawer
             isSubmitting={releaseIngestIsSubmitting}
+            open={releaseIngestDrawerOpen}
+            onOpenChange={setReleaseIngestDrawerOpen}
             onIngest={handleIngestManagedAppReleases}
           />
           <Drawer direction="top" open={editDrawerOpen} onOpenChange={setEditDrawerOpen}>
@@ -408,6 +476,15 @@ export default function AdminPanel({
           {adminErrorMessage}
         </div>
       ) : null}
+      <div className="rounded-md border border-border/70 bg-background/40 p-2 text-xs text-muted-foreground">
+        Admin actions apply to project: <span className="font-medium text-foreground">{selectedProjectLabel}</span>
+      </div>
+      {adminResult ? (
+        <div className="rounded-md border border-primary/30 bg-primary/10 p-2 text-xs text-muted-foreground">
+          Last onboarding event <span className="font-mono">{adminResult.eventId}</span>: {adminResult.status}{" "}
+          ({adminResult.message})
+        </div>
+      ) : null}
 
       <Card className="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]">
         <CardHeader>
@@ -426,6 +503,7 @@ export default function AdminPanel({
             <TabsContent value="registrations">
               <RegistrationsDataTable
                 refreshKey={refreshKey}
+                projectId={selectedProjectId}
                 headerActions={
                   <Button
                     type="button"

@@ -69,10 +69,11 @@ Operator-first setup and integration clarity before additional coding:
 
 ## Sprint 3: Target Onboarding UI
 ### Tasks
-- [ ] Add target registration CRUD flows in UI.
-- [ ] Add project-aware onboarding wizard and validation.
-- [ ] Add bulk import/preview/commit onboarding flow.
-- [ ] Add target-registration audit trail and error diagnostics.
+- [x] Add target registration create flow in UI (single-target onboarding wizard).
+- [x] Add project-aware onboarding validations by deployment driver.
+- [x] Add bulk import onboarding (JSON paste) with preview and commit results.
+- [x] Add registration diagnostics surface in Admin (per-row ingest outcomes + event links).
+- [ ] Verify Fleet/Admin consistency after onboarding create/update/delete.
 
 ### Acceptance
 - [ ] Targets can be onboarded/updated without CLI ingestion scripts.

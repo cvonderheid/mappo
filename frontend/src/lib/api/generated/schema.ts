@@ -2025,6 +2025,11 @@ export interface operations {
                  */
                 targetId?: string;
                 /**
+                 * @description Filter by project identifier.
+                 * @example azure-managed-app-deployment-stack
+                 */
+                projectId?: string;
+                /**
                  * @description Filter by target ring/group.
                  * @example canary
                  */

@@ -37,6 +37,10 @@ type ProjectSettingsPageProps = {
   projects: ProjectDefinition[];
   selectedProjectId: string;
   targets: Target[];
+  projectReleaseCount: number;
+  onOpenTargetOnboarding: () => void;
+  onOpenReleaseIngest: () => void;
+  onOpenDeployments: () => void;
   onCreateProject: (request: ProjectCreateRequest) => Promise<ProjectDefinition>;
   onPatchProject: (projectId: string, request: ProjectConfigurationPatchRequest) => Promise<ProjectDefinition>;
   onValidateProject: (projectId: string, request: ProjectValidationRequest) => Promise<ProjectValidationResult>;
@@ -321,6 +325,10 @@ export default function ProjectSettingsPage({
   projects,
   selectedProjectId,
   targets,
+  projectReleaseCount,
+  onOpenTargetOnboarding,
+  onOpenReleaseIngest,
+  onOpenDeployments,
   onCreateProject,
   onPatchProject,
   onValidateProject,
@@ -385,6 +393,7 @@ export default function ProjectSettingsPage({
 
   const capabilities = DRIVER_CAPABILITIES[draft.deploymentDriver];
   const targetContract = TARGET_CONTRACTS[draft.deploymentDriver];
+  const targetCount = targets.length;
   const auditMetadata: PageMetadata = auditPage?.page ?? {
     page: auditPageIndex,
     size: auditPageSize,
@@ -1237,6 +1246,80 @@ export default function ProjectSettingsPage({
             <pre className="max-h-72 overflow-auto rounded bg-background p-2 text-[11px]">
               {normalizedPayloadPreview}
             </pre>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="glass-card animate-fade-up [animation-delay:50ms] [animation-fill-mode:forwards]">
+        <CardHeader>
+          <CardTitle>Project Setup Checklist</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <div className="grid gap-2 md:grid-cols-2">
+            <div className="rounded-md border border-border/70 bg-background/50 p-3">
+              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Selected project</p>
+              <p className="mt-1 font-medium">
+                {project?.name ?? "No project selected"}
+              </p>
+              {project?.id ? (
+                <p className="font-mono text-xs text-muted-foreground">{project.id}</p>
+              ) : null}
+            </div>
+            <div className="rounded-md border border-border/70 bg-background/50 p-3">
+              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Current progress</p>
+              <p className="mt-1 text-muted-foreground">
+                Targets onboarded: <span className="font-medium text-foreground">{targetCount}</span>
+                {" · "}
+                Releases registered: <span className="font-medium text-foreground">{projectReleaseCount}</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2 rounded-md border border-border/70 bg-background/40 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-medium">1. Create and select a project</p>
+              <Badge variant={project ? "default" : "secondary"}>{project ? "Done" : "Pending"}</Badge>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-medium">2. Configure and publish project settings</p>
+              <Badge variant={project ? "default" : "secondary"}>{project ? "Ready" : "Blocked"}</Badge>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-medium">3. Onboard at least one target</p>
+              <Badge variant={targetCount > 0 ? "default" : "secondary"}>
+                {targetCount > 0 ? "Done" : "Pending"}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-medium">4. Ingest at least one release</p>
+              <Badge variant={projectReleaseCount > 0 ? "default" : "secondary"}>
+                {projectReleaseCount > 0 ? "Done" : "Pending"}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-medium">5. Preview changes and start first run</p>
+              <Badge variant={targetCount > 0 && projectReleaseCount > 0 ? "default" : "secondary"}>
+                {targetCount > 0 && projectReleaseCount > 0 ? "Ready" : "Blocked"}
+              </Badge>
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button type="button" variant="outline" onClick={() => setCreateDrawerOpen(true)}>
+                New Project
+              </Button>
+              <Button type="button" variant="outline" onClick={onOpenTargetOnboarding} disabled={!project}>
+                Onboard Targets
+              </Button>
+              <Button type="button" variant="outline" onClick={onOpenReleaseIngest} disabled={!project}>
+                Ingest Releases
+              </Button>
+              <Button
+                type="button"
+                onClick={onOpenDeployments}
+                disabled={!project || targetCount === 0 || projectReleaseCount === 0}
+              >
+                Open Deployment Controls
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

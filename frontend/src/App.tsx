@@ -1118,15 +1118,32 @@ function AppShell() {
                 />
               </Suspense>
             </div>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
               <TopNavLink label="Fleet" to="/fleet" />
               <TopNavLink label="Deployments" to="/deployments" />
+              <TopNavLink label="Projects" to="/projects" />
               <TopNavLink label="Demo" to="/demo" />
               <TopNavLink label="Admin" to="/admin" />
             </div>
           </div>
         </CardHeader>
       </Card>
+
+      {projects.length === 0 ? (
+        <div className="rounded-lg border border-primary/40 bg-primary/10 p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold">No projects configured yet.</p>
+              <p className="text-sm text-muted-foreground">
+                Start by creating a project profile, then configure onboarding and release ingest.
+              </p>
+            </div>
+            <Button type="button" onClick={() => navigate("/projects?new=1")}>
+              Create First Project
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {releaseSummary.hasBanner && latestRelease ? (
         <div className="rounded-lg border border-primary/40 bg-primary/10 p-4">
@@ -1175,6 +1192,10 @@ function AppShell() {
                 projects={projects}
                 selectedProjectId={selectedProjectId}
                 targets={targets}
+                projectReleaseCount={projectReleases.length}
+                onOpenTargetOnboarding={() => navigate("/admin?onboard=1")}
+                onOpenReleaseIngest={() => navigate("/admin?ingest=1")}
+                onOpenDeployments={() => navigate("/deployments?controls=open")}
                 onCreateProject={handleCreateProject}
                 onPatchProject={handlePatchProject}
                 onValidateProject={handleValidateProject}
@@ -1281,8 +1302,13 @@ function AppShell() {
             element={
               <AdminPanel
                 adminErrorMessage={adminErrorMessage}
+                adminIsSubmitting={adminIsSubmitting}
+                adminResult={adminResult}
+                projects={projects}
+                selectedProjectId={selectedProjectId}
                 registrations={registrationOptions}
                 refreshKey={adminRefreshVersion}
+                onIngestMarketplaceEvent={handleAdminIngestMarketplaceEvent}
                 releaseIngestIsSubmitting={releaseIngestIsSubmitting}
                 onIngestManagedAppReleases={handleIngestManagedAppReleases}
                 onUpdateTargetRegistration={handleAdminUpdateRegistration}

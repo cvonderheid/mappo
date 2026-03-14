@@ -281,6 +281,7 @@ function TableFrame({
 
 type RegistrationsDataTableProps = {
   refreshKey: number;
+  projectId?: string;
   headerActions?: ReactNode;
   onEditRegistration: (registration: TargetRegistrationRecord) => void;
   onDeleteRegistration: (registration: TargetRegistrationRecord) => void;
@@ -289,6 +290,7 @@ type RegistrationsDataTableProps = {
 
 export function RegistrationsDataTable({
   refreshKey,
+  projectId,
   headerActions,
   onEditRegistration,
   onDeleteRegistration,
@@ -320,6 +322,7 @@ export function RegistrationsDataTable({
       page,
       size: pageSize,
       targetId: targetIdFilter || undefined,
+      projectId: projectId || undefined,
       ring: groupFilter === "all" ? undefined : groupFilter,
       region: regionFilter === "all" ? undefined : regionFilter,
       tier: tierFilter === "all" ? undefined : tierFilter,
@@ -347,7 +350,7 @@ export function RegistrationsDataTable({
     return () => {
       active = false;
     };
-  }, [groupFilter, page, pageSize, refreshKey, regionFilter, targetIdFilter, tierFilter]);
+  }, [groupFilter, page, pageSize, projectId, refreshKey, regionFilter, targetIdFilter, tierFilter]);
 
   const rows = useMemo<RegistrationRow[]>(
     () =>

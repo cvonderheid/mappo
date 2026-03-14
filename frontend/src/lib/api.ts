@@ -203,6 +203,7 @@ export async function adminListTargetRegistrations(
         page: query.page,
         size: query.size,
         targetId: query.targetId,
+        projectId: query.projectId,
         ring: query.ring,
         region: query.region,
         tier: query.tier,

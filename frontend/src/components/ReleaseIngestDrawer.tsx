@@ -25,18 +25,31 @@ const DEFAULT_REF = "main";
 
 type ReleaseIngestDrawerProps = {
   isSubmitting: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onIngest: (request: ReleaseManifestIngestRequest) => Promise<void>;
 };
 
 export default function ReleaseIngestDrawer({
   isSubmitting,
+  open,
+  onOpenChange,
   onIngest,
 }: ReleaseIngestDrawerProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [repo, setRepo] = useState(DEFAULT_REPO);
   const [path, setPath] = useState(DEFAULT_PATH);
   const [ref, setRef] = useState(DEFAULT_REF);
   const [duplicateMode, setDuplicateMode] = useState<"skip" | "allow">("skip");
+  const isOpen = open ?? internalOpen;
+
+  function setDrawerOpen(nextOpen: boolean): void {
+    if (onOpenChange) {
+      onOpenChange(nextOpen);
+      return;
+    }
+    setInternalOpen(nextOpen);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -46,11 +59,11 @@ export default function ReleaseIngestDrawer({
       ref: ref.trim(),
       allowDuplicates: duplicateMode === "allow",
     });
-    setOpen(false);
+    setDrawerOpen(false);
   }
 
   return (
-    <Drawer direction="top" open={open} onOpenChange={setOpen}>
+    <Drawer direction="top" open={isOpen} onOpenChange={setDrawerOpen}>
       <DrawerTrigger asChild>
         <Button type="button" variant="outline">
           Ingest Managed-App Releases

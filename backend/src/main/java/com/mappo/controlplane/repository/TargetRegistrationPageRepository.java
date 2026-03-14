@@ -178,12 +178,16 @@ public class TargetRegistrationPageRepository {
 
         Condition condition = DSL.trueCondition();
         String targetId = normalize(query.targetId());
+        String projectId = normalize(query.projectId());
         String ring = normalize(query.ring());
         String region = normalize(query.region());
         String tier = normalize(query.tier());
 
         if (!targetId.isBlank()) {
             condition = condition.and(TARGET_REGISTRATIONS.TARGET_ID.containsIgnoreCase(targetId));
+        }
+        if (!projectId.isBlank()) {
+            condition = condition.and(TARGETS.PROJECT_ID.eq(projectId));
         }
         if (!ring.isBlank()) {
             condition = condition.and(tagEqualsCondition("ring", ring));

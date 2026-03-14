@@ -12,6 +12,9 @@ public class TargetRegistrationPageParameters extends PageQueryParameters {
     @Schema(description = "Filter by target identifier.", example = "demo-target-01")
     private String targetId;
 
+    @Schema(description = "Filter by project identifier.", example = "azure-managed-app-deployment-stack")
+    private String projectId;
+
     @Schema(description = "Filter by target ring/group.", example = "canary")
     private String ring;
 
@@ -22,6 +25,6 @@ public class TargetRegistrationPageParameters extends PageQueryParameters {
     private String tier;
 
     public TargetRegistrationPageQuery toQuery() {
-        return new TargetRegistrationPageQuery(getPage(), getSize(), targetId, ring, region, tier);
+        return new TargetRegistrationPageQuery(getPage(), getSize(), targetId, projectId, ring, region, tier);
     }
 }
