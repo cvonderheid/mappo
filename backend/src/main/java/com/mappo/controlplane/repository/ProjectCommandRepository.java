@@ -29,6 +29,7 @@ public class ProjectCommandRepository {
         dsl.insertInto(PROJECTS)
             .set(PROJECTS.ID, normalize(mutation.id()))
             .set(PROJECTS.NAME, normalize(mutation.name()))
+            .set(PROJECTS.RELEASE_INGEST_ENDPOINT_ID, optionalIdentifier(mutation.releaseIngestEndpointId()))
             .set(PROJECTS.ACCESS_STRATEGY, requiredAccessStrategy(mutation))
             .set(PROJECTS.ACCESS_STRATEGY_CONFIG, jsonb(mutation.accessStrategyConfig()))
             .set(PROJECTS.DEPLOYMENT_DRIVER, requiredDeploymentDriver(mutation))
@@ -46,6 +47,7 @@ public class ProjectCommandRepository {
     ) {
         int updated = dsl.update(PROJECTS)
             .set(PROJECTS.NAME, normalize(mutation.name()))
+            .set(PROJECTS.RELEASE_INGEST_ENDPOINT_ID, optionalIdentifier(mutation.releaseIngestEndpointId()))
             .set(PROJECTS.ACCESS_STRATEGY, requiredAccessStrategy(mutation))
             .set(PROJECTS.ACCESS_STRATEGY_CONFIG, jsonb(mutation.accessStrategyConfig()))
             .set(PROJECTS.DEPLOYMENT_DRIVER, requiredDeploymentDriver(mutation))
@@ -68,6 +70,11 @@ public class ProjectCommandRepository {
 
     private String normalize(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private String optionalIdentifier(String value) {
+        String normalized = normalize(value);
+        return normalized.isBlank() ? null : normalized;
     }
 
     private MappoProjectAccessStrategy requiredAccessStrategy(ProjectConfigurationMutationRecord mutation) {

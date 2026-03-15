@@ -3,6 +3,7 @@ package com.mappo.controlplane.service.release;
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.jooq.enums.MappoReleaseWebhookStatus;
+import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,14 @@ public class GithubWebhookDecisionService {
         return normalize(properties.getManagedAppRelease().getPath()).replaceFirst("^/+", "");
     }
 
+    public String manifestPath(ReleaseIngestEndpointRecord endpoint) {
+        String endpointPath = endpoint == null ? "" : normalize(endpoint.manifestPath()).replaceFirst("^/+", "");
+        if (!endpointPath.isBlank()) {
+            return endpointPath;
+        }
+        return manifestPath();
+    }
+
     public String configuredSecret() {
         return normalize(properties.getManagedAppRelease().getWebhookSecret());
     }
@@ -35,7 +44,26 @@ public class GithubWebhookDecisionService {
         }
     }
 
+    public void assertRepoAllowed(String repo, ReleaseIngestEndpointRecord endpoint) {
+        if (endpoint == null) {
+            assertRepoAllowed(repo);
+            return;
+        }
+        String expectedRepo = normalize(endpoint.repoFilter());
+        if (!expectedRepo.isBlank() && !expectedRepo.equals(repo)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "github webhook repo is not allowed: " + repo);
+        }
+    }
+
     public GithubWebhookDecision decide(String normalizedEvent, GithubWebhookPayloadRecord payload) {
+        return decide(normalizedEvent, payload, null);
+    }
+
+    public GithubWebhookDecision decide(
+        String normalizedEvent,
+        GithubWebhookPayloadRecord payload,
+        ReleaseIngestEndpointRecord endpoint
+    ) {
         if (GITHUB_PING_EVENT.equals(normalizedEvent)) {
             return new GithubWebhookDecision(
                 false,
@@ -47,7 +75,9 @@ public class GithubWebhookDecisionService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "unsupported github webhook event: " + normalizedEvent);
         }
 
-        String expectedRef = normalize(properties.getManagedAppRelease().getRef());
+        String expectedRef = endpoint == null
+            ? normalize(properties.getManagedAppRelease().getRef())
+            : normalize(endpoint.branchFilter());
         if (!expectedRef.isBlank() && !expectedRef.equals(payload.ref())) {
             return new GithubWebhookDecision(
                 false,

@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-table";
 
 import DataTablePagination from "@/components/DataTablePagination";
-import type { RunDetail, RunSummary, TargetExecutionRecord } from "@/lib/types";
+import type { Release, RunDetail, RunSummary, TargetExecutionRecord } from "@/lib/types";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ type ProgressCounts = {
 
 type RunListProps = {
   runs: RunSummary[];
+  releases: Release[];
   page: number;
   pageSize: number;
   totalItems: number;
@@ -230,6 +231,7 @@ function StackedProgressBar({
 
 export function RunList({
   runs,
+  releases,
   page,
   pageSize,
   totalItems,
@@ -251,6 +253,16 @@ export function RunList({
   const [openActionRunId, setOpenActionRunId] = useState<string | null>(null);
   const [columnVisibility, setColumnVisibility] =
     usePersistentColumnVisibility("deployments-runs");
+
+  const releaseVersionById = useMemo(() => {
+    const index = new Map<string, string>();
+    for (const release of releases) {
+      if (release.id && release.sourceVersion) {
+        index.set(release.id, release.sourceVersion);
+      }
+    }
+    return index;
+  }, [releases]);
 
   useEffect(() => {
     onActionsMenuOpenChange?.(openActionRunId !== null);
@@ -284,11 +296,17 @@ export function RunList({
       {
         accessorKey: "releaseId",
         header: "Release",
-        cell: ({ row }) => (
-          <span className="font-mono text-xs">
-            {row.original.releaseId}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const releaseId = row.original.releaseId ?? "unknown";
+          const displayVersion = row.original.releaseId
+            ? releaseVersionById.get(row.original.releaseId) ?? row.original.releaseId
+            : "unknown";
+          return (
+            <span className="font-mono text-xs" title={releaseId}>
+              {displayVersion}
+            </span>
+          );
+        },
       },
       {
         accessorKey: "status",
@@ -421,7 +439,7 @@ export function RunList({
         },
       },
     ],
-    [onCloneRun, onOpenRun, onResumeRun, onRetryFailed]
+    [onCloneRun, onOpenRun, onResumeRun, onRetryFailed, releaseVersionById]
   );
 
   const table = useReactTable({

@@ -40,7 +40,17 @@ public class ReleaseManifestIngestService {
         String signatureHeader,
         String githubDeliveryId
     ) {
-        return githubReleaseWebhookService.handle(rawPayload, githubEvent, signatureHeader, githubDeliveryId);
+        return githubReleaseWebhookService.handle(null, rawPayload, githubEvent, signatureHeader, githubDeliveryId);
+    }
+
+    public ReleaseManifestIngestResultRecord ingestGithubWebhookForEndpoint(
+        String endpointId,
+        String rawPayload,
+        String githubEvent,
+        String signatureHeader,
+        String githubDeliveryId
+    ) {
+        return githubReleaseWebhookService.handle(endpointId, rawPayload, githubEvent, signatureHeader, githubDeliveryId);
     }
 
     public ReleaseManifestIngestResultRecord ingestAzureDevOpsWebhook(
@@ -52,6 +62,27 @@ public class ReleaseManifestIngestService {
         String projectId
     ) {
         return azureDevOpsReleaseWebhookService.handle(
+            null,
+            rawPayload,
+            eventTypeHeader,
+            deliveryIdHeader,
+            authorizationHeader,
+            queryToken,
+            projectId
+        );
+    }
+
+    public ReleaseManifestIngestResultRecord ingestAzureDevOpsWebhookForEndpoint(
+        String endpointId,
+        String rawPayload,
+        String eventTypeHeader,
+        String deliveryIdHeader,
+        String authorizationHeader,
+        String queryToken,
+        String projectId
+    ) {
+        return azureDevOpsReleaseWebhookService.handle(
+            endpointId,
             rawPayload,
             eventTypeHeader,
             deliveryIdHeader,

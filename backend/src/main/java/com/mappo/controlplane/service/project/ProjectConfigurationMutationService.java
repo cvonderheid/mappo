@@ -40,6 +40,7 @@ public class ProjectConfigurationMutationService {
     public ProjectConfigurationMutationRecord fromCreate(ProjectCreateRequest request) {
         String id = requiredProjectId(request.id());
         String name = requiredName(request.name());
+        String releaseIngestEndpointId = optionalIdentifier(request.releaseIngestEndpointId());
         ProjectAccessStrategyType accessStrategy = required(request.accessStrategy(), "accessStrategy");
         ProjectDeploymentDriverType deploymentDriver = required(request.deploymentDriver(), "deploymentDriver");
         ProjectReleaseArtifactSourceType releaseArtifactSource = required(request.releaseArtifactSource(), "releaseArtifactSource");
@@ -59,6 +60,7 @@ public class ProjectConfigurationMutationService {
         return new ProjectConfigurationMutationRecord(
             id,
             name,
+            releaseIngestEndpointId,
             accessStrategy,
             accessConfig,
             deploymentDriver,
@@ -80,6 +82,9 @@ public class ProjectConfigurationMutationService {
         if (name.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "project name must not be blank");
         }
+        String releaseIngestEndpointId = patchRequest.releaseIngestEndpointId() == null
+            ? optionalIdentifier(current.releaseIngestEndpointId())
+            : optionalIdentifier(patchRequest.releaseIngestEndpointId());
 
         ProjectAccessStrategyType accessStrategy = patchRequest.accessStrategy() == null
             ? current.accessStrategy()
@@ -128,6 +133,7 @@ public class ProjectConfigurationMutationService {
         return new ProjectConfigurationMutationRecord(
             id,
             name,
+            releaseIngestEndpointId,
             accessStrategy,
             accessConfig,
             deploymentDriver,
@@ -147,6 +153,7 @@ public class ProjectConfigurationMutationService {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("id", normalize(mutation.id()));
         snapshot.put("name", normalize(mutation.name()));
+        snapshot.put("releaseIngestEndpointId", optionalIdentifier(mutation.releaseIngestEndpointId()));
         snapshot.put("accessStrategy", mutation.accessStrategy());
         snapshot.put("accessStrategyConfig", mutation.accessStrategyConfig() == null ? Map.of() : mutation.accessStrategyConfig());
         snapshot.put("deploymentDriver", mutation.deploymentDriver());
@@ -162,6 +169,7 @@ public class ProjectConfigurationMutationService {
         return new ProjectConfigurationMutationRecord(
             requiredProjectId(project.id()),
             requiredName(project.name()),
+            optionalIdentifier(project.releaseIngestEndpointId()),
             project.accessStrategy(),
             jsonUtil.toMap(project.accessStrategyConfig()),
             project.deploymentDriver(),
@@ -307,6 +315,11 @@ public class ProjectConfigurationMutationService {
         return normalized;
     }
 
+    private String optionalIdentifier(String value) {
+        String normalized = normalize(value);
+        return normalized.isBlank() ? null : normalized;
+    }
+
     private <T> T required(T value, String fieldName) {
         if (value == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, fieldName + " is required");
@@ -328,4 +341,3 @@ public class ProjectConfigurationMutationService {
         return value == null ? "" : String.valueOf(value).trim();
     }
 }
-

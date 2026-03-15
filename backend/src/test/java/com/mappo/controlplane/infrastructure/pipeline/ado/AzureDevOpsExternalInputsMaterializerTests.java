@@ -33,6 +33,7 @@ class AzureDevOpsExternalInputsMaterializerTests {
         ProjectDefinition project = new ProjectDefinition(
             "azure-appservice-ado-pipeline",
             "Azure App Service ADO Pipeline",
+            null,
             ProjectAccessStrategyType.azure_workload_rbac,
             new AzureWorkloadRbacAccessStrategyConfig("ado_service_connection", false, true),
             ProjectDeploymentDriverType.pipeline_trigger,

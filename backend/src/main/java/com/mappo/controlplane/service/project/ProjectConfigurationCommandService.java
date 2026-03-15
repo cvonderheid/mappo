@@ -8,6 +8,7 @@ import com.mappo.controlplane.model.ProjectConfigurationAuditAction;
 import com.mappo.controlplane.model.command.ProjectConfigurationAuditCommand;
 import com.mappo.controlplane.repository.ProjectConfigurationAuditRepository;
 import com.mappo.controlplane.repository.ProjectCommandRepository;
+import com.mappo.controlplane.service.releaseingest.ReleaseIngestEndpointCatalogService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
@@ -26,10 +27,12 @@ public class ProjectConfigurationCommandService {
     private final ProjectCommandRepository projectCommandRepository;
     private final ProjectConfigurationMutationService projectConfigurationMutationService;
     private final ProjectConfigurationAuditRepository projectConfigurationAuditRepository;
+    private final ReleaseIngestEndpointCatalogService releaseIngestEndpointCatalogService;
 
     @Transactional
     public ProjectDefinition createProject(ProjectCreateRequest request) {
         ProjectConfigurationMutationRecord mutation = projectConfigurationMutationService.fromCreate(request);
+        validateReleaseIngestEndpointReference(mutation.releaseIngestEndpointId());
         try {
             projectCommandRepository.createProject(mutation);
         } catch (DataAccessException exception) {
@@ -58,6 +61,7 @@ public class ProjectConfigurationCommandService {
         }
 
         ProjectConfigurationMutationRecord mutation = projectConfigurationMutationService.fromPatch(current, patchRequest);
+        validateReleaseIngestEndpointReference(mutation.releaseIngestEndpointId());
         projectCommandRepository.updateProjectConfiguration(mutation);
 
         ProjectDefinition updated = projectCatalogService.getRequired(current.id());
@@ -81,5 +85,19 @@ public class ProjectConfigurationCommandService {
 
     private String newAuditId() {
         return "pca-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+    }
+
+    private void validateReleaseIngestEndpointReference(String endpointId) {
+        String normalized = normalize(endpointId);
+        if (normalized.isBlank()) {
+            return;
+        }
+        if (!releaseIngestEndpointCatalogService.exists(normalized)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "release ingest endpoint not found: " + normalized);
+        }
+    }
+
+    private String normalize(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
     }
 }

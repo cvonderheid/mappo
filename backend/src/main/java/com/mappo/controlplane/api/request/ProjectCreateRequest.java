@@ -13,6 +13,7 @@ import java.util.Map;
 public record ProjectCreateRequest(
     @NotBlank String id,
     @NotBlank String name,
+    String releaseIngestEndpointId,
     @NotNull ProjectAccessStrategyType accessStrategy,
     Map<String, Object> accessStrategyConfig,
     @NotNull ProjectDeploymentDriverType deploymentDriver,
@@ -23,4 +24,3 @@ public record ProjectCreateRequest(
     Map<String, Object> runtimeHealthProviderConfig
 ) {
 }
-

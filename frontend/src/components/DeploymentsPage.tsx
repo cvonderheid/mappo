@@ -344,6 +344,7 @@ export default function DeploymentsPage({
       <div className="grid gap-4 lg:grid-cols-1">
         <RunList
           runs={runs}
+          releases={releases}
           page={runPage}
           pageSize={runPageSize}
           totalItems={runTotalItems}

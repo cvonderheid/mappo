@@ -1428,7 +1428,6 @@ function AppShell() {
                   <DeploymentRunDetailRoute
                     errorMessage={errorMessage}
                     runDetail={runDetail}
-                    onBack={() => navigate("/deployments")}
                     onRunChange={setSelectedRunId}
                   />
                 }
@@ -1493,14 +1492,12 @@ function AppShell() {
 type DeploymentRunDetailRouteProps = {
   errorMessage: string;
   runDetail: RunDetail | null;
-  onBack: () => void;
   onRunChange: (runId: string) => void;
 };
 
 function DeploymentRunDetailRoute({
   errorMessage,
   runDetail,
-  onBack,
   onRunChange,
 }: DeploymentRunDetailRouteProps) {
   const params = useParams<{ runId: string }>();
@@ -1514,12 +1511,6 @@ function DeploymentRunDetailRoute({
 
   return (
     <>
-      <div className="flex animate-fade-up items-center justify-between [animation-delay:60ms] [animation-fill-mode:forwards]">
-        <Button variant="outline" onClick={onBack}>
-          Back To Deployments
-        </Button>
-        <p className="font-mono text-xs text-muted-foreground">{runId}</p>
-      </div>
       {errorMessage ? (
         <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive-foreground">
           {errorMessage}

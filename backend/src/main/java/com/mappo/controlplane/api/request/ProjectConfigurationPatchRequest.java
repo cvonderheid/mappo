@@ -10,6 +10,7 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ProjectConfigurationPatchRequest(
     String name,
+    String releaseIngestEndpointId,
     ProjectAccessStrategyType accessStrategy,
     Map<String, Object> accessStrategyConfig,
     ProjectDeploymentDriverType deploymentDriver,

@@ -41,6 +41,7 @@ public class ProjectQueryRepository {
         Record row = dsl.select(
                 PROJECTS.ID,
                 PROJECTS.NAME,
+                PROJECTS.RELEASE_INGEST_ENDPOINT_ID,
                 PROJECTS.ACCESS_STRATEGY,
                 PROJECTS.ACCESS_STRATEGY_CONFIG,
                 PROJECTS.DEPLOYMENT_DRIVER,
@@ -64,6 +65,7 @@ public class ProjectQueryRepository {
         return dsl.select(
                 PROJECTS.ID,
                 PROJECTS.NAME,
+                PROJECTS.RELEASE_INGEST_ENDPOINT_ID,
                 PROJECTS.ACCESS_STRATEGY,
                 PROJECTS.ACCESS_STRATEGY_CONFIG,
                 PROJECTS.DEPLOYMENT_DRIVER,
@@ -92,6 +94,7 @@ public class ProjectQueryRepository {
         return new ProjectDefinition(
             row.get(PROJECTS.ID),
             row.get(PROJECTS.NAME),
+            row.get(PROJECTS.RELEASE_INGEST_ENDPOINT_ID),
             accessStrategyType,
             parseAccessStrategyConfig(accessStrategyType, row.get(PROJECTS.ACCESS_STRATEGY_CONFIG).data()),
             deploymentDriverType,

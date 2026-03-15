@@ -1,7 +1,11 @@
 package com.mappo.controlplane.service.release;
 
 import com.mappo.controlplane.api.ApiException;
+import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;
 import com.mappo.controlplane.jooq.enums.MappoReleaseWebhookStatus;
+import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
+import com.mappo.controlplane.service.releaseingest.ReleaseIngestEndpointCatalogService;
+import com.mappo.controlplane.service.releaseingest.ReleaseIngestSecretResolver;
 import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -21,17 +25,28 @@ public class GithubReleaseWebhookService {
     private final ReleaseManifestSourceClient sourceClient;
     private final ReleaseManifestParser releaseManifestParser;
     private final ReleaseManifestApplyService releaseManifestApplyService;
+    private final ReleaseIngestEndpointCatalogService releaseIngestEndpointCatalogService;
+    private final ReleaseIngestSecretResolver releaseIngestSecretResolver;
 
-    public ReleaseManifestIngestResultRecord handle(String rawPayload, String githubEvent, String signatureHeader, String githubDeliveryId) {
+    public ReleaseManifestIngestResultRecord handle(
+        String endpointId,
+        String rawPayload,
+        String githubEvent,
+        String signatureHeader,
+        String githubDeliveryId
+    ) {
         OffsetDateTime receivedAt = OffsetDateTime.now(ZoneOffset.UTC);
         String deliveryLogId = releaseWebhookAuditService.newDeliveryLogId(githubDeliveryId, githubEvent, rawPayload, receivedAt);
         String normalizedEvent = githubWebhookDecisionService.normalizeEvent(githubEvent);
-        String manifestPath = githubWebhookDecisionService.manifestPath();
+        ReleaseIngestEndpointRecord endpoint = resolveEndpoint(endpointId);
+        String manifestPath = githubWebhookDecisionService.manifestPath(endpoint);
         String repo = "";
         String ref = "";
         List<String> changedPaths = List.of();
 
-        String configuredSecret = githubWebhookDecisionService.configuredSecret();
+        String configuredSecret = endpoint == null
+            ? githubWebhookDecisionService.configuredSecret()
+            : releaseIngestSecretResolver.resolveConfiguredSecret(endpoint);
         if (configuredSecret.isBlank()) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "managed app release webhook secret is not configured");
         }
@@ -45,8 +60,8 @@ public class GithubReleaseWebhookService {
             repo = payload.repo();
             ref = payload.ref();
             changedPaths = payload.changedPaths();
-            githubWebhookDecisionService.assertRepoAllowed(repo);
-            GithubWebhookDecision decision = githubWebhookDecisionService.decide(normalizedEvent, payload);
+            githubWebhookDecisionService.assertRepoAllowed(repo, endpoint);
+            GithubWebhookDecision decision = githubWebhookDecisionService.decide(normalizedEvent, payload, endpoint);
             if (!decision.processManifest()) {
                 ReleaseManifestIngestResultRecord result = emptyResult(repo, manifestPath, ref);
                 releaseWebhookAuditService.logWebhookDelivery(
@@ -110,6 +125,24 @@ public class GithubReleaseWebhookService {
             );
             throw exception;
         }
+    }
+
+    private ReleaseIngestEndpointRecord resolveEndpoint(String endpointId) {
+        String normalizedEndpointId = normalize(endpointId);
+        if (normalizedEndpointId.isBlank()) {
+            return null;
+        }
+        ReleaseIngestEndpointRecord endpoint = releaseIngestEndpointCatalogService.getRequired(normalizedEndpointId);
+        if (endpoint.provider() != ReleaseIngestProviderType.github) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "release ingest endpoint %s is not configured for github webhooks".formatted(normalizedEndpointId)
+            );
+        }
+        if (!endpoint.enabled()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "release ingest endpoint is disabled: " + normalizedEndpointId);
+        }
+        return endpoint;
     }
 
     private ReleaseManifestIngestResultRecord emptyResult(String repo, String manifestPath, String ref) {
