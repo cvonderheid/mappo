@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import DataTablePagination from "@/components/DataTablePagination";
+import FieldHelpTooltip from "@/components/FieldHelpTooltip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -572,9 +573,6 @@ export default function ProjectSettingsPage({
             )}
           </div>
           <div className="sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-background/80 p-2 backdrop-blur">
-            <Button type="button" variant="outline" onClick={() => setCreateDrawerOpen(true)}>
-              New Project
-            </Button>
             <Button
               type="button"
               variant="outline"
@@ -637,7 +635,10 @@ export default function ProjectSettingsPage({
               <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Release Ingest</h3>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="space-y-1">
-                  <Label htmlFor="release-source-type">Release artifact source</Label>
+                  <div className="flex items-center gap-1">
+                    <Label htmlFor="release-source-type">Release artifact source</Label>
+                    <FieldHelpTooltip content="Defines how releases are interpreted. Use External Deployment Inputs for pipeline-produced version payloads." />
+                  </div>
                   <Select
                     value={draft.releaseArtifactSource}
                     onValueChange={(value) =>
@@ -655,7 +656,10 @@ export default function ProjectSettingsPage({
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="release-descriptor">Descriptor</Label>
+                  <div className="flex items-center gap-1">
+                    <Label htmlFor="release-descriptor">Descriptor</Label>
+                    <FieldHelpTooltip content="Logical release descriptor key used when matching incoming release payloads for this project." />
+                  </div>
                   <Input
                     id="release-descriptor"
                     value={draft.release.descriptor}
@@ -669,7 +673,10 @@ export default function ProjectSettingsPage({
                 </div>
                 {draft.releaseArtifactSource === "blob_arm_template" ? (
                   <div className="space-y-1">
-                    <Label htmlFor="release-template-uri-field">Template URI Field</Label>
+                    <div className="flex items-center gap-1">
+                      <Label htmlFor="release-template-uri-field">Template URI Field</Label>
+                      <FieldHelpTooltip content="Payload field that contains the ARM template URI for blob-based release sources." />
+                    </div>
                     <Input
                       id="release-template-uri-field"
                       value={draft.release.templateUriField}
@@ -685,7 +692,10 @@ export default function ProjectSettingsPage({
                 {draft.releaseArtifactSource === "external_deployment_inputs" ? (
                   <>
                     <div className="space-y-1">
-                      <Label htmlFor="release-source-system">Source system</Label>
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="release-source-system">Source system</Label>
+                        <FieldHelpTooltip content="Identifier for the external release system (for example azure_devops or github)." />
+                      </div>
                       <Input
                         id="release-source-system"
                         value={draft.release.sourceSystem}
@@ -698,7 +708,10 @@ export default function ProjectSettingsPage({
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="release-descriptor-path">Descriptor path</Label>
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="release-descriptor-path">Descriptor path</Label>
+                        <FieldHelpTooltip content="JSON path key where release descriptor metadata is read from external release payloads." />
+                      </div>
                       <Input
                         id="release-descriptor-path"
                         value={draft.release.descriptorPath}
@@ -711,7 +724,10 @@ export default function ProjectSettingsPage({
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="release-version-field">Version field</Label>
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="release-version-field">Version field</Label>
+                        <FieldHelpTooltip content="JSON field name that carries the deployable version value from external release payloads." />
+                      </div>
                       <Input
                         id="release-version-field"
                         value={draft.release.versionField}
@@ -727,7 +743,10 @@ export default function ProjectSettingsPage({
                 ) : null}
                 {draft.releaseArtifactSource === "template_spec_resource" ? (
                   <div className="space-y-1">
-                    <Label htmlFor="release-version-ref-field">Version Ref Field</Label>
+                    <div className="flex items-center gap-1">
+                      <Label htmlFor="release-version-ref-field">Version Ref Field</Label>
+                      <FieldHelpTooltip content="Payload field that points to the template spec version reference for template spec sources." />
+                    </div>
                     <Input
                       id="release-version-ref-field"
                       value={draft.release.versionRefField}
@@ -747,7 +766,10 @@ export default function ProjectSettingsPage({
               <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Deployment Driver</h3>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="space-y-1">
-                  <Label htmlFor="driver-type">Deployment driver</Label>
+                  <div className="flex items-center gap-1">
+                    <Label htmlFor="driver-type">Deployment driver</Label>
+                    <FieldHelpTooltip content="Execution engine for this project. Pipeline Trigger delegates deployment to CI/CD pipeline runs." />
+                  </div>
                   <Select
                     value={draft.deploymentDriver}
                     onValueChange={(value) =>
@@ -767,7 +789,10 @@ export default function ProjectSettingsPage({
                 {draft.deploymentDriver === "pipeline_trigger" ? (
                   <>
                     <div className="space-y-1">
-                      <Label htmlFor="driver-pipeline-system">Pipeline system</Label>
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="driver-pipeline-system">Pipeline system</Label>
+                        <FieldHelpTooltip content="Pipeline provider identifier. Use azure_devops for Azure DevOps pipelines." />
+                      </div>
                       <Input
                         id="driver-pipeline-system"
                         value={draft.driver.pipelineSystem}
@@ -780,7 +805,10 @@ export default function ProjectSettingsPage({
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="driver-organization">Organization</Label>
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="driver-organization">Organization</Label>
+                        <FieldHelpTooltip content="Azure DevOps organization URL, for example https://dev.azure.com/your-org." />
+                      </div>
                       <Input
                         id="driver-organization"
                         value={draft.driver.organization}
@@ -794,7 +822,10 @@ export default function ProjectSettingsPage({
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="driver-project">Project</Label>
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="driver-project">Project</Label>
+                        <FieldHelpTooltip content="Azure DevOps project name that contains the deployment pipeline." />
+                      </div>
                       <Input
                         id="driver-project"
                         value={draft.driver.project}
@@ -807,7 +838,10 @@ export default function ProjectSettingsPage({
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="driver-pipeline-id">Pipeline ID</Label>
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="driver-pipeline-id">Pipeline ID</Label>
+                        <FieldHelpTooltip content="Numeric Azure DevOps pipeline definition id that MAPPO triggers for deployments." />
+                      </div>
                       <Input
                         id="driver-pipeline-id"
                         value={draft.driver.pipelineId}
@@ -820,7 +854,10 @@ export default function ProjectSettingsPage({
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="driver-branch">Branch</Label>
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="driver-branch">Branch</Label>
+                        <FieldHelpTooltip content="Default branch ref MAPPO passes when queueing pipeline runs." />
+                      </div>
                       <Input
                         id="driver-branch"
                         value={draft.driver.branch}
@@ -833,7 +870,10 @@ export default function ProjectSettingsPage({
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="driver-service-connection">Azure Service Connection</Label>
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="driver-service-connection">Azure Service Connection</Label>
+                        <FieldHelpTooltip content="Name of the ADO service connection used by the pipeline to authenticate to Azure." />
+                      </div>
                       <Input
                         id="driver-service-connection"
                         value={draft.driver.azureServiceConnectionName}
@@ -846,7 +886,10 @@ export default function ProjectSettingsPage({
                       />
                     </div>
                     <div className="space-y-1 md:col-span-2">
-                      <Label htmlFor="driver-pat-ref">PAT secret reference</Label>
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="driver-pat-ref">PAT secret reference</Label>
+                        <FieldHelpTooltip content="Reference to ADO PAT used by MAPPO (env:VAR, literal:value, or default managed key)." />
+                      </div>
                       <Input
                         id="driver-pat-ref"
                         value={draft.driver.personalAccessTokenRef}
@@ -1327,9 +1370,6 @@ export default function ProjectSettingsPage({
               </Badge>
             </div>
             <div className="flex flex-wrap gap-2 pt-1">
-              <Button type="button" variant="outline" onClick={() => setCreateDrawerOpen(true)}>
-                New Project
-              </Button>
               <Button type="button" variant="outline" onClick={onOpenTargetOnboarding} disabled={!project}>
                 Onboard Targets
               </Button>

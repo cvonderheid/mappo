@@ -107,25 +107,26 @@ type BreadcrumbEntry = {
 
 const SIDEBAR_NAVIGATION: SidebarNavigationGroup[] = [
   {
-    label: "Operate",
+    label: "Project",
     items: [
+      { label: "Config", to: "/projects" },
       { label: "Fleet", to: "/fleet" },
       { label: "Deployments", to: "/deployments" },
       { label: "Releases", to: "/releases" },
-    ],
-  },
-  {
-    label: "Configure",
-    items: [
-      { label: "Projects", to: "/projects" },
-      { label: "Release Ingest", to: "/release-ingest" },
       { label: "Targets", to: "/targets" },
+      { label: "Onboarding", to: "/onboarding" },
     ],
   },
   {
-    label: "Observe",
+    label: "Admin",
     items: [
+      { label: "Release Ingest", to: "/release-ingest" },
       { label: "Managed App", to: "/managed-app" },
+    ],
+  },
+  {
+    label: "Demo",
+    items: [
       { label: "Demo", to: "/demo" },
     ],
   },
@@ -202,10 +203,17 @@ function AppShell() {
   const isAdminRoute = useMemo(
     () =>
       location.pathname === "/demo" ||
+      location.pathname === "/onboarding" ||
       location.pathname === "/targets" ||
       location.pathname === "/release-ingest" ||
-      location.pathname === "/releases" ||
       location.pathname === "/managed-app",
+    [location.pathname]
+  );
+  const isGlobalScopeRoute = useMemo(
+    () =>
+      location.pathname === "/release-ingest" ||
+      location.pathname === "/managed-app" ||
+      location.pathname === "/demo",
     [location.pathname]
   );
 
@@ -854,50 +862,56 @@ function AppShell() {
     const projectLink = projects.length > 0 ? "/projects" : undefined;
     const path = location.pathname;
 
-    const items: BreadcrumbEntry[] = [{ label: projectLabel, to: projectLink }];
+    const items: BreadcrumbEntry[] = isGlobalScopeRoute
+      ? [{ label: "Global" }]
+      : [{ label: projectLabel, to: projectLink }];
     if (path.startsWith("/fleet")) {
-      items.push({ label: "Operate", to: "/fleet" }, { label: "Fleet" });
+      items.push({ label: "Project", to: "/fleet" }, { label: "Fleet" });
       return items;
     }
     if (path.startsWith("/deployments/")) {
       const runId = decodeURIComponent(path.split("/")[2] ?? "");
       items.push(
-        { label: "Operate", to: "/deployments" },
+        { label: "Project", to: "/deployments" },
         { label: "Deployments", to: "/deployments" },
         { label: runId || "Run Detail" }
       );
       return items;
     }
     if (path.startsWith("/deployments")) {
-      items.push({ label: "Operate", to: "/deployments" }, { label: "Deployments" });
+      items.push({ label: "Project", to: "/deployments" }, { label: "Deployments" });
       return items;
     }
     if (path.startsWith("/releases")) {
-      items.push({ label: "Operate", to: "/releases" }, { label: "Releases" });
+      items.push({ label: "Project", to: "/releases" }, { label: "Releases" });
       return items;
     }
     if (path.startsWith("/projects")) {
-      items.push({ label: "Configure", to: "/projects" }, { label: "Projects" });
+      items.push({ label: "Project", to: "/projects" }, { label: "Config" });
       return items;
     }
     if (path.startsWith("/release-ingest")) {
-      items.push({ label: "Configure", to: "/release-ingest" }, { label: "Release Ingest" });
+      items.push({ label: "Admin", to: "/release-ingest" }, { label: "Release Ingest" });
       return items;
     }
     if (path.startsWith("/targets")) {
-      items.push({ label: "Configure", to: "/targets" }, { label: "Targets" });
+      items.push({ label: "Project", to: "/targets" }, { label: "Targets" });
+      return items;
+    }
+    if (path.startsWith("/onboarding")) {
+      items.push({ label: "Project", to: "/onboarding" }, { label: "Onboarding" });
       return items;
     }
     if (path.startsWith("/managed-app")) {
-      items.push({ label: "Observe", to: "/managed-app" }, { label: "Managed App" });
+      items.push({ label: "Admin", to: "/managed-app" }, { label: "Managed App" });
       return items;
     }
     if (path.startsWith("/demo")) {
-      items.push({ label: "Observe", to: "/demo" }, { label: "Demo" });
+      items.push({ label: "Demo", to: "/demo" }, { label: "Demo" });
       return items;
     }
     return items;
-  }, [location.pathname, projects.length, selectedProject?.id, selectedProject?.name]);
+  }, [isGlobalScopeRoute, location.pathname, projects.length, selectedProject?.id, selectedProject?.name]);
 
   useEffect(() => {
     setSelectedReleaseId((current) => {
@@ -1327,6 +1341,9 @@ function AppShell() {
                 <CardTitle className="text-lg uppercase tracking-[0.08em] md:text-xl">
                   MAPPO Control Plane
                 </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Scope: <span className="font-medium text-foreground">{isGlobalScopeRoute ? "Global" : "Project"}</span>
+                </p>
                 <Breadcrumb>
                   <BreadcrumbList>
                     {breadcrumbEntries.map((entry, index) => {
@@ -1374,7 +1391,7 @@ function AppShell() {
                     selectedProjectId={selectedProjectId}
                     targets={targets}
                     projectReleaseCount={projectReleases.length}
-                    onOpenTargetOnboarding={() => navigate("/targets?onboard=1")}
+                    onOpenTargetOnboarding={() => navigate("/onboarding?onboard=1")}
                     onOpenReleaseIngest={() => navigate("/release-ingest")}
                     onOpenDeployments={() => navigate("/deployments?controls=open")}
                     onCreateProject={handleCreateProject}
@@ -1496,6 +1513,26 @@ function AppShell() {
                     onUpdateTargetRegistration={handleAdminUpdateRegistration}
                     onDeleteTargetRegistration={handleAdminDeleteRegistration}
                     onRefreshRegistrations={refreshRegistrationOptions}
+                    viewMode="targets"
+                  />
+                }
+              />
+              <Route
+                path="/onboarding"
+                element={
+                  <TargetsPage
+                    adminErrorMessage={adminErrorMessage}
+                    adminIsSubmitting={adminIsSubmitting}
+                    adminResult={adminResult}
+                    projects={projects}
+                    selectedProjectId={selectedProjectId}
+                    registrations={registrationOptions}
+                    refreshKey={adminRefreshVersion}
+                    onIngestMarketplaceEvent={handleAdminIngestMarketplaceEvent}
+                    onUpdateTargetRegistration={handleAdminUpdateRegistration}
+                    onDeleteTargetRegistration={handleAdminDeleteRegistration}
+                    onRefreshRegistrations={refreshRegistrationOptions}
+                    viewMode="onboarding"
                   />
                 }
               />

@@ -45,6 +45,7 @@ type TargetsPageProps = {
   ) => Promise<void>;
   onDeleteTargetRegistration: (targetId: string) => Promise<void>;
   onRefreshRegistrations: () => Promise<void>;
+  viewMode?: "targets" | "onboarding";
 };
 
 type RegistryAuthMode =
@@ -68,6 +69,7 @@ export default function TargetsPage({
   onUpdateTargetRegistration,
   onDeleteTargetRegistration,
   onRefreshRegistrations,
+  viewMode = "targets",
 }: TargetsPageProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -109,7 +111,7 @@ export default function TargetsPage({
     editContainerAppResourceId.trim() !== "";
 
   useEffect(() => {
-    if (location.pathname !== "/targets") {
+    if (location.pathname !== "/targets" && location.pathname !== "/onboarding") {
       return;
     }
     const params = new URLSearchParams(location.search);
@@ -230,17 +232,21 @@ export default function TargetsPage({
     <div className="space-y-4">
       <div className="flex animate-fade-up items-center justify-between [animation-delay:60ms] [animation-fill-mode:forwards]">
         <p className="text-xs text-muted-foreground">
-          Configure target registrations and onboarding state.
+          {viewMode === "onboarding"
+            ? "Process onboarding events and register project targets."
+            : "Configure registered targets for this project."}
         </p>
-        <TargetOnboardingDrawer
-          projects={projects}
-          selectedProjectId={selectedProjectId}
-          isSubmitting={adminIsSubmitting}
-          open={onboardingDrawerOpen}
-          onOpenChange={setOnboardingDrawerOpen}
-          onIngestMarketplaceEvent={onIngestMarketplaceEvent}
-          onRefreshRegistrations={onRefreshRegistrations}
-        />
+        {viewMode === "onboarding" ? (
+          <TargetOnboardingDrawer
+            projects={projects}
+            selectedProjectId={selectedProjectId}
+            isSubmitting={adminIsSubmitting}
+            open={onboardingDrawerOpen}
+            onOpenChange={setOnboardingDrawerOpen}
+            onIngestMarketplaceEvent={onIngestMarketplaceEvent}
+            onRefreshRegistrations={onRefreshRegistrations}
+          />
+        ) : null}
       </div>
 
       {adminErrorMessage ? (
@@ -260,42 +266,49 @@ export default function TargetsPage({
 
       <Card className="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]">
         <CardHeader>
-          <CardTitle>Targets</CardTitle>
+          <CardTitle>{viewMode === "onboarding" ? "Onboarding" : "Targets"}</CardTitle>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="registrations">
-            <TabsList>
-              <TabsTrigger value="registrations">
-                Registered Targets ({registrations.length})
-              </TabsTrigger>
-              <TabsTrigger value="events">Onboarding Events</TabsTrigger>
-            </TabsList>
-            <TabsContent value="registrations">
-              <RegistrationsDataTable
-                refreshKey={refreshKey}
-                projectId={selectedProjectId}
-                headerActions={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isRefreshingSnapshot}
-                    onClick={() => void handleRefreshRegistrations()}
-                  >
-                    {isRefreshingSnapshot ? "Refreshing..." : "Refresh Registered Targets"}
-                  </Button>
-                }
-                onEditRegistration={openEditDrawer}
-                onDeleteRegistration={(registration) => {
-                  void handleDeleteRegistration(registration);
-                }}
-                deletingTargetId={deletingTargetId}
-              />
-            </TabsContent>
-            <TabsContent value="events">
-              <EventsDataTable refreshKey={refreshKey} />
-            </TabsContent>
-          </Tabs>
+          {viewMode === "targets" ? (
+            <Tabs defaultValue="registrations">
+              <TabsList>
+                <TabsTrigger value="registrations">
+                  Registered Targets ({registrations.length})
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="registrations">
+                <RegistrationsDataTable
+                  refreshKey={refreshKey}
+                  projectId={selectedProjectId}
+                  headerActions={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isRefreshingSnapshot}
+                      onClick={() => void handleRefreshRegistrations()}
+                    >
+                      {isRefreshingSnapshot ? "Refreshing..." : "Refresh Registered Targets"}
+                    </Button>
+                  }
+                  onEditRegistration={openEditDrawer}
+                  onDeleteRegistration={(registration) => {
+                    void handleDeleteRegistration(registration);
+                  }}
+                  deletingTargetId={deletingTargetId}
+                />
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <Tabs defaultValue="events">
+              <TabsList>
+                <TabsTrigger value="events">Onboarding Events</TabsTrigger>
+              </TabsList>
+              <TabsContent value="events">
+                <EventsDataTable refreshKey={refreshKey} />
+              </TabsContent>
+            </Tabs>
+          )}
         </CardContent>
       </Card>
 

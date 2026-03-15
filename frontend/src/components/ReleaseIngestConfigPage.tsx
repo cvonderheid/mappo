@@ -3,6 +3,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import FieldHelpTooltip from "@/components/FieldHelpTooltip";
 import {
   Drawer,
   DrawerClose,
@@ -142,6 +143,11 @@ export default function ReleaseIngestConfigPage({
   useEffect(() => {
     void loadEndpoints();
   }, [loadEndpoints]);
+
+  const isAzureDevOpsProvider = draft.provider === "azure_devops";
+  const secretRefExample = isAzureDevOpsProvider
+    ? "literal:ado-demo-webhook-20260315"
+    : "literal:github-demo-webhook-20260315";
 
   const sortedEndpoints = useMemo(() => {
     return [...endpoints].sort((a, b) => {
@@ -399,7 +405,10 @@ export default function ReleaseIngestConfigPage({
           <form id="release-ingest-endpoint-form" onSubmit={(event) => void handleSubmit(event)} className="space-y-3 px-4 pb-4">
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="endpoint-id">Endpoint ID</Label>
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="endpoint-id">Endpoint ID</Label>
+                  <FieldHelpTooltip content="Stable unique key used in webhook URL paths. Use lowercase letters, numbers, and hyphens." />
+                </div>
                 <Input
                   id="endpoint-id"
                   value={draft.id}
@@ -409,7 +418,10 @@ export default function ReleaseIngestConfigPage({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="endpoint-name">Name</Label>
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="endpoint-name">Name</Label>
+                  <FieldHelpTooltip content="Human-readable display name shown in the Release Ingest list." />
+                </div>
                 <Input
                   id="endpoint-name"
                   value={draft.name}
@@ -421,7 +433,10 @@ export default function ReleaseIngestConfigPage({
 
             <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-1.5">
-                <Label htmlFor="endpoint-provider">Provider</Label>
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="endpoint-provider">Provider</Label>
+                  <FieldHelpTooltip content="Webhook sender. Choose GitHub for GitHub webhooks, Azure DevOps for ADO service hooks." />
+                </div>
                 <Select
                   value={draft.provider}
                   onValueChange={(value) =>
@@ -438,7 +453,10 @@ export default function ReleaseIngestConfigPage({
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="endpoint-enabled">Enabled</Label>
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="endpoint-enabled">Enabled</Label>
+                  <FieldHelpTooltip content="Disabled endpoints ignore incoming webhook calls and do not ingest releases." />
+                </div>
                 <Select
                   value={draft.enabled ? "true" : "false"}
                   onValueChange={(value) => setDraft((current) => ({ ...current, enabled: value === "true" }))}
@@ -453,60 +471,81 @@ export default function ReleaseIngestConfigPage({
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="endpoint-secret-ref">Secret Ref</Label>
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="endpoint-secret-ref">Secret Ref</Label>
+                  <FieldHelpTooltip content="Webhook auth secret reference. Use literal:<secret> for quick setup, env:<ENV_VAR> for env-based secrets, or a managed key reference." />
+                </div>
                 <Input
                   id="endpoint-secret-ref"
                   value={draft.secretRef}
                   onChange={(event) => setDraft((current) => ({ ...current, secretRef: event.target.value }))}
-                  placeholder="mappo.managed-app-release.webhook-secret"
+                  placeholder={secretRefExample}
                 />
               </div>
             </div>
 
             <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-1.5">
-                <Label htmlFor="endpoint-repo-filter">Repo Filter</Label>
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="endpoint-repo-filter">Repo Filter (GitHub only, optional)</Label>
+                  <FieldHelpTooltip content="Optional repo gate for GitHub payloads (example: owner/repo). Leave empty to accept any repo." />
+                </div>
                 <Input
                   id="endpoint-repo-filter"
                   value={draft.repoFilter}
                   onChange={(event) => setDraft((current) => ({ ...current, repoFilter: event.target.value }))}
-                  placeholder="org/repo"
+                  placeholder="Optional (e.g. org/repo)"
+                  disabled={isAzureDevOpsProvider}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="endpoint-branch-filter">Branch Filter</Label>
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="endpoint-branch-filter">Branch Filter (optional)</Label>
+                  <FieldHelpTooltip content="Optional branch gate (example: main). Leave empty to accept any branch." />
+                </div>
                 <Input
                   id="endpoint-branch-filter"
                   value={draft.branchFilter}
                   onChange={(event) => setDraft((current) => ({ ...current, branchFilter: event.target.value }))}
-                  placeholder="main"
+                  placeholder="Optional (e.g. main)"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="endpoint-pipeline-filter">Pipeline Filter (ADO)</Label>
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="endpoint-pipeline-filter">Pipeline Filter (ADO only, optional)</Label>
+                  <FieldHelpTooltip content="Optional Azure DevOps pipeline id filter. Leave empty to accept any pipeline in this endpoint." />
+                </div>
                 <Input
                   id="endpoint-pipeline-filter"
                   value={draft.pipelineIdFilter}
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, pipelineIdFilter: event.target.value }))
                   }
-                  placeholder="42"
+                  placeholder="Optional (e.g. 1)"
+                  disabled={!isAzureDevOpsProvider}
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="endpoint-manifest-path">Manifest Path</Label>
+              <div className="flex items-center gap-1">
+                <Label htmlFor="endpoint-manifest-path">Manifest Path (GitHub only, optional)</Label>
+                <FieldHelpTooltip content="Optional manifest path constraint for GitHub release ingest. Leave empty unless you need strict path filtering." />
+              </div>
               <Input
                 id="endpoint-manifest-path"
                 value={draft.manifestPath}
                 onChange={(event) => setDraft((current) => ({ ...current, manifestPath: event.target.value }))}
-                placeholder="releases/releases.manifest.json"
+                placeholder="Optional (e.g. releases/releases.manifest.json)"
+                disabled={isAzureDevOpsProvider}
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="endpoint-source-config">Source Config (JSON object)</Label>
+              <div className="flex items-center gap-1">
+                <Label htmlFor="endpoint-source-config">Source Config (JSON object)</Label>
+                <FieldHelpTooltip content="Optional provider-specific advanced settings as a JSON object. Use {} when not needed." />
+              </div>
               <textarea
                 id="endpoint-source-config"
                 value={draft.sourceConfigText}

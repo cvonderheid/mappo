@@ -259,9 +259,11 @@ describe("App", () => {
       expect(screen.getByText("Demo Customer A")).toBeInTheDocument();
       expect(screen.getByTestId("project-switcher-trigger")).toBeInTheDocument();
       expect(screen.getAllByText("Managed App Demo").length).toBeGreaterThan(0);
+      expect(screen.getByRole("link", { name: /Config/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Fleet/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Deployments/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Targets/i })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Onboarding/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Releases/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /^Managed App$/i })).toBeInTheDocument();
       expect(screen.getByText(/New release 2026.02.25.3 is available/i)).toBeInTheDocument();
@@ -299,6 +301,16 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Targets" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Onboard Targets/i })).not.toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /Registered Targets/i })).toBeInTheDocument();
+    });
+
+    cleanup();
+    window.history.replaceState({}, "", "/onboarding");
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Onboarding" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Onboard Targets/i })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: /Onboarding Events/i })).toBeInTheDocument();
     });
