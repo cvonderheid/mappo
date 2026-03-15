@@ -82,6 +82,7 @@ const FleetTable = lazy(() => import("@/components/FleetTable"));
 const ManagedAppPage = lazy(() => import("@/components/ManagedAppPage"));
 const ProjectSwitcherMenu = lazy(() => import("@/components/ProjectSwitcherMenu"));
 const ProjectSettingsPage = lazy(() => import("@/components/ProjectSettingsPage"));
+const ReleaseIngestConfigPage = lazy(() => import("@/components/ReleaseIngestConfigPage"));
 const ReleasesPage = lazy(() => import("@/components/ReleasesPage"));
 const RunDetailPanel = lazy(() =>
   import("@/components/RunPanels").then((module) => ({ default: module.RunDetailPanel }))
@@ -116,6 +117,7 @@ const SIDEBAR_NAVIGATION: SidebarNavigationGroup[] = [
     label: "Configure",
     items: [
       { label: "Projects", to: "/projects" },
+      { label: "Release Ingest", to: "/release-ingest" },
       { label: "Targets", to: "/targets" },
     ],
   },
@@ -200,6 +202,7 @@ function AppShell() {
     () =>
       location.pathname === "/demo" ||
       location.pathname === "/targets" ||
+      location.pathname === "/release-ingest" ||
       location.pathname === "/releases" ||
       location.pathname === "/managed-app",
     [location.pathname]
@@ -858,6 +861,10 @@ function AppShell() {
       items.push({ label: "Configure", to: "/projects" }, { label: "Projects" });
       return items;
     }
+    if (path.startsWith("/release-ingest")) {
+      items.push({ label: "Configure", to: "/release-ingest" }, { label: "Release Ingest" });
+      return items;
+    }
     if (path.startsWith("/targets")) {
       items.push({ label: "Configure", to: "/targets" }, { label: "Targets" });
       return items;
@@ -1343,7 +1350,7 @@ function AppShell() {
                     targets={targets}
                     projectReleaseCount={projectReleases.length}
                     onOpenTargetOnboarding={() => navigate("/targets?onboard=1")}
-                    onOpenReleaseIngest={() => navigate("/releases?ingest=1")}
+                    onOpenReleaseIngest={() => navigate("/release-ingest")}
                     onOpenDeployments={() => navigate("/deployments?controls=open")}
                     onCreateProject={handleCreateProject}
                     onPatchProject={handlePatchProject}
@@ -1351,6 +1358,10 @@ function AppShell() {
                     onListProjectAudit={handleListProjectAudit}
                   />
                 }
+              />
+              <Route
+                path="/release-ingest"
+                element={<ReleaseIngestConfigPage selectedProjectId={selectedProjectId} />}
               />
               <Route
                 path="/deployments"

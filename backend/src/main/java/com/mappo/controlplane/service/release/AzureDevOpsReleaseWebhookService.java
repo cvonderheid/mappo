@@ -8,11 +8,15 @@ import com.mappo.controlplane.domain.project.BuiltinProjects;
 import com.mappo.controlplane.domain.project.PipelineTriggerDriverConfig;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
+import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;
 import com.mappo.controlplane.jooq.enums.MappoDeploymentScope;
 import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.jooq.enums.MappoReleaseWebhookStatus;
+import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
 import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
 import com.mappo.controlplane.service.project.ProjectCatalogService;
+import com.mappo.controlplane.service.releaseingest.ReleaseIngestEndpointCatalogService;
+import com.mappo.controlplane.service.releaseingest.ReleaseIngestSecretResolver;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -31,9 +35,31 @@ public class AzureDevOpsReleaseWebhookService {
     private final ProjectCatalogService projectCatalogService;
     private final ReleaseWebhookAuditService releaseWebhookAuditService;
     private final ReleaseManifestApplyService releaseManifestApplyService;
+    private final ReleaseIngestEndpointCatalogService releaseIngestEndpointCatalogService;
+    private final ReleaseIngestSecretResolver releaseIngestSecretResolver;
     private final MappoProperties properties;
 
     public ReleaseManifestIngestResultRecord handle(
+        String rawPayload,
+        String eventTypeHeader,
+        String deliveryIdHeader,
+        String authorizationHeader,
+        String queryToken,
+        String projectId
+    ) {
+        return handle(
+            null,
+            rawPayload,
+            eventTypeHeader,
+            deliveryIdHeader,
+            authorizationHeader,
+            queryToken,
+            projectId
+        );
+    }
+
+    public ReleaseManifestIngestResultRecord handle(
+        String endpointId,
         String rawPayload,
         String eventTypeHeader,
         String deliveryIdHeader,
@@ -54,7 +80,16 @@ public class AzureDevOpsReleaseWebhookService {
             receivedAt
         );
 
-        validateAuthentication(authorizationHeader, queryToken);
+        ReleaseIngestEndpointRecord endpoint = resolveEndpoint(endpointId);
+        validateAuthentication(endpoint, authorizationHeader, queryToken);
+
+        if (resolvedProjectId.equals(BuiltinProjects.AZURE_APPSERVICE_ADO_PIPELINE)
+            && endpoint != null
+            && endpoint.linkedProjects() != null
+            && !endpoint.linkedProjects().isEmpty()) {
+            resolvedProjectId = endpoint.linkedProjects().getFirst().projectId();
+        }
+
         ProjectDefinition project = projectCatalogService.getRequired(resolvedProjectId);
         PipelineTriggerDriverConfig pipelineConfig = requireAdoPipelineProject(project);
 
@@ -82,7 +117,7 @@ public class AzureDevOpsReleaseWebhookService {
             }
 
             String pipelineId = firstNonBlank(payload.pipelineId(), normalize(pipelineConfig.pipelineId()));
-            if (!matchesConfiguredPipeline(pipelineConfig, pipelineId)) {
+            if (!matchesConfiguredPipeline(endpoint, pipelineConfig, pipelineId)) {
                 ReleaseManifestIngestResultRecord result = emptyResult(repo, "azure-devops-service-hook", ref);
                 releaseWebhookAuditService.logWebhookDelivery(
                     deliveryLogId,
@@ -100,7 +135,7 @@ public class AzureDevOpsReleaseWebhookService {
                 return result;
             }
 
-            if (!matchesConfiguredBranch(pipelineConfig, payload.branch())) {
+            if (!matchesConfiguredBranch(endpoint, pipelineConfig, payload.branch())) {
                 ReleaseManifestIngestResultRecord result = emptyResult(repo, "azure-devops-service-hook", ref);
                 releaseWebhookAuditService.logWebhookDelivery(
                     deliveryLogId,
@@ -204,7 +239,17 @@ public class AzureDevOpsReleaseWebhookService {
     }
 
     private void validateAuthentication(String authorizationHeader, String queryToken) {
-        String configuredSecret = normalize(properties.getAzureDevOps().getWebhookSecret());
+        validateAuthentication(null, authorizationHeader, queryToken);
+    }
+
+    private void validateAuthentication(
+        ReleaseIngestEndpointRecord endpoint,
+        String authorizationHeader,
+        String queryToken
+    ) {
+        String configuredSecret = endpoint == null
+            ? normalize(properties.getAzureDevOps().getWebhookSecret())
+            : releaseIngestSecretResolver.resolveConfiguredSecret(endpoint);
         if (configuredSecret.isBlank()) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "azure devops webhook secret is not configured");
         }
@@ -232,16 +277,28 @@ public class AzureDevOpsReleaseWebhookService {
             || normalizedEvent.contains("pipeline");
     }
 
-    private boolean matchesConfiguredPipeline(PipelineTriggerDriverConfig config, String pipelineId) {
-        String configured = normalize(config.pipelineId());
+    private boolean matchesConfiguredPipeline(
+        ReleaseIngestEndpointRecord endpoint,
+        PipelineTriggerDriverConfig config,
+        String pipelineId
+    ) {
+        String configured = endpoint == null
+            ? normalize(config.pipelineId())
+            : firstNonBlank(normalize(endpoint.pipelineIdFilter()), normalize(config.pipelineId()));
         if (configured.isBlank()) {
             return true;
         }
         return configured.equals(normalize(pipelineId));
     }
 
-    private boolean matchesConfiguredBranch(PipelineTriggerDriverConfig config, String branch) {
-        String configuredBranch = normalize(config.branch());
+    private boolean matchesConfiguredBranch(
+        ReleaseIngestEndpointRecord endpoint,
+        PipelineTriggerDriverConfig config,
+        String branch
+    ) {
+        String configuredBranch = endpoint == null
+            ? normalize(config.branch())
+            : firstNonBlank(normalize(endpoint.branchFilter()), normalize(config.branch()));
         if (configuredBranch.isBlank() || normalize(branch).isBlank()) {
             return true;
         }
@@ -276,6 +333,24 @@ public class AzureDevOpsReleaseWebhookService {
         String organization = firstNonBlank(payload.organization(), organizationName(config.organization()));
         String project = firstNonBlank(payload.project(), normalize(config.project()));
         return "ado://%s/%s".formatted(organization, project);
+    }
+
+    private ReleaseIngestEndpointRecord resolveEndpoint(String endpointId) {
+        String normalizedEndpointId = normalize(endpointId);
+        if (normalizedEndpointId.isBlank()) {
+            return null;
+        }
+        ReleaseIngestEndpointRecord endpoint = releaseIngestEndpointCatalogService.getRequired(normalizedEndpointId);
+        if (endpoint.provider() != ReleaseIngestProviderType.azure_devops) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "release ingest endpoint %s is not configured for azure devops webhooks".formatted(normalizedEndpointId)
+            );
+        }
+        if (!endpoint.enabled()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "release ingest endpoint is disabled: " + normalizedEndpointId);
+        }
+        return endpoint;
     }
 
     private String basicPassword(String authorizationHeader) {

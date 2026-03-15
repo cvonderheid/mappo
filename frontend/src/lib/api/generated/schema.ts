@@ -98,6 +98,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/release-ingest/endpoints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List release ingest endpoints
+         * @description Returns all configured release ingest endpoints and linked projects.
+         */
+        get: operations["listEndpoints"];
+        put?: never;
+        /** Create release ingest endpoint */
+        post: operations["createEndpoint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/release-ingest/endpoints/{endpointId}/webhooks/github": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Receive GitHub release-manifest webhook for endpoint */
+        post: operations["ingestGithubWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/release-ingest/endpoints/{endpointId}/webhooks/ado": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Receive Azure DevOps release webhook for endpoint */
+        post: operations["ingestAzureDevOpsWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -229,6 +284,24 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/release-ingest/endpoints/{endpointId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete release ingest endpoint */
+        delete: operations["deleteEndpoint"];
+        options?: never;
+        head?: never;
+        /** Patch release ingest endpoint */
+        patch: operations["patchEndpoint"];
         trace?: never;
     };
     "/api/v1/projects/{projectId}": {
@@ -663,9 +736,111 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
         };
+        ReleaseIngestEndpointCreateRequest: {
+            id: string;
+            name: string;
+            /** @enum {string} */
+            provider: "github" | "azure_devops";
+            enabled?: boolean;
+            secretRef?: string;
+            repoFilter?: string;
+            branchFilter?: string;
+            pipelineIdFilter?: string;
+            manifestPath?: string;
+            sourceConfig?: {
+                [key: string]: unknown;
+            };
+        };
+        ReleaseIngestEndpointRecord: {
+            /**
+             * @description Release ingest endpoint id.
+             * @example github-managed-app-default
+             */
+            id?: string;
+            /**
+             * @description Release ingest endpoint display name.
+             * @example GitHub Managed App Default
+             */
+            name?: string;
+            /**
+             * @description Webhook provider for this endpoint.
+             * @enum {string}
+             */
+            provider?: "github" | "azure_devops";
+            /** @description Whether this endpoint is active for webhook processing. */
+            enabled?: boolean;
+            /**
+             * @description Secret reference used for webhook authentication.
+             * @example mappo.managed-app-release.webhook-secret
+             */
+            secretRef?: string;
+            /**
+             * @description Optional provider repository filter.
+             * @example cvonderheid/mappo-managed-app
+             */
+            repoFilter?: string;
+            /**
+             * @description Optional branch filter.
+             * @example main
+             */
+            branchFilter?: string;
+            /**
+             * @description Optional pipeline id filter (ADO).
+             * @example 42
+             */
+            pipelineIdFilter?: string;
+            /**
+             * @description Optional manifest path filter for release files.
+             * @example releases/releases.manifest.json
+             */
+            manifestPath?: string;
+            /** @description Provider-specific metadata config. */
+            sourceConfig?: {
+                [key: string]: unknown;
+            };
+            /** @description Projects currently linked to this release ingest endpoint. */
+            linkedProjects?: components["schemas"]["ReleaseIngestLinkedProjectRecord"][];
+            /**
+             * Format: date-time
+             * @description Created timestamp (UTC).
+             */
+            createdAt?: string;
+            /**
+             * Format: date-time
+             * @description Last updated timestamp (UTC).
+             */
+            updatedAt?: string;
+        };
+        ReleaseIngestLinkedProjectRecord: {
+            /**
+             * @description Linked project id.
+             * @example azure-managed-app-deployment-stack
+             */
+            projectId?: string;
+            /**
+             * @description Linked project display name.
+             * @example Azure Managed App Deployment Stack
+             */
+            projectName?: string;
+        };
+        ReleaseManifestIngestResultRecord: {
+            repo?: string;
+            path?: string;
+            ref?: string;
+            /** Format: int32 */
+            manifestReleaseCount?: number;
+            /** Format: int32 */
+            createdCount?: number;
+            /** Format: int32 */
+            skippedCount?: number;
+            /** Format: int32 */
+            ignoredCount?: number;
+            createdReleaseIds?: string[];
+        };
         ProjectCreateRequest: {
             id: string;
             name: string;
+            releaseIngestEndpointId?: string;
             /** @enum {string} */
             accessStrategy: "simulator" | "azure_workload_rbac" | "lighthouse_delegated_access";
             accessStrategyConfig?: {
@@ -744,6 +919,7 @@ export interface components {
         ProjectDefinition: {
             id?: string;
             name?: string;
+            releaseIngestEndpointId?: string;
             /** @enum {string} */
             accessStrategy?: "simulator" | "azure_workload_rbac" | "lighthouse_delegated_access";
             accessStrategyConfig?: components["schemas"]["AzureWorkloadRbacAccessStrategyConfig"] | components["schemas"]["LighthouseDelegatedAccessStrategyConfig"] | components["schemas"]["SimulatorAccessStrategyConfig"];
@@ -803,20 +979,6 @@ export interface components {
             validatedAt?: string;
             /** @description Detailed validation findings. */
             findings?: components["schemas"]["ProjectValidationFindingRecord"][];
-        };
-        ReleaseManifestIngestResultRecord: {
-            repo?: string;
-            path?: string;
-            ref?: string;
-            /** Format: int32 */
-            manifestReleaseCount?: number;
-            /** Format: int32 */
-            createdCount?: number;
-            /** Format: int32 */
-            skippedCount?: number;
-            /** Format: int32 */
-            ignoredCount?: number;
-            createdReleaseIds?: string[];
         };
         ReleaseManifestIngestRequest: {
             repo?: string;
@@ -897,8 +1059,23 @@ export interface components {
             message?: string;
             targetId?: string;
         };
+        ReleaseIngestEndpointPatchRequest: {
+            name?: string;
+            /** @enum {string} */
+            provider?: "github" | "azure_devops";
+            enabled?: boolean;
+            secretRef?: string;
+            repoFilter?: string;
+            branchFilter?: string;
+            pipelineIdFilter?: string;
+            manifestPath?: string;
+            sourceConfig?: {
+                [key: string]: unknown;
+            };
+        };
         ProjectConfigurationPatchRequest: {
             name?: string;
+            releaseIngestEndpointId?: string;
             /** @enum {string} */
             accessStrategy?: "simulator" | "azure_workload_rbac" | "lighthouse_delegated_access";
             accessStrategyConfig?: {
@@ -1440,6 +1617,113 @@ export interface operations {
             };
         };
     };
+    listEndpoints: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReleaseIngestEndpointRecord"][];
+                };
+            };
+        };
+    };
+    createEndpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseIngestEndpointCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReleaseIngestEndpointRecord"];
+                };
+            };
+        };
+    };
+    ingestGithubWebhook: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-github-event"?: string;
+                "x-hub-signature-256"?: string;
+                "x-github-delivery"?: string;
+            };
+            path: {
+                endpointId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": string;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReleaseManifestIngestResultRecord"];
+                };
+            };
+        };
+    };
+    ingestAzureDevOpsWebhook: {
+        parameters: {
+            query?: {
+                token?: string;
+                projectId?: string;
+            };
+            header?: {
+                "x-event-type"?: string;
+                "x-vss-deliveryid"?: string;
+                authorization?: string;
+            };
+            path: {
+                endpointId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": string;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReleaseManifestIngestResultRecord"];
+                };
+            };
+        };
+    };
     listProjects: {
         parameters: {
             query?: never;
@@ -1679,6 +1963,52 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["EventIngestResultRecord"];
+                };
+            };
+        };
+    };
+    deleteEndpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                endpointId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchEndpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                endpointId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReleaseIngestEndpointPatchRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReleaseIngestEndpointRecord"];
                 };
             };
         };

@@ -26,7 +26,7 @@ public class ReleaseIngestEndpointQueryRepository {
     private final JsonUtil jsonUtil;
 
     public List<ReleaseIngestEndpointRecord> listEndpoints() {
-        List<Record> rows = dsl.select(
+        var rows = dsl.select(
                 RELEASE_INGEST_ENDPOINTS.ID,
                 RELEASE_INGEST_ENDPOINTS.NAME,
                 RELEASE_INGEST_ENDPOINTS.PROVIDER,
@@ -105,7 +105,7 @@ public class ReleaseIngestEndpointQueryRepository {
         for (String endpointId : endpointIds) {
             index.put(endpointId, new ArrayList<>());
         }
-        List<Record> rows = dsl.select(
+        var rows = dsl.select(
                 PROJECTS.RELEASE_INGEST_ENDPOINT_ID,
                 PROJECTS.ID,
                 PROJECTS.NAME
@@ -133,8 +133,8 @@ public class ReleaseIngestEndpointQueryRepository {
         return immutable;
     }
 
-    private List<String> endpointIds(List<Record> rows) {
-        List<String> ids = new ArrayList<>(rows.size());
+    private List<String> endpointIds(Iterable<? extends Record> rows) {
+        List<String> ids = new ArrayList<>();
         for (Record row : rows) {
             String endpointId = normalize(row.get(RELEASE_INGEST_ENDPOINTS.ID));
             if (!endpointId.isBlank()) {

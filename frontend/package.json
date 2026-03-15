@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run --passWithNoTests",
-    "client-gen": "openapi-typescript ../backend/target/openapi/openapi.json -o src/lib/api/generated/schema.ts",
+    "client-gen": "node --input-type=module -e \"import { existsSync } from 'node:fs'; const source = '../backend/target/openapi/openapi.json'; if (!existsSync(source)) { console.log('client-gen: skipped because ' + source + ' is missing'); process.exit(0); }\" && openapi-typescript ../backend/target/openapi/openapi.json -o src/lib/api/generated/schema.ts",
     "test:e2e": "playwright test",
     "test:e2e:ci": "playwright install chromium && playwright test --reporter=line"
   },

@@ -20,6 +20,9 @@ import type {
   ProjectValidationRequest,
   ProjectValidationResult,
   Release,
+  ReleaseIngestEndpoint,
+  ReleaseIngestEndpointCreateRequest,
+  ReleaseIngestEndpointPatchRequest,
   ReleaseManifestIngestRequest,
   ReleaseManifestIngestResponse,
   ReleaseWebhookDeliveryPage,
@@ -140,6 +143,42 @@ export async function listProjectAudit(
 export async function listReleases(): Promise<Release[]> {
   const { data, error, response } = await apiClient.GET("/api/v1/releases");
   return requireData("listReleases", { data, error, response });
+}
+
+export async function listReleaseIngestEndpoints(): Promise<ReleaseIngestEndpoint[]> {
+  const { data, error, response } = await apiClient.GET("/api/v1/release-ingest/endpoints");
+  return requireData("listReleaseIngestEndpoints", { data, error, response });
+}
+
+export async function createReleaseIngestEndpoint(
+  request: ReleaseIngestEndpointCreateRequest
+): Promise<ReleaseIngestEndpoint> {
+  const { data, error, response } = await apiClient.POST("/api/v1/release-ingest/endpoints", {
+    body: request,
+  });
+  return requireData("createReleaseIngestEndpoint", { data, error, response });
+}
+
+export async function patchReleaseIngestEndpoint(
+  endpointId: string,
+  request: ReleaseIngestEndpointPatchRequest
+): Promise<ReleaseIngestEndpoint> {
+  const { data, error, response } = await apiClient.PATCH("/api/v1/release-ingest/endpoints/{endpointId}", {
+    params: { path: { endpointId } },
+    body: request,
+  });
+  return requireData("patchReleaseIngestEndpoint", { data, error, response });
+}
+
+export async function deleteReleaseIngestEndpoint(endpointId: string): Promise<void> {
+  const { error, response } = await apiClient.DELETE("/api/v1/release-ingest/endpoints/{endpointId}", {
+    params: { path: { endpointId } },
+  });
+  if (response.status >= 200 && response.status < 300) {
+    return;
+  }
+  const errorText = error !== undefined ? formatError(error) : "unknown error";
+  throw new Error(`deleteReleaseIngestEndpoint failed (${response.status}): ${errorText}`);
 }
 
 export async function listRuns(query: ListRunsQuery = {}): Promise<RunSummaryPage> {
