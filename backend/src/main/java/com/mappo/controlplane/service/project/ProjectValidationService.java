@@ -11,10 +11,13 @@ import com.mappo.controlplane.model.ProjectValidationFindingRecord;
 import com.mappo.controlplane.model.ProjectValidationFindingStatus;
 import com.mappo.controlplane.model.ProjectValidationResultRecord;
 import com.mappo.controlplane.model.ProjectValidationScope;
+import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.repository.TargetExecutionContextRepository;
 import com.mappo.controlplane.repository.TargetRecordQueryRepository;
+import com.mappo.controlplane.service.releaseingest.ReleaseIngestEndpointCatalogService;
+import com.mappo.controlplane.service.releaseingest.ReleaseIngestSecretResolver;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -33,6 +36,8 @@ public class ProjectValidationService {
     private final ProjectCatalogService projectCatalogService;
     private final TargetRecordQueryRepository targetRecordQueryRepository;
     private final TargetExecutionContextRepository targetExecutionContextRepository;
+    private final ReleaseIngestEndpointCatalogService releaseIngestEndpointCatalogService;
+    private final ReleaseIngestSecretResolver releaseIngestSecretResolver;
     private final MappoProperties properties;
 
     public ProjectValidationResultRecord validateProject(String projectId, ProjectValidationRequest request) {
@@ -92,17 +97,17 @@ public class ProjectValidationService {
 
         if (project.deploymentDriverConfig() instanceof PipelineTriggerDriverConfig pipelineConfig
             && "azure_devops".equalsIgnoreCase(normalize(pipelineConfig.pipelineSystem()))) {
-            if (hasText(properties.getAzureDevOps().getPersonalAccessToken())) {
+            if (hasText(resolvePipelinePersonalAccessToken(pipelineConfig))) {
                 findings.add(pass(
                     ProjectValidationScope.credentials,
                     "AZURE_DEVOPS_PAT_PRESENT",
-                    "Azure DevOps personal access token is configured."
+                    "Azure DevOps personal access token resolved from project deployment driver config."
                 ));
             } else {
                 findings.add(fail(
                     ProjectValidationScope.credentials,
                     "AZURE_DEVOPS_PAT_MISSING",
-                    "Azure DevOps deployment driver requires mappo.azure-devops.personal-access-token."
+                    "Azure DevOps deployment driver requires deploymentDriverConfig.personalAccessTokenRef (env:/literal:) or mappo.azure-devops.personal-access-token."
                 ));
             }
 
@@ -132,17 +137,41 @@ public class ProjectValidationService {
 
         if (project.releaseArtifactSourceConfig() instanceof ExternalDeploymentInputsArtifactSourceConfig externalConfig
             && "azure_devops".equalsIgnoreCase(normalize(externalConfig.sourceSystem()))) {
-            if (hasText(properties.getAzureDevOps().getWebhookSecret())) {
+            String endpointId = normalize(project.releaseIngestEndpointId());
+            if (hasText(endpointId)) {
+                try {
+                    ReleaseIngestEndpointRecord endpoint = releaseIngestEndpointCatalogService.getRequired(endpointId);
+                    if (hasText(releaseIngestSecretResolver.resolveConfiguredSecret(endpoint))) {
+                        findings.add(pass(
+                            ProjectValidationScope.webhook,
+                            "AZURE_DEVOPS_WEBHOOK_SECRET_PRESENT",
+                            "Azure DevOps webhook secret resolved from linked release ingest endpoint " + endpointId + "."
+                        ));
+                    } else {
+                        findings.add(fail(
+                            ProjectValidationScope.webhook,
+                            "AZURE_DEVOPS_WEBHOOK_SECRET_MISSING",
+                            "Linked release ingest endpoint " + endpointId + " has no resolvable webhook secret."
+                        ));
+                    }
+                } catch (RuntimeException exception) {
+                    findings.add(fail(
+                        ProjectValidationScope.webhook,
+                        "AZURE_DEVOPS_WEBHOOK_ENDPOINT_MISSING",
+                        "Release ingest endpoint " + endpointId + " was not found."
+                    ));
+                }
+            } else if (hasText(properties.getAzureDevOps().getWebhookSecret())) {
                 findings.add(pass(
                     ProjectValidationScope.webhook,
                     "AZURE_DEVOPS_WEBHOOK_SECRET_PRESENT",
-                    "Azure DevOps webhook secret is configured."
+                    "Azure DevOps webhook secret is configured globally."
                 ));
             } else {
                 findings.add(fail(
                     ProjectValidationScope.webhook,
                     "AZURE_DEVOPS_WEBHOOK_SECRET_MISSING",
-                    "Azure DevOps webhook ingest requires mappo.azure-devops.webhook-secret."
+                    "Azure DevOps webhook ingest requires a linked release ingest endpoint with secretRef or mappo.azure-devops.webhook-secret."
                 ));
             }
             return findings;
@@ -330,5 +359,18 @@ public class ProjectValidationService {
     private String normalize(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
     }
-}
 
+    private String resolvePipelinePersonalAccessToken(PipelineTriggerDriverConfig config) {
+        String reference = normalize(config.personalAccessTokenRef());
+        if (!hasText(reference) || "mappo.azure-devops.personal-access-token".equals(reference)) {
+            return normalize(properties.getAzureDevOps().getPersonalAccessToken());
+        }
+        if (reference.startsWith("env:")) {
+            return normalize(System.getenv(reference.substring("env:".length())));
+        }
+        if (reference.startsWith("literal:")) {
+            return normalize(reference.substring("literal:".length()));
+        }
+        return "";
+    }
+}

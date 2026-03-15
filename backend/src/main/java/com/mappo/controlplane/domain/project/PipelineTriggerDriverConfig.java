@@ -7,6 +7,7 @@ public record PipelineTriggerDriverConfig(
     String pipelineId,
     String branch,
     String azureServiceConnectionName,
+    String personalAccessTokenRef,
     boolean supportsExternalExecutionHandle,
     boolean supportsExternalLogs
 ) implements ProjectDeploymentDriverConfig {
@@ -19,6 +20,7 @@ public record PipelineTriggerDriverConfig(
             "",
             "main",
             "",
+            "mappo.azure-devops.personal-access-token",
             true,
             true
         );

@@ -64,6 +64,12 @@
     <module>delivery</module>
   </modules>
 
+  <profiles>
+    <profile>
+      <id>azure</id>
+    </profile>
+  </profiles>
+
   <build>
     <pluginManagement>
       <plugins>
@@ -146,7 +152,7 @@
               <executable>bash</executable>
               <arguments>
                 <argument>-lc</argument>
-                <argument>if [[ -z "${docker.image.prefix}" ]]; then echo "mappo deploy: set MAPPO_IMAGE_PREFIX or -Ddocker.image.prefix=&lt;registry-login-server&gt; before running mvn deploy." >&amp;2; exit 1; fi; if [[ -z "${docker.registry.username}" || -z "${docker.registry.password}" ]]; then echo "mappo deploy: set MAPPO_DOCKER_USERNAME and MAPPO_DOCKER_PASSWORD (or -Ddocker.registry.username/-Ddocker.registry.password) before running mvn deploy." >&amp;2; exit 1; fi</argument>
+                <argument>prefix='${docker.image.prefix}'; username='${docker.registry.username}'; password='${docker.registry.password}'; if [[ -z "$prefix" || "$prefix" == *'${env.'* ]]; then echo "mappo deploy: set MAPPO_IMAGE_PREFIX or -Ddocker.image.prefix=&lt;registry-login-server&gt; before running mvn deploy." >&amp;2; exit 1; fi; if [[ -z "$username" || "$username" == *'${env.'* || -z "$password" || "$password" == *'${env.'* ]]; then echo "mappo deploy: set MAPPO_DOCKER_USERNAME and MAPPO_DOCKER_PASSWORD (or -Ddocker.registry.username/-Ddocker.registry.password) before running mvn deploy." >&amp;2; exit 1; fi</argument>
               </arguments>
             </configuration>
           </execution>

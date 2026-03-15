@@ -61,22 +61,22 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
             )
         );
         body.put("templateParameters", inputs.templateParameters() == null ? Map.of() : inputs.templateParameters());
-        HttpResponse<String> response = sendJson(url, "POST", body);
+        HttpResponse<String> response = sendJson(inputs, url, "POST", body);
         return toRunRecord(inputs, response.body());
     }
 
     @Override
     public AzureDevOpsPipelineRunRecord getRun(AzureDevOpsPipelineInputs inputs, String runId) {
         String url = runItemApiUrl(inputs, normalize(runId));
-        HttpResponse<String> response = sendJson(url, "GET", null);
+        HttpResponse<String> response = sendJson(inputs, url, "GET", null);
         return toRunRecord(inputs, response.body());
     }
 
-    private HttpResponse<String> sendJson(String url, String method, Object payload) {
+    private HttpResponse<String> sendJson(AzureDevOpsPipelineInputs inputs, String url, String method, Object payload) {
         try {
             HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(url))
                 .header("Accept", "application/json")
-                .header("Authorization", authorizationHeader())
+                .header("Authorization", authorizationHeader(inputs))
                 .timeout(Duration.ofMillis(Math.max(1_000L, properties.getAzureDevOps().getReadTimeoutMs())));
 
             if ("POST".equalsIgnoreCase(method)) {
@@ -159,8 +159,11 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
         }
     }
 
-    private String authorizationHeader() {
-        String pat = normalize(properties.getAzureDevOps().getPersonalAccessToken());
+    private String authorizationHeader(AzureDevOpsPipelineInputs inputs) {
+        String pat = firstNonBlank(
+            inputs == null ? "" : inputs.personalAccessToken(),
+            properties.getAzureDevOps().getPersonalAccessToken()
+        );
         String token = Base64.getEncoder().encodeToString((":" + pat).getBytes(StandardCharsets.UTF_8));
         return "Basic " + token;
     }

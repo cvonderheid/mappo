@@ -12,12 +12,16 @@ import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 @Component
 @Order(40)
+@RequiredArgsConstructor
 class AzureDevOpsExternalInputsMaterializer implements ReleaseMaterializer<AzureDevOpsPipelineInputs> {
+
+    private final AzureDevOpsSecretResolver secretResolver;
 
     @Override
     public boolean supports(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
@@ -55,6 +59,7 @@ class AzureDevOpsExternalInputsMaterializer implements ReleaseMaterializer<Azure
             normalize(sourceConfig.descriptorPath()),
             normalize(sourceConfig.versionField()),
             normalize(pipelineConfig.azureServiceConnectionName()),
+            secretResolver.resolvePersonalAccessToken(pipelineConfig.personalAccessTokenRef()),
             target.tenantId() == null ? "" : target.tenantId().toString(),
             target.subscriptionId() == null ? "" : target.subscriptionId().toString(),
             normalize(target.targetId()),

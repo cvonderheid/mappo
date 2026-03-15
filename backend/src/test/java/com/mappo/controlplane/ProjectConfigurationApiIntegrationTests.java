@@ -94,7 +94,6 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
             .andExpect(jsonPath("$.valid").value(false))
             .andExpect(jsonPath("$.findings[*].code", hasItems(
                 "AZURE_DEVOPS_PAT_MISSING",
-                "AZURE_DEVOPS_PIPELINE_CONFIG_PRESENT",
                 "AZURE_DEVOPS_WEBHOOK_SECRET_MISSING"
             )));
     }

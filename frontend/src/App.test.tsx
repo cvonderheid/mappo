@@ -251,8 +251,7 @@ describe("App", () => {
   it("renders dashboard data from API", async () => {
     const fleetView = render(<App />);
 
-    expect(screen.getByText("MAPPO Control Plane")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Multi-tenant Managed App Orchestrator/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^MAPPO Control Plane$/i })).toBeInTheDocument();
     expect(screen.queryByText(/Attention Needed/i)).not.toBeInTheDocument();
 
     await waitFor(() => {

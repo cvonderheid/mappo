@@ -130,13 +130,13 @@ class AzureDevOpsPipelineTriggerExecutor implements DeploymentDriver {
     }
 
     private void validateConfigured(AzureDevOpsPipelineInputs inputs, String targetId, String correlationId) {
-        String pat = normalize(properties.getAzureDevOps().getPersonalAccessToken());
+        String pat = normalize(inputs.personalAccessToken());
         if (pat.isBlank()) {
             throw deploymentFailure(
                 "ADO_PIPELINE_CONFIGURATION_INVALID",
-                "Azure DevOps execution is not configured: missing MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN.",
+                "Azure DevOps execution is not configured: missing deployment driver PAT secret reference.",
                 null,
-                "personalAccessToken is blank",
+                "personalAccessToken is blank after resolving deploymentDriverConfig.personalAccessTokenRef",
                 correlationId,
                 null
             );

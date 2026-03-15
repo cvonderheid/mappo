@@ -912,6 +912,7 @@ export interface components {
             pipelineId?: string;
             branch?: string;
             azureServiceConnectionName?: string;
+            personalAccessTokenRef?: string;
             supportsExternalExecutionHandle?: boolean;
             supportsExternalLogs?: boolean;
         };

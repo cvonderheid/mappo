@@ -85,6 +85,7 @@ type ProjectDraft = {
     pipelineId: string;
     branch: string;
     azureServiceConnectionName: string;
+    personalAccessTokenRef: string;
     supportsExternalExecutionHandle: boolean;
     supportsExternalLogs: boolean;
     supportsPreview: boolean;
@@ -206,6 +207,10 @@ function projectToDraft(project: ProjectDefinition | null): ProjectDraft {
       pipelineId: asString(driverConfig.pipelineId),
       branch: asString(driverConfig.branch, "main"),
       azureServiceConnectionName: asString(driverConfig.azureServiceConnectionName),
+      personalAccessTokenRef: asString(
+        driverConfig.personalAccessTokenRef,
+        "mappo.azure-devops.personal-access-token"
+      ),
       supportsExternalExecutionHandle: asBoolean(driverConfig.supportsExternalExecutionHandle, true),
       supportsExternalLogs: asBoolean(driverConfig.supportsExternalLogs, true),
       supportsPreview: asBoolean(driverConfig.supportsPreview, project?.deploymentDriver === "azure_deployment_stack"),
@@ -268,6 +273,8 @@ function buildPatchRequest(draft: ProjectDraft): ProjectConfigurationPatchReques
     deploymentDriverConfig.branch = draft.driver.branch.trim() || undefined;
     deploymentDriverConfig.azureServiceConnectionName =
       draft.driver.azureServiceConnectionName.trim() || undefined;
+    deploymentDriverConfig.personalAccessTokenRef =
+      draft.driver.personalAccessTokenRef.trim() || undefined;
   }
 
   const releaseArtifactSourceConfig: Record<string, unknown> = {
@@ -418,6 +425,9 @@ export default function ProjectSettingsPage({
       }
       if (draft.driver.azureServiceConnectionName.trim() === "") {
         errors.push("Deployment Driver: azureServiceConnectionName is required for pipeline_trigger.");
+      }
+      if (draft.driver.personalAccessTokenRef.trim() === "") {
+        errors.push("Deployment Driver: personalAccessTokenRef is required for pipeline_trigger.");
       }
     }
     if (parseOptionalNumber(draft.runtime.expectedStatus) === undefined) {
@@ -833,6 +843,20 @@ export default function ProjectSettingsPage({
                             driver: { ...current.driver, azureServiceConnectionName: event.target.value },
                           }))
                         }
+                      />
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <Label htmlFor="driver-pat-ref">PAT secret reference</Label>
+                      <Input
+                        id="driver-pat-ref"
+                        value={draft.driver.personalAccessTokenRef}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            driver: { ...current.driver, personalAccessTokenRef: event.target.value },
+                          }))
+                        }
+                        placeholder="env:MAPPO_ADO_PAT or mappo.azure-devops.personal-access-token"
                       />
                     </div>
                   </>

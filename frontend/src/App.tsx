@@ -24,6 +24,7 @@ import {
 import { DEFAULT_FORM, type StartRunFormState } from "@/lib/deployment-form";
 import { releaseAvailabilitySummary } from "@/lib/fleet";
 import { createLiveUpdatesEventSource, parseLiveUpdateEvent } from "@/lib/live-updates";
+import { projectThemeForProject } from "@/lib/project-theme";
 import { canonicalizeReleases } from "@/lib/releases";
 import {
   adminListTargetRegistrations,
@@ -255,13 +256,20 @@ function AppShell() {
   }, [selectedProjectId, targetsSnapshotSignature]);
 
   const refreshRegistrationOptions = useCallback(async () => {
+    if (!selectedProjectId) {
+      setRegistrationOptions([]);
+      setAdminRefreshVersion((current) => current + 1);
+      setAdminErrorMessage("");
+      return;
+    }
     try {
       const pageSize = 200;
-      const firstPage = await adminListTargetRegistrations({ page: 0, size: pageSize });
+      const baseQuery = { projectId: selectedProjectId };
+      const firstPage = await adminListTargetRegistrations({ page: 0, size: pageSize, ...baseQuery });
       const items = [...(firstPage.items ?? [])];
       const totalPages = firstPage.page?.totalPages ?? 0;
       for (let page = 1; page < totalPages; page += 1) {
-        const nextPage = await adminListTargetRegistrations({ page, size: pageSize });
+        const nextPage = await adminListTargetRegistrations({ page, size: pageSize, ...baseQuery });
         items.push(...(nextPage.items ?? []));
       }
       setRegistrationOptions(items);
@@ -270,7 +278,7 @@ function AppShell() {
     } catch (error) {
       setAdminErrorMessage((error as Error).message);
     }
-  }, []);
+  }, [selectedProjectId]);
 
   const refreshReleases = useCallback(async () => {
     try {
@@ -808,6 +816,17 @@ function AppShell() {
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
     [projects, selectedProjectId]
   );
+  const selectedProjectTheme = useMemo(
+    () => projectThemeForProject(selectedProjectId),
+    [selectedProjectId]
+  );
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-project-theme", selectedProjectTheme.key);
+    return () => {
+      document.documentElement.removeAttribute("data-project-theme");
+    };
+  }, [selectedProjectTheme.key]);
 
   const runs = useMemo(() => runsPage?.items ?? [], [runsPage]);
   const runPageMetadata: PageMetadata = runsPage?.page ?? {
@@ -1205,7 +1224,10 @@ function AppShell() {
   }
 
   return (
-    <main className="mx-auto flex w-[min(1480px,96vw)] flex-col gap-4 py-6">
+    <main
+      className="mx-auto flex w-[min(1480px,96vw)] flex-col gap-4 py-6"
+      data-project-theme={selectedProjectTheme.key}
+    >
       <Toaster richColors position="top-right" />
       <div className="glass-card animate-fade-up [animation-fill-mode:forwards]">
         <div className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between">
@@ -1219,6 +1241,9 @@ function AppShell() {
                 onOpenCreateProject={() => navigate("/projects?new=1")}
               />
             </Suspense>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Theme: <span className="font-medium text-foreground">{selectedProjectTheme.name}</span>
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-2 lg:w-[320px]">
             <Kpi label="Total Targets" value={String(targets.length)} />
@@ -1297,10 +1322,10 @@ function AppShell() {
 
         <section className="min-w-0 space-y-4">
           <Card className="glass-card hero-gradient animate-fade-up [animation-delay:30ms] [animation-fill-mode:forwards]">
-            <CardHeader className="space-y-3">
-              <div className="space-y-2">
-                <CardTitle className="text-2xl uppercase md:text-3xl">
-                  Multi-tenant Managed App Orchestrator
+            <CardHeader className="space-y-2 py-4">
+              <div className="space-y-1">
+                <CardTitle className="text-lg uppercase tracking-[0.08em] md:text-xl">
+                  MAPPO Control Plane
                 </CardTitle>
                 <Breadcrumb>
                   <BreadcrumbList>

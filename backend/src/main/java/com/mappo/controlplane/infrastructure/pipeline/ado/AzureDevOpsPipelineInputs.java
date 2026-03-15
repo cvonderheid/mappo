@@ -10,6 +10,7 @@ public record AzureDevOpsPipelineInputs(
     String descriptorPath,
     String versionField,
     String azureServiceConnectionName,
+    String personalAccessToken,
     String targetTenantId,
     String targetSubscriptionId,
     String targetId,

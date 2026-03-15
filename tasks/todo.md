@@ -18,6 +18,14 @@ Operator-first setup and integration clarity before additional coding:
 - [ ] Sprint 4: Integration setup UX + first-time operator guidance.
 - [ ] Sprint 5: Script decommission and final hardening sweep.
 
+## Future TODO (Pre-Production Readiness)
+- [ ] Remove all non-essential seeded data from migrations; keep migrations schema-only for production.
+- [ ] Evaluate replacing string IDs (`varchar(128)`) with numeric surrogate keys where it improves FK/index size and join performance.
+- [ ] Reorganize backend packages by bounded context (for example `repository.marketplace`, `repository.releaseingest`, `service.run`, etc.) to reduce oversized flat packages.
+- [ ] Before production cutover, create a clean baseline migration (`V1__baseline.sql`) from the finalized schema and retire interim migration complexity.
+- [ ] Remove backward-compatibility overloads/shims once UI/API consumers are fully migrated.
+- [ ] Expand project theming into full operator theming controls (palette + spacing + typography) if needed beyond the current per-project theme assignment.
+
 ## Sprint 0: Identity Boundary Cleanup and Baseline Reconciliation
 ### Tasks
 - [x] Remove retired ADO service-hook/service-connection identities in safe order:

@@ -153,7 +153,7 @@ export default function ReleasesPage({
 
       <Card className="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]">
         <CardHeader>
-          <CardTitle>Release Webhooks</CardTitle>
+          <CardTitle>Release Webook Events</CardTitle>
         </CardHeader>
         <CardContent>
           <ReleaseWebhookDeliveriesDataTable refreshKey={refreshKey} />
