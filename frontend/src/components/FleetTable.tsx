@@ -586,9 +586,6 @@ export default function FleetTable({ latestRelease, refreshKey, selectedProjectI
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>Fleet Targets</CardTitle>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="font-mono text-[11px]">
-            {pageMetadata.totalItems ?? 0} subscriptions
-          </Badge>
           <span
             className={`inline-flex min-w-[4.5rem] justify-end text-xs text-muted-foreground transition-opacity ${
               refreshing ? "opacity-100" : "opacity-0"

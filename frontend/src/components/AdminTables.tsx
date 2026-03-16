@@ -196,18 +196,13 @@ function TableFrame({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <Badge variant="outline" className="font-mono text-[11px]">
-          {page.totalItems ?? 0}
-        </Badge>
-        <div className="flex items-center gap-2">
-          {refreshing ? <span className="text-xs text-muted-foreground">Syncing…</span> : null}
-          {headerActions}
-          <ColumnVisibilityMenu table={table} />
-          <Button type="button" variant="outline" size="sm" onClick={onClearFilters}>
-            Clear filters
-          </Button>
-        </div>
+      <div className="flex items-center justify-end gap-2">
+        {refreshing ? <span className="text-xs text-muted-foreground">Syncing…</span> : null}
+        {headerActions}
+        <ColumnVisibilityMenu table={table} />
+        <Button type="button" variant="outline" size="sm" onClick={onClearFilters}>
+          Clear filters
+        </Button>
       </div>
       <Table>
         <TableHeader>

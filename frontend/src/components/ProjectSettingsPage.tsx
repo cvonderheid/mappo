@@ -635,9 +635,9 @@ export default function ProjectSettingsPage({
               </Badge>
             </div>
             <div className="rounded-md border border-border/70 bg-background/40 p-2">
-              <p className="text-xs font-medium">Config published</p>
+              <p className="text-xs font-medium">Config section available</p>
               <Badge className="mt-1" variant={project ? "default" : "secondary"}>
-                {project ? "Ready" : "Blocked"}
+                {project ? "Done" : "Pending"}
               </Badge>
             </div>
             <div className="rounded-md border border-border/70 bg-background/40 p-2">

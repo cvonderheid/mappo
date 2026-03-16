@@ -109,9 +109,6 @@ export default function ReleasesPage({
       <Card className="glass-card animate-fade-up [animation-delay:100ms] [animation-fill-mode:forwards]">
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle>Release Catalog</CardTitle>
-          <Badge variant="outline" className="font-mono text-[11px]">
-            {releases.length} releases
-          </Badge>
         </CardHeader>
         <CardContent className="space-y-2">
           {latestRelease ? (

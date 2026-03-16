@@ -510,9 +510,6 @@ export function RunList({
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle>Deployment Runs</CardTitle>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="font-mono text-[11px]">
-            {totalItems} runs
-          </Badge>
           <ColumnVisibilityMenu table={table} />
           <Button
             type="button"
