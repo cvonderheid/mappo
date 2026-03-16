@@ -197,6 +197,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{projectId}/deployment-driver/ado/pipelines/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Discover Azure DevOps pipelines
+         * @description Discovers Azure DevOps pipelines for the selected project using organization/project/PAT from request overrides or persisted project deployment-driver config.
+         */
+        post: operations["discoverProjectAdoPipelines"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/releases/webhooks/github": {
         parameters: {
             query?: never;
@@ -980,6 +1000,24 @@ export interface components {
             validatedAt?: string;
             /** @description Detailed validation findings. */
             findings?: components["schemas"]["ProjectValidationFindingRecord"][];
+        };
+        ProjectAdoPipelineDiscoveryRequest: {
+            organization?: string;
+            project?: string;
+            personalAccessTokenRef?: string;
+            nameContains?: string;
+        };
+        ProjectAdoPipelineDiscoveryResultRecord: {
+            projectId?: string;
+            organization?: string;
+            project?: string;
+            pipelines?: components["schemas"]["ProjectAdoPipelineRecord"][];
+        };
+        ProjectAdoPipelineRecord: {
+            id?: string;
+            name?: string;
+            folder?: string;
+            webUrl?: string;
         };
         ReleaseManifestIngestRequest: {
             repo?: string;
@@ -1791,6 +1829,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ProjectValidationResultRecord"];
+                };
+            };
+        };
+    };
+    discoverProjectAdoPipelines: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ProjectAdoPipelineDiscoveryRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ProjectAdoPipelineDiscoveryResultRecord"];
                 };
             };
         };

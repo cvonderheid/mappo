@@ -9,8 +9,10 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -72,11 +74,36 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
         return toRunRecord(inputs, response.body());
     }
 
+    @Override
+    public List<AzureDevOpsPipelineDefinitionRecord> listPipelines(AzureDevOpsPipelineDiscoveryInputs inputs) {
+        String url = pipelineCollectionApiUrl(inputs);
+        HttpResponse<String> response = sendJson(inputs, url, "GET", null);
+        return toPipelineDefinitions(inputs, response.body());
+    }
+
     private HttpResponse<String> sendJson(AzureDevOpsPipelineInputs inputs, String url, String method, Object payload) {
+        return sendJson(
+            firstNonBlank(inputs == null ? "" : inputs.personalAccessToken(), properties.getAzureDevOps().getPersonalAccessToken()),
+            url,
+            method,
+            payload
+        );
+    }
+
+    private HttpResponse<String> sendJson(AzureDevOpsPipelineDiscoveryInputs inputs, String url, String method, Object payload) {
+        return sendJson(
+            firstNonBlank(inputs == null ? "" : inputs.personalAccessToken(), properties.getAzureDevOps().getPersonalAccessToken()),
+            url,
+            method,
+            payload
+        );
+    }
+
+    private HttpResponse<String> sendJson(String personalAccessToken, String url, String method, Object payload) {
         try {
             HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(url))
                 .header("Accept", "application/json")
-                .header("Authorization", authorizationHeader(inputs))
+                .header("Authorization", authorizationHeader(personalAccessToken))
                 .timeout(Duration.ofMillis(Math.max(1_000L, properties.getAzureDevOps().getReadTimeoutMs())));
 
             if ("POST".equalsIgnoreCase(method)) {
@@ -113,6 +140,48 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
                 "Azure DevOps API request interrupted: " + exception.getMessage(),
                 0,
                 ""
+            );
+        }
+    }
+
+    private List<AzureDevOpsPipelineDefinitionRecord> toPipelineDefinitions(
+        AzureDevOpsPipelineDiscoveryInputs inputs,
+        String responseBody
+    ) {
+        try {
+            JsonNode root = objectMapper.readTree(responseBody);
+            List<AzureDevOpsPipelineDefinitionRecord> pipelines = new ArrayList<>();
+            JsonNode values = root.path("value");
+            if (values.isArray()) {
+                for (JsonNode node : values) {
+                    String id = normalize(text(node.path("id")));
+                    if (id.isBlank()) {
+                        continue;
+                    }
+                    String name = firstNonBlank(text(node.path("name")), "pipeline-" + id);
+                    String folder = normalize(text(node.path("folder")));
+                    String webUrl = firstNonBlank(
+                        text(node.at("/_links/web/href")),
+                        organizationUrl(inputs.organization())
+                            + "/" + encodePath(inputs.project())
+                            + "/_build?definitionId=" + encodeQueryParam(id)
+                    );
+                    String apiUrl = firstNonBlank(
+                        text(node.path("url")),
+                        organizationUrl(inputs.organization())
+                            + "/" + encodePath(inputs.project())
+                            + "/_apis/pipelines/" + encodePath(id)
+                            + "?api-version=" + encodeQueryParam(properties.getAzureDevOps().getApiVersion())
+                    );
+                    pipelines.add(new AzureDevOpsPipelineDefinitionRecord(id, name, folder, webUrl, apiUrl));
+                }
+            }
+            return pipelines;
+        } catch (Exception exception) {
+            throw new AzureDevOpsClientException(
+                "Azure DevOps pipeline list response parsing failed: " + exception.getMessage(),
+                0,
+                responseBody
             );
         }
     }
@@ -159,11 +228,8 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
         }
     }
 
-    private String authorizationHeader(AzureDevOpsPipelineInputs inputs) {
-        String pat = firstNonBlank(
-            inputs == null ? "" : inputs.personalAccessToken(),
-            properties.getAzureDevOps().getPersonalAccessToken()
-        );
+    private String authorizationHeader(String personalAccessToken) {
+        String pat = firstNonBlank(personalAccessToken, properties.getAzureDevOps().getPersonalAccessToken());
         String token = Base64.getEncoder().encodeToString((":" + pat).getBytes(StandardCharsets.UTF_8));
         return "Basic " + token;
     }
@@ -181,6 +247,13 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
             + "/_apis/pipelines/" + encodePath(inputs.pipelineId())
             + "/runs/" + encodePath(runId)
             + "?api-version=" + encodeQueryParam(properties.getAzureDevOps().getApiVersion());
+    }
+
+    private String pipelineCollectionApiUrl(AzureDevOpsPipelineDiscoveryInputs inputs) {
+        return organizationUrl(inputs.organization())
+            + "/" + encodePath(inputs.project())
+            + "/_apis/pipelines?api-version=" + encodeQueryParam(properties.getAzureDevOps().getApiVersion())
+            + "&$top=200";
     }
 
     private String buildRunWebUrl(AzureDevOpsPipelineInputs inputs, String runId) {

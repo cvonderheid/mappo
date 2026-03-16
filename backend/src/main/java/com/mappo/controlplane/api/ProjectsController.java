@@ -1,15 +1,18 @@
 package com.mappo.controlplane.api;
 
 import com.mappo.controlplane.api.query.ProjectAuditPageParameters;
+import com.mappo.controlplane.api.request.ProjectAdoPipelineDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectConfigurationPatchRequest;
 import com.mappo.controlplane.api.request.ProjectCreateRequest;
 import com.mappo.controlplane.api.request.ProjectValidationRequest;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
+import com.mappo.controlplane.model.ProjectAdoPipelineDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProjectConfigurationAuditPageRecord;
 import com.mappo.controlplane.model.ProjectValidationResultRecord;
 import com.mappo.controlplane.service.project.ProjectAuditQueryService;
 import com.mappo.controlplane.service.project.ProjectCatalogService;
 import com.mappo.controlplane.service.project.ProjectConfigurationCommandService;
+import com.mappo.controlplane.service.project.ProjectDeploymentDriverDiscoveryService;
 import com.mappo.controlplane.service.project.ProjectValidationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,6 +41,7 @@ public class ProjectsController {
     private final ProjectConfigurationCommandService projectConfigurationCommandService;
     private final ProjectValidationService projectValidationService;
     private final ProjectAuditQueryService projectAuditQueryService;
+    private final ProjectDeploymentDriverDiscoveryService projectDeploymentDriverDiscoveryService;
 
     @GetMapping
     @Operation(summary = "List projects", description = "Returns the configured projects available to the control plane.")
@@ -77,5 +81,17 @@ public class ProjectsController {
         @Valid @ParameterObject @ModelAttribute ProjectAuditPageParameters parameters
     ) {
         return projectAuditQueryService.listProjectAudit(projectId, parameters.toQuery(projectId));
+    }
+
+    @PostMapping("/{projectId}/deployment-driver/ado/pipelines/discover")
+    @Operation(
+        summary = "Discover Azure DevOps pipelines",
+        description = "Discovers Azure DevOps pipelines for the selected project using organization/project/PAT from request overrides or persisted project deployment-driver config."
+    )
+    public ProjectAdoPipelineDiscoveryResultRecord discoverProjectAdoPipelines(
+        @PathVariable("projectId") String projectId,
+        @RequestBody(required = false) ProjectAdoPipelineDiscoveryRequest request
+    ) {
+        return projectDeploymentDriverDiscoveryService.discoverAdoPipelines(projectId, request);
     }
 }

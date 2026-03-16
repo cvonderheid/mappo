@@ -21,8 +21,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
+  DiscoverProjectAdoPipelinesRequest,
   ListProjectAuditQuery,
   PageMetadata,
+  ProjectAdoPipeline,
+  ProjectAdoPipelineDiscoveryResult,
   ProjectConfigurationAuditAction,
   ProjectConfigurationAuditPage,
   ProjectConfigurationPatchRequest,
@@ -39,9 +42,6 @@ type ProjectSettingsPageProps = {
   selectedProjectId: string;
   targets: Target[];
   projectReleaseCount: number;
-  onOpenTargetOnboarding: () => void;
-  onOpenReleaseIngest: () => void;
-  onOpenDeployments: () => void;
   onCreateProject: (request: ProjectCreateRequest) => Promise<ProjectDefinition>;
   onPatchProject: (projectId: string, request: ProjectConfigurationPatchRequest) => Promise<ProjectDefinition>;
   onValidateProject: (projectId: string, request: ProjectValidationRequest) => Promise<ProjectValidationResult>;
@@ -49,6 +49,10 @@ type ProjectSettingsPageProps = {
     projectId: string,
     query: ListProjectAuditQuery
   ) => Promise<ProjectConfigurationAuditPage>;
+  onDiscoverAdoPipelines: (
+    projectId: string,
+    request: DiscoverProjectAdoPipelinesRequest
+  ) => Promise<ProjectAdoPipelineDiscoveryResult>;
 };
 
 type ProjectTab =
@@ -334,13 +338,11 @@ export default function ProjectSettingsPage({
   selectedProjectId,
   targets,
   projectReleaseCount,
-  onOpenTargetOnboarding,
-  onOpenReleaseIngest,
-  onOpenDeployments,
   onCreateProject,
   onPatchProject,
   onValidateProject,
   onListProjectAudit,
+  onDiscoverAdoPipelines,
 }: ProjectSettingsPageProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -358,6 +360,9 @@ export default function ProjectSettingsPage({
   const [auditLoading, setAuditLoading] = useState(false);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [isDiscoveringPipelines, setIsDiscoveringPipelines] = useState(false);
+  const [discoveredPipelines, setDiscoveredPipelines] = useState<ProjectAdoPipeline[]>([]);
+  const [pipelineNameContains, setPipelineNameContains] = useState("");
   const [createDraft, setCreateDraft] = useState<ProjectDraft>(() =>
     projectToDraft({
       id: "",
@@ -374,6 +379,8 @@ export default function ProjectSettingsPage({
     setValidationResult(null);
     setAuditPage(null);
     setAuditPageIndex(0);
+    setDiscoveredPipelines([]);
+    setPipelineNameContains("");
   }, [project, selectedProjectId]);
 
   useEffect(() => {
@@ -408,6 +415,14 @@ export default function ProjectSettingsPage({
     totalItems: 0,
     totalPages: 0,
   };
+  const selectedDiscoveredPipelineId = useMemo(() => {
+    if (draft.driver.pipelineId.trim() === "") {
+      return "__none";
+    }
+    return discoveredPipelines.some((pipeline) => pipeline.id === draft.driver.pipelineId.trim())
+      ? draft.driver.pipelineId.trim()
+      : "__none";
+  }, [discoveredPipelines, draft.driver.pipelineId]);
 
   const draftErrors = useMemo(() => {
     const errors: string[] = [];
@@ -522,6 +537,38 @@ export default function ProjectSettingsPage({
     }
   }
 
+  async function discoverAdoPipelines(): Promise<void> {
+    if (!project?.id) {
+      return;
+    }
+    setIsDiscoveringPipelines(true);
+    try {
+      const response = await onDiscoverAdoPipelines(project.id, {
+        organization: draft.driver.organization.trim() || undefined,
+        project: draft.driver.project.trim() || undefined,
+        personalAccessTokenRef: draft.driver.personalAccessTokenRef.trim() || undefined,
+        nameContains: pipelineNameContains.trim() || undefined,
+      });
+      const pipelines = [...(response.pipelines ?? [])].sort((a, b) =>
+        `${a.name ?? ""}`.localeCompare(`${b.name ?? ""}`, undefined, { sensitivity: "base" })
+      );
+      setDiscoveredPipelines(pipelines);
+      if (pipelines.length > 0 && draft.driver.pipelineId.trim() === "") {
+        setDraft((current) => ({
+          ...current,
+          driver: { ...current.driver, pipelineId: pipelines[0]?.id ?? "" },
+        }));
+      }
+      toast.success(
+        `Discovered ${pipelines.length} pipeline${pipelines.length === 1 ? "" : "s"} in ${response.organization}/${response.project}.`
+      );
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setIsDiscoveringPipelines(false);
+    }
+  }
+
   async function handleCreateProject(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!canCreateProject) {
@@ -559,6 +606,63 @@ export default function ProjectSettingsPage({
 
   return (
     <section className="space-y-4">
+      <Card className="glass-card animate-fade-up [animation-delay:30ms] [animation-fill-mode:forwards]">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Project Setup Checklist</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 pt-0 text-sm">
+          <div className="grid gap-2 md:grid-cols-2">
+            <div className="rounded-md border border-border/70 bg-background/50 p-2">
+              <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Selected project</p>
+              <p className="mt-1 text-sm font-medium">{project?.name ?? "No project selected"}</p>
+              {project?.id ? <p className="font-mono text-[11px] text-muted-foreground">{project.id}</p> : null}
+            </div>
+            <div className="rounded-md border border-border/70 bg-background/50 p-2">
+              <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Current progress</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Targets: <span className="font-medium text-foreground">{targetCount}</span>
+                {" · "}
+                Releases: <span className="font-medium text-foreground">{projectReleaseCount}</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+            <div className="rounded-md border border-border/70 bg-background/40 p-2">
+              <p className="text-xs font-medium">Project selected</p>
+              <Badge className="mt-1" variant={project ? "default" : "secondary"}>
+                {project ? "Done" : "Pending"}
+              </Badge>
+            </div>
+            <div className="rounded-md border border-border/70 bg-background/40 p-2">
+              <p className="text-xs font-medium">Config published</p>
+              <Badge className="mt-1" variant={project ? "default" : "secondary"}>
+                {project ? "Ready" : "Blocked"}
+              </Badge>
+            </div>
+            <div className="rounded-md border border-border/70 bg-background/40 p-2">
+              <p className="text-xs font-medium">Target onboarded</p>
+              <Badge className="mt-1" variant={targetCount > 0 ? "default" : "secondary"}>
+                {targetCount > 0 ? "Done" : "Pending"}
+              </Badge>
+            </div>
+            <div className="rounded-md border border-border/70 bg-background/40 p-2">
+              <p className="text-xs font-medium">Release ingested</p>
+              <Badge className="mt-1" variant={projectReleaseCount > 0 ? "default" : "secondary"}>
+                {projectReleaseCount > 0 ? "Done" : "Pending"}
+              </Badge>
+            </div>
+            <div className="rounded-md border border-border/70 bg-background/40 p-2">
+              <p className="text-xs font-medium">Ready to deploy</p>
+              <Badge className="mt-1" variant={targetCount > 0 && projectReleaseCount > 0 ? "default" : "secondary"}>
+                {targetCount > 0 && projectReleaseCount > 0 ? "Ready" : "Blocked"}
+              </Badge>
+            </div>
+          </div>
+
+        </CardContent>
+      </Card>
+
       <Card className="glass-card animate-fade-up [animation-delay:40ms] [animation-fill-mode:forwards]">
         <CardHeader className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="space-y-2">
@@ -603,14 +707,20 @@ export default function ProjectSettingsPage({
             </div>
           ) : null}
 
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ProjectTab)} className="space-y-4">
-            <TabsList className="grid h-auto grid-cols-2 gap-1 md:grid-cols-4 xl:grid-cols-8">
-              {PROJECT_TABS.map((tab) => (
-                <TabsTrigger key={tab.key} value={tab.key} className="text-xs">
-                  {tab.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+            <div className="min-w-0">
+              <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ProjectTab)} className="space-y-4">
+                <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-background/70 p-1 md:grid-cols-3 xl:grid-cols-4">
+                  {PROJECT_TABS.map((tab) => (
+                    <TabsTrigger
+                      key={tab.key}
+                      value={tab.key}
+                      className="min-w-0 whitespace-normal px-3 text-xs leading-tight"
+                    >
+                      {tab.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
 
             <TabsContent value="general" className="space-y-3">
               <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">General</h3>
@@ -791,18 +901,24 @@ export default function ProjectSettingsPage({
                     <div className="space-y-1">
                       <div className="flex items-center gap-1">
                         <Label htmlFor="driver-pipeline-system">Pipeline system</Label>
-                        <FieldHelpTooltip content="Pipeline provider identifier. Use azure_devops for Azure DevOps pipelines." />
+                        <FieldHelpTooltip content="Pipeline provider. Azure DevOps is currently supported for pipeline-trigger projects." />
                       </div>
-                      <Input
-                        id="driver-pipeline-system"
-                        value={draft.driver.pipelineSystem}
-                        onChange={(event) =>
+                      <Select
+                        value={draft.driver.pipelineSystem || "azure_devops"}
+                        onValueChange={(value) =>
                           setDraft((current) => ({
                             ...current,
-                            driver: { ...current.driver, pipelineSystem: event.target.value },
+                            driver: { ...current.driver, pipelineSystem: value },
                           }))
                         }
-                      />
+                      >
+                        <SelectTrigger id="driver-pipeline-system">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="azure_devops">Azure DevOps</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-1">
                       <div className="flex items-center gap-1">
@@ -839,8 +955,63 @@ export default function ProjectSettingsPage({
                     </div>
                     <div className="space-y-1">
                       <div className="flex items-center gap-1">
+                        <Label htmlFor="driver-pipeline-discovery">Discover pipeline by name</Label>
+                        <FieldHelpTooltip content="Fetch available pipelines from Azure DevOps using organization/project and PAT reference, then pick one to auto-fill Pipeline ID." />
+                      </div>
+                      <div className="flex flex-col gap-2 md:flex-row">
+                        <Input
+                          id="driver-pipeline-discovery"
+                          value={pipelineNameContains}
+                          onChange={(event) => setPipelineNameContains(event.target.value)}
+                          placeholder="Optional name filter (for example deploy)"
+                          className="md:flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={isDiscoveringPipelines}
+                          onClick={() => {
+                            void discoverAdoPipelines();
+                          }}
+                        >
+                          {isDiscoveringPipelines ? "Discovering..." : "Discover Pipelines"}
+                        </Button>
+                      </div>
+                      {discoveredPipelines.length > 0 ? (
+                        <Select
+                          value={selectedDiscoveredPipelineId}
+                          onValueChange={(value) => {
+                            if (value === "__none") {
+                              return;
+                            }
+                            setDraft((current) => ({
+                              ...current,
+                              driver: { ...current.driver, pipelineId: value },
+                            }));
+                          }}
+                        >
+                          <SelectTrigger id="driver-pipeline-select">
+                            <SelectValue placeholder="Select discovered pipeline" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none">Select discovered pipeline</SelectItem>
+                            {discoveredPipelines.map((pipeline) => (
+                              <SelectItem key={`${pipeline.id}-${pipeline.name}`} value={pipeline.id}>
+                                {pipeline.name} ({pipeline.id})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          No discovered pipelines yet. Click <span className="font-medium text-foreground">Discover Pipelines</span>.
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
                         <Label htmlFor="driver-pipeline-id">Pipeline ID</Label>
-                        <FieldHelpTooltip content="Numeric Azure DevOps pipeline definition id that MAPPO triggers for deployments." />
+                        <FieldHelpTooltip content="Azure DevOps pipeline definition ID. This is auto-filled when you select a discovered pipeline, but you can override it manually." />
                       </div>
                       <Input
                         id="driver-pipeline-id"
@@ -851,6 +1022,7 @@ export default function ProjectSettingsPage({
                             driver: { ...current.driver, pipelineId: event.target.value },
                           }))
                         }
+                        placeholder="For example: 1"
                       />
                     </div>
                     <div className="space-y-1">
@@ -888,7 +1060,7 @@ export default function ProjectSettingsPage({
                     <div className="space-y-1 md:col-span-2">
                       <div className="flex items-center gap-1">
                         <Label htmlFor="driver-pat-ref">PAT secret reference</Label>
-                        <FieldHelpTooltip content="Reference to ADO PAT used by MAPPO (env:VAR, literal:value, or default managed key)." />
+                        <FieldHelpTooltip content="How MAPPO resolves the Azure DevOps PAT. Leave default to use mappo.azure-devops.personal-access-token, or use env:MY_PAT_VAR, or literal:actual-token." />
                       </div>
                       <Input
                         id="driver-pat-ref"
@@ -899,7 +1071,7 @@ export default function ProjectSettingsPage({
                             driver: { ...current.driver, personalAccessTokenRef: event.target.value },
                           }))
                         }
-                        placeholder="env:MAPPO_ADO_PAT or mappo.azure-devops.personal-access-token"
+                        placeholder="mappo.azure-devops.personal-access-token"
                       />
                     </div>
                   </>
@@ -1306,84 +1478,19 @@ export default function ProjectSettingsPage({
                 )}
               </div>
             </TabsContent>
-          </Tabs>
-
-          <div className="rounded-md border border-border/70 bg-background/60 p-3">
-            <p className="mb-2 text-xs uppercase tracking-[0.08em] text-muted-foreground">Normalized payload preview</p>
-            <pre className="max-h-72 overflow-auto rounded bg-background p-2 text-[11px]">
-              {normalizedPayloadPreview}
-            </pre>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="glass-card animate-fade-up [animation-delay:50ms] [animation-fill-mode:forwards]">
-        <CardHeader>
-          <CardTitle>Project Setup Checklist</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <div className="grid gap-2 md:grid-cols-2">
-            <div className="rounded-md border border-border/70 bg-background/50 p-3">
-              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Selected project</p>
-              <p className="mt-1 font-medium">
-                {project?.name ?? "No project selected"}
-              </p>
-              {project?.id ? (
-                <p className="font-mono text-xs text-muted-foreground">{project.id}</p>
-              ) : null}
+              </Tabs>
             </div>
-            <div className="rounded-md border border-border/70 bg-background/50 p-3">
-              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Current progress</p>
-              <p className="mt-1 text-muted-foreground">
-                Targets onboarded: <span className="font-medium text-foreground">{targetCount}</span>
-                {" · "}
-                Releases registered: <span className="font-medium text-foreground">{projectReleaseCount}</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-2 rounded-md border border-border/70 bg-background/40 p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="font-medium">1. Create and select a project</p>
-              <Badge variant={project ? "default" : "secondary"}>{project ? "Done" : "Pending"}</Badge>
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <p className="font-medium">2. Configure and publish project settings</p>
-              <Badge variant={project ? "default" : "secondary"}>{project ? "Ready" : "Blocked"}</Badge>
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <p className="font-medium">3. Onboard at least one target</p>
-              <Badge variant={targetCount > 0 ? "default" : "secondary"}>
-                {targetCount > 0 ? "Done" : "Pending"}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <p className="font-medium">4. Ingest at least one release</p>
-              <Badge variant={projectReleaseCount > 0 ? "default" : "secondary"}>
-                {projectReleaseCount > 0 ? "Done" : "Pending"}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <p className="font-medium">5. Preview changes and start first run</p>
-              <Badge variant={targetCount > 0 && projectReleaseCount > 0 ? "default" : "secondary"}>
-                {targetCount > 0 && projectReleaseCount > 0 ? "Ready" : "Blocked"}
-              </Badge>
-            </div>
-            <div className="flex flex-wrap gap-2 pt-1">
-              <Button type="button" variant="outline" onClick={onOpenTargetOnboarding} disabled={!project}>
-                Onboard Targets
-              </Button>
-              <Button type="button" variant="outline" onClick={onOpenReleaseIngest} disabled={!project}>
-                Ingest Releases
-              </Button>
-              <Button
-                type="button"
-                onClick={onOpenDeployments}
-                disabled={!project || targetCount === 0 || projectReleaseCount === 0}
-              >
-                Open Deployment Controls
-              </Button>
-            </div>
+            <Card className="h-fit border-border/70 bg-background/50 xl:sticky xl:top-4">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm uppercase tracking-[0.08em]">Payload Preview</CardTitle>
+                <p className="text-xs text-muted-foreground">Updates live as project settings are edited.</p>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <pre className="max-h-[70vh] overflow-auto rounded bg-background p-2 text-[11px]">
+                  {normalizedPayloadPreview}
+                </pre>
+              </CardContent>
+            </Card>
           </div>
         </CardContent>
       </Card>

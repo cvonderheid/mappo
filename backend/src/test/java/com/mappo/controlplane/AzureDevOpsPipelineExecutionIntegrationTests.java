@@ -12,6 +12,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.mappo.controlplane.domain.project.BuiltinProjects;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineClient;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDefinitionRecord;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDiscoveryInputs;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineInputs;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineRunRecord;
 import java.util.LinkedHashMap;
@@ -252,6 +254,19 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
                 "https://dev.azure.com/pg123/demo-app-service/_build/results?buildId=" + runId + "&view=results",
                 "https://dev.azure.com/pg123/demo-app-service/_build/results?buildId=" + runId + "&view=logs",
                 "https://dev.azure.com/pg123/demo-app-service/_apis/pipelines/1/runs/" + runId
+            );
+        }
+
+        @Override
+        public List<AzureDevOpsPipelineDefinitionRecord> listPipelines(AzureDevOpsPipelineDiscoveryInputs inputs) {
+            return List.of(
+                new AzureDevOpsPipelineDefinitionRecord(
+                    "1",
+                    "Deploy App Service",
+                    "\\",
+                    "https://dev.azure.com/pg123/demo-app-service/_build?definitionId=1",
+                    "https://dev.azure.com/pg123/demo-app-service/_apis/pipelines/1"
+                )
             );
         }
     }

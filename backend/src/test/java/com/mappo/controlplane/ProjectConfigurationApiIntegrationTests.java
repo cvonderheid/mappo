@@ -11,13 +11,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineClient;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDefinitionRecord;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDiscoveryInputs;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineInputs;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineRunRecord;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
@@ -124,5 +133,64 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.valid").value(true))
             .andExpect(jsonPath("$.findings[*].code", hasItem("NO_TARGETS_AVAILABLE")));
+    }
+
+    @Test
+    void discoverAdoPipelinesReturnsConfiguredPipelines() throws Exception {
+        mockMvc.perform(post("/api/v1/projects/{projectId}/deployment-driver/ado/pipelines/discover", "azure-appservice-ado-pipeline")
+                .contentType(APPLICATION_JSON)
+                .content("""
+                    {
+                      "organization": "https://dev.azure.com/pg123",
+                      "project": "demo-app-service",
+                      "personalAccessTokenRef": "literal:test"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.projectId").value("azure-appservice-ado-pipeline"))
+            .andExpect(jsonPath("$.organization").value("https://dev.azure.com/pg123"))
+            .andExpect(jsonPath("$.project").value("demo-app-service"))
+            .andExpect(jsonPath("$.pipelines[0].id").value("1"))
+            .andExpect(jsonPath("$.pipelines[0].name").value("Deploy App Service"));
+    }
+
+    @TestConfiguration
+    static class AzureDevOpsPipelineClientStubConfig {
+
+        @Bean
+        @Primary
+        AzureDevOpsPipelineClient azureDevOpsPipelineClient() {
+            return new AzureDevOpsPipelineClient() {
+                @Override
+                public AzureDevOpsPipelineRunRecord queueRun(AzureDevOpsPipelineInputs inputs) {
+                    throw new UnsupportedOperationException("not used");
+                }
+
+                @Override
+                public AzureDevOpsPipelineRunRecord getRun(AzureDevOpsPipelineInputs inputs, String runId) {
+                    throw new UnsupportedOperationException("not used");
+                }
+
+                @Override
+                public List<AzureDevOpsPipelineDefinitionRecord> listPipelines(AzureDevOpsPipelineDiscoveryInputs inputs) {
+                    return List.of(
+                        new AzureDevOpsPipelineDefinitionRecord(
+                            "1",
+                            "Deploy App Service",
+                            "\\",
+                            "https://dev.azure.com/pg123/demo-app-service/_build?definitionId=1",
+                            "https://dev.azure.com/pg123/demo-app-service/_apis/pipelines/1"
+                        ),
+                        new AzureDevOpsPipelineDefinitionRecord(
+                            "2",
+                            "Smoke Test",
+                            "\\",
+                            "https://dev.azure.com/pg123/demo-app-service/_build?definitionId=2",
+                            "https://dev.azure.com/pg123/demo-app-service/_apis/pipelines/2"
+                        )
+                    );
+                }
+            };
+        }
     }
 }

@@ -34,6 +34,7 @@ import {
   createProject,
   adminUpdateTargetRegistration,
   createRun,
+  discoverProjectAdoPipelines,
   getRun,
   listProjectAudit,
   listProjects,
@@ -56,6 +57,7 @@ import type {
   ProjectConfigurationPatchRequest,
   ProjectCreateRequest,
   ProjectDefinition,
+  ProjectAdoPipelineDiscoveryResult,
   ProjectValidationRequest,
   ProjectValidationResult,
   Release,
@@ -1230,6 +1232,18 @@ function AppShell() {
     return validateProjectConfiguration(projectId, request);
   }
 
+  async function handleDiscoverProjectAdoPipelines(
+    projectId: string,
+    request: {
+      organization?: string;
+      project?: string;
+      personalAccessTokenRef?: string;
+      nameContains?: string;
+    }
+  ): Promise<ProjectAdoPipelineDiscoveryResult> {
+    return discoverProjectAdoPipelines(projectId, request);
+  }
+
   async function handleListProjectAudit(
     projectId: string,
     query: ListProjectAuditQuery
@@ -1391,13 +1405,11 @@ function AppShell() {
                     selectedProjectId={selectedProjectId}
                     targets={targets}
                     projectReleaseCount={projectReleases.length}
-                    onOpenTargetOnboarding={() => navigate("/onboarding?onboard=1")}
-                    onOpenReleaseIngest={() => navigate("/release-ingest")}
-                    onOpenDeployments={() => navigate("/deployments?controls=open")}
                     onCreateProject={handleCreateProject}
                     onPatchProject={handlePatchProject}
                     onValidateProject={handleValidateProject}
                     onListProjectAudit={handleListProjectAudit}
+                    onDiscoverAdoPipelines={handleDiscoverProjectAdoPipelines}
                   />
                 }
               />

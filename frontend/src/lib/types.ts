@@ -38,6 +38,24 @@ export type ProjectConfigurationAuditPage = Schemas["ProjectConfigurationAuditPa
 export type ProjectValidationRequest = Schemas["ProjectValidationRequest"];
 export type ProjectValidationResult = Schemas["ProjectValidationResultRecord"];
 export type ProjectValidationFinding = Schemas["ProjectValidationFindingRecord"];
+export type DiscoverProjectAdoPipelinesRequest = {
+  organization?: string;
+  project?: string;
+  personalAccessTokenRef?: string;
+  nameContains?: string;
+};
+export type ProjectAdoPipeline = {
+  id: string;
+  name: string;
+  folder?: string;
+  webUrl?: string;
+};
+export type ProjectAdoPipelineDiscoveryResult = {
+  projectId: string;
+  organization: string;
+  project: string;
+  pipelines: ProjectAdoPipeline[];
+};
 export type Release = Schemas["ReleaseRecord"];
 export type ReleaseIngestEndpoint = Schemas["ReleaseIngestEndpointRecord"];
 export type ReleaseIngestEndpointCreateRequest = Schemas["ReleaseIngestEndpointCreateRequest"];

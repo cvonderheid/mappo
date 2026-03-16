@@ -147,6 +147,7 @@ const apiMock = vi.hoisted(() => ({
   adminIngestMarketplaceEvent: vi.fn(),
   createProject: vi.fn(),
   createRun: vi.fn(),
+  discoverProjectAdoPipelines: vi.fn(),
   getRun: vi.fn(),
   listProjectAudit: vi.fn(),
   listProjects: vi.fn(),
@@ -214,6 +215,7 @@ describe("App", () => {
     apiMock.adminIngestGithubReleaseManifest.mockReset();
     apiMock.adminIngestMarketplaceEvent.mockReset();
     apiMock.createProject.mockReset();
+    apiMock.discoverProjectAdoPipelines.mockReset();
     apiMock.createRun.mockReset();
     apiMock.previewRun.mockReset();
     apiMock.resumeRun.mockReset();
