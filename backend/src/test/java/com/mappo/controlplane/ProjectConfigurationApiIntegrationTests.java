@@ -16,6 +16,7 @@ import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDef
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDiscoveryInputs;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineInputs;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineRunRecord;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsServiceConnectionDefinitionRecord;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -154,6 +155,25 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
             .andExpect(jsonPath("$.pipelines[0].name").value("Deploy App Service"));
     }
 
+    @Test
+    void discoverAdoServiceConnectionsReturnsConfiguredConnections() throws Exception {
+        mockMvc.perform(post("/api/v1/projects/{projectId}/deployment-driver/ado/service-connections/discover", "azure-appservice-ado-pipeline")
+                .contentType(APPLICATION_JSON)
+                .content("""
+                    {
+                      "organization": "https://dev.azure.com/pg123",
+                      "project": "demo-app-service",
+                      "personalAccessTokenRef": "literal:test"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.projectId").value("azure-appservice-ado-pipeline"))
+            .andExpect(jsonPath("$.organization").value("https://dev.azure.com/pg123"))
+            .andExpect(jsonPath("$.project").value("demo-app-service"))
+            .andExpect(jsonPath("$.serviceConnections[0].id").value("svc-1"))
+            .andExpect(jsonPath("$.serviceConnections[0].name").value("mappo-ado-demo-rg-contributor"));
+    }
+
     @TestConfiguration
     static class AzureDevOpsPipelineClientStubConfig {
 
@@ -187,6 +207,26 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                             "\\",
                             "https://dev.azure.com/pg123/demo-app-service/_build?definitionId=2",
                             "https://dev.azure.com/pg123/demo-app-service/_apis/pipelines/2"
+                        )
+                    );
+                }
+
+                @Override
+                public List<AzureDevOpsServiceConnectionDefinitionRecord> listServiceConnections(
+                    AzureDevOpsPipelineDiscoveryInputs inputs
+                ) {
+                    return List.of(
+                        new AzureDevOpsServiceConnectionDefinitionRecord(
+                            "svc-1",
+                            "mappo-ado-demo-rg-contributor",
+                            "azurerm",
+                            "https://dev.azure.com/pg123/demo-app-service/_settings/adminservices?resourceId=svc-1"
+                        ),
+                        new AzureDevOpsServiceConnectionDefinitionRecord(
+                            "svc-2",
+                            "mappo-ado-rg-readonly",
+                            "azurerm",
+                            "https://dev.azure.com/pg123/demo-app-service/_settings/adminservices?resourceId=svc-2"
                         )
                     );
                 }

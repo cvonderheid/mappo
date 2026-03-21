@@ -9,4 +9,8 @@ public interface AzureDevOpsPipelineClient {
     AzureDevOpsPipelineRunRecord getRun(AzureDevOpsPipelineInputs inputs, String runId);
 
     List<AzureDevOpsPipelineDefinitionRecord> listPipelines(AzureDevOpsPipelineDiscoveryInputs inputs);
+
+    List<AzureDevOpsServiceConnectionDefinitionRecord> listServiceConnections(
+        AzureDevOpsPipelineDiscoveryInputs inputs
+    );
 }

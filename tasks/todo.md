@@ -215,6 +215,8 @@ Post-demo production-path planning and execution setup:
 - 2026-03-14: Completed Sprint 1 backend APIs for operator-managed project setup: added `POST /api/v1/projects`, `POST /api/v1/projects/{projectId}/validate`, and `GET /api/v1/projects/{projectId}/audit`; added migration `V15__project_configuration_audit.sql`; added project validation + audit services/repositories; and verified with backend integration tests.
 - 2026-03-14: Regenerated backend OpenAPI (`backend/target/openapi/openapi.json`) and frontend generated client schema (`frontend/src/lib/api/generated/schema.ts`), then validated lockstep with `./mvnw -pl backend integration-test` and `./mvnw -pl frontend test`.
 - 2026-03-14: Completed Sprint 2 MVP for project setup UX by shipping a dedicated `/projects` screen with tabbed configuration sections (General, Release Ingest, Deployment Driver, Access & Identity, Target Contract, Runtime Health, Validation, Audit), sticky Save/Validate/Publish actions, Sonner notifications, inline validation, normalized payload preview, and create/patch/validate/audit API wiring.
+- 2026-03-19: Improved Project Settings operator usability for ADO/GitHub setup by adding linked release-ingest endpoint selection (dropdown + refresh + provider context), clearer release-ingest/deployment-driver guidance text, and auto-normalization of pasted Azure DevOps URL inputs.
+- 2026-03-19: Simplified Target Onboarding for `pipeline_trigger` projects by surfacing first-class fields for target resource group/app name/slot/health path and moving raw execution JSON to advanced optional usage; kept backward compatibility by still accepting legacy execution-config keys.
 
 ## Milestones
 

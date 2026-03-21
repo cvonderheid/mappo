@@ -58,6 +58,10 @@ type OnboardingDraft = {
   region: string;
   environment: string;
   tier: string;
+  pipelineTargetResourceGroup: string;
+  pipelineTargetAppName: string;
+  pipelineSlotName: string;
+  pipelineHealthPath: string;
   executionConfigText: string;
   ingestToken: string;
 };
@@ -86,6 +90,16 @@ function normalize(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function firstNonBlank(...values: unknown[]): string {
+  for (const value of values) {
+    const normalized = normalize(value);
+    if (normalized !== "") {
+      return normalized;
+    }
+  }
+  return "";
+}
+
 function createDefaultDraft(projectId: string): OnboardingDraft {
   return {
     eventId: nextEventId(),
@@ -103,6 +117,10 @@ function createDefaultDraft(projectId: string): OnboardingDraft {
     region: "eastus",
     environment: "prod",
     tier: "standard",
+    pipelineTargetResourceGroup: "",
+    pipelineTargetAppName: "",
+    pipelineSlotName: "",
+    pipelineHealthPath: "",
     executionConfigText: "",
     ingestToken: "",
   };
@@ -184,12 +202,16 @@ function validateDraft(
 
   const driver = resolveDriver(project);
   if (driver === "pipeline_trigger") {
-    const resourceGroup =
-      normalize(executionConfig.targetResourceGroup) ||
-      normalize(executionConfig.resourceGroup);
-    const appName =
-      normalize(executionConfig.targetAppName) ||
-      normalize(executionConfig.appServiceName);
+    const resourceGroup = firstNonBlank(
+      draft.pipelineTargetResourceGroup,
+      executionConfig.targetResourceGroup,
+      executionConfig.resourceGroup
+    );
+    const appName = firstNonBlank(
+      draft.pipelineTargetAppName,
+      executionConfig.targetAppName,
+      executionConfig.appServiceName
+    );
     if (resourceGroup === "") {
       errors.push(
         "Pipeline project requires executionConfig.targetResourceGroup (or resourceGroup)."
@@ -220,6 +242,38 @@ function buildRequest(
   draft: OnboardingDraft,
   executionConfig: Record<string, string>
 ): MarketplaceEventIngestRequest {
+  const mergedExecutionConfig: Record<string, string> = { ...executionConfig };
+  const targetResourceGroup = firstNonBlank(
+    draft.pipelineTargetResourceGroup,
+    mergedExecutionConfig.targetResourceGroup,
+    mergedExecutionConfig.resourceGroup
+  );
+  if (targetResourceGroup !== "") {
+    mergedExecutionConfig.targetResourceGroup = targetResourceGroup;
+    if (normalize(mergedExecutionConfig.resourceGroup) === "") {
+      mergedExecutionConfig.resourceGroup = targetResourceGroup;
+    }
+  }
+  const targetAppName = firstNonBlank(
+    draft.pipelineTargetAppName,
+    mergedExecutionConfig.targetAppName,
+    mergedExecutionConfig.appServiceName
+  );
+  if (targetAppName !== "") {
+    mergedExecutionConfig.targetAppName = targetAppName;
+    if (normalize(mergedExecutionConfig.appServiceName) === "") {
+      mergedExecutionConfig.appServiceName = targetAppName;
+    }
+  }
+  const slotName = firstNonBlank(draft.pipelineSlotName, mergedExecutionConfig.slotName);
+  if (slotName !== "") {
+    mergedExecutionConfig.slotName = slotName;
+  }
+  const healthPath = firstNonBlank(draft.pipelineHealthPath, mergedExecutionConfig.healthPath);
+  if (healthPath !== "") {
+    mergedExecutionConfig.healthPath = healthPath;
+  }
+
   const request: MarketplaceEventIngestRequest = {
     eventId: normalize(draft.eventId) || nextEventId("evt-admin-auto"),
     eventType: "subscription_purchased",
@@ -242,7 +296,8 @@ function buildRequest(
     tags: {},
     metadata: {
       source: "admin-onboarding-wizard",
-      executionConfig: Object.keys(executionConfig).length > 0 ? executionConfig : undefined,
+      executionConfig:
+        Object.keys(mergedExecutionConfig).length > 0 ? mergedExecutionConfig : undefined,
     },
   };
   return request;
@@ -283,6 +338,12 @@ function draftFromUnknown(
     region: normalize(row.region) || "eastus",
     environment: normalize(row.environment) || "prod",
     tier: normalize(row.tier) || "standard",
+    pipelineTargetResourceGroup:
+      normalize(executionConfig.targetResourceGroup) || normalize(executionConfig.resourceGroup),
+    pipelineTargetAppName:
+      normalize(executionConfig.targetAppName) || normalize(executionConfig.appServiceName),
+    pipelineSlotName: normalize(executionConfig.slotName),
+    pipelineHealthPath: normalize(executionConfig.healthPath),
     executionConfigText:
       Object.keys(executionConfig).length === 0 ? "" : JSON.stringify(executionConfig, null, 2),
     ingestToken: "",
@@ -589,59 +650,118 @@ export default function TargetOnboardingDrawer({
                     placeholder="GUID"
                   />
                 </div>
-                <div className="space-y-1 lg:col-span-2">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="onboard-container-app-id">Container App Resource ID</Label>
-                    <FieldHelpTooltip content="Full Azure resource ID for the deployed app/runtime resource tracked for this target." />
-                  </div>
-                  <Input
-                    id="onboard-container-app-id"
-                    value={draft.containerAppResourceId}
-                    onChange={(event) =>
-                      updateDraft("containerAppResourceId", event.target.value)
-                    }
-                    placeholder="/subscriptions/.../providers/Microsoft.App/containerApps/..."
-                  />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="onboard-container-app-name">Container App Name</Label>
-                    <FieldHelpTooltip content="Resource name segment (without subscription/resource group path)." />
-                  </div>
-                  <Input
-                    id="onboard-container-app-name"
-                    value={draft.containerAppName}
-                    onChange={(event) => updateDraft("containerAppName", event.target.value)}
-                  />
-                </div>
-                <div className="space-y-1 lg:col-span-2">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="onboard-managed-rg-id">Managed Resource Group ID</Label>
-                    <FieldHelpTooltip content="Resource group that contains the customer-deployed runtime resources." />
-                  </div>
-                  <Input
-                    id="onboard-managed-rg-id"
-                    value={draft.managedResourceGroupId}
-                    onChange={(event) =>
-                      updateDraft("managedResourceGroupId", event.target.value)
-                    }
-                    placeholder="/subscriptions/.../resourceGroups/..."
-                  />
-                </div>
-                <div className="space-y-1 lg:col-span-2">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="onboard-managed-app-id">Managed Application ID</Label>
-                    <FieldHelpTooltip content="Managed Application resource ID (if applicable). Used for traceability and managed-app workflows." />
-                  </div>
-                  <Input
-                    id="onboard-managed-app-id"
-                    value={draft.managedApplicationId}
-                    onChange={(event) =>
-                      updateDraft("managedApplicationId", event.target.value)
-                    }
-                    placeholder="/subscriptions/.../providers/Microsoft.Solutions/applications/..."
-                  />
-                </div>
+                {selectedDriver === "pipeline_trigger" ? (
+                  <>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="onboard-pipeline-rg">Target Resource Group</Label>
+                        <FieldHelpTooltip content="Resource group that contains the App Service for this target. Required for pipeline-trigger projects." />
+                      </div>
+                      <Input
+                        id="onboard-pipeline-rg"
+                        value={draft.pipelineTargetResourceGroup}
+                        onChange={(event) =>
+                          updateDraft("pipelineTargetResourceGroup", event.target.value)
+                        }
+                        placeholder="rg-demo-appservice-target-01"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="onboard-pipeline-app">Target App Service Name</Label>
+                        <FieldHelpTooltip content="App Service app name used by the pipeline deployment step. Required for pipeline-trigger projects." />
+                      </div>
+                      <Input
+                        id="onboard-pipeline-app"
+                        value={draft.pipelineTargetAppName}
+                        onChange={(event) =>
+                          updateDraft("pipelineTargetAppName", event.target.value)
+                        }
+                        placeholder="appsvc-demo-target-01"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="onboard-pipeline-slot">Target Slot (optional)</Label>
+                        <FieldHelpTooltip content="Deployment slot name if this target deploys to a specific App Service slot." />
+                      </div>
+                      <Input
+                        id="onboard-pipeline-slot"
+                        value={draft.pipelineSlotName}
+                        onChange={(event) => updateDraft("pipelineSlotName", event.target.value)}
+                        placeholder="staging"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="onboard-pipeline-health-path">Health Path (optional)</Label>
+                        <FieldHelpTooltip content="Path checked by runtime probes for this target (for example /health)." />
+                      </div>
+                      <Input
+                        id="onboard-pipeline-health-path"
+                        value={draft.pipelineHealthPath}
+                        onChange={(event) => updateDraft("pipelineHealthPath", event.target.value)}
+                        placeholder="/health"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-1 lg:col-span-2">
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="onboard-container-app-id">Container App Resource ID</Label>
+                        <FieldHelpTooltip content="Full Azure resource ID for the deployed app/runtime resource tracked for this target." />
+                      </div>
+                      <Input
+                        id="onboard-container-app-id"
+                        value={draft.containerAppResourceId}
+                        onChange={(event) =>
+                          updateDraft("containerAppResourceId", event.target.value)
+                        }
+                        placeholder="/subscriptions/.../providers/Microsoft.App/containerApps/..."
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="onboard-container-app-name">Container App Name</Label>
+                        <FieldHelpTooltip content="Resource name segment (without subscription/resource group path)." />
+                      </div>
+                      <Input
+                        id="onboard-container-app-name"
+                        value={draft.containerAppName}
+                        onChange={(event) => updateDraft("containerAppName", event.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1 lg:col-span-2">
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="onboard-managed-rg-id">Managed Resource Group ID</Label>
+                        <FieldHelpTooltip content="Resource group that contains the customer-deployed runtime resources." />
+                      </div>
+                      <Input
+                        id="onboard-managed-rg-id"
+                        value={draft.managedResourceGroupId}
+                        onChange={(event) =>
+                          updateDraft("managedResourceGroupId", event.target.value)
+                        }
+                        placeholder="/subscriptions/.../resourceGroups/..."
+                      />
+                    </div>
+                    <div className="space-y-1 lg:col-span-2">
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="onboard-managed-app-id">Managed Application ID</Label>
+                        <FieldHelpTooltip content="Managed Application resource ID (if applicable). Used for traceability and managed-app workflows." />
+                      </div>
+                      <Input
+                        id="onboard-managed-app-id"
+                        value={draft.managedApplicationId}
+                        onChange={(event) =>
+                          updateDraft("managedApplicationId", event.target.value)
+                        }
+                        placeholder="/subscriptions/.../providers/Microsoft.Solutions/applications/..."
+                      />
+                    </div>
+                  </>
+                )}
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
                     <Label htmlFor="onboard-target-group">Target Group</Label>
@@ -689,9 +809,11 @@ export default function TargetOnboardingDrawer({
                 <div className="space-y-1 lg:col-span-3">
                   <div className="flex items-center gap-1">
                     <Label htmlFor="onboard-execution-config">
-                      Execution Config (JSON object)
+                      {selectedDriver === "pipeline_trigger"
+                        ? "Advanced Execution Config (JSON object, optional)"
+                        : "Execution Config (JSON object)"}
                     </Label>
-                    <FieldHelpTooltip content="Driver-specific execution metadata. For ADO pipeline targets, include app/resource values required by the pipeline." />
+                    <FieldHelpTooltip content="Driver-specific execution metadata. For pipeline targets, MAPPO already captures target resource group/app from the fields above. Use this only for extra keys." />
                   </div>
                   <Textarea
                     id="onboard-execution-config"
@@ -699,7 +821,11 @@ export default function TargetOnboardingDrawer({
                     onChange={(event) =>
                       updateDraft("executionConfigText", event.target.value)
                     }
-                    placeholder='{"targetResourceGroup":"rg-demo-appservice-target-01","targetAppName":"appsvc-demo-target-01"}'
+                    placeholder={
+                      selectedDriver === "pipeline_trigger"
+                        ? '{"pipelineVariables":"{\\"slot\\":\\"staging\\"}"}'
+                        : '{"runtimeBaseUrl":"https://example.azurewebsites.net"}'
+                    }
                     rows={5}
                   />
                   <p className="text-xs text-muted-foreground">

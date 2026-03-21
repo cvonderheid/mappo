@@ -2,6 +2,7 @@ import { apiBaseUrl, apiClient } from "@/lib/api/client";
 import type {
   CreateRunRequest,
   DiscoverProjectAdoPipelinesRequest,
+  DiscoverProjectAdoServiceConnectionsRequest,
   DeleteTargetRegistrationResponse,
   ForwarderLogPage,
   ListForwarderLogsQuery,
@@ -21,6 +22,7 @@ import type {
   ProjectValidationRequest,
   ProjectValidationResult,
   ProjectAdoPipelineDiscoveryResult,
+  ProjectAdoServiceConnectionDiscoveryResult,
   Release,
   ReleaseIngestEndpoint,
   ReleaseIngestEndpointCreateRequest,
@@ -146,6 +148,29 @@ export async function discoverProjectAdoPipelines(
     throw new Error(`discoverProjectAdoPipelines failed (${response.status}): ${detail}`);
   }
   return payload as ProjectAdoPipelineDiscoveryResult;
+}
+
+export async function discoverProjectAdoServiceConnections(
+  projectId: string,
+  request: DiscoverProjectAdoServiceConnectionsRequest
+): Promise<ProjectAdoServiceConnectionDiscoveryResult> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/projects/${encodeURIComponent(projectId)}/deployment-driver/ado/service-connections/discover`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request ?? {}),
+    }
+  );
+
+  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!response.ok) {
+    const detail = typeof payload.detail === "string" ? payload.detail : "unknown error";
+    throw new Error(`discoverProjectAdoServiceConnections failed (${response.status}): ${detail}`);
+  }
+  return payload as ProjectAdoServiceConnectionDiscoveryResult;
 }
 
 export async function listProjectAudit(

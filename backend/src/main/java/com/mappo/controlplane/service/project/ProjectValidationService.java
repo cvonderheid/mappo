@@ -107,7 +107,7 @@ public class ProjectValidationService {
                 findings.add(fail(
                     ProjectValidationScope.credentials,
                     "AZURE_DEVOPS_PAT_MISSING",
-                    "Azure DevOps deployment driver requires deploymentDriverConfig.personalAccessTokenRef (env:/literal:) or mappo.azure-devops.personal-access-token."
+                    "Azure DevOps deployment driver requires deploymentDriverConfig.personalAccessTokenRef (env:/literal:) or mappo.azure-devops.personal-access-token backed by MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN."
                 ));
             }
 

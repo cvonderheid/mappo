@@ -30,6 +30,7 @@ import type {
 } from "@/lib/types";
 
 type ReleaseIngestProvider = "github" | "azure_devops";
+type ReleaseIngestSecretMode = "provider_default" | "environment_variable" | "literal" | "custom";
 
 type ReleaseIngestConfigPageProps = {
   selectedProjectId: string;
@@ -61,6 +62,52 @@ function emptyDraft(): EndpointDraft {
     manifestPath: "",
     sourceConfigText: "{}",
   };
+}
+
+function providerDefaultSecretRef(provider: ReleaseIngestProvider): string {
+  return provider === "azure_devops"
+    ? "mappo.azure-devops.webhook-secret"
+    : "mappo.managed-app-release.webhook-secret";
+}
+
+function providerDefaultSecretEnv(provider: ReleaseIngestProvider): string {
+  return provider === "azure_devops"
+    ? "MAPPO_AZURE_DEVOPS_WEBHOOK_SECRET"
+    : "MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET";
+}
+
+function parseReleaseIngestSecretMode(
+  provider: ReleaseIngestProvider,
+  reference: string
+): ReleaseIngestSecretMode {
+  const normalized = reference.trim();
+  if (normalized === "" || normalized === providerDefaultSecretRef(provider)) {
+    return "provider_default";
+  }
+  if (normalized.startsWith("env:")) {
+    return "environment_variable";
+  }
+  if (normalized.startsWith("literal:")) {
+    return "literal";
+  }
+  return "custom";
+}
+
+function releaseIngestSecretModeValue(
+  mode: ReleaseIngestSecretMode,
+  reference: string
+): string {
+  const normalized = reference.trim();
+  if (mode === "environment_variable") {
+    return normalized.startsWith("env:") ? normalized.slice("env:".length) : "";
+  }
+  if (mode === "literal") {
+    return normalized.startsWith("literal:") ? normalized.slice("literal:".length) : "";
+  }
+  if (mode === "custom") {
+    return normalized;
+  }
+  return "";
 }
 
 function parseSourceConfig(text: string): Record<string, unknown> {
@@ -145,9 +192,14 @@ export default function ReleaseIngestConfigPage({
   }, [loadEndpoints]);
 
   const isAzureDevOpsProvider = draft.provider === "azure_devops";
-  const secretRefExample = isAzureDevOpsProvider
-    ? "literal:ado-demo-webhook-20260315"
-    : "literal:github-demo-webhook-20260315";
+  const secretMode = useMemo(
+    () => parseReleaseIngestSecretMode(draft.provider, draft.secretRef),
+    [draft.provider, draft.secretRef]
+  );
+  const secretModeValue = useMemo(
+    () => releaseIngestSecretModeValue(secretMode, draft.secretRef),
+    [secretMode, draft.secretRef]
+  );
 
   const sortedEndpoints = useMemo(() => {
     return [...endpoints].sort((a, b) => {
@@ -440,7 +492,18 @@ export default function ReleaseIngestConfigPage({
                 <Select
                   value={draft.provider}
                   onValueChange={(value) =>
-                    setDraft((current) => ({ ...current, provider: value as ReleaseIngestProvider }))
+                    setDraft((current) => {
+                      const nextProvider = value as ReleaseIngestProvider;
+                      const currentDefault = providerDefaultSecretRef(current.provider);
+                      const shouldResetToProviderDefault =
+                        current.secretRef.trim() === "" ||
+                        current.secretRef.trim() === currentDefault;
+                      return {
+                        ...current,
+                        provider: nextProvider,
+                        secretRef: shouldResetToProviderDefault ? "" : current.secretRef,
+                      };
+                    })
                   }
                 >
                   <SelectTrigger id="endpoint-provider" className="h-10 w-full bg-background/90 text-sm">
@@ -472,15 +535,80 @@ export default function ReleaseIngestConfigPage({
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
-                  <Label htmlFor="endpoint-secret-ref">Secret Ref</Label>
-                  <FieldHelpTooltip content="Webhook auth secret reference. Use literal:<secret> for quick setup, env:<ENV_VAR> for env-based secrets, or a managed key reference." />
+                  <Label htmlFor="endpoint-secret-mode">Webhook secret source</Label>
+                  <FieldHelpTooltip content="How this endpoint resolves webhook auth secret. Use provider default unless you need an override." />
                 </div>
-                <Input
-                  id="endpoint-secret-ref"
-                  value={draft.secretRef}
-                  onChange={(event) => setDraft((current) => ({ ...current, secretRef: event.target.value }))}
-                  placeholder={secretRefExample}
-                />
+                <Select
+                  value={secretMode}
+                  onValueChange={(value) => {
+                    const nextMode = value as ReleaseIngestSecretMode;
+                    const nextSecretRef =
+                      nextMode === "provider_default"
+                        ? ""
+                        : nextMode === "environment_variable"
+                          ? `env:${secretModeValue || providerDefaultSecretEnv(draft.provider)}`
+                          : nextMode === "literal"
+                            ? `literal:${secretModeValue}`
+                            : secretModeValue;
+                    setDraft((current) => ({ ...current, secretRef: nextSecretRef }));
+                  }}
+                >
+                  <SelectTrigger id="endpoint-secret-mode" className="h-10 w-full bg-background/90 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="provider_default">Provider default secret</SelectItem>
+                    <SelectItem value="environment_variable">Environment variable</SelectItem>
+                    <SelectItem value="literal">Literal value (demo only)</SelectItem>
+                    <SelectItem value="custom">Custom reference</SelectItem>
+                  </SelectContent>
+                </Select>
+                {secretMode === "provider_default" ? (
+                  <p className="rounded-md border border-border/60 bg-background/50 px-2 py-1 text-xs text-muted-foreground">
+                    Uses provider default reference{" "}
+                    <span className="font-mono text-[11px] text-foreground">
+                      {providerDefaultSecretRef(draft.provider)}
+                    </span>
+                    .
+                  </p>
+                ) : null}
+                {secretMode === "environment_variable" ? (
+                  <Input
+                    id="endpoint-secret-env-var"
+                    value={secretModeValue || providerDefaultSecretEnv(draft.provider)}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        secretRef: `env:${event.target.value}`,
+                      }))
+                    }
+                    placeholder={providerDefaultSecretEnv(draft.provider)}
+                  />
+                ) : null}
+                {secretMode === "literal" ? (
+                  <Input
+                    id="endpoint-secret-literal"
+                    type="password"
+                    value={secretModeValue}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        secretRef: `literal:${event.target.value}`,
+                      }))
+                    }
+                    placeholder="Paste webhook secret (demo only)"
+                  />
+                ) : null}
+                {secretMode === "custom" ? (
+                  <Input
+                    id="endpoint-secret-custom-ref"
+                    value={secretModeValue}
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, secretRef: event.target.value }))
+                    }
+                    placeholder="custom.secret.reference"
+                  />
+                ) : null}
               </div>
             </div>
 

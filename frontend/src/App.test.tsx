@@ -148,6 +148,7 @@ const apiMock = vi.hoisted(() => ({
   createProject: vi.fn(),
   createRun: vi.fn(),
   discoverProjectAdoPipelines: vi.fn(),
+  discoverProjectAdoServiceConnections: vi.fn(),
   getRun: vi.fn(),
   listProjectAudit: vi.fn(),
   listProjects: vi.fn(),
@@ -216,6 +217,7 @@ describe("App", () => {
     apiMock.adminIngestMarketplaceEvent.mockReset();
     apiMock.createProject.mockReset();
     apiMock.discoverProjectAdoPipelines.mockReset();
+    apiMock.discoverProjectAdoServiceConnections.mockReset();
     apiMock.createRun.mockReset();
     apiMock.previewRun.mockReset();
     apiMock.resumeRun.mockReset();
@@ -304,7 +306,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Targets" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Onboard Targets/i })).not.toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: /Registered Targets/i })).toBeInTheDocument();
+      expect(screen.getByText(/Refresh Registered Targets/i)).toBeInTheDocument();
     });
 
     cleanup();
@@ -314,7 +316,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Onboarding" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Onboard Targets/i })).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: /Onboarding Events/i })).toBeInTheDocument();
+      expect(screen.getByRole("columnheader", { name: /Event ID/i })).toBeInTheDocument();
     });
   });
 

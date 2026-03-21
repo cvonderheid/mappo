@@ -35,6 +35,7 @@ import {
   adminUpdateTargetRegistration,
   createRun,
   discoverProjectAdoPipelines,
+  discoverProjectAdoServiceConnections,
   getRun,
   listProjectAudit,
   listProjects,
@@ -56,6 +57,7 @@ import type {
   ProjectConfigurationAuditPage,
   ProjectConfigurationPatchRequest,
   ProjectCreateRequest,
+  ProjectAdoServiceConnectionDiscoveryResult,
   ProjectDefinition,
   ProjectAdoPipelineDiscoveryResult,
   ProjectValidationRequest,
@@ -1244,6 +1246,18 @@ function AppShell() {
     return discoverProjectAdoPipelines(projectId, request);
   }
 
+  async function handleDiscoverProjectAdoServiceConnections(
+    projectId: string,
+    request: {
+      organization?: string;
+      project?: string;
+      personalAccessTokenRef?: string;
+      nameContains?: string;
+    }
+  ): Promise<ProjectAdoServiceConnectionDiscoveryResult> {
+    return discoverProjectAdoServiceConnections(projectId, request);
+  }
+
   async function handleListProjectAudit(
     projectId: string,
     query: ListProjectAuditQuery
@@ -1410,6 +1424,7 @@ function AppShell() {
                     onValidateProject={handleValidateProject}
                     onListProjectAudit={handleListProjectAudit}
                     onDiscoverAdoPipelines={handleDiscoverProjectAdoPipelines}
+                    onDiscoverAdoServiceConnections={handleDiscoverProjectAdoServiceConnections}
                   />
                 }
               />

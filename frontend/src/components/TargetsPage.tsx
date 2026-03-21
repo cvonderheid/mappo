@@ -18,7 +18,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
@@ -270,44 +269,28 @@ export default function TargetsPage({
         </CardHeader>
         <CardContent>
           {viewMode === "targets" ? (
-            <Tabs defaultValue="registrations">
-              <TabsList>
-                <TabsTrigger value="registrations">
-                  Registered Targets ({registrations.length})
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="registrations">
-                <RegistrationsDataTable
-                  refreshKey={refreshKey}
-                  projectId={selectedProjectId}
-                  headerActions={
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={isRefreshingSnapshot}
-                      onClick={() => void handleRefreshRegistrations()}
-                    >
-                      {isRefreshingSnapshot ? "Refreshing..." : "Refresh Registered Targets"}
-                    </Button>
-                  }
-                  onEditRegistration={openEditDrawer}
-                  onDeleteRegistration={(registration) => {
-                    void handleDeleteRegistration(registration);
-                  }}
-                  deletingTargetId={deletingTargetId}
-                />
-              </TabsContent>
-            </Tabs>
+            <RegistrationsDataTable
+              refreshKey={refreshKey}
+              projectId={selectedProjectId}
+              headerActions={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isRefreshingSnapshot}
+                  onClick={() => void handleRefreshRegistrations()}
+                >
+                  {isRefreshingSnapshot ? "Refreshing..." : "Refresh Registered Targets"}
+                </Button>
+              }
+              onEditRegistration={openEditDrawer}
+              onDeleteRegistration={(registration) => {
+                void handleDeleteRegistration(registration);
+              }}
+              deletingTargetId={deletingTargetId}
+            />
           ) : (
-            <Tabs defaultValue="events">
-              <TabsList>
-                <TabsTrigger value="events">Onboarding Events</TabsTrigger>
-              </TabsList>
-              <TabsContent value="events">
-                <EventsDataTable refreshKey={refreshKey} />
-              </TabsContent>
-            </Tabs>
+            <EventsDataTable refreshKey={refreshKey} />
           )}
         </CardContent>
       </Card>

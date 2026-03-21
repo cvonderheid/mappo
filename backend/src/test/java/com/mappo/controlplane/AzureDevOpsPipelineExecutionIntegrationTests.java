@@ -16,6 +16,7 @@ import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDef
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDiscoveryInputs;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineInputs;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineRunRecord;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsServiceConnectionDefinitionRecord;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -266,6 +267,20 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
                     "\\",
                     "https://dev.azure.com/pg123/demo-app-service/_build?definitionId=1",
                     "https://dev.azure.com/pg123/demo-app-service/_apis/pipelines/1"
+                )
+            );
+        }
+
+        @Override
+        public List<AzureDevOpsServiceConnectionDefinitionRecord> listServiceConnections(
+            AzureDevOpsPipelineDiscoveryInputs inputs
+        ) {
+            return List.of(
+                new AzureDevOpsServiceConnectionDefinitionRecord(
+                    "svc-1",
+                    "mappo-ado-demo-rg-contributor",
+                    "azurerm",
+                    "https://dev.azure.com/pg123/demo-app-service/_settings/adminservices?resourceId=svc-1"
                 )
             );
         }

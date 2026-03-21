@@ -2,11 +2,13 @@ package com.mappo.controlplane.api;
 
 import com.mappo.controlplane.api.query.ProjectAuditPageParameters;
 import com.mappo.controlplane.api.request.ProjectAdoPipelineDiscoveryRequest;
+import com.mappo.controlplane.api.request.ProjectAdoServiceConnectionDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectConfigurationPatchRequest;
 import com.mappo.controlplane.api.request.ProjectCreateRequest;
 import com.mappo.controlplane.api.request.ProjectValidationRequest;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.model.ProjectAdoPipelineDiscoveryResultRecord;
+import com.mappo.controlplane.model.ProjectAdoServiceConnectionDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProjectConfigurationAuditPageRecord;
 import com.mappo.controlplane.model.ProjectValidationResultRecord;
 import com.mappo.controlplane.service.project.ProjectAuditQueryService;
@@ -93,5 +95,17 @@ public class ProjectsController {
         @RequestBody(required = false) ProjectAdoPipelineDiscoveryRequest request
     ) {
         return projectDeploymentDriverDiscoveryService.discoverAdoPipelines(projectId, request);
+    }
+
+    @PostMapping("/{projectId}/deployment-driver/ado/service-connections/discover")
+    @Operation(
+        summary = "Discover Azure DevOps service connections",
+        description = "Discovers Azure DevOps service connections for the selected project using organization/project/PAT from request overrides or persisted project deployment-driver config."
+    )
+    public ProjectAdoServiceConnectionDiscoveryResultRecord discoverProjectAdoServiceConnections(
+        @PathVariable("projectId") String projectId,
+        @RequestBody(required = false) ProjectAdoServiceConnectionDiscoveryRequest request
+    ) {
+        return projectDeploymentDriverDiscoveryService.discoverAdoServiceConnections(projectId, request);
     }
 }
