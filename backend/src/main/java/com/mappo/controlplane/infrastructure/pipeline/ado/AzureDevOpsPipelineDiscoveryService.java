@@ -19,7 +19,7 @@ public class AzureDevOpsPipelineDiscoveryService {
         String token = secretResolver.resolvePersonalAccessToken(personalAccessTokenReference);
         if (token.isBlank()) {
             throw new IllegalArgumentException(
-                "Azure DevOps PAT could not be resolved. Configure deploymentDriverConfig.personalAccessTokenRef with env:<VAR>, literal:<token>, or mappo.azure-devops.personal-access-token (backed by MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN)."
+                "Azure DevOps PAT could not be resolved. Use server-managed token (mappo.azure-devops.personal-access-token / MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN) or provide an inline demo token."
             );
         }
         return pipelineClient.listPipelines(new AzureDevOpsPipelineDiscoveryInputs(organization, project, token));
@@ -33,7 +33,7 @@ public class AzureDevOpsPipelineDiscoveryService {
         String token = secretResolver.resolvePersonalAccessToken(personalAccessTokenReference);
         if (token.isBlank()) {
             throw new IllegalArgumentException(
-                "Azure DevOps PAT could not be resolved. Configure deploymentDriverConfig.personalAccessTokenRef with env:<VAR>, literal:<token>, or mappo.azure-devops.personal-access-token (backed by MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN)."
+                "Azure DevOps PAT could not be resolved. Use server-managed token (mappo.azure-devops.personal-access-token / MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN) or provide an inline demo token."
             );
         }
         return pipelineClient.listServiceConnections(

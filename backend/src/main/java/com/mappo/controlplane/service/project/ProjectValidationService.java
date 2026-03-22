@@ -107,7 +107,7 @@ public class ProjectValidationService {
                 findings.add(fail(
                     ProjectValidationScope.credentials,
                     "AZURE_DEVOPS_PAT_MISSING",
-                    "Azure DevOps deployment driver requires deploymentDriverConfig.personalAccessTokenRef (env:/literal:) or mappo.azure-devops.personal-access-token backed by MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN."
+                    "Azure DevOps deployment driver requires a resolvable PAT source. Use server-managed token (mappo.azure-devops.personal-access-token / MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN) or an inline demo token."
                 ));
             }
 
@@ -171,7 +171,7 @@ public class ProjectValidationService {
                 findings.add(fail(
                     ProjectValidationScope.webhook,
                     "AZURE_DEVOPS_WEBHOOK_SECRET_MISSING",
-                    "Azure DevOps webhook ingest requires a linked release ingest endpoint with secretRef or mappo.azure-devops.webhook-secret."
+                    "Azure DevOps webhook ingest requires a linked release ingest endpoint with a resolvable secret or global key mappo.azure-devops.webhook-secret."
                 ));
             }
             return findings;
@@ -364,9 +364,6 @@ public class ProjectValidationService {
         String reference = normalize(config.personalAccessTokenRef());
         if (!hasText(reference) || "mappo.azure-devops.personal-access-token".equals(reference)) {
             return normalize(properties.getAzureDevOps().getPersonalAccessToken());
-        }
-        if (reference.startsWith("env:")) {
-            return normalize(System.getenv(reference.substring("env:".length())));
         }
         if (reference.startsWith("literal:")) {
             return normalize(reference.substring("literal:".length()));

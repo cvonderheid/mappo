@@ -190,6 +190,12 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Detection signal: operators ask what a button is refreshing, or a one-time result message remains on screen after the action is complete and competes with durable tables/logs.
 - Enforcement (test/lint/checklist): for every new operator action, decide whether the feedback is durable or transient; if transient, send it to the toast system and keep the page reserved for persistent state.
 
+- Date: 2026-03-22
+- Pattern: Operator walkthroughs stall when setup forms expose internal contract keys or legacy fallback modes (for example literal secrets, adapter keys, payload-mapping internals).
+- Preventative rule: Before shipping a setup screen, classify every field as required/optional/auto/internal/legacy and remove auto/internal + legacy fields from operator input.
+- Detection signal: the first-time operator asks “where do I get this value?” or “why does this field exist?” for fields that are defaults or backend wiring details.
+- Enforcement (test/lint/checklist): maintain `/docs/operator-field-inventory.md` and require UX sign-off that every editable field has an explicit source and purpose tooltip.
+
 - Date: 2026-03-09
 - Pattern: Execution strategy controls in the API/UI are misleading if the backend stores them but still runs synchronously and serially.
 - Preventative rule: When a rollout control such as `all_at_once`, `waves`, or `concurrency` is exposed to operators, backend execution and integration tests must prove the semantics are actually honored.

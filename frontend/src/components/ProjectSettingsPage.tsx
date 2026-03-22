@@ -2,7 +2,6 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import DataTablePagination from "@/components/DataTablePagination";
 import FieldHelpTooltip from "@/components/FieldHelpTooltip";
 import { Badge } from "@/components/ui/badge";
@@ -76,7 +75,6 @@ type ProjectTab =
   | "audit";
 
 type ValidationScope = "credentials" | "webhook" | "target_contract";
-type PatSourceMode = "server_default" | "environment_variable" | "literal" | "custom";
 
 type ProjectDraft = {
   id: string;
@@ -87,13 +85,8 @@ type ProjectDraft = {
   releaseArtifactSource: "blob_arm_template" | "template_spec_resource" | "external_deployment_inputs";
   runtimeHealthProvider: "azure_container_app_http" | "http_endpoint";
   access: {
-    authModel: string;
-    requiresAzureCredential: boolean;
-    requiresTargetExecutionMetadata: boolean;
-    azureServiceConnectionName: string;
     managingTenantId: string;
     managingPrincipalClientId: string;
-    requiresDelegation: boolean;
   };
   driver: {
     pipelineSystem: string;
@@ -102,18 +95,13 @@ type ProjectDraft = {
     pipelineId: string;
     branch: string;
     azureServiceConnectionName: string;
-    personalAccessTokenRef: string;
     supportsExternalExecutionHandle: boolean;
     supportsExternalLogs: boolean;
     supportsPreview: boolean;
     previewMode: string;
   };
   release: {
-    descriptor: string;
     templateUriField: string;
-    sourceSystem: string;
-    descriptorPath: string;
-    versionField: string;
     versionRefField: string;
   };
   runtime: {
@@ -150,17 +138,12 @@ const RELEASE_SOURCE_OPTIONS: Array<{
 }> = [
   { value: "blob_arm_template", label: "Blob-hosted ARM Template" },
   { value: "external_deployment_inputs", label: "Webhook / Pipeline Event" },
-  { value: "template_spec_resource", label: "Azure Template Spec Reference" },
-];
-
-const RELEASE_EVENT_PROVIDER_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "azure_devops", label: "Azure DevOps" },
-  { value: "github", label: "GitHub" },
-  { value: "manual", label: "Manual / API" },
 ];
 
 const DEFAULT_ADO_PAT_SECRET_REF = "mappo.azure-devops.personal-access-token";
-const DEFAULT_ADO_PAT_ENV_VAR = "MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN";
+const DEFAULT_EXTERNAL_INPUT_SOURCE_SYSTEM = "azure_devops";
+const DEFAULT_EXTERNAL_INPUT_DESCRIPTOR_PATH = "pipelineInputs";
+const DEFAULT_EXTERNAL_INPUT_VERSION_FIELD = "artifactVersion";
 
 const DRIVER_CAPABILITIES: Record<ProjectDraft["deploymentDriver"], { preview: boolean; cancel: boolean; externalLogs: boolean; externalHandle: boolean }> = {
   azure_deployment_stack: {
@@ -235,13 +218,8 @@ function projectToDraft(project: ProjectDefinition | null): ProjectDraft {
     releaseArtifactSource: (project?.releaseArtifactSource ?? "blob_arm_template") as ProjectDraft["releaseArtifactSource"],
     runtimeHealthProvider: (project?.runtimeHealthProvider ?? "azure_container_app_http") as ProjectDraft["runtimeHealthProvider"],
     access: {
-      authModel: asString(accessConfig.authModel, "rbac"),
-      requiresAzureCredential: asBoolean(accessConfig.requiresAzureCredential, true),
-      requiresTargetExecutionMetadata: asBoolean(accessConfig.requiresTargetExecutionMetadata, true),
-      azureServiceConnectionName: asString(accessConfig.azureServiceConnectionName),
       managingTenantId: asString(accessConfig.managingTenantId),
       managingPrincipalClientId: asString(accessConfig.managingPrincipalClientId),
-      requiresDelegation: asBoolean(accessConfig.requiresDelegation, false),
     },
     driver: {
       pipelineSystem: asString(driverConfig.pipelineSystem, "azure_devops"),
@@ -250,21 +228,13 @@ function projectToDraft(project: ProjectDefinition | null): ProjectDraft {
       pipelineId: asString(driverConfig.pipelineId),
       branch: asString(driverConfig.branch, "main"),
       azureServiceConnectionName: asString(driverConfig.azureServiceConnectionName),
-      personalAccessTokenRef: asString(
-        driverConfig.personalAccessTokenRef,
-        "mappo.azure-devops.personal-access-token"
-      ),
       supportsExternalExecutionHandle: asBoolean(driverConfig.supportsExternalExecutionHandle, true),
       supportsExternalLogs: asBoolean(driverConfig.supportsExternalLogs, true),
       supportsPreview: asBoolean(driverConfig.supportsPreview, project?.deploymentDriver === "azure_deployment_stack"),
       previewMode: asString(driverConfig.previewMode, "arm_what_if"),
     },
     release: {
-      descriptor: asString(releaseConfig.descriptor, "managed-app-release"),
       templateUriField: asString(releaseConfig.templateUriField, "templateUri"),
-      sourceSystem: asString(releaseConfig.sourceSystem, "azure_devops"),
-      descriptorPath: asString(releaseConfig.descriptorPath, "pipelineInputs"),
-      versionField: asString(releaseConfig.versionField, "artifactVersion"),
       versionRefField: asString(releaseConfig.versionRefField, "templateSpecVersion"),
     },
     runtime: {
@@ -351,47 +321,34 @@ function normalizeAzureDevOpsOrganizationUrl(value: string): string {
   return trimmed;
 }
 
-function parsePatSourceMode(reference: string): PatSourceMode {
-  const normalized = reference.trim();
-  if (normalized === "" || normalized === DEFAULT_ADO_PAT_SECRET_REF) {
-    return "server_default";
-  }
-  if (normalized.startsWith("env:")) {
-    return "environment_variable";
-  }
-  if (normalized.startsWith("literal:")) {
-    return "literal";
-  }
-  return "custom";
-}
-
-function patSourceValueForMode(reference: string, mode: PatSourceMode): string {
-  const normalized = reference.trim();
-  if (mode === "environment_variable") {
-    return normalized.startsWith("env:") ? normalized.slice("env:".length) : "";
-  }
-  if (mode === "literal") {
-    return normalized.startsWith("literal:") ? normalized.slice("literal:".length) : "";
-  }
-  if (mode === "custom") {
-    return normalized;
-  }
-  return "";
-}
-
 function buildPatchRequest(draft: ProjectDraft): ProjectConfigurationPatchRequest {
   const effectiveReleaseArtifactSource: ProjectDraft["releaseArtifactSource"] =
     draft.deploymentDriver === "pipeline_trigger"
       ? "external_deployment_inputs"
       : draft.releaseArtifactSource;
 
+  let authModel = "rbac";
+  let requiresAzureCredential = true;
+  let requiresTargetExecutionMetadata = true;
+  let requiresDelegation = false;
+  if (draft.accessStrategy === "lighthouse_delegated_access") {
+    authModel = "delegated_access";
+    requiresDelegation = true;
+  }
+  if (draft.accessStrategy === "simulator") {
+    authModel = "simulator";
+    requiresAzureCredential = false;
+    requiresTargetExecutionMetadata = false;
+  }
+
   const accessStrategyConfig: Record<string, unknown> = {
-    authModel: draft.access.authModel.trim() || undefined,
-    requiresAzureCredential: draft.access.requiresAzureCredential,
-    requiresTargetExecutionMetadata: draft.access.requiresTargetExecutionMetadata,
+    authModel,
+    requiresAzureCredential,
+    requiresTargetExecutionMetadata,
+    requiresDelegation,
   };
-  if (draft.access.azureServiceConnectionName.trim() !== "") {
-    accessStrategyConfig.azureServiceConnectionName = draft.access.azureServiceConnectionName.trim();
+  if (draft.deploymentDriver === "pipeline_trigger" && draft.driver.azureServiceConnectionName.trim() !== "") {
+    accessStrategyConfig.azureServiceConnectionName = draft.driver.azureServiceConnectionName.trim();
   }
   if (draft.access.managingTenantId.trim() !== "") {
     accessStrategyConfig.managingTenantId = draft.access.managingTenantId.trim();
@@ -399,7 +356,6 @@ function buildPatchRequest(draft: ProjectDraft): ProjectConfigurationPatchReques
   if (draft.access.managingPrincipalClientId.trim() !== "") {
     accessStrategyConfig.managingPrincipalClientId = draft.access.managingPrincipalClientId.trim();
   }
-  accessStrategyConfig.requiresDelegation = draft.access.requiresDelegation;
 
   const deploymentDriverConfig: Record<string, unknown> = {
     supportsExternalExecutionHandle: draft.driver.supportsExternalExecutionHandle,
@@ -417,20 +373,17 @@ function buildPatchRequest(draft: ProjectDraft): ProjectConfigurationPatchReques
     deploymentDriverConfig.branch = draft.driver.branch.trim() || undefined;
     deploymentDriverConfig.azureServiceConnectionName =
       draft.driver.azureServiceConnectionName.trim() || undefined;
-    deploymentDriverConfig.personalAccessTokenRef =
-      draft.driver.personalAccessTokenRef.trim() || undefined;
+    deploymentDriverConfig.personalAccessTokenRef = DEFAULT_ADO_PAT_SECRET_REF;
   }
 
-  const releaseArtifactSourceConfig: Record<string, unknown> = {
-    descriptor: draft.release.descriptor.trim() || undefined,
-  };
+  const releaseArtifactSourceConfig: Record<string, unknown> = {};
   if (effectiveReleaseArtifactSource === "blob_arm_template") {
     releaseArtifactSourceConfig.templateUriField = draft.release.templateUriField.trim() || "templateUri";
   }
   if (effectiveReleaseArtifactSource === "external_deployment_inputs") {
-    releaseArtifactSourceConfig.sourceSystem = draft.release.sourceSystem.trim() || "azure_devops";
-    releaseArtifactSourceConfig.descriptorPath = draft.release.descriptorPath.trim() || undefined;
-    releaseArtifactSourceConfig.versionField = draft.release.versionField.trim() || undefined;
+    releaseArtifactSourceConfig.sourceSystem = DEFAULT_EXTERNAL_INPUT_SOURCE_SYSTEM;
+    releaseArtifactSourceConfig.descriptorPath = DEFAULT_EXTERNAL_INPUT_DESCRIPTOR_PATH;
+    releaseArtifactSourceConfig.versionField = DEFAULT_EXTERNAL_INPUT_VERSION_FIELD;
   }
   if (effectiveReleaseArtifactSource === "template_spec_resource") {
     releaseArtifactSourceConfig.versionRefField = draft.release.versionRefField.trim() || "templateSpecVersion";
@@ -579,29 +532,15 @@ export default function ProjectSettingsPage({
     if (draft.deploymentDriver !== "pipeline_trigger") {
       return;
     }
-    if (
-      draft.releaseArtifactSource === "external_deployment_inputs" &&
-      draft.release.sourceSystem.trim() !== "" &&
-      draft.release.descriptorPath.trim() !== "" &&
-      draft.release.versionField.trim() !== ""
-    ) {
+    if (draft.releaseArtifactSource === "external_deployment_inputs") {
       return;
     }
     setDraft((current) => ({
       ...current,
       releaseArtifactSource: "external_deployment_inputs",
-      release: {
-        ...current.release,
-        sourceSystem: current.release.sourceSystem.trim() || "azure_devops",
-        descriptorPath: current.release.descriptorPath.trim() || "pipelineInputs",
-        versionField: current.release.versionField.trim() || "artifactVersion",
-      },
     }));
   }, [
     draft.deploymentDriver,
-    draft.release.sourceSystem,
-    draft.release.descriptorPath,
-    draft.release.versionField,
     draft.releaseArtifactSource,
   ]);
 
@@ -630,13 +569,6 @@ export default function ProjectSettingsPage({
       }),
     [releaseIngestEndpoints]
   );
-  const selectedReleaseIngestEndpoint = useMemo(() => {
-    const endpointId = draft.releaseIngestEndpointId.trim();
-    if (endpointId === "") {
-      return null;
-    }
-    return sortedReleaseIngestEndpoints.find((endpoint) => endpoint.id === endpointId) ?? null;
-  }, [draft.releaseIngestEndpointId, sortedReleaseIngestEndpoints]);
   const auditMetadata: PageMetadata = auditPage?.page ?? {
     page: auditPageIndex,
     size: auditPageSize,
@@ -661,14 +593,6 @@ export default function ProjectSettingsPage({
     );
     return matching ? matching.id : "__custom";
   }, [discoveredServiceConnections, draft.driver.azureServiceConnectionName]);
-  const patSourceMode = useMemo(
-    () => parsePatSourceMode(draft.driver.personalAccessTokenRef),
-    [draft.driver.personalAccessTokenRef]
-  );
-  const patSourceValue = useMemo(
-    () => patSourceValueForMode(draft.driver.personalAccessTokenRef, patSourceMode),
-    [draft.driver.personalAccessTokenRef, patSourceMode]
-  );
 
   const draftValidationIssues = useMemo(() => {
     const issues: DraftValidationIssue[] = [];
@@ -711,14 +635,6 @@ export default function ProjectSettingsPage({
           tab: "deployment-driver",
           fieldId: "driver-service-connection",
           message: "Deployment Driver: Azure service connection name is required.",
-        });
-      }
-      if (draft.driver.personalAccessTokenRef.trim() === "") {
-        issues.push({
-          id: "driver-pat-ref-required",
-          tab: "deployment-driver",
-          fieldId: "driver-pat-ref",
-          message: "Deployment Driver: PAT source reference is required.",
         });
       }
     }
@@ -852,8 +768,7 @@ export default function ProjectSettingsPage({
       const response = await onDiscoverAdoPipelines(project.id, {
         organization: normalizeAzureDevOpsOrganizationUrl(draft.driver.organization) || undefined,
         project: draft.driver.project.trim() || undefined,
-        personalAccessTokenRef:
-          draft.driver.personalAccessTokenRef.trim() || DEFAULT_ADO_PAT_SECRET_REF,
+        personalAccessTokenRef: DEFAULT_ADO_PAT_SECRET_REF,
         nameContains: pipelineNameContains.trim() || undefined,
       });
       const pipelines = [...(response.pipelines ?? [])].sort((a, b) =>
@@ -873,7 +788,7 @@ export default function ProjectSettingsPage({
       const message = (error as Error).message;
       if (message.toLowerCase().includes("pat could not be resolved")) {
         toast.error(
-          "PAT couldn't be resolved. Set PAT source to Server default and configure MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN on the backend, or switch PAT source mode and provide a value."
+          "Azure DevOps PAT could not be resolved. Set MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN on the backend runtime."
         );
       } else {
         toast.error(message);
@@ -892,8 +807,7 @@ export default function ProjectSettingsPage({
       const response = await onDiscoverAdoServiceConnections(project.id, {
         organization: normalizeAzureDevOpsOrganizationUrl(draft.driver.organization) || undefined,
         project: draft.driver.project.trim() || undefined,
-        personalAccessTokenRef:
-          draft.driver.personalAccessTokenRef.trim() || DEFAULT_ADO_PAT_SECRET_REF,
+        personalAccessTokenRef: DEFAULT_ADO_PAT_SECRET_REF,
         nameContains: serviceConnectionNameContains.trim() || undefined,
       });
       const serviceConnections = [...(response.serviceConnections ?? [])].sort((a, b) =>
@@ -916,7 +830,7 @@ export default function ProjectSettingsPage({
       const message = (error as Error).message;
       if (message.toLowerCase().includes("pat could not be resolved")) {
         toast.error(
-          "PAT couldn't be resolved. Set PAT source to Server default and configure MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN on the backend, or switch PAT source mode and provide a value."
+          "Azure DevOps PAT could not be resolved. Set MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN on the backend runtime."
         );
       } else {
         toast.error(message);
@@ -1128,15 +1042,11 @@ export default function ProjectSettingsPage({
 
             <TabsContent value="release-ingest" className="space-y-3">
               <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Release Ingest</h3>
-              <div className="rounded-md border border-border/70 bg-background/60 p-3 text-xs text-muted-foreground">
-                MAPPO usually learns about new versions from webhook events. Choose the source and link this project to a
-                release ingest endpoint so secrets and routing are explicit.
-              </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
                     <Label htmlFor="release-source-type">Release source</Label>
-                    <FieldHelpTooltip content="Where MAPPO reads deployable release versions from for this project." />
+                    <FieldHelpTooltip content="Where MAPPO reads deployable versions from. Pipeline Trigger projects always use webhook/pipeline release events." />
                   </div>
                   <Select
                     value={draft.releaseArtifactSource}
@@ -1158,30 +1068,14 @@ export default function ProjectSettingsPage({
                   </Select>
                   {draft.deploymentDriver === "pipeline_trigger" ? (
                     <p className="text-xs text-muted-foreground">
-                      Pipeline Trigger uses <span className="font-medium text-foreground">Webhook / Pipeline Event</span> automatically.
+                      Pipeline Trigger requires <span className="font-medium text-foreground">Webhook / Pipeline Event</span>.
                     </p>
                   ) : null}
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="release-descriptor">Incoming release event type</Label>
-                    <FieldHelpTooltip content="Event type value MAPPO matches when processing inbound release notifications." />
-                  </div>
-                  <Input
-                    id="release-descriptor"
-                    value={draft.release.descriptor}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        release: { ...current.release, descriptor: event.target.value },
-                      }))
-                    }
-                  />
                 </div>
                 <div className="space-y-1 md:col-span-2">
                   <div className="flex items-center gap-1">
                     <Label htmlFor="release-ingest-endpoint-id">Linked release ingest endpoint (recommended)</Label>
-                    <FieldHelpTooltip content="Choose an endpoint from Admin > Release Ingest. This links webhook auth/routing to this project and enables stronger validation." />
+                    <FieldHelpTooltip content="Pick a global release-ingest endpoint from Admin > Release Ingest. That endpoint controls webhook auth and routing for this project." />
                   </div>
                   <div className="flex flex-col gap-2 md:flex-row">
                     <Select
@@ -1220,22 +1114,6 @@ export default function ProjectSettingsPage({
                       No endpoints found. Create one in <span className="font-medium text-foreground">Admin → Release Ingest</span>.
                     </p>
                   ) : null}
-                  {selectedReleaseIngestEndpoint ? (
-                    <p className="text-xs text-muted-foreground">
-                      Linked provider:{" "}
-                      <span className="font-medium text-foreground">
-                        {(selectedReleaseIngestEndpoint.provider ?? "github").replaceAll("_", " ")}
-                      </span>
-                      {" · "}
-                      endpoint id:{" "}
-                      <span className="font-mono text-[11px] text-foreground">
-                        {selectedReleaseIngestEndpoint.id}
-                      </span>
-                    </p>
-                  ) : null}
-                  <p className="text-xs text-muted-foreground">
-                    Leave unlinked only if you intentionally rely on global webhook defaults.
-                  </p>
                 </div>
                 {draft.releaseArtifactSource === "blob_arm_template" ? (
                   <div className="space-y-1">
@@ -1256,84 +1134,17 @@ export default function ProjectSettingsPage({
                   </div>
                 ) : null}
                 {draft.releaseArtifactSource === "external_deployment_inputs" ? (
-                  <>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1">
-                        <Label htmlFor="release-source-system">Release event provider</Label>
-                        <FieldHelpTooltip content="System that sends webhook/event payloads for new releases." />
-                      </div>
-                      <Select
-                        value={draft.release.sourceSystem}
-                        onValueChange={(value) =>
-                          setDraft((current) => ({
-                            ...current,
-                            release: { ...current.release, sourceSystem: value },
-                          }))
-                        }
-                      >
-                        <SelectTrigger id="release-source-system">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {RELEASE_EVENT_PROVIDER_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Use defaults unless your webhook payload schema is custom.
-                      </p>
-                    </div>
-                    <div className="md:col-span-2">
-                      <Accordion type="single" collapsible>
-                        <AccordionItem value="release-ingest-advanced">
-                          <AccordionTrigger className="text-sm">
-                            Advanced payload mapping
-                          </AccordionTrigger>
-                          <AccordionContent>
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-1">
-                                  <Label htmlFor="release-descriptor-path">Deployment inputs object path</Label>
-                                  <FieldHelpTooltip content="JSON object path inside the release payload that contains deployment inputs passed to the driver." />
-                                </div>
-                                <Input
-                                  id="release-descriptor-path"
-                                  value={draft.release.descriptorPath}
-                                  placeholder="pipelineInputs"
-                                  onChange={(event) =>
-                                    setDraft((current) => ({
-                                      ...current,
-                                      release: { ...current.release, descriptorPath: event.target.value },
-                                    }))
-                                  }
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-1">
-                                  <Label htmlFor="release-version-field">Release version field key</Label>
-                                  <FieldHelpTooltip content="Field inside deployment inputs object that contains the release version string." />
-                                </div>
-                                <Input
-                                  id="release-version-field"
-                                  value={draft.release.versionField}
-                                  placeholder="artifactVersion"
-                                  onChange={(event) =>
-                                    setDraft((current) => ({
-                                      ...current,
-                                      release: { ...current.release, versionField: event.target.value },
-                                    }))
-                                  }
-                                />
-                              </div>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
-                    </div>
-                  </>
+                  <div className="md:col-span-2 rounded-md border border-border/70 bg-background/60 p-3 text-xs text-muted-foreground">
+                    <p className="font-medium text-foreground">Webhook/Pipeline payload contract</p>
+                    <p className="mt-1">
+                      MAPPO expects deployment inputs at{" "}
+                      <span className="font-mono text-foreground">{DEFAULT_EXTERNAL_INPUT_DESCRIPTOR_PATH}</span>{" "}
+                      and version at{" "}
+                      <span className="font-mono text-foreground">{DEFAULT_EXTERNAL_INPUT_VERSION_FIELD}</span>{" "}
+                      for source system{" "}
+                      <span className="font-mono text-foreground">{DEFAULT_EXTERNAL_INPUT_SOURCE_SYSTEM}</span>.
+                    </p>
+                  </div>
                 ) : null}
                 {draft.releaseArtifactSource === "template_spec_resource" ? (
                   <div className="space-y-1">
@@ -1358,27 +1169,6 @@ export default function ProjectSettingsPage({
 
             <TabsContent value="deployment-driver" className="space-y-3">
               <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Deployment Driver</h3>
-              {draft.deploymentDriver === "pipeline_trigger" ? (
-                <div className="rounded-md border border-border/70 bg-background/60 p-3 text-xs text-muted-foreground">
-                  <p className="font-medium text-foreground">Where to find these values in Azure DevOps</p>
-                  <ul className="mt-1 list-disc space-y-0.5 pl-4">
-                    <li>
-                      <span className="font-medium text-foreground">Organization URL</span>: first segment of your ADO URL (for example
-                      {" "}
-                      <span className="font-mono">https://dev.azure.com/pg123</span>).
-                    </li>
-                    <li>
-                      <span className="font-medium text-foreground">Project</span>: project name in the ADO URL.
-                    </li>
-                    <li>
-                      <span className="font-medium text-foreground">Pipeline ID</span>: use <span className="font-medium text-foreground">Discover Pipelines</span> to fill this automatically.
-                    </li>
-                    <li>
-                      <span className="font-medium text-foreground">Azure Service Connection</span>: Project Settings to Service connections.
-                    </li>
-                  </ul>
-                </div>
-              ) : null}
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
@@ -1396,28 +1186,18 @@ export default function ProjectSettingsPage({
                           nextDriver === "pipeline_trigger"
                             ? "external_deployment_inputs"
                             : current.releaseArtifactSource,
-                        release:
-                          nextDriver === "pipeline_trigger"
-                            ? {
-                                ...current.release,
-                                sourceSystem: current.release.sourceSystem.trim() || "azure_devops",
-                                descriptorPath: current.release.descriptorPath.trim() || "pipelineInputs",
-                                versionField: current.release.versionField.trim() || "artifactVersion",
-                              }
-                            : current.release,
                       }));
                     }}
                   >
                     <SelectTrigger id="driver-type">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="azure_deployment_stack">Azure Deployment Stack</SelectItem>
-                      <SelectItem value="pipeline_trigger">Pipeline Trigger</SelectItem>
-                      <SelectItem value="azure_template_spec">Azure Template Spec</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                      <SelectContent>
+                        <SelectItem value="azure_deployment_stack">Azure Deployment Stack</SelectItem>
+                        <SelectItem value="pipeline_trigger">Pipeline Trigger</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 {draft.deploymentDriver === "pipeline_trigger" ? (
                   <>
                     <div className="space-y-1">
@@ -1443,9 +1223,9 @@ export default function ProjectSettingsPage({
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <div className="flex items-center gap-1">
-                        <Label htmlFor="driver-organization">Organization URL (full)</Label>
-                        <FieldHelpTooltip content="Use the full Azure DevOps organization URL, for example https://dev.azure.com/pg123." />
+                    <div className="flex items-center gap-1">
+                      <Label htmlFor="driver-organization">Organization URL (full)</Label>
+                        <FieldHelpTooltip content="Full Azure DevOps organization URL, for example https://dev.azure.com/pg123. Include https://." />
                       </div>
                       <Input
                         id="driver-organization"
@@ -1477,14 +1257,11 @@ export default function ProjectSettingsPage({
                         }}
                         placeholder="https://dev.azure.com/pg123"
                       />
-                      <p className="text-xs text-muted-foreground">
-                        Include <span className="font-medium text-foreground">https://</span>, not just the org name.
-                      </p>
                     </div>
                     <div className="space-y-1">
                       <div className="flex items-center gap-1">
                         <Label htmlFor="driver-project">Project</Label>
-                        <FieldHelpTooltip content="Azure DevOps project name that contains the deployment pipeline." />
+                        <FieldHelpTooltip content="Azure DevOps project name that contains the deployment pipeline. This is usually the project segment in your ADO URL." />
                       </div>
                       <Input
                         id="driver-project"
@@ -1574,7 +1351,7 @@ export default function ProjectSettingsPage({
                     <div className="space-y-1">
                       <div className="flex items-center gap-1">
                         <Label htmlFor="driver-pipeline-id">Pipeline ID</Label>
-                        <FieldHelpTooltip content="Azure DevOps pipeline definition ID. This is auto-filled when you select a discovered pipeline, but you can override it manually." />
+                        <FieldHelpTooltip content="Azure DevOps pipeline definition ID. Use Discover Pipelines to auto-fill this field, or enter the ID manually." />
                       </div>
                       <Input
                         id="driver-pipeline-id"
@@ -1632,7 +1409,7 @@ export default function ProjectSettingsPage({
                     <div className="space-y-1">
                       <div className="flex items-center gap-1">
                         <Label htmlFor="driver-service-connection">Azure Service Connection</Label>
-                        <FieldHelpTooltip content="Service connection used by the pipeline to authenticate to Azure. Discover and select, or type manually if your token cannot list service connections." />
+                        <FieldHelpTooltip content="Service connection name used by the pipeline to authenticate to Azure. You can discover from ADO Project Settings > Service connections, then select or enter manually." />
                       </div>
                       {discoveredServiceConnections.length > 0 ? (
                         <Select
@@ -1702,109 +1479,11 @@ export default function ProjectSettingsPage({
                       ) : null}
                     </div>
                     <div className="space-y-1 md:col-span-2">
-                      <div className="flex items-center gap-1">
-                        <Label htmlFor="driver-pat-source-mode">PAT source</Label>
-                        <FieldHelpTooltip content="How MAPPO resolves the Azure DevOps Personal Access Token used for pipeline/service-connection discovery and run triggering." />
-                      </div>
-                      <Select
-                        value={patSourceMode}
-                        onValueChange={(value) => {
-                          const nextMode = value as PatSourceMode;
-                          const nextReference =
-                            nextMode === "server_default"
-                              ? DEFAULT_ADO_PAT_SECRET_REF
-                              : nextMode === "environment_variable"
-                                ? `env:${patSourceValue || DEFAULT_ADO_PAT_ENV_VAR}`
-                                : nextMode === "literal"
-                                  ? `literal:${patSourceValue}`
-                                  : "";
-                          setDraft((current) => ({
-                            ...current,
-                            driver: { ...current.driver, personalAccessTokenRef: nextReference },
-                          }));
-                        }}
-                      >
-                        <SelectTrigger id="driver-pat-source-mode">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="server_default">Server default token</SelectItem>
-                          <SelectItem value="environment_variable">Environment variable</SelectItem>
-                          <SelectItem value="literal">Literal token (demo only)</SelectItem>
-                          <SelectItem value="custom">Custom secret reference</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {patSourceMode === "server_default" ? (
-                        <p className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs text-muted-foreground">
-                          Uses server default reference{" "}
-                          <span className="font-mono text-[11px] text-foreground">
-                            {DEFAULT_ADO_PAT_SECRET_REF}
-                          </span>
-                          . Set backend env var{" "}
-                          <span className="font-mono text-[11px] text-foreground">
-                            {DEFAULT_ADO_PAT_ENV_VAR}
-                          </span>{" "}
-                          if your backend doesn't inject this value directly.
-                        </p>
-                      ) : null}
-                      {patSourceMode === "environment_variable" ? (
-                        <div className="space-y-1">
-                          <Label htmlFor="driver-pat-env-var">Environment variable name</Label>
-                          <Input
-                            id="driver-pat-env-var"
-                            value={patSourceValue || DEFAULT_ADO_PAT_ENV_VAR}
-                            onChange={(event) =>
-                              setDraft((current) => ({
-                                ...current,
-                                driver: {
-                                  ...current.driver,
-                                  personalAccessTokenRef: `env:${event.target.value}`,
-                                },
-                              }))
-                            }
-                            placeholder={DEFAULT_ADO_PAT_ENV_VAR}
-                          />
-                        </div>
-                      ) : null}
-                      {patSourceMode === "literal" ? (
-                        <div className="space-y-1">
-                          <Label htmlFor="driver-pat-literal">Literal PAT value</Label>
-                          <Input
-                            id="driver-pat-literal"
-                            type="password"
-                            value={patSourceValue}
-                            onChange={(event) =>
-                              setDraft((current) => ({
-                                ...current,
-                                driver: {
-                                  ...current.driver,
-                                  personalAccessTokenRef: `literal:${event.target.value}`,
-                                },
-                              }))
-                            }
-                            placeholder="Paste PAT token (demo only)"
-                          />
-                        </div>
-                      ) : null}
-                      {patSourceMode === "custom" ? (
-                        <div className="space-y-1">
-                          <Label htmlFor="driver-pat-custom-ref">Custom secret reference</Label>
-                          <Input
-                            id="driver-pat-custom-ref"
-                            value={patSourceValue}
-                            onChange={(event) =>
-                              setDraft((current) => ({
-                                ...current,
-                                driver: {
-                                  ...current.driver,
-                                  personalAccessTokenRef: event.target.value,
-                                },
-                              }))
-                            }
-                            placeholder="custom.secret.reference"
-                          />
-                        </div>
-                      ) : null}
+                      <p className="text-xs text-muted-foreground">
+                        MAPPO uses the backend secret reference{" "}
+                        <span className="font-mono text-foreground">{DEFAULT_ADO_PAT_SECRET_REF}</span>{" "}
+                        for Azure DevOps discovery and pipeline trigger calls.
+                      </p>
                     </div>
                   </>
                 ) : null}
@@ -1852,139 +1531,48 @@ export default function ProjectSettingsPage({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="access-auth-model">Authentication mode key (advanced)</Label>
-                    <FieldHelpTooltip content="Internal adapter key for authentication mode. Keep default unless implementing a custom integration." />
-                  </div>
-                  <Input
-                    id="access-auth-model"
-                    value={draft.access.authModel}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        access: { ...current.access, authModel: event.target.value },
-                      }))
-                    }
-                  />
+                <div className="md:col-span-2 rounded-md border border-border/70 bg-background/60 p-3 text-xs text-muted-foreground">
+                  <p>
+                    MAPPO sets internal auth flags from this access model automatically. You only need to provide
+                    extra identity values when using delegated models.
+                  </p>
                 </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="access-managing-tenant">Managing tenant ID (optional)</Label>
-                    <FieldHelpTooltip content="Tenant ID for the publisher/managing identity. Required for some delegated access models." />
-                  </div>
-                  <Input
-                    id="access-managing-tenant"
-                    value={draft.access.managingTenantId}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        access: { ...current.access, managingTenantId: event.target.value },
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="access-managing-principal">Managing principal client ID (optional)</Label>
-                    <FieldHelpTooltip content="Client/application ID of the managing principal used for delegated access patterns." />
-                  </div>
-                  <Input
-                    id="access-managing-principal"
-                    value={draft.access.managingPrincipalClientId}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        access: { ...current.access, managingPrincipalClientId: event.target.value },
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="access-service-connection">Default service connection name (optional)</Label>
-                    <FieldHelpTooltip content="Fallback service connection name for integrations that require one at access-strategy level." />
-                  </div>
-                  <Input
-                    id="access-service-connection"
-                    value={draft.access.azureServiceConnectionName}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        access: { ...current.access, azureServiceConnectionName: event.target.value },
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="access-requires-azure-creds">Requires Azure credential (advanced)</Label>
-                    <FieldHelpTooltip content="Enable only when this access model must supply an Azure credential from MAPPO runtime." />
-                  </div>
-                  <Select
-                    value={draft.access.requiresAzureCredential ? "true" : "false"}
-                    onValueChange={(value) =>
-                      setDraft((current) => ({
-                        ...current,
-                        access: { ...current.access, requiresAzureCredential: value === "true" },
-                      }))
-                    }
-                  >
-                    <SelectTrigger id="access-requires-azure-creds">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="true">Yes</SelectItem>
-                      <SelectItem value="false">No</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="access-requires-target-metadata">Requires target metadata (advanced)</Label>
-                    <FieldHelpTooltip content="Enable when deployment execution depends on per-target execution metadata from onboarding." />
-                  </div>
-                  <Select
-                    value={draft.access.requiresTargetExecutionMetadata ? "true" : "false"}
-                    onValueChange={(value) =>
-                      setDraft((current) => ({
-                        ...current,
-                        access: { ...current.access, requiresTargetExecutionMetadata: value === "true" },
-                      }))
-                    }
-                  >
-                    <SelectTrigger id="access-requires-target-metadata">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="true">Yes</SelectItem>
-                      <SelectItem value="false">No</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="access-requires-delegation">Requires delegation (advanced)</Label>
-                    <FieldHelpTooltip content="Enable for delegation models like Lighthouse where target-side delegation must exist before deploy." />
-                  </div>
-                  <Select
-                    value={draft.access.requiresDelegation ? "true" : "false"}
-                    onValueChange={(value) =>
-                      setDraft((current) => ({
-                        ...current,
-                        access: { ...current.access, requiresDelegation: value === "true" },
-                      }))
-                    }
-                  >
-                    <SelectTrigger id="access-requires-delegation">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="true">Yes</SelectItem>
-                      <SelectItem value="false">No</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {draft.accessStrategy === "lighthouse_delegated_access" ? (
+                  <>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="access-managing-tenant">Managing tenant ID (optional)</Label>
+                        <FieldHelpTooltip content="Publisher/managing tenant ID used for delegated access patterns." />
+                      </div>
+                      <Input
+                        id="access-managing-tenant"
+                        value={draft.access.managingTenantId}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            access: { ...current.access, managingTenantId: event.target.value },
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="access-managing-principal">Managing principal client ID (optional)</Label>
+                        <FieldHelpTooltip content="Client/application ID of the managing principal for delegated access." />
+                      </div>
+                      <Input
+                        id="access-managing-principal"
+                        value={draft.access.managingPrincipalClientId}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            access: { ...current.access, managingPrincipalClientId: event.target.value },
+                          }))
+                        }
+                      />
+                    </div>
+                  </>
+                ) : null}
               </div>
             </TabsContent>
 

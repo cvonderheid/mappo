@@ -217,6 +217,11 @@ Post-demo production-path planning and execution setup:
 - 2026-03-14: Completed Sprint 2 MVP for project setup UX by shipping a dedicated `/projects` screen with tabbed configuration sections (General, Release Ingest, Deployment Driver, Access & Identity, Target Contract, Runtime Health, Validation, Audit), sticky Save/Validate/Publish actions, Sonner notifications, inline validation, normalized payload preview, and create/patch/validate/audit API wiring.
 - 2026-03-19: Improved Project Settings operator usability for ADO/GitHub setup by adding linked release-ingest endpoint selection (dropdown + refresh + provider context), clearer release-ingest/deployment-driver guidance text, and auto-normalization of pasted Azure DevOps URL inputs.
 - 2026-03-19: Simplified Target Onboarding for `pipeline_trigger` projects by surfacing first-class fields for target resource group/app name/slot/health path and moving raw execution JSON to advanced optional usage; kept backward compatibility by still accepting legacy execution-config keys.
+- 2026-03-22: Completed an operator-field inventory (`docs/operator-field-inventory.md`) and removed legacy/internal project-config inputs from the UI path used in walkthroughs:
+  - removed operator-editable PAT source/literal controls (now backend-managed secret ref only),
+  - removed operator-editable webhook payload mapping internals for pipeline-trigger projects (source/path/version now internal defaults),
+  - simplified Access & Identity to strategy + delegated identity fields and moved internal auth flags to backend-derived config behavior,
+  - removed literal webhook-secret mode from Admin Release Ingest endpoint form in favor of plain secret-reference input + provider default.
 
 ## Milestones
 
