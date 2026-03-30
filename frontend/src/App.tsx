@@ -85,6 +85,7 @@ const DemoPanel = lazy(() => import("@/components/DemoPanel"));
 const DeploymentsPage = lazy(() => import("@/components/DeploymentsPage"));
 const FleetTable = lazy(() => import("@/components/FleetTable"));
 const ManagedAppPage = lazy(() => import("@/components/ManagedAppPage"));
+const ProviderConnectionsConfigPage = lazy(() => import("@/components/ProviderConnectionsConfigPage"));
 const ProjectSwitcherMenu = lazy(() => import("@/components/ProjectSwitcherMenu"));
 const ProjectSettingsPage = lazy(() => import("@/components/ProjectSettingsPage"));
 const ReleaseIngestConfigPage = lazy(() => import("@/components/ReleaseIngestConfigPage"));
@@ -124,6 +125,7 @@ const SIDEBAR_NAVIGATION: SidebarNavigationGroup[] = [
   {
     label: "Admin",
     items: [
+      { label: "Provider Connections", to: "/provider-connections" },
       { label: "Release Ingest", to: "/release-ingest" },
       { label: "Managed App", to: "/managed-app" },
     ],
@@ -209,6 +211,7 @@ function AppShell() {
       location.pathname === "/demo" ||
       location.pathname === "/onboarding" ||
       location.pathname === "/targets" ||
+      location.pathname === "/provider-connections" ||
       location.pathname === "/release-ingest" ||
       location.pathname === "/managed-app",
     [location.pathname]
@@ -216,6 +219,7 @@ function AppShell() {
   const isGlobalScopeRoute = useMemo(
     () =>
       location.pathname === "/release-ingest" ||
+      location.pathname === "/provider-connections" ||
       location.pathname === "/managed-app" ||
       location.pathname === "/demo",
     [location.pathname]
@@ -898,6 +902,10 @@ function AppShell() {
       items.push({ label: "Admin", to: "/release-ingest" }, { label: "Release Ingest" });
       return items;
     }
+    if (path.startsWith("/provider-connections")) {
+      items.push({ label: "Admin", to: "/provider-connections" }, { label: "Provider Connections" });
+      return items;
+    }
     if (path.startsWith("/targets")) {
       items.push({ label: "Project", to: "/targets" }, { label: "Targets" });
       return items;
@@ -1239,7 +1247,7 @@ function AppShell() {
     request: {
       organization?: string;
       project?: string;
-      personalAccessTokenRef?: string;
+      releaseIngestEndpointId?: string;
       nameContains?: string;
     }
   ): Promise<ProjectAdoPipelineDiscoveryResult> {
@@ -1251,7 +1259,7 @@ function AppShell() {
     request: {
       organization?: string;
       project?: string;
-      personalAccessTokenRef?: string;
+      releaseIngestEndpointId?: string;
       nameContains?: string;
     }
   ): Promise<ProjectAdoServiceConnectionDiscoveryResult> {
@@ -1427,6 +1435,10 @@ function AppShell() {
                     onDiscoverAdoServiceConnections={handleDiscoverProjectAdoServiceConnections}
                   />
                 }
+              />
+              <Route
+                path="/provider-connections"
+                element={<ProviderConnectionsConfigPage selectedProjectId={selectedProjectId} />}
               />
               <Route
                 path="/release-ingest"

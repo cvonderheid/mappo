@@ -1,9 +1,9 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import FieldHelpTooltip from "@/components/FieldHelpTooltip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import FieldHelpTooltip from "@/components/FieldHelpTooltip";
 import {
   Drawer,
   DrawerClose,
@@ -45,7 +45,6 @@ type EndpointDraft = {
   branchFilter: string;
   pipelineIdFilter: string;
   manifestPath: string;
-  sourceConfigText: string;
 };
 
 function emptyDraft(): EndpointDraft {
@@ -59,7 +58,6 @@ function emptyDraft(): EndpointDraft {
     branchFilter: "",
     pipelineIdFilter: "",
     manifestPath: "",
-    sourceConfigText: "{}",
   };
 }
 
@@ -67,18 +65,6 @@ function providerDefaultSecretRef(provider: ReleaseIngestProvider): string {
   return provider === "azure_devops"
     ? "mappo.azure-devops.webhook-secret"
     : "mappo.managed-app-release.webhook-secret";
-}
-
-function parseSourceConfig(text: string): Record<string, unknown> {
-  const normalized = text.trim();
-  if (normalized === "") {
-    return {};
-  }
-  const parsed = JSON.parse(normalized) as unknown;
-  if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
-    return parsed as Record<string, unknown>;
-  }
-  throw new Error("Source config must be a JSON object.");
 }
 
 function formatTimestamp(value: string | null | undefined): string {
@@ -112,7 +98,6 @@ function toDraft(endpoint: ReleaseIngestEndpoint): EndpointDraft {
     branchFilter: endpoint.branchFilter ?? "",
     pipelineIdFilter: endpoint.pipelineIdFilter ?? "",
     manifestPath: endpoint.manifestPath ?? "",
-    sourceConfigText: JSON.stringify(endpoint.sourceConfig ?? {}, null, 2),
   };
 }
 
@@ -153,13 +138,13 @@ export default function ReleaseIngestConfigPage({
   const isAzureDevOpsProvider = draft.provider === "azure_devops";
 
   const sortedEndpoints = useMemo(() => {
-    return [...endpoints].sort((a, b) => {
-      const aName = (a.name ?? "").toLowerCase();
-      const bName = (b.name ?? "").toLowerCase();
-      if (aName !== bName) {
-        return aName.localeCompare(bName);
+    return [...endpoints].sort((left, right) => {
+      const leftName = (left.name ?? "").toLowerCase();
+      const rightName = (right.name ?? "").toLowerCase();
+      if (leftName !== rightName) {
+        return leftName.localeCompare(rightName);
       }
-      return (a.id ?? "").localeCompare(b.id ?? "");
+      return (left.id ?? "").localeCompare(right.id ?? "");
     });
   }, [endpoints]);
 
@@ -178,16 +163,12 @@ export default function ReleaseIngestConfigPage({
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (draft.id.trim() === "" || draft.name.trim() === "") {
-      toast.error("Endpoint id and name are required.");
+      toast.error("Endpoint ID and name are required.");
       return;
     }
-    if (draft.secretRef.trim().toLowerCase().startsWith("literal:")) {
-      toast.error("Literal webhook secrets are not supported. Use a secret reference or leave blank for provider default.");
-      return;
-    }
+
     setIsSubmitting(true);
     try {
-      const sourceConfig = parseSourceConfig(draft.sourceConfigText);
       if (editingId) {
         const patchRequest: ReleaseIngestEndpointPatchRequest = {
           name: draft.name.trim(),
@@ -198,7 +179,6 @@ export default function ReleaseIngestConfigPage({
           branchFilter: draft.branchFilter.trim() || undefined,
           pipelineIdFilter: draft.pipelineIdFilter.trim() || undefined,
           manifestPath: draft.manifestPath.trim() || undefined,
-          sourceConfig,
         };
         await patchReleaseIngestEndpoint(editingId, patchRequest);
         toast.success(`Updated release ingest endpoint ${editingId}.`);
@@ -213,7 +193,6 @@ export default function ReleaseIngestConfigPage({
           branchFilter: draft.branchFilter.trim() || undefined,
           pipelineIdFilter: draft.pipelineIdFilter.trim() || undefined,
           manifestPath: draft.manifestPath.trim() || undefined,
-          sourceConfig,
         };
         await createReleaseIngestEndpoint(createRequest);
         toast.success(`Created release ingest endpoint ${draft.id.trim()}.`);
@@ -233,7 +212,7 @@ export default function ReleaseIngestConfigPage({
       return;
     }
     const confirmed = window.confirm(
-      `Delete release ingest endpoint ${endpointId}? This will fail if projects are still linked.`
+      `Delete release ingest endpoint ${endpointId}? This fails if projects are still linked.`
     );
     if (!confirmed) {
       return;
@@ -266,7 +245,7 @@ export default function ReleaseIngestConfigPage({
     <div className="space-y-4">
       <div className="flex animate-fade-up items-center justify-between [animation-delay:60ms] [animation-fill-mode:forwards]">
         <p className="text-xs text-muted-foreground">
-          Configure release webhook providers, auth references, and routing filters.
+          Configure global release ingest endpoints and webhook routing for linked projects.
         </p>
         <div className="flex items-center gap-2">
           <Button type="button" variant="outline" onClick={() => void loadEndpoints(true)}>
@@ -296,9 +275,7 @@ export default function ReleaseIngestConfigPage({
             <p className="text-sm text-muted-foreground">Loading release ingest endpoints...</p>
           ) : null}
           {!isLoading && sortedEndpoints.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No release ingest endpoints configured yet.
-            </p>
+            <p className="text-sm text-muted-foreground">No release ingest endpoints configured yet.</p>
           ) : null}
           {sortedEndpoints.map((endpoint) => {
             const endpointId = endpoint.id ?? "";
@@ -306,7 +283,7 @@ export default function ReleaseIngestConfigPage({
             const webhookUrl = `${apiBaseUrl.replace(/\/+$/, "")}${webhookPathFor(endpointId, provider)}`;
             const linkedProjects = endpoint.linkedProjects ?? [];
             const selectedProjectLinked = linkedProjects.some(
-              (project) => (project.projectId ?? "") === selectedProjectId
+              (linked) => (linked.projectId ?? "") === selectedProjectId
             );
             return (
               <div key={endpointId || endpoint.name} className="rounded-md border border-border/70 bg-card/70 p-3">
@@ -332,12 +309,28 @@ export default function ReleaseIngestConfigPage({
                 </div>
 
                 <div className="mt-3 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
-                  <p>Secret ref: <span className="font-mono text-foreground">{endpoint.secretRef || "default"}</span></p>
-                  <p>Manifest path: <span className="font-mono text-foreground">{endpoint.manifestPath || "default"}</span></p>
-                  <p>Repo filter: <span className="font-mono text-foreground">{endpoint.repoFilter || "none"}</span></p>
-                  <p>Branch filter: <span className="font-mono text-foreground">{endpoint.branchFilter || "none"}</span></p>
-                  <p>Pipeline filter: <span className="font-mono text-foreground">{endpoint.pipelineIdFilter || "none"}</span></p>
-                  <p>Updated: <span className="text-foreground">{formatTimestamp(endpoint.updatedAt)}</span></p>
+                  <p>
+                    Webhook secret ref:{" "}
+                    <span className="font-mono text-foreground">
+                      {endpoint.secretRef || providerDefaultSecretRef(provider)}
+                    </span>
+                  </p>
+                  <p>
+                    Manifest path: <span className="font-mono text-foreground">{endpoint.manifestPath || "default"}</span>
+                  </p>
+                  <p>
+                    Repo filter: <span className="font-mono text-foreground">{endpoint.repoFilter || "none"}</span>
+                  </p>
+                  <p>
+                    Branch filter: <span className="font-mono text-foreground">{endpoint.branchFilter || "none"}</span>
+                  </p>
+                  <p>
+                    Pipeline filter:{" "}
+                    <span className="font-mono text-foreground">{endpoint.pipelineIdFilter || "none"}</span>
+                  </p>
+                  <p>
+                    Updated: <span className="text-foreground">{formatTimestamp(endpoint.updatedAt)}</span>
+                  </p>
                 </div>
 
                 <div className="mt-2 rounded-md border border-border/60 bg-background/50 p-2">
@@ -351,19 +344,19 @@ export default function ReleaseIngestConfigPage({
                     {linkedProjects.length === 0 ? (
                       <span className="text-xs text-muted-foreground">No linked projects</span>
                     ) : (
-                      linkedProjects.map((project) => {
-                        const projectId = project.projectId ?? "";
-                        const isSelected = projectId === selectedProjectId;
+                      linkedProjects.map((linked) => {
+                        const linkedProjectId = linked.projectId ?? "";
+                        const isSelected = linkedProjectId === selectedProjectId;
                         return (
                           <span
-                            key={`${endpointId}-${projectId}`}
+                            key={`${endpointId}-${linkedProjectId}`}
                             className={`rounded-full border px-2 py-0.5 text-[11px] ${
                               isSelected
                                 ? "border-primary/60 bg-primary/15 text-primary"
                                 : "border-border/60 bg-background/50 text-muted-foreground"
                             }`}
                           >
-                            {project.projectName || projectId}
+                            {linked.projectName || linkedProjectId}
                           </span>
                         );
                       })
@@ -401,15 +394,19 @@ export default function ReleaseIngestConfigPage({
           <DrawerHeader>
             <DrawerTitle>{editingId ? `Edit ${editingId}` : "New release ingest endpoint"}</DrawerTitle>
             <DrawerDescription>
-              Configure provider settings and webhook routing for release ingest.
+              Configure provider routing and webhook authentication for release ingest.
             </DrawerDescription>
           </DrawerHeader>
-          <form id="release-ingest-endpoint-form" onSubmit={(event) => void handleSubmit(event)} className="space-y-3 px-4 pb-4">
+          <form
+            id="release-ingest-endpoint-form"
+            onSubmit={(event) => void handleSubmit(event)}
+            className="space-y-3 px-4 pb-4"
+          >
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
                   <Label htmlFor="endpoint-id">Endpoint ID</Label>
-                  <FieldHelpTooltip content="Stable unique key used in webhook URL paths. Use lowercase letters, numbers, and hyphens." />
+                  <FieldHelpTooltip content="Stable key used in webhook URL paths. Use lowercase letters, numbers, and hyphens." />
                 </div>
                 <Input
                   id="endpoint-id"
@@ -422,7 +419,7 @@ export default function ReleaseIngestConfigPage({
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
                   <Label htmlFor="endpoint-name">Name</Label>
-                  <FieldHelpTooltip content="Human-readable display name shown in the Release Ingest list." />
+                  <FieldHelpTooltip content="Display name shown in the Admin > Release Ingest list." />
                 </div>
                 <Input
                   id="endpoint-name"
@@ -437,23 +434,12 @@ export default function ReleaseIngestConfigPage({
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
                   <Label htmlFor="endpoint-provider">Provider</Label>
-                  <FieldHelpTooltip content="Webhook sender. Choose GitHub for GitHub webhooks, Azure DevOps for ADO service hooks." />
+                  <FieldHelpTooltip content="Webhook sender for this endpoint." />
                 </div>
                 <Select
                   value={draft.provider}
                   onValueChange={(value) =>
-                    setDraft((current) => {
-                      const nextProvider = value as ReleaseIngestProvider;
-                      const currentDefault = providerDefaultSecretRef(current.provider);
-                      const shouldResetToProviderDefault =
-                        current.secretRef.trim() === "" ||
-                        current.secretRef.trim() === currentDefault;
-                      return {
-                        ...current,
-                        provider: nextProvider,
-                        secretRef: shouldResetToProviderDefault ? "" : current.secretRef,
-                      };
-                    })
+                    setDraft((current) => ({ ...current, provider: value as ReleaseIngestProvider }))
                   }
                 >
                   <SelectTrigger id="endpoint-provider" className="h-10 w-full bg-background/90 text-sm">
@@ -468,7 +454,7 @@ export default function ReleaseIngestConfigPage({
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
                   <Label htmlFor="endpoint-enabled">Enabled</Label>
-                  <FieldHelpTooltip content="Disabled endpoints ignore incoming webhook calls and do not ingest releases." />
+                  <FieldHelpTooltip content="Disabled endpoints ignore inbound webhook calls." />
                 </div>
                 <Select
                   value={draft.enabled ? "true" : "false"}
@@ -485,55 +471,50 @@ export default function ReleaseIngestConfigPage({
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
-                  <Label htmlFor="endpoint-secret-ref">Webhook secret reference (optional)</Label>
-                  <FieldHelpTooltip content="Secret reference used to validate webhook signatures. Leave blank to use provider default." />
+                  <Label htmlFor="endpoint-secret-ref">Webhook secret reference</Label>
+                  <FieldHelpTooltip content="Secret reference used for webhook signature validation. Leave blank to use provider default." />
                 </div>
                 <Input
                   id="endpoint-secret-ref"
                   value={draft.secretRef}
-                  onChange={(event) => setDraft((current) => ({ ...current, secretRef: event.target.value }))}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, secretRef: event.target.value }))
+                  }
                   placeholder={providerDefaultSecretRef(draft.provider)}
                 />
-                <p className="rounded-md border border-border/60 bg-background/50 px-2 py-1 text-xs text-muted-foreground">
-                  Default for {draft.provider === "azure_devops" ? "Azure DevOps" : "GitHub"}:{" "}
-                  <span className="font-mono text-[11px] text-foreground">
-                    {providerDefaultSecretRef(draft.provider)}
-                  </span>
-                  .
-                </p>
               </div>
             </div>
 
             <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
-                  <Label htmlFor="endpoint-repo-filter">Repo Filter (GitHub only, optional)</Label>
-                  <FieldHelpTooltip content="Optional repo gate for GitHub payloads (example: owner/repo). Leave empty to accept any repo." />
+                  <Label htmlFor="endpoint-repo-filter">Repo filter</Label>
+                  <FieldHelpTooltip content="Optional repository gate. For GitHub, use owner/repo. Leave blank to accept any repo." />
                 </div>
                 <Input
                   id="endpoint-repo-filter"
                   value={draft.repoFilter}
                   onChange={(event) => setDraft((current) => ({ ...current, repoFilter: event.target.value }))}
-                  placeholder="Optional (e.g. org/repo)"
+                  placeholder="Optional (for example org/repo)"
                   disabled={isAzureDevOpsProvider}
                 />
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
-                  <Label htmlFor="endpoint-branch-filter">Branch Filter (optional)</Label>
-                  <FieldHelpTooltip content="Optional branch gate (example: main). Leave empty to accept any branch." />
+                  <Label htmlFor="endpoint-branch-filter">Branch filter</Label>
+                  <FieldHelpTooltip content="Optional branch gate (for example main). Leave blank to accept any branch." />
                 </div>
                 <Input
                   id="endpoint-branch-filter"
                   value={draft.branchFilter}
                   onChange={(event) => setDraft((current) => ({ ...current, branchFilter: event.target.value }))}
-                  placeholder="Optional (e.g. main)"
+                  placeholder="Optional (for example main)"
                 />
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
-                  <Label htmlFor="endpoint-pipeline-filter">Pipeline Filter (ADO only, optional)</Label>
-                  <FieldHelpTooltip content="Optional Azure DevOps pipeline id filter. Leave empty to accept any pipeline in this endpoint." />
+                  <Label htmlFor="endpoint-pipeline-filter">Pipeline filter</Label>
+                  <FieldHelpTooltip content="Optional Azure DevOps pipeline ID gate. Leave blank to accept any pipeline event." />
                 </div>
                 <Input
                   id="endpoint-pipeline-filter"
@@ -541,7 +522,7 @@ export default function ReleaseIngestConfigPage({
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, pipelineIdFilter: event.target.value }))
                   }
-                  placeholder="Optional (e.g. 1)"
+                  placeholder="Optional (for example 1)"
                   disabled={!isAzureDevOpsProvider}
                 />
               </div>
@@ -549,28 +530,15 @@ export default function ReleaseIngestConfigPage({
 
             <div className="space-y-1.5">
               <div className="flex items-center gap-1">
-                <Label htmlFor="endpoint-manifest-path">Manifest Path (GitHub only, optional)</Label>
-                <FieldHelpTooltip content="Optional manifest path constraint for GitHub release ingest. Leave empty unless you need strict path filtering." />
+                <Label htmlFor="endpoint-manifest-path">Manifest path</Label>
+                <FieldHelpTooltip content="Optional release manifest path for GitHub payloads. Leave blank to use provider default." />
               </div>
               <Input
                 id="endpoint-manifest-path"
                 value={draft.manifestPath}
                 onChange={(event) => setDraft((current) => ({ ...current, manifestPath: event.target.value }))}
-                placeholder="Optional (e.g. releases/releases.manifest.json)"
+                placeholder="Optional (for example releases/releases.manifest.json)"
                 disabled={isAzureDevOpsProvider}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1">
-                <Label htmlFor="endpoint-source-config">Source Config (JSON object)</Label>
-                <FieldHelpTooltip content="Optional provider-specific advanced settings as a JSON object. Use {} when not needed." />
-              </div>
-              <textarea
-                id="endpoint-source-config"
-                value={draft.sourceConfigText}
-                onChange={(event) => setDraft((current) => ({ ...current, sourceConfigText: event.target.value }))}
-                className="min-h-32 w-full rounded-md border border-border/70 bg-background/90 p-2 font-mono text-xs text-foreground outline-none ring-offset-background transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               />
             </div>
           </form>

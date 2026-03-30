@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 public record ProjectAdoPipelineDiscoveryRequest(
     String organization,
     String project,
-    String personalAccessTokenRef,
+    String providerConnectionId,
     String nameContains
 ) {
 }

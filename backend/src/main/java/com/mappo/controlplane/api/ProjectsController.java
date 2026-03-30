@@ -88,7 +88,7 @@ public class ProjectsController {
     @PostMapping("/{projectId}/deployment-driver/ado/pipelines/discover")
     @Operation(
         summary = "Discover Azure DevOps pipelines",
-        description = "Discovers Azure DevOps pipelines for the selected project using organization/project/PAT from request overrides or persisted project deployment-driver config."
+        description = "Discovers Azure DevOps pipelines for the selected project using organization/project from request or project config, and Azure DevOps credentials from the linked provider connection."
     )
     public ProjectAdoPipelineDiscoveryResultRecord discoverProjectAdoPipelines(
         @PathVariable("projectId") String projectId,
@@ -100,7 +100,7 @@ public class ProjectsController {
     @PostMapping("/{projectId}/deployment-driver/ado/service-connections/discover")
     @Operation(
         summary = "Discover Azure DevOps service connections",
-        description = "Discovers Azure DevOps service connections for the selected project using organization/project/PAT from request overrides or persisted project deployment-driver config."
+        description = "Discovers Azure DevOps service connections for the selected project using organization/project from request or project config, and Azure DevOps credentials from the linked provider connection."
     )
     public ProjectAdoServiceConnectionDiscoveryResultRecord discoverProjectAdoServiceConnections(
         @PathVariable("projectId") String projectId,

@@ -5,8 +5,6 @@ import com.mappo.controlplane.api.request.ReleaseIngestEndpointCreateRequest;
 import com.mappo.controlplane.api.request.ReleaseIngestEndpointPatchRequest;
 import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;
 import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -21,7 +19,6 @@ public class ReleaseIngestEndpointMutationService {
         String name = requiredName(request.name());
         ReleaseIngestProviderType provider = requiredProvider(request.provider());
         boolean enabled = request.enabled() == null || Boolean.TRUE.equals(request.enabled());
-        Map<String, Object> sourceConfig = normalizedConfig(request.sourceConfig());
         String secretRef = normalize(request.secretRef());
         String repoFilter = normalize(request.repoFilter());
         String branchFilter = normalize(request.branchFilter());
@@ -36,8 +33,7 @@ public class ReleaseIngestEndpointMutationService {
             repoFilter,
             branchFilter,
             pipelineIdFilter,
-            manifestPath,
-            sourceConfig
+            manifestPath
         );
     }
 
@@ -64,10 +60,6 @@ public class ReleaseIngestEndpointMutationService {
         String manifestPath = patch.manifestPath() == null
             ? normalizeManifestPath(current.manifestPath(), provider)
             : normalizeManifestPath(patch.manifestPath(), provider);
-
-        Map<String, Object> sourceConfig = patch.sourceConfig() == null
-            ? normalizedConfig(current.sourceConfig())
-            : normalizedConfig(patch.sourceConfig());
         return new ReleaseIngestEndpointMutationRecord(
             id,
             requiredName(name),
@@ -77,8 +69,7 @@ public class ReleaseIngestEndpointMutationService {
             repoFilter,
             branchFilter,
             pipelineIdFilter,
-            manifestPath,
-            sourceConfig
+            manifestPath
         );
     }
 
@@ -92,8 +83,7 @@ public class ReleaseIngestEndpointMutationService {
             normalize(endpoint.repoFilter()),
             normalize(endpoint.branchFilter()),
             normalize(endpoint.pipelineIdFilter()),
-            normalizeManifestPath(endpoint.manifestPath(), endpoint.provider()),
-            normalizedConfig(endpoint.sourceConfig())
+            normalizeManifestPath(endpoint.manifestPath(), endpoint.provider())
         );
     }
 
@@ -121,20 +111,6 @@ public class ReleaseIngestEndpointMutationService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "release ingest endpoint provider is required");
         }
         return value;
-    }
-
-    private Map<String, Object> normalizedConfig(Map<String, Object> value) {
-        if (value == null || value.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, Object> normalized = new LinkedHashMap<>();
-        value.forEach((key, itemValue) -> {
-            String normalizedKey = normalize(key);
-            if (!normalizedKey.isBlank() && itemValue != null) {
-                normalized.put(normalizedKey, itemValue);
-            }
-        });
-        return normalized;
     }
 
     private String normalizeManifestPath(String value, ReleaseIngestProviderType provider) {

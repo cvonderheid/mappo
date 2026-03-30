@@ -28,9 +28,15 @@ export type MarketplaceEventIngestResponse = Schemas["EventIngestResultRecord"];
 export type MarketplaceEventRecord = Schemas["MarketplaceEventRecord"];
 export type MarketplaceEventPage = Schemas["MarketplaceEventPageRecord"];
 export type MarketplaceEventStatus = NonNullable<Schemas["MarketplaceEventRecord"]["status"]>;
-export type ProjectDefinition = Schemas["ProjectDefinition"];
-export type ProjectCreateRequest = Schemas["ProjectCreateRequest"];
-export type ProjectConfigurationPatchRequest = Schemas["ProjectConfigurationPatchRequest"];
+export type ProjectDefinition = Schemas["ProjectDefinition"] & {
+  providerConnectionId?: string;
+};
+export type ProjectCreateRequest = Schemas["ProjectCreateRequest"] & {
+  providerConnectionId?: string;
+};
+export type ProjectConfigurationPatchRequest = Schemas["ProjectConfigurationPatchRequest"] & {
+  providerConnectionId?: string;
+};
 export type ProjectConfigurationAuditAction =
   NonNullable<Schemas["ProjectConfigurationAuditRecord"]["action"]>;
 export type ProjectConfigurationAuditRecord = Schemas["ProjectConfigurationAuditRecord"];
@@ -41,13 +47,13 @@ export type ProjectValidationFinding = Schemas["ProjectValidationFindingRecord"]
 export type DiscoverProjectAdoPipelinesRequest = {
   organization?: string;
   project?: string;
-  personalAccessTokenRef?: string;
+  providerConnectionId?: string;
   nameContains?: string;
 };
 export type DiscoverProjectAdoServiceConnectionsRequest = {
   organization?: string;
   project?: string;
-  personalAccessTokenRef?: string;
+  providerConnectionId?: string;
   nameContains?: string;
 };
 export type ProjectAdoPipeline = {
@@ -78,6 +84,38 @@ export type Release = Schemas["ReleaseRecord"];
 export type ReleaseIngestEndpoint = Schemas["ReleaseIngestEndpointRecord"];
 export type ReleaseIngestEndpointCreateRequest = Schemas["ReleaseIngestEndpointCreateRequest"];
 export type ReleaseIngestEndpointPatchRequest = Schemas["ReleaseIngestEndpointPatchRequest"];
+export type ProviderConnectionProvider = "azure_devops";
+export type ProviderConnectionLinkedProject = {
+  projectId?: string;
+  projectName?: string;
+  projectDisplayName?: string;
+};
+export type ProviderConnection = {
+  id?: string;
+  name?: string;
+  provider?: ProviderConnectionProvider;
+  enabled?: boolean;
+  organizationFilter?: string;
+  personalAccessTokenRef?: string;
+  linkedProjects?: ProviderConnectionLinkedProject[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+export type ProviderConnectionCreateRequest = {
+  id: string;
+  name: string;
+  provider: ProviderConnectionProvider;
+  enabled?: boolean;
+  organizationFilter?: string;
+  personalAccessTokenRef?: string;
+};
+export type ProviderConnectionPatchRequest = {
+  name?: string;
+  provider?: ProviderConnectionProvider;
+  enabled?: boolean;
+  organizationFilter?: string;
+  personalAccessTokenRef?: string;
+};
 export type ReleaseWebhookDeliveryRecord = Schemas["ReleaseWebhookDeliveryRecord"];
 export type ReleaseWebhookDeliveryPage = Schemas["ReleaseWebhookDeliveryPageRecord"];
 export type ReleaseWebhookStatus = NonNullable<Schemas["ReleaseWebhookDeliveryRecord"]["status"]>;

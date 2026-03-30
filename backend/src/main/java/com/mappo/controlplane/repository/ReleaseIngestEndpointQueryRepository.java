@@ -7,7 +7,6 @@ import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;
 import com.mappo.controlplane.jooq.enums.MappoReleaseIngestProvider;
 import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
 import com.mappo.controlplane.model.ReleaseIngestLinkedProjectRecord;
-import com.mappo.controlplane.util.JsonUtil;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,7 +22,6 @@ import org.springframework.stereotype.Repository;
 public class ReleaseIngestEndpointQueryRepository {
 
     private final DSLContext dsl;
-    private final JsonUtil jsonUtil;
 
     public List<ReleaseIngestEndpointRecord> listEndpoints() {
         var rows = dsl.select(
@@ -36,7 +34,6 @@ public class ReleaseIngestEndpointQueryRepository {
                 RELEASE_INGEST_ENDPOINTS.BRANCH_FILTER,
                 RELEASE_INGEST_ENDPOINTS.PIPELINE_ID_FILTER,
                 RELEASE_INGEST_ENDPOINTS.MANIFEST_PATH,
-                RELEASE_INGEST_ENDPOINTS.SOURCE_CONFIG,
                 RELEASE_INGEST_ENDPOINTS.CREATED_AT,
                 RELEASE_INGEST_ENDPOINTS.UPDATED_AT
             )
@@ -70,7 +67,6 @@ public class ReleaseIngestEndpointQueryRepository {
                 RELEASE_INGEST_ENDPOINTS.BRANCH_FILTER,
                 RELEASE_INGEST_ENDPOINTS.PIPELINE_ID_FILTER,
                 RELEASE_INGEST_ENDPOINTS.MANIFEST_PATH,
-                RELEASE_INGEST_ENDPOINTS.SOURCE_CONFIG,
                 RELEASE_INGEST_ENDPOINTS.CREATED_AT,
                 RELEASE_INGEST_ENDPOINTS.UPDATED_AT
             )
@@ -159,7 +155,6 @@ public class ReleaseIngestEndpointQueryRepository {
             row.get(RELEASE_INGEST_ENDPOINTS.BRANCH_FILTER),
             row.get(RELEASE_INGEST_ENDPOINTS.PIPELINE_ID_FILTER),
             row.get(RELEASE_INGEST_ENDPOINTS.MANIFEST_PATH),
-            jsonUtil.toMap(row.get(RELEASE_INGEST_ENDPOINTS.SOURCE_CONFIG).data()),
             linkedProjects,
             row.get(RELEASE_INGEST_ENDPOINTS.CREATED_AT),
             row.get(RELEASE_INGEST_ENDPOINTS.UPDATED_AT)

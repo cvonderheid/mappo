@@ -11,6 +11,7 @@ import java.util.Map;
 public record ProjectConfigurationPatchRequest(
     String name,
     String releaseIngestEndpointId,
+    String providerConnectionId,
     ProjectAccessStrategyType accessStrategy,
     Map<String, Object> accessStrategyConfig,
     ProjectDeploymentDriverType deploymentDriver,

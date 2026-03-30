@@ -21,7 +21,7 @@ Owner: MAPPO UI/UX cleanup pass
 | Field | Classification | Decision |
 |---|---|---|
 | Release source | required | Keep; auto-locked to `Webhook / Pipeline Event` for `Pipeline Trigger` driver. |
-| Linked release ingest endpoint | optional (strongly recommended) | Keep; selects provider/auth/routing from global endpoint config. |
+| Linked release ingest endpoint | required (pipeline trigger) | Keep; selects provider/auth/routing from global endpoint config and is the only PAT source for Azure DevOps discovery/trigger. |
 | Template URI field (blob source) | optional/advanced | Keep for blob template projects only. |
 | Incoming release event type | auto/internal | Removed from operator input. |
 | Release event provider (auto-derived) | auto/internal | Removed from operator input. |
@@ -44,7 +44,7 @@ Owner: MAPPO UI/UX cleanup pass
 | Azure service connection | required (pipeline trigger) | Keep; can be selected from discovery. |
 | PAT source mode selector | legacy/remove | Removed from operator input. |
 | PAT literal value input | legacy/remove | Removed from operator input. |
-| `personalAccessTokenRef` wiring | auto/internal | Fixed to backend-managed secret ref: `mappo.azure-devops.personal-access-token`. |
+| Provider API secret reference wiring | auto/internal | Fixed to backend-managed secret ref on the linked Azure DevOps release-ingest endpoint: `mappo.azure-devops.personal-access-token`. |
 
 ### Access & Identity
 | Field | Classification | Decision |

@@ -1,7 +1,6 @@
 package com.mappo.controlplane;
 
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasItems;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -32,7 +31,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+    "mappo.azure-devops.personal-access-token=test-pat"
+})
 class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBase {
 
     @Autowired
@@ -92,7 +93,7 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
     }
 
     @Test
-    void validateAdoProjectDetectsMissingPatAndWebhookSecretWhenConfigExists() throws Exception {
+    void validateAdoProjectDetectsMissingWebhookSecretWhenConfigExists() throws Exception {
         mockMvc.perform(post("/api/v1/projects/{projectId}/validate", "azure-appservice-ado-pipeline")
                 .contentType(APPLICATION_JSON)
                 .content("""
@@ -102,10 +103,7 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.valid").value(false))
-            .andExpect(jsonPath("$.findings[*].code", hasItems(
-                "AZURE_DEVOPS_PAT_MISSING",
-                "AZURE_DEVOPS_WEBHOOK_SECRET_MISSING"
-            )));
+            .andExpect(jsonPath("$.findings[*].code", hasItem("AZURE_DEVOPS_WEBHOOK_SECRET_MISSING")));
     }
 
     @Test
@@ -144,7 +142,7 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                     {
                       "organization": "https://dev.azure.com/pg123",
                       "project": "demo-app-service",
-                      "personalAccessTokenRef": "literal:test"
+                      "providerConnectionId": "ado-default"
                     }
                     """))
             .andExpect(status().isOk())
@@ -163,7 +161,7 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                     {
                       "organization": "https://dev.azure.com/pg123",
                       "project": "demo-app-service",
-                      "personalAccessTokenRef": "literal:test"
+                      "providerConnectionId": "ado-default"
                     }
                     """))
             .andExpect(status().isOk())
@@ -172,6 +170,20 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
             .andExpect(jsonPath("$.project").value("demo-app-service"))
             .andExpect(jsonPath("$.serviceConnections[0].id").value("svc-1"))
             .andExpect(jsonPath("$.serviceConnections[0].name").value("mappo-ado-demo-rg-contributor"));
+    }
+
+    @Test
+    void patchProviderConnectionPersistsPersonalAccessTokenRef() throws Exception {
+        mockMvc.perform(patch("/api/v1/provider-connections/{connectionId}", "ado-default")
+                .contentType(APPLICATION_JSON)
+                .content("""
+                    {
+                      "personalAccessTokenRef": "mappo.azure-devops.personal-access-token"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value("ado-default"))
+            .andExpect(jsonPath("$.personalAccessTokenRef").value("mappo.azure-devops.personal-access-token"));
     }
 
     @TestConfiguration

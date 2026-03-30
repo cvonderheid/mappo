@@ -14,6 +14,9 @@ import com.mappo.controlplane.model.ProjectAdoPipelineDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProjectAdoPipelineRecord;
 import com.mappo.controlplane.model.ProjectAdoServiceConnectionDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProjectAdoServiceConnectionRecord;
+import com.mappo.controlplane.model.ProviderConnectionRecord;
+import com.mappo.controlplane.service.providerconnection.ProviderConnectionCatalogService;
+import com.mappo.controlplane.service.providerconnection.ProviderConnectionSecretResolver;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -25,13 +28,19 @@ public class ProjectDeploymentDriverDiscoveryService {
 
     private final ProjectCatalogService projectCatalogService;
     private final AzureDevOpsPipelineDiscoveryService pipelineDiscoveryService;
+    private final ProviderConnectionCatalogService providerConnectionCatalogService;
+    private final ProviderConnectionSecretResolver providerConnectionSecretResolver;
 
     public ProjectDeploymentDriverDiscoveryService(
         ProjectCatalogService projectCatalogService,
-        AzureDevOpsPipelineDiscoveryService pipelineDiscoveryService
+        AzureDevOpsPipelineDiscoveryService pipelineDiscoveryService,
+        ProviderConnectionCatalogService providerConnectionCatalogService,
+        ProviderConnectionSecretResolver providerConnectionSecretResolver
     ) {
         this.projectCatalogService = projectCatalogService;
         this.pipelineDiscoveryService = pipelineDiscoveryService;
+        this.providerConnectionCatalogService = providerConnectionCatalogService;
+        this.providerConnectionSecretResolver = providerConnectionSecretResolver;
     }
 
     public ProjectAdoPipelineDiscoveryResultRecord discoverAdoPipelines(
@@ -69,9 +78,9 @@ public class ProjectDeploymentDriverDiscoveryService {
             request == null ? null : request.project(),
             config.project()
         );
-        String tokenReference = firstNonBlank(
-            request == null ? null : request.personalAccessTokenRef(),
-            config.personalAccessTokenRef()
+        String personalAccessToken = resolveAdoPersonalAccessToken(
+            definition,
+            request == null ? null : request.providerConnectionId()
         );
         String nameContains = normalize(request == null ? null : request.nameContains());
 
@@ -84,7 +93,7 @@ public class ProjectDeploymentDriverDiscoveryService {
 
         try {
             List<ProjectAdoPipelineRecord> pipelines = pipelineDiscoveryService
-                .discoverPipelines(organization, adoProject, tokenReference)
+                .discoverPipelines(organization, adoProject, personalAccessToken)
                 .stream()
                 .filter(pipeline -> nameContains.isBlank()
                     || normalize(pipeline.name()).toLowerCase(Locale.ROOT).contains(nameContains.toLowerCase(Locale.ROOT)))
@@ -129,9 +138,9 @@ public class ProjectDeploymentDriverDiscoveryService {
             request == null ? null : request.project(),
             config.project()
         );
-        String tokenReference = firstNonBlank(
-            request == null ? null : request.personalAccessTokenRef(),
-            config.personalAccessTokenRef()
+        String personalAccessToken = resolveAdoPersonalAccessToken(
+            definition,
+            request == null ? null : request.providerConnectionId()
         );
         String nameContains = normalize(request == null ? null : request.nameContains());
 
@@ -144,7 +153,7 @@ public class ProjectDeploymentDriverDiscoveryService {
 
         try {
             List<ProjectAdoServiceConnectionRecord> serviceConnections = pipelineDiscoveryService
-                .discoverServiceConnections(organization, adoProject, tokenReference)
+                .discoverServiceConnections(organization, adoProject, personalAccessToken)
                 .stream()
                 .filter(connection -> nameContains.isBlank()
                     || normalize(connection.name()).toLowerCase(Locale.ROOT).contains(nameContains.toLowerCase(Locale.ROOT)))
@@ -197,6 +206,31 @@ public class ProjectDeploymentDriverDiscoveryService {
             );
         }
         return config;
+    }
+
+    private String resolveAdoPersonalAccessToken(ProjectDefinition definition, String requestProviderConnectionId) {
+        String providerConnectionId = firstNonBlank(requestProviderConnectionId, definition.providerConnectionId());
+        if (providerConnectionId.isBlank()) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "Azure DevOps discovery requires a linked provider connection with a PAT reference."
+            );
+        }
+        ProviderConnectionRecord connection = providerConnectionCatalogService.getRequired(providerConnectionId);
+        if (connection.provider() == null || !"azure_devops".equalsIgnoreCase(connection.provider().name())) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "Provider connection " + providerConnectionId + " is not an Azure DevOps connection."
+            );
+        }
+        String token = normalize(providerConnectionSecretResolver.resolvePersonalAccessToken(connection));
+        if (token.isBlank()) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "Azure DevOps PAT could not be resolved from provider connection " + providerConnectionId + "."
+            );
+        }
+        return token;
     }
 
     private String firstNonBlank(String... values) {

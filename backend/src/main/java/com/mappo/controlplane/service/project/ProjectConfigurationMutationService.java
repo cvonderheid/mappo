@@ -41,6 +41,7 @@ public class ProjectConfigurationMutationService {
         String id = requiredProjectId(request.id());
         String name = requiredName(request.name());
         String releaseIngestEndpointId = optionalIdentifier(request.releaseIngestEndpointId());
+        String providerConnectionId = optionalIdentifier(request.providerConnectionId());
         ProjectAccessStrategyType accessStrategy = required(request.accessStrategy(), "accessStrategy");
         ProjectDeploymentDriverType deploymentDriver = required(request.deploymentDriver(), "deploymentDriver");
         ProjectReleaseArtifactSourceType releaseArtifactSource = required(request.releaseArtifactSource(), "releaseArtifactSource");
@@ -61,6 +62,7 @@ public class ProjectConfigurationMutationService {
             id,
             name,
             releaseIngestEndpointId,
+            providerConnectionId,
             accessStrategy,
             accessConfig,
             deploymentDriver,
@@ -85,6 +87,9 @@ public class ProjectConfigurationMutationService {
         String releaseIngestEndpointId = patchRequest.releaseIngestEndpointId() == null
             ? optionalIdentifier(current.releaseIngestEndpointId())
             : optionalIdentifier(patchRequest.releaseIngestEndpointId());
+        String providerConnectionId = patchRequest.providerConnectionId() == null
+            ? optionalIdentifier(current.providerConnectionId())
+            : optionalIdentifier(patchRequest.providerConnectionId());
 
         ProjectAccessStrategyType accessStrategy = patchRequest.accessStrategy() == null
             ? current.accessStrategy()
@@ -134,6 +139,7 @@ public class ProjectConfigurationMutationService {
             id,
             name,
             releaseIngestEndpointId,
+            providerConnectionId,
             accessStrategy,
             accessConfig,
             deploymentDriver,
@@ -154,6 +160,7 @@ public class ProjectConfigurationMutationService {
         snapshot.put("id", normalize(mutation.id()));
         snapshot.put("name", normalize(mutation.name()));
         snapshot.put("releaseIngestEndpointId", optionalIdentifier(mutation.releaseIngestEndpointId()));
+        snapshot.put("providerConnectionId", optionalIdentifier(mutation.providerConnectionId()));
         snapshot.put("accessStrategy", mutation.accessStrategy());
         snapshot.put("accessStrategyConfig", mutation.accessStrategyConfig() == null ? Map.of() : mutation.accessStrategyConfig());
         snapshot.put("deploymentDriver", mutation.deploymentDriver());
@@ -170,6 +177,7 @@ public class ProjectConfigurationMutationService {
             requiredProjectId(project.id()),
             requiredName(project.name()),
             optionalIdentifier(project.releaseIngestEndpointId()),
+            optionalIdentifier(project.providerConnectionId()),
             project.accessStrategy(),
             jsonUtil.toMap(project.accessStrategyConfig()),
             project.deploymentDriver(),

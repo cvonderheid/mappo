@@ -2,7 +2,6 @@ package com.mappo.controlplane.infrastructure.pipeline.ado;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.domain.project.AzureWorkloadRbacAccessStrategyConfig;
 import com.mappo.controlplane.domain.project.ExternalDeploymentInputsArtifactSourceConfig;
 import com.mappo.controlplane.domain.project.PipelineTriggerDriverConfig;
@@ -27,15 +26,14 @@ import org.junit.jupiter.api.Test;
 
 class AzureDevOpsExternalInputsMaterializerTests {
 
-    private final AzureDevOpsExternalInputsMaterializer materializer = new AzureDevOpsExternalInputsMaterializer(
-        new AzureDevOpsSecretResolver(new MappoProperties())
-    );
+    private final AzureDevOpsExternalInputsMaterializer materializer = new AzureDevOpsExternalInputsMaterializer();
 
     @Test
     void materializeBuildsCanonicalPipelineTemplateParameters() {
         ProjectDefinition project = new ProjectDefinition(
             "azure-appservice-ado-pipeline",
             "Azure App Service ADO Pipeline",
+            null,
             null,
             ProjectAccessStrategyType.azure_workload_rbac,
             new AzureWorkloadRbacAccessStrategyConfig("ado_service_connection", false, true),
@@ -47,7 +45,6 @@ class AzureDevOpsExternalInputsMaterializerTests {
                 "1",
                 "main",
                 "mappo-ado-demo-rg-contributor",
-                "literal:test-pat",
                 true,
                 true
             ),
@@ -95,7 +92,7 @@ class AzureDevOpsExternalInputsMaterializerTests {
         assertThat(inputs.project()).isEqualTo("demo-app-service");
         assertThat(inputs.pipelineId()).isEqualTo("1");
         assertThat(inputs.azureServiceConnectionName()).isEqualTo("mappo-ado-demo-rg-contributor");
-        assertThat(inputs.personalAccessToken()).isEqualTo("test-pat");
+        assertThat(inputs.personalAccessToken()).isEqualTo("");
         assertThat(inputs.templateParameters()).containsEntry("targetSubscriptionId", "11111111-1111-1111-1111-111111111111");
         assertThat(inputs.templateParameters()).containsEntry("targetResourceGroup", "rg-ado-target-01");
         assertThat(inputs.templateParameters()).containsEntry("targetAppName", "app-ado-target-01");

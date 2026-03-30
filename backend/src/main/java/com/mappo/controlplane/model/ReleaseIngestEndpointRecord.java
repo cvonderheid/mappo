@@ -4,7 +4,6 @@ import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Map;
 
 public record ReleaseIngestEndpointRecord(
     @Schema(description = "Release ingest endpoint id.", example = "github-managed-app-default")
@@ -25,8 +24,6 @@ public record ReleaseIngestEndpointRecord(
     String pipelineIdFilter,
     @Schema(description = "Optional manifest path filter for release files.", example = "releases/releases.manifest.json")
     String manifestPath,
-    @Schema(description = "Provider-specific metadata config.")
-    Map<String, Object> sourceConfig,
     @Schema(description = "Projects currently linked to this release ingest endpoint.")
     List<ReleaseIngestLinkedProjectRecord> linkedProjects,
     @Schema(description = "Created timestamp (UTC).")

@@ -10,6 +10,7 @@ public record ProjectConfigurationMutationRecord(
     String id,
     String name,
     String releaseIngestEndpointId,
+    String providerConnectionId,
     ProjectAccessStrategyType accessStrategy,
     Map<String, Object> accessStrategyConfig,
     ProjectDeploymentDriverType deploymentDriver,

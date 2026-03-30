@@ -23,6 +23,9 @@ import type {
   ProjectValidationResult,
   ProjectAdoPipelineDiscoveryResult,
   ProjectAdoServiceConnectionDiscoveryResult,
+  ProviderConnection,
+  ProviderConnectionCreateRequest,
+  ProviderConnectionPatchRequest,
   Release,
   ReleaseIngestEndpoint,
   ReleaseIngestEndpointCreateRequest,
@@ -171,6 +174,82 @@ export async function discoverProjectAdoServiceConnections(
     throw new Error(`discoverProjectAdoServiceConnections failed (${response.status}): ${detail}`);
   }
   return payload as ProjectAdoServiceConnectionDiscoveryResult;
+}
+
+export async function listProviderConnections(): Promise<ProviderConnection[]> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/provider-connections`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  const payload = (await response.json().catch(() => ([]))) as unknown;
+  if (!response.ok) {
+    const detail =
+      payload && typeof payload === "object" && "detail" in payload
+        ? String((payload as { detail?: unknown }).detail ?? "unknown error")
+        : "unknown error";
+    throw new Error(`listProviderConnections failed (${response.status}): ${detail}`);
+  }
+  return Array.isArray(payload) ? (payload as ProviderConnection[]) : [];
+}
+
+export async function createProviderConnection(
+  request: ProviderConnectionCreateRequest
+): Promise<ProviderConnection> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/provider-connections`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!response.ok) {
+    const detail = typeof payload.detail === "string" ? payload.detail : "unknown error";
+    throw new Error(`createProviderConnection failed (${response.status}): ${detail}`);
+  }
+  return payload as ProviderConnection;
+}
+
+export async function patchProviderConnection(
+  connectionId: string,
+  request: ProviderConnectionPatchRequest
+): Promise<ProviderConnection> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/provider-connections/${encodeURIComponent(connectionId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+    }
+  );
+  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!response.ok) {
+    const detail = typeof payload.detail === "string" ? payload.detail : "unknown error";
+    throw new Error(`patchProviderConnection failed (${response.status}): ${detail}`);
+  }
+  return payload as ProviderConnection;
+}
+
+export async function deleteProviderConnection(connectionId: string): Promise<void> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/provider-connections/${encodeURIComponent(connectionId)}`,
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+  if (response.status >= 200 && response.status < 300) {
+    return;
+  }
+  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  const detail = typeof payload.detail === "string" ? payload.detail : "unknown error";
+  throw new Error(`deleteProviderConnection failed (${response.status}): ${detail}`);
 }
 
 export async function listProjectAudit(

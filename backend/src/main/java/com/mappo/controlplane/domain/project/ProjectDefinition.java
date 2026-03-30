@@ -4,6 +4,7 @@ public record ProjectDefinition(
     String id,
     String name,
     String releaseIngestEndpointId,
+    String providerConnectionId,
     ProjectAccessStrategyType accessStrategy,
     ProjectAccessStrategyConfig accessStrategyConfig,
     ProjectDeploymentDriverType deploymentDriver,

@@ -14,6 +14,7 @@ public record ProjectCreateRequest(
     @NotBlank String id,
     @NotBlank String name,
     String releaseIngestEndpointId,
+    String providerConnectionId,
     @NotNull ProjectAccessStrategyType accessStrategy,
     Map<String, Object> accessStrategyConfig,
     @NotNull ProjectDeploymentDriverType deploymentDriver,

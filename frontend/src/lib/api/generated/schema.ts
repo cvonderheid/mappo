@@ -153,6 +153,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/provider-connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List provider connections
+         * @description Returns configured provider connections and linked projects.
+         */
+        get: operations["listConnections"];
+        put?: never;
+        /** Create provider connection */
+        post: operations["createConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -208,7 +229,7 @@ export interface paths {
         put?: never;
         /**
          * Discover Azure DevOps service connections
-         * @description Discovers Azure DevOps service connections for the selected project using organization/project/PAT from request overrides or persisted project deployment-driver config.
+         * @description Discovers Azure DevOps service connections for the selected project using organization/project from request or project config, and Azure DevOps credentials from the linked provider connection.
          */
         post: operations["discoverProjectAdoServiceConnections"];
         delete?: never;
@@ -228,7 +249,7 @@ export interface paths {
         put?: never;
         /**
          * Discover Azure DevOps pipelines
-         * @description Discovers Azure DevOps pipelines for the selected project using organization/project/PAT from request overrides or persisted project deployment-driver config.
+         * @description Discovers Azure DevOps pipelines for the selected project using organization/project from request or project config, and Azure DevOps credentials from the linked provider connection.
          */
         post: operations["discoverProjectAdoPipelines"];
         delete?: never;
@@ -342,6 +363,24 @@ export interface paths {
         head?: never;
         /** Patch release ingest endpoint */
         patch: operations["patchEndpoint"];
+        trace?: never;
+    };
+    "/api/v1/provider-connections/{connectionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete provider connection */
+        delete: operations["deleteConnection"];
+        options?: never;
+        head?: never;
+        /** Patch provider connection */
+        patch: operations["patchConnection"];
         trace?: never;
     };
     "/api/v1/projects/{projectId}": {
@@ -787,9 +826,6 @@ export interface components {
             branchFilter?: string;
             pipelineIdFilter?: string;
             manifestPath?: string;
-            sourceConfig?: {
-                [key: string]: unknown;
-            };
         };
         ReleaseIngestEndpointRecord: {
             /**
@@ -834,10 +870,6 @@ export interface components {
              * @example releases/releases.manifest.json
              */
             manifestPath?: string;
-            /** @description Provider-specific metadata config. */
-            sourceConfig?: {
-                [key: string]: unknown;
-            };
             /** @description Projects currently linked to this release ingest endpoint. */
             linkedProjects?: components["schemas"]["ReleaseIngestLinkedProjectRecord"][];
             /**
@@ -877,10 +909,67 @@ export interface components {
             ignoredCount?: number;
             createdReleaseIds?: string[];
         };
+        ProviderConnectionCreateRequest: {
+            id: string;
+            name: string;
+            /** @enum {string} */
+            provider: "github" | "azure_devops";
+            enabled?: boolean;
+            organizationFilter?: string;
+            personalAccessTokenRef?: string;
+        };
+        ProviderConnectionLinkedProjectRecord: {
+            /** @description Project id linked to this provider connection. */
+            projectId?: string;
+            /** @description Project display name linked to this provider connection. */
+            projectName?: string;
+        };
+        ProviderConnectionRecord: {
+            /**
+             * @description Provider connection id.
+             * @example ado-default
+             */
+            id?: string;
+            /**
+             * @description Provider connection display name.
+             * @example Azure DevOps Default Connection
+             */
+            name?: string;
+            /**
+             * @description Provider type for this connection.
+             * @enum {string}
+             */
+            provider?: "github" | "azure_devops";
+            /** @description Whether this provider connection is enabled. */
+            enabled?: boolean;
+            /**
+             * @description Optional organization scope filter.
+             * @example https://dev.azure.com/pg123
+             */
+            organizationFilter?: string;
+            /**
+             * @description Secret reference for API credential lookup.
+             * @example mappo.azure-devops.personal-access-token
+             */
+            personalAccessTokenRef?: string;
+            /** @description Projects currently linked to this provider connection. */
+            linkedProjects?: components["schemas"]["ProviderConnectionLinkedProjectRecord"][];
+            /**
+             * Format: date-time
+             * @description Created timestamp (UTC).
+             */
+            createdAt?: string;
+            /**
+             * Format: date-time
+             * @description Last updated timestamp (UTC).
+             */
+            updatedAt?: string;
+        };
         ProjectCreateRequest: {
             id: string;
             name: string;
             releaseIngestEndpointId?: string;
+            providerConnectionId?: string;
             /** @enum {string} */
             accessStrategy: "simulator" | "azure_workload_rbac" | "lighthouse_delegated_access";
             accessStrategyConfig?: {
@@ -952,7 +1041,6 @@ export interface components {
             pipelineId?: string;
             branch?: string;
             azureServiceConnectionName?: string;
-            personalAccessTokenRef?: string;
             supportsExternalExecutionHandle?: boolean;
             supportsExternalLogs?: boolean;
         };
@@ -961,6 +1049,7 @@ export interface components {
             id?: string;
             name?: string;
             releaseIngestEndpointId?: string;
+            providerConnectionId?: string;
             /** @enum {string} */
             accessStrategy?: "simulator" | "azure_workload_rbac" | "lighthouse_delegated_access";
             accessStrategyConfig?: components["schemas"]["AzureWorkloadRbacAccessStrategyConfig"] | components["schemas"]["LighthouseDelegatedAccessStrategyConfig"] | components["schemas"]["SimulatorAccessStrategyConfig"];
@@ -1024,7 +1113,7 @@ export interface components {
         ProjectAdoServiceConnectionDiscoveryRequest: {
             organization?: string;
             project?: string;
-            personalAccessTokenRef?: string;
+            providerConnectionId?: string;
             nameContains?: string;
         };
         ProjectAdoServiceConnectionDiscoveryResultRecord: {
@@ -1042,7 +1131,7 @@ export interface components {
         ProjectAdoPipelineDiscoveryRequest: {
             organization?: string;
             project?: string;
-            personalAccessTokenRef?: string;
+            providerConnectionId?: string;
             nameContains?: string;
         };
         ProjectAdoPipelineDiscoveryResultRecord: {
@@ -1146,13 +1235,19 @@ export interface components {
             branchFilter?: string;
             pipelineIdFilter?: string;
             manifestPath?: string;
-            sourceConfig?: {
-                [key: string]: unknown;
-            };
+        };
+        ProviderConnectionPatchRequest: {
+            name?: string;
+            /** @enum {string} */
+            provider?: "github" | "azure_devops";
+            enabled?: boolean;
+            organizationFilter?: string;
+            personalAccessTokenRef?: string;
         };
         ProjectConfigurationPatchRequest: {
             name?: string;
             releaseIngestEndpointId?: string;
+            providerConnectionId?: string;
             /** @enum {string} */
             accessStrategy?: "simulator" | "azure_workload_rbac" | "lighthouse_delegated_access";
             accessStrategyConfig?: {
@@ -1801,6 +1896,50 @@ export interface operations {
             };
         };
     };
+    listConnections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ProviderConnectionRecord"][];
+                };
+            };
+        };
+    };
+    createConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderConnectionCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ProviderConnectionRecord"];
+                };
+            };
+        };
+    };
     listProjects: {
         parameters: {
             query?: never;
@@ -2138,6 +2277,52 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ReleaseIngestEndpointRecord"];
+                };
+            };
+        };
+    };
+    deleteConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connectionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connectionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ProviderConnectionPatchRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ProviderConnectionRecord"];
                 };
             };
         };

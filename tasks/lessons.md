@@ -196,6 +196,18 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Detection signal: the first-time operator asks “where do I get this value?” or “why does this field exist?” for fields that are defaults or backend wiring details.
 - Enforcement (test/lint/checklist): maintain `/docs/operator-field-inventory.md` and require UX sign-off that every editable field has an explicit source and purpose tooltip.
 
+- Date: 2026-03-22
+- Pattern: Deployment-driver discovery fails in walkthroughs when PAT auth depends on backend env vars that are not discoverable/configurable from the admin UX.
+- Preventative rule: Credential source must be admin-managed and linkable from project config; project tabs should consume selected connection metadata, not rely on hidden runtime defaults.
+- Detection signal: operators hit “PAT could not be resolved” while all visible project fields appear complete.
+- Enforcement (test/lint/checklist): for any external driver discovery action, require a visible admin-configured credential source and show the resolved reference in project config before allowing discovery.
+
+- Date: 2026-03-22
+- Pattern: JSONB config values appeared to “not persist” because the query layer re-serialized JSON text before parsing, collapsing valid objects to `{}` in API responses.
+- Preventative rule: For JSONB columns read as text (`jsonbColumn.data()`), parse with `readMap` directly; reserve `toMap` for object instances, not raw JSON strings.
+- Detection signal: DB row contains expected JSON keys while corresponding API response always returns empty config objects.
+- Enforcement (test/lint/checklist): add integration assertions that patching JSONB config fields returns the same key/value in response payloads.
+
 - Date: 2026-03-09
 - Pattern: Execution strategy controls in the API/UI are misleading if the backend stores them but still runs synchronously and serially.
 - Preventative rule: When a rollout control such as `all_at_once`, `waves`, or `concurrency` is exposed to operators, backend execution and integration tests must prove the semantics are actually honored.
@@ -261,3 +273,9 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Preventative rule: When a design milestone changes the real control path or persistence model, update the architecture note and roadmap in the same slice instead of leaving the intermediate story behind.
 - Detection signal: the code no longer contains classes named in the architecture doc, or the roadmap still lists a completed migration as open.
 - Enforcement (test/lint/checklist): after landing a structural milestone, grep the docs/roadmap for the replaced classes or old design phrases before closing the slice.
+
+- Date: 2026-03-22
+- Pattern: "Flexible" fallback paths in credentials/config wiring keep confusing operators because the UI shows one model while runtime still accepts hidden legacy inputs.
+- Preventative rule: For setup flows still in active development, prefer one strict contract with explicit required fields and remove fallback wiring in the same slice.
+- Detection signal: operator walkthrough blocks on a field that appears optional in UI but is actually inferred from hidden legacy rules, or vice-versa.
+- Enforcement (test/lint/checklist): when enforcing a new contract, add migration/backfill for existing rows, delete old resolver paths, and add validation checks that reject legacy values.

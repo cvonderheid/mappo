@@ -13,6 +13,8 @@ import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.StageErrorDetailsRecord;
 import com.mappo.controlplane.model.StageErrorRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
+import com.mappo.controlplane.service.providerconnection.ProviderConnectionCatalogService;
+import com.mappo.controlplane.service.providerconnection.ProviderConnectionSecretResolver;
 import com.mappo.controlplane.service.run.ReleaseMaterializerRegistry;
 import com.mappo.controlplane.service.run.TargetDeploymentException;
 import com.mappo.controlplane.service.run.TargetDeploymentOutcome;
@@ -32,6 +34,8 @@ class AzureDevOpsPipelineTriggerExecutor implements DeploymentDriver {
 
     private final ReleaseMaterializerRegistry releaseMaterializerRegistry;
     private final AzureDevOpsPipelineClient azureDevOpsPipelineClient;
+    private final ProviderConnectionCatalogService providerConnectionCatalogService;
+    private final ProviderConnectionSecretResolver providerConnectionSecretResolver;
     private final MappoProperties properties;
 
     @Override
@@ -52,13 +56,15 @@ class AzureDevOpsPipelineTriggerExecutor implements DeploymentDriver {
         ResolvedTargetAccessContext accessContext
     ) {
         String correlationId = correlationId(runId, target.targetId());
-        AzureDevOpsPipelineInputs inputs = releaseMaterializerRegistry.materialize(
+        AzureDevOpsPipelineInputs materializedInputs = releaseMaterializerRegistry.materialize(
             project,
             release,
             target,
             true,
             AzureDevOpsPipelineInputs.class
         );
+        String personalAccessToken = resolvePersonalAccessToken(project, correlationId);
+        AzureDevOpsPipelineInputs inputs = withPersonalAccessToken(materializedInputs, personalAccessToken);
         validateConfigured(inputs, target.targetId(), correlationId);
 
         AzureDevOpsPipelineRunRecord run;
@@ -134,9 +140,9 @@ class AzureDevOpsPipelineTriggerExecutor implements DeploymentDriver {
         if (pat.isBlank()) {
             throw deploymentFailure(
                 "ADO_PIPELINE_CONFIGURATION_INVALID",
-                "Azure DevOps execution is not configured: missing deployment driver PAT secret reference.",
+                "Azure DevOps execution is not configured: missing provider connection PAT secret.",
                 null,
-                "personalAccessToken is blank after resolving deploymentDriverConfig.personalAccessTokenRef",
+                "personalAccessToken is blank after resolving linked provider connection PAT",
                 correlationId,
                 null
             );
@@ -172,6 +178,68 @@ class AzureDevOpsPipelineTriggerExecutor implements DeploymentDriver {
                 null
             );
         }
+    }
+
+    private String resolvePersonalAccessToken(ProjectDefinition project, String correlationId) {
+        String providerConnectionId = normalize(project.providerConnectionId());
+        if (providerConnectionId.isBlank()) {
+            throw deploymentFailure(
+                "ADO_PIPELINE_CONFIGURATION_INVALID",
+                "Azure DevOps execution is not configured: project has no linked provider connection.",
+                null,
+                "project.providerConnectionId is blank",
+                correlationId,
+                null
+            );
+        }
+        var connection = providerConnectionCatalogService.getRequired(providerConnectionId);
+        if (connection.provider() == null || !"azure_devops".equals(connection.provider().name())) {
+            throw deploymentFailure(
+                "ADO_PIPELINE_CONFIGURATION_INVALID",
+                "Azure DevOps execution is not configured: linked provider connection is not Azure DevOps.",
+                null,
+                "providerConnectionId=%s provider=%s".formatted(providerConnectionId, connection.provider()),
+                correlationId,
+                null
+            );
+        }
+        String token = normalize(providerConnectionSecretResolver.resolvePersonalAccessToken(connection));
+        if (token.isBlank()) {
+            throw deploymentFailure(
+                "ADO_PIPELINE_CONFIGURATION_INVALID",
+                "Azure DevOps execution is not configured: linked provider connection PAT secret is unresolved.",
+                null,
+                "providerConnectionId=%s personalAccessTokenRef=%s".formatted(
+                    providerConnectionId,
+                    connection.personalAccessTokenRef()
+                ),
+                correlationId,
+                null
+            );
+        }
+        return token;
+    }
+
+    private AzureDevOpsPipelineInputs withPersonalAccessToken(
+        AzureDevOpsPipelineInputs inputs,
+        String personalAccessToken
+    ) {
+        return new AzureDevOpsPipelineInputs(
+            normalize(inputs.organization()),
+            normalize(inputs.project()),
+            normalize(inputs.pipelineId()),
+            normalize(inputs.branch()),
+            normalize(inputs.descriptorPath()),
+            normalize(inputs.versionField()),
+            normalize(inputs.azureServiceConnectionName()),
+            normalize(personalAccessToken),
+            normalize(inputs.targetTenantId()),
+            normalize(inputs.targetSubscriptionId()),
+            normalize(inputs.targetId()),
+            normalize(inputs.releaseId()),
+            normalize(inputs.releaseVersion()),
+            inputs.templateParameters()
+        );
     }
 
     private void sleep(long pollIntervalMs, String correlationId, AzureDevOpsPipelineRunRecord run) {

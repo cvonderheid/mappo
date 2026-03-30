@@ -11,11 +11,14 @@ import com.mappo.controlplane.model.ProjectValidationFindingRecord;
 import com.mappo.controlplane.model.ProjectValidationFindingStatus;
 import com.mappo.controlplane.model.ProjectValidationResultRecord;
 import com.mappo.controlplane.model.ProjectValidationScope;
+import com.mappo.controlplane.model.ProviderConnectionRecord;
 import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.repository.TargetExecutionContextRepository;
 import com.mappo.controlplane.repository.TargetRecordQueryRepository;
+import com.mappo.controlplane.service.providerconnection.ProviderConnectionCatalogService;
+import com.mappo.controlplane.service.providerconnection.ProviderConnectionSecretResolver;
 import com.mappo.controlplane.service.releaseingest.ReleaseIngestEndpointCatalogService;
 import com.mappo.controlplane.service.releaseingest.ReleaseIngestSecretResolver;
 import java.time.OffsetDateTime;
@@ -36,6 +39,8 @@ public class ProjectValidationService {
     private final ProjectCatalogService projectCatalogService;
     private final TargetRecordQueryRepository targetRecordQueryRepository;
     private final TargetExecutionContextRepository targetExecutionContextRepository;
+    private final ProviderConnectionCatalogService providerConnectionCatalogService;
+    private final ProviderConnectionSecretResolver providerConnectionSecretResolver;
     private final ReleaseIngestEndpointCatalogService releaseIngestEndpointCatalogService;
     private final ReleaseIngestSecretResolver releaseIngestSecretResolver;
     private final MappoProperties properties;
@@ -97,18 +102,42 @@ public class ProjectValidationService {
 
         if (project.deploymentDriverConfig() instanceof PipelineTriggerDriverConfig pipelineConfig
             && "azure_devops".equalsIgnoreCase(normalize(pipelineConfig.pipelineSystem()))) {
-            if (hasText(resolvePipelinePersonalAccessToken(pipelineConfig))) {
-                findings.add(pass(
-                    ProjectValidationScope.credentials,
-                    "AZURE_DEVOPS_PAT_PRESENT",
-                    "Azure DevOps personal access token resolved from project deployment driver config."
-                ));
-            } else {
+            String providerConnectionId = normalize(project.providerConnectionId());
+            if (!hasText(providerConnectionId)) {
                 findings.add(fail(
                     ProjectValidationScope.credentials,
                     "AZURE_DEVOPS_PAT_MISSING",
-                    "Azure DevOps deployment driver requires a resolvable PAT source. Use server-managed token (mappo.azure-devops.personal-access-token / MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN) or an inline demo token."
+                    "Azure DevOps deployment driver requires a linked Azure DevOps provider connection with a resolvable PAT."
                 ));
+            } else {
+                try {
+                    ProviderConnectionRecord connection = providerConnectionCatalogService.getRequired(providerConnectionId);
+                    if (connection.provider() == null || !"azure_devops".equalsIgnoreCase(connection.provider().name())) {
+                        findings.add(fail(
+                            ProjectValidationScope.credentials,
+                            "AZURE_DEVOPS_PAT_MISSING",
+                            "Linked provider connection " + providerConnectionId + " is not an Azure DevOps connection."
+                        ));
+                    } else if (hasText(providerConnectionSecretResolver.resolvePersonalAccessToken(connection))) {
+                        findings.add(pass(
+                            ProjectValidationScope.credentials,
+                            "AZURE_DEVOPS_PAT_PRESENT",
+                            "Azure DevOps personal access token resolved from linked provider connection " + providerConnectionId + "."
+                        ));
+                    } else {
+                        findings.add(fail(
+                            ProjectValidationScope.credentials,
+                            "AZURE_DEVOPS_PAT_MISSING",
+                            "Linked provider connection " + providerConnectionId + " does not resolve an Azure DevOps PAT."
+                        ));
+                    }
+                } catch (RuntimeException exception) {
+                    findings.add(fail(
+                        ProjectValidationScope.credentials,
+                        "AZURE_DEVOPS_PAT_MISSING",
+                        "Provider connection " + providerConnectionId + " was not found."
+                    ));
+                }
             }
 
             if (hasText(pipelineConfig.organization())
@@ -138,40 +167,42 @@ public class ProjectValidationService {
         if (project.releaseArtifactSourceConfig() instanceof ExternalDeploymentInputsArtifactSourceConfig externalConfig
             && "azure_devops".equalsIgnoreCase(normalize(externalConfig.sourceSystem()))) {
             String endpointId = normalize(project.releaseIngestEndpointId());
-            if (hasText(endpointId)) {
-                try {
-                    ReleaseIngestEndpointRecord endpoint = releaseIngestEndpointCatalogService.getRequired(endpointId);
-                    if (hasText(releaseIngestSecretResolver.resolveConfiguredSecret(endpoint))) {
-                        findings.add(pass(
-                            ProjectValidationScope.webhook,
-                            "AZURE_DEVOPS_WEBHOOK_SECRET_PRESENT",
-                            "Azure DevOps webhook secret resolved from linked release ingest endpoint " + endpointId + "."
-                        ));
-                    } else {
-                        findings.add(fail(
-                            ProjectValidationScope.webhook,
-                            "AZURE_DEVOPS_WEBHOOK_SECRET_MISSING",
-                            "Linked release ingest endpoint " + endpointId + " has no resolvable webhook secret."
-                        ));
-                    }
-                } catch (RuntimeException exception) {
-                    findings.add(fail(
-                        ProjectValidationScope.webhook,
-                        "AZURE_DEVOPS_WEBHOOK_ENDPOINT_MISSING",
-                        "Release ingest endpoint " + endpointId + " was not found."
-                    ));
-                }
-            } else if (hasText(properties.getAzureDevOps().getWebhookSecret())) {
-                findings.add(pass(
-                    ProjectValidationScope.webhook,
-                    "AZURE_DEVOPS_WEBHOOK_SECRET_PRESENT",
-                    "Azure DevOps webhook secret is configured globally."
-                ));
-            } else {
+            if (!hasText(endpointId)) {
                 findings.add(fail(
                     ProjectValidationScope.webhook,
                     "AZURE_DEVOPS_WEBHOOK_SECRET_MISSING",
-                    "Azure DevOps webhook ingest requires a linked release ingest endpoint with a resolvable secret or global key mappo.azure-devops.webhook-secret."
+                    "Azure DevOps webhook ingest requires a linked Azure DevOps release ingest endpoint with a resolvable webhook secret."
+                ));
+                return findings;
+            }
+            try {
+                ReleaseIngestEndpointRecord endpoint = releaseIngestEndpointCatalogService.getRequired(endpointId);
+                if (endpoint.provider() == null || !"azure_devops".equalsIgnoreCase(endpoint.provider().name())) {
+                    findings.add(fail(
+                        ProjectValidationScope.webhook,
+                        "AZURE_DEVOPS_WEBHOOK_ENDPOINT_MISSING",
+                        "Linked release ingest endpoint " + endpointId + " is not an Azure DevOps endpoint."
+                    ));
+                    return findings;
+                }
+                if (hasText(releaseIngestSecretResolver.resolveConfiguredSecret(endpoint))) {
+                    findings.add(pass(
+                        ProjectValidationScope.webhook,
+                        "AZURE_DEVOPS_WEBHOOK_SECRET_PRESENT",
+                        "Azure DevOps webhook secret resolved from linked release ingest endpoint " + endpointId + "."
+                    ));
+                } else {
+                    findings.add(fail(
+                        ProjectValidationScope.webhook,
+                        "AZURE_DEVOPS_WEBHOOK_SECRET_MISSING",
+                        "Linked release ingest endpoint " + endpointId + " has no resolvable webhook secret."
+                    ));
+                }
+            } catch (RuntimeException exception) {
+                findings.add(fail(
+                    ProjectValidationScope.webhook,
+                    "AZURE_DEVOPS_WEBHOOK_ENDPOINT_MISSING",
+                    "Release ingest endpoint " + endpointId + " was not found."
                 ));
             }
             return findings;
@@ -360,14 +391,4 @@ public class ProjectValidationService {
         return value == null ? "" : String.valueOf(value).trim();
     }
 
-    private String resolvePipelinePersonalAccessToken(PipelineTriggerDriverConfig config) {
-        String reference = normalize(config.personalAccessTokenRef());
-        if (!hasText(reference) || "mappo.azure-devops.personal-access-token".equals(reference)) {
-            return normalize(properties.getAzureDevOps().getPersonalAccessToken());
-        }
-        if (reference.startsWith("literal:")) {
-            return normalize(reference.substring("literal:".length()));
-        }
-        return "";
-    }
 }

@@ -34,9 +34,6 @@ public class ReleaseIngestSecretResolver {
         if (AZURE_DEVOPS_SECRET_REF.equals(reference)) {
             return normalize(properties.getAzureDevOps().getWebhookSecret());
         }
-        if (reference.startsWith("literal:")) {
-            return normalize(reference.substring("literal:".length()));
-        }
         return "";
     }
 

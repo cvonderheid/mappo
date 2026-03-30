@@ -8,6 +8,7 @@ import com.mappo.controlplane.model.ProjectConfigurationAuditAction;
 import com.mappo.controlplane.model.command.ProjectConfigurationAuditCommand;
 import com.mappo.controlplane.repository.ProjectConfigurationAuditRepository;
 import com.mappo.controlplane.repository.ProjectCommandRepository;
+import com.mappo.controlplane.service.providerconnection.ProviderConnectionCatalogService;
 import com.mappo.controlplane.service.releaseingest.ReleaseIngestEndpointCatalogService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -28,11 +29,13 @@ public class ProjectConfigurationCommandService {
     private final ProjectConfigurationMutationService projectConfigurationMutationService;
     private final ProjectConfigurationAuditRepository projectConfigurationAuditRepository;
     private final ReleaseIngestEndpointCatalogService releaseIngestEndpointCatalogService;
+    private final ProviderConnectionCatalogService providerConnectionCatalogService;
 
     @Transactional
     public ProjectDefinition createProject(ProjectCreateRequest request) {
         ProjectConfigurationMutationRecord mutation = projectConfigurationMutationService.fromCreate(request);
         validateReleaseIngestEndpointReference(mutation.releaseIngestEndpointId());
+        validateProviderConnectionReference(mutation.providerConnectionId());
         try {
             projectCommandRepository.createProject(mutation);
         } catch (DataAccessException exception) {
@@ -62,6 +65,7 @@ public class ProjectConfigurationCommandService {
 
         ProjectConfigurationMutationRecord mutation = projectConfigurationMutationService.fromPatch(current, patchRequest);
         validateReleaseIngestEndpointReference(mutation.releaseIngestEndpointId());
+        validateProviderConnectionReference(mutation.providerConnectionId());
         projectCommandRepository.updateProjectConfiguration(mutation);
 
         ProjectDefinition updated = projectCatalogService.getRequired(current.id());
@@ -94,6 +98,16 @@ public class ProjectConfigurationCommandService {
         }
         if (!releaseIngestEndpointCatalogService.exists(normalized)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "release ingest endpoint not found: " + normalized);
+        }
+    }
+
+    private void validateProviderConnectionReference(String connectionId) {
+        String normalized = normalize(connectionId);
+        if (normalized.isBlank()) {
+            return;
+        }
+        if (!providerConnectionCatalogService.exists(normalized)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "provider connection not found: " + normalized);
         }
     }
 

@@ -5,12 +5,10 @@ import static com.mappo.controlplane.jooq.Tables.RELEASE_INGEST_ENDPOINTS;
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.jooq.enums.MappoReleaseIngestProvider;
 import com.mappo.controlplane.service.releaseingest.ReleaseIngestEndpointMutationRecord;
-import com.mappo.controlplane.util.JsonUtil;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
-import org.jooq.JSONB;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Repository;
@@ -20,7 +18,6 @@ import org.springframework.stereotype.Repository;
 public class ReleaseIngestEndpointCommandRepository {
 
     private final DSLContext dsl;
-    private final JsonUtil jsonUtil;
 
     public void createEndpoint(ReleaseIngestEndpointMutationRecord mutation) {
         try {
@@ -34,7 +31,6 @@ public class ReleaseIngestEndpointCommandRepository {
                 .set(RELEASE_INGEST_ENDPOINTS.BRANCH_FILTER, optional(mutation.branchFilter()))
                 .set(RELEASE_INGEST_ENDPOINTS.PIPELINE_ID_FILTER, optional(mutation.pipelineIdFilter()))
                 .set(RELEASE_INGEST_ENDPOINTS.MANIFEST_PATH, optional(mutation.manifestPath()))
-                .set(RELEASE_INGEST_ENDPOINTS.SOURCE_CONFIG, jsonb(mutation))
                 .set(RELEASE_INGEST_ENDPOINTS.UPDATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
                 .execute();
         } catch (DataAccessException exception) {
@@ -52,7 +48,6 @@ public class ReleaseIngestEndpointCommandRepository {
             .set(RELEASE_INGEST_ENDPOINTS.BRANCH_FILTER, optional(mutation.branchFilter()))
             .set(RELEASE_INGEST_ENDPOINTS.PIPELINE_ID_FILTER, optional(mutation.pipelineIdFilter()))
             .set(RELEASE_INGEST_ENDPOINTS.MANIFEST_PATH, optional(mutation.manifestPath()))
-            .set(RELEASE_INGEST_ENDPOINTS.SOURCE_CONFIG, jsonb(mutation))
             .set(RELEASE_INGEST_ENDPOINTS.UPDATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
             .where(RELEASE_INGEST_ENDPOINTS.ID.eq(normalize(mutation.id())))
             .execute();
@@ -78,10 +73,6 @@ public class ReleaseIngestEndpointCommandRepository {
             throw new ApiException(HttpStatus.BAD_REQUEST, "invalid release ingest provider");
         }
         return provider;
-    }
-
-    private JSONB jsonb(ReleaseIngestEndpointMutationRecord mutation) {
-        return JSONB.valueOf(jsonUtil.write(mutation.sourceConfig() == null ? java.util.Map.of() : mutation.sourceConfig()));
     }
 
     private String optional(String value) {

@@ -435,3 +435,4 @@ Post-demo production-path planning and execution setup:
 - [ ] Add ADO service-hook and external-run auditability.
 - [ ] Harden retry/resume semantics for pipeline-driven runs.
 - [ ] Decide whether the next driver should be `pulumi_automation` or whether ADO/Lighthouse needs another hardening sprint first.
+- [x] Move ADO PAT discovery auth from hidden runtime assumption to admin-managed endpoint configuration and project-linked consumption.

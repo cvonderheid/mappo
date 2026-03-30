@@ -1,20 +1,17 @@
 package com.mappo.controlplane.api.request;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;
+import com.mappo.controlplane.domain.providerconnection.ProviderConnectionProviderType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record ReleaseIngestEndpointCreateRequest(
+public record ProviderConnectionCreateRequest(
     @NotBlank String id,
     @NotBlank String name,
-    @NotNull ReleaseIngestProviderType provider,
+    @NotNull ProviderConnectionProviderType provider,
     Boolean enabled,
-    String secretRef,
-    String repoFilter,
-    String branchFilter,
-    String pipelineIdFilter,
-    String manifestPath
+    String organizationFilter,
+    String personalAccessTokenRef
 ) {
 }

@@ -144,6 +144,7 @@ class AzureDeploymentStackExecutorTests {
             "azure-managed-app-deployment-stack",
             "Azure Managed App Deployment Stack",
             null,
+            null,
             ProjectAccessStrategyType.azure_workload_rbac,
             AzureWorkloadRbacAccessStrategyConfig.defaults(),
             ProjectDeploymentDriverType.azure_deployment_stack,
