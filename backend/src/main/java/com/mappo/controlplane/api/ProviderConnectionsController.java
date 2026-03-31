@@ -2,9 +2,12 @@ package com.mappo.controlplane.api;
 
 import com.mappo.controlplane.api.request.ProviderConnectionCreateRequest;
 import com.mappo.controlplane.api.request.ProviderConnectionPatchRequest;
+import com.mappo.controlplane.api.request.ProviderConnectionVerifyRequest;
+import com.mappo.controlplane.model.ProviderConnectionAdoProjectDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProviderConnectionRecord;
 import com.mappo.controlplane.service.providerconnection.ProviderConnectionCatalogService;
 import com.mappo.controlplane.service.providerconnection.ProviderConnectionCommandService;
+import com.mappo.controlplane.service.providerconnection.ProviderConnectionDiscoveryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -16,6 +19,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -29,11 +33,36 @@ public class ProviderConnectionsController {
 
     private final ProviderConnectionCatalogService providerConnectionCatalogService;
     private final ProviderConnectionCommandService providerConnectionCommandService;
+    private final ProviderConnectionDiscoveryService providerConnectionDiscoveryService;
 
     @GetMapping
     @Operation(summary = "List provider connections", description = "Returns configured provider connections and linked projects.")
     public List<ProviderConnectionRecord> listConnections() {
         return providerConnectionCatalogService.listConnections();
+    }
+
+    @GetMapping("/{connectionId}/ado/projects/discover")
+    @Operation(
+        summary = "Discover Azure DevOps projects",
+        description = "Lists Azure DevOps projects reachable through the selected provider connection using its configured PAT and organization URL."
+    )
+    public ProviderConnectionAdoProjectDiscoveryResultRecord discoverAdoProjects(
+        @PathVariable("connectionId") String connectionId,
+        @RequestParam(name = "nameContains", required = false) String nameContains
+    ) {
+        return providerConnectionDiscoveryService.discoverAdoProjects(connectionId, nameContains);
+    }
+
+    @PostMapping("/ado/verify")
+    @Operation(
+        summary = "Verify Azure DevOps provider connection draft",
+        description = "Normalizes the submitted Azure DevOps URL, resolves the configured PAT source, and enumerates reachable Azure DevOps projects without persisting the connection."
+    )
+    public ProviderConnectionAdoProjectDiscoveryResultRecord verifyAdoConnection(
+        @RequestBody(required = false) ProviderConnectionVerifyRequest request,
+        @RequestParam(name = "nameContains", required = false) String nameContains
+    ) {
+        return providerConnectionDiscoveryService.verifyAdoConnection(request, nameContains);
     }
 
     @PostMapping

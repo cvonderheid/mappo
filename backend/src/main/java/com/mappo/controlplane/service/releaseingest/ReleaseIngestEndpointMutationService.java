@@ -19,7 +19,7 @@ public class ReleaseIngestEndpointMutationService {
         String name = requiredName(request.name());
         ReleaseIngestProviderType provider = requiredProvider(request.provider());
         boolean enabled = request.enabled() == null || Boolean.TRUE.equals(request.enabled());
-        String secretRef = normalize(request.secretRef());
+        String secretRef = normalizeSecretRef(request.secretRef(), provider);
         String repoFilter = normalize(request.repoFilter());
         String branchFilter = normalize(request.branchFilter());
         String pipelineIdFilter = normalize(request.pipelineIdFilter());
@@ -51,7 +51,9 @@ public class ReleaseIngestEndpointMutationService {
         }
         ReleaseIngestProviderType provider = patch.provider() == null ? current.provider() : patch.provider();
         boolean enabled = patch.enabled() == null ? current.enabled() : patch.enabled();
-        String secretRef = patch.secretRef() == null ? normalize(current.secretRef()) : normalize(patch.secretRef());
+        String secretRef = patch.secretRef() == null
+            ? normalizeSecretRef(current.secretRef(), provider)
+            : normalizeSecretRef(patch.secretRef(), provider);
         String repoFilter = patch.repoFilter() == null ? normalize(current.repoFilter()) : normalize(patch.repoFilter());
         String branchFilter = patch.branchFilter() == null ? normalize(current.branchFilter()) : normalize(patch.branchFilter());
         String pipelineIdFilter = patch.pipelineIdFilter() == null
@@ -79,7 +81,7 @@ public class ReleaseIngestEndpointMutationService {
             requiredName(endpoint.name()),
             requiredProvider(endpoint.provider()),
             endpoint.enabled(),
-            normalize(endpoint.secretRef()),
+            normalizeSecretRef(endpoint.secretRef(), endpoint.provider()),
             normalize(endpoint.repoFilter()),
             normalize(endpoint.branchFilter()),
             normalize(endpoint.pipelineIdFilter()),
@@ -119,6 +121,32 @@ public class ReleaseIngestEndpointMutationService {
             return "releases/releases.manifest.json";
         }
         return normalized;
+    }
+
+    private String normalizeSecretRef(String value, ReleaseIngestProviderType provider) {
+        String normalized = normalize(value);
+        String defaultReference = provider == ReleaseIngestProviderType.azure_devops
+            ? ReleaseIngestSecretResolver.AZURE_DEVOPS_SECRET_REF
+            : ReleaseIngestSecretResolver.GITHUB_SECRET_REF;
+        if (normalized.isBlank()) {
+            return defaultReference;
+        }
+        if (normalized.startsWith("literal:")) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "literal webhook secrets are not supported; use the provider default or env:VAR_NAME."
+            );
+        }
+        if (defaultReference.equals(normalized)) {
+            return normalized;
+        }
+        if (normalized.startsWith("env:") && normalize(normalized.substring("env:".length())).length() > 0) {
+            return normalized;
+        }
+        throw new ApiException(
+            HttpStatus.BAD_REQUEST,
+            "secretRef must be " + defaultReference + " or env:VAR_NAME."
+        );
     }
 
     private String firstNonBlank(String... values) {

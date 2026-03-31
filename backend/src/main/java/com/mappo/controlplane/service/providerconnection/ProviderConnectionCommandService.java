@@ -14,11 +14,13 @@ public class ProviderConnectionCommandService {
 
     private final ProviderConnectionCatalogService providerConnectionCatalogService;
     private final ProviderConnectionMutationService providerConnectionMutationService;
+    private final ProviderConnectionDiscoveryService providerConnectionDiscoveryService;
     private final ProviderConnectionCommandRepository providerConnectionCommandRepository;
 
     @Transactional
     public ProviderConnectionRecord createConnection(ProviderConnectionCreateRequest request) {
         ProviderConnectionMutationRecord mutation = providerConnectionMutationService.fromCreate(request);
+        providerConnectionDiscoveryService.validateForSave(mutation);
         providerConnectionCommandRepository.createConnection(mutation);
         return providerConnectionCatalogService.getRequired(mutation.id());
     }
@@ -30,6 +32,7 @@ public class ProviderConnectionCommandService {
     ) {
         ProviderConnectionRecord current = providerConnectionCatalogService.getRequired(connectionId);
         ProviderConnectionMutationRecord mutation = providerConnectionMutationService.fromPatch(current, patchRequest);
+        providerConnectionDiscoveryService.validateForSave(mutation);
         providerConnectionCommandRepository.updateConnection(mutation);
         return providerConnectionCatalogService.getRequired(mutation.id());
     }

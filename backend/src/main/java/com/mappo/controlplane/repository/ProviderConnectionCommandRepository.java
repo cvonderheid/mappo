@@ -26,7 +26,7 @@ public class ProviderConnectionCommandRepository {
                 .set(PROVIDER_CONNECTIONS.NAME, normalize(mutation.name()))
                 .set(PROVIDER_CONNECTIONS.PROVIDER, requiredProvider(mutation))
                 .set(PROVIDER_CONNECTIONS.ENABLED, mutation.enabled())
-                .set(PROVIDER_CONNECTIONS.ORGANIZATION_FILTER, optional(mutation.organizationFilter()))
+                .set(PROVIDER_CONNECTIONS.ORGANIZATION_FILTER, optional(mutation.organizationUrl()))
                 .set(PROVIDER_CONNECTIONS.PERSONAL_ACCESS_TOKEN_REF, optional(mutation.personalAccessTokenRef()))
                 .set(PROVIDER_CONNECTIONS.UPDATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
                 .execute();
@@ -40,7 +40,7 @@ public class ProviderConnectionCommandRepository {
             .set(PROVIDER_CONNECTIONS.NAME, normalize(mutation.name()))
             .set(PROVIDER_CONNECTIONS.PROVIDER, requiredProvider(mutation))
             .set(PROVIDER_CONNECTIONS.ENABLED, mutation.enabled())
-            .set(PROVIDER_CONNECTIONS.ORGANIZATION_FILTER, optional(mutation.organizationFilter()))
+            .set(PROVIDER_CONNECTIONS.ORGANIZATION_FILTER, optional(mutation.organizationUrl()))
             .set(PROVIDER_CONNECTIONS.PERSONAL_ACCESS_TOKEN_REF, optional(mutation.personalAccessTokenRef()))
             .set(PROVIDER_CONNECTIONS.UPDATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
             .where(PROVIDER_CONNECTIONS.ID.eq(normalize(mutation.id())))

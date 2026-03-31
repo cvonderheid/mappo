@@ -114,7 +114,7 @@ export type ProviderConnection = {
   name?: string;
   provider?: ProviderConnectionProvider;
   enabled?: boolean;
-  organizationFilter?: string;
+  organizationUrl?: string;
   personalAccessTokenRef?: string;
   linkedProjects?: ProviderConnectionLinkedProject[];
   createdAt?: string;
@@ -125,15 +125,31 @@ export type ProviderConnectionCreateRequest = {
   name: string;
   provider: ProviderConnectionProvider;
   enabled?: boolean;
-  organizationFilter?: string;
+  organizationUrl?: string;
   personalAccessTokenRef?: string;
 };
 export type ProviderConnectionPatchRequest = {
   name?: string;
   provider?: ProviderConnectionProvider;
   enabled?: boolean;
-  organizationFilter?: string;
+  organizationUrl?: string;
   personalAccessTokenRef?: string;
+};
+export type ProviderConnectionVerifyRequest = {
+  id?: string;
+  provider?: ProviderConnectionProvider;
+  organizationUrl?: string;
+  personalAccessTokenRef?: string;
+};
+export type ProviderConnectionAdoProject = {
+  id: string;
+  name: string;
+  webUrl?: string;
+};
+export type ProviderConnectionAdoProjectDiscoveryResult = {
+  connectionId: string;
+  organizationUrl: string;
+  projects: ProviderConnectionAdoProject[];
 };
 export type ReleaseWebhookDeliveryRecord = Schemas["ReleaseWebhookDeliveryRecord"];
 export type ReleaseWebhookDeliveryPage = Schemas["ReleaseWebhookDeliveryPageRecord"];

@@ -34,6 +34,13 @@ public class ReleaseIngestSecretResolver {
         if (AZURE_DEVOPS_SECRET_REF.equals(reference)) {
             return normalize(properties.getAzureDevOps().getWebhookSecret());
         }
+        if (reference.startsWith("env:")) {
+            String envVarName = normalize(reference.substring("env:".length()));
+            if (envVarName.isBlank()) {
+                return "";
+            }
+            return normalize(System.getenv(envVarName));
+        }
         return "";
     }
 

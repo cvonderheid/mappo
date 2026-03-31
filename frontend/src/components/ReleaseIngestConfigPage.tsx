@@ -30,6 +30,7 @@ import type {
 } from "@/lib/types";
 
 type ReleaseIngestProvider = "github" | "azure_devops";
+type WebhookSecretMode = "provider_default" | "environment_variable";
 
 type ReleaseIngestConfigPageProps = {
   selectedProjectId: string;
@@ -40,7 +41,8 @@ type EndpointDraft = {
   name: string;
   provider: ReleaseIngestProvider;
   enabled: boolean;
-  secretRef: string;
+  webhookSecretMode: WebhookSecretMode;
+  webhookSecretEnvVar: string;
   repoFilter: string;
   branchFilter: string;
   pipelineIdFilter: string;
@@ -53,7 +55,8 @@ function emptyDraft(): EndpointDraft {
     name: "",
     provider: "github",
     enabled: true,
-    secretRef: "",
+    webhookSecretMode: "provider_default",
+    webhookSecretEnvVar: "",
     repoFilter: "",
     branchFilter: "",
     pipelineIdFilter: "",
@@ -65,6 +68,42 @@ function providerDefaultSecretRef(provider: ReleaseIngestProvider): string {
   return provider === "azure_devops"
     ? "mappo.azure-devops.webhook-secret"
     : "mappo.managed-app-release.webhook-secret";
+}
+
+function parseWebhookSecretRef(
+  value: string | undefined
+): Pick<EndpointDraft, "webhookSecretMode" | "webhookSecretEnvVar"> {
+  const normalized = (value ?? "").trim();
+  if (normalized.startsWith("env:")) {
+    return {
+      webhookSecretMode: "environment_variable",
+      webhookSecretEnvVar: normalized.slice("env:".length).trim(),
+    };
+  }
+  return {
+    webhookSecretMode: "provider_default",
+    webhookSecretEnvVar: "",
+  };
+}
+
+function buildWebhookSecretRef(draft: EndpointDraft): string {
+  if (draft.webhookSecretMode === "environment_variable") {
+    const envVarName = draft.webhookSecretEnvVar.trim();
+    return envVarName === "" ? "" : `env:${envVarName}`;
+  }
+  return providerDefaultSecretRef(draft.provider);
+}
+
+function describeWebhookSecretSource(endpoint: ReleaseIngestEndpoint): string {
+  const provider = (endpoint.provider ?? "github") as ReleaseIngestProvider;
+  const normalized = (endpoint.secretRef ?? "").trim() || providerDefaultSecretRef(provider);
+  if (normalized === providerDefaultSecretRef(provider)) {
+    return "Provider default backend secret";
+  }
+  if (normalized.startsWith("env:")) {
+    return `Environment variable (${normalized.slice("env:".length).trim()})`;
+  }
+  return "Unsupported legacy value";
 }
 
 function formatTimestamp(value: string | null | undefined): string {
@@ -88,12 +127,13 @@ function webhookPathFor(endpointId: string, provider: ReleaseIngestProvider): st
 
 function toDraft(endpoint: ReleaseIngestEndpoint): EndpointDraft {
   const provider = (endpoint.provider ?? "github") as ReleaseIngestProvider;
+  const secretReference = parseWebhookSecretRef(endpoint.secretRef);
   return {
     id: endpoint.id ?? "",
     name: endpoint.name ?? "",
     provider,
     enabled: endpoint.enabled ?? true,
-    secretRef: endpoint.secretRef ?? "",
+    ...secretReference,
     repoFilter: endpoint.repoFilter ?? "",
     branchFilter: endpoint.branchFilter ?? "",
     pipelineIdFilter: endpoint.pipelineIdFilter ?? "",
@@ -136,6 +176,7 @@ export default function ReleaseIngestConfigPage({
   }, [loadEndpoints]);
 
   const isAzureDevOpsProvider = draft.provider === "azure_devops";
+  const webhookSecretRef = buildWebhookSecretRef(draft);
 
   const sortedEndpoints = useMemo(() => {
     return [...endpoints].sort((left, right) => {
@@ -166,6 +207,10 @@ export default function ReleaseIngestConfigPage({
       toast.error("Endpoint ID and name are required.");
       return;
     }
+    if (draft.webhookSecretMode === "environment_variable" && webhookSecretRef === "") {
+      toast.error("Environment variable name is required when Webhook secret source is Environment variable.");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -174,7 +219,7 @@ export default function ReleaseIngestConfigPage({
           name: draft.name.trim(),
           provider: draft.provider,
           enabled: draft.enabled,
-          secretRef: draft.secretRef.trim() || undefined,
+          secretRef: webhookSecretRef || undefined,
           repoFilter: draft.repoFilter.trim() || undefined,
           branchFilter: draft.branchFilter.trim() || undefined,
           pipelineIdFilter: draft.pipelineIdFilter.trim() || undefined,
@@ -188,7 +233,7 @@ export default function ReleaseIngestConfigPage({
           name: draft.name.trim(),
           provider: draft.provider,
           enabled: draft.enabled,
-          secretRef: draft.secretRef.trim() || undefined,
+          secretRef: webhookSecretRef || undefined,
           repoFilter: draft.repoFilter.trim() || undefined,
           branchFilter: draft.branchFilter.trim() || undefined,
           pipelineIdFilter: draft.pipelineIdFilter.trim() || undefined,
@@ -310,24 +355,27 @@ export default function ReleaseIngestConfigPage({
 
                 <div className="mt-3 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
                   <p>
-                    Webhook secret ref:{" "}
-                    <span className="font-mono text-foreground">
-                      {endpoint.secretRef || providerDefaultSecretRef(provider)}
-                    </span>
-                  </p>
-                  <p>
-                    Manifest path: <span className="font-mono text-foreground">{endpoint.manifestPath || "default"}</span>
-                  </p>
-                  <p>
-                    Repo filter: <span className="font-mono text-foreground">{endpoint.repoFilter || "none"}</span>
+                    Webhook credential source:{" "}
+                    <span className="font-medium text-foreground">{describeWebhookSecretSource(endpoint)}</span>
                   </p>
                   <p>
                     Branch filter: <span className="font-mono text-foreground">{endpoint.branchFilter || "none"}</span>
                   </p>
-                  <p>
-                    Pipeline filter:{" "}
-                    <span className="font-mono text-foreground">{endpoint.pipelineIdFilter || "none"}</span>
-                  </p>
+                  {provider === "github" ? (
+                    <>
+                      <p>
+                        Repo filter: <span className="font-mono text-foreground">{endpoint.repoFilter || "none"}</span>
+                      </p>
+                      <p>
+                        Manifest path: <span className="font-mono text-foreground">{endpoint.manifestPath || "default"}</span>
+                      </p>
+                    </>
+                  ) : (
+                    <p>
+                      Pipeline filter:{" "}
+                      <span className="font-mono text-foreground">{endpoint.pipelineIdFilter || "none"}</span>
+                    </p>
+                  )}
                   <p>
                     Updated: <span className="text-foreground">{formatTimestamp(endpoint.updatedAt)}</span>
                   </p>
@@ -471,76 +519,125 @@ export default function ReleaseIngestConfigPage({
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
-                  <Label htmlFor="endpoint-secret-ref">Webhook secret reference</Label>
-                  <FieldHelpTooltip content="Secret reference used for webhook signature validation. Leave blank to use provider default." />
+                  <Label htmlFor="endpoint-webhook-secret-mode">Webhook secret source</Label>
+                  <FieldHelpTooltip content="How MAPPO resolves the webhook signing secret for this endpoint. Use the provider default backend secret unless you intentionally store the secret in a specific environment variable." />
                 </div>
-                <Input
-                  id="endpoint-secret-ref"
-                  value={draft.secretRef}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, secretRef: event.target.value }))
+                <Select
+                  value={draft.webhookSecretMode}
+                  onValueChange={(value) =>
+                    setDraft((current) => ({
+                      ...current,
+                      webhookSecretMode: value as WebhookSecretMode,
+                      webhookSecretEnvVar:
+                        value === "provider_default" ? "" : current.webhookSecretEnvVar,
+                    }))
                   }
-                  placeholder={providerDefaultSecretRef(draft.provider)}
-                />
+                >
+                  <SelectTrigger id="endpoint-webhook-secret-mode" className="h-10 w-full bg-background/90 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="provider_default">Provider default backend secret</SelectItem>
+                    <SelectItem value="environment_variable">Environment variable</SelectItem>
+                  </SelectContent>
+                </Select>
+                {draft.webhookSecretMode === "provider_default" ? (
+                  <p className="text-xs text-muted-foreground">
+                    MAPPO will resolve <span className="font-mono text-foreground">{providerDefaultSecretRef(draft.provider)}</span> on the backend.
+                  </p>
+                ) : null}
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
+            {draft.webhookSecretMode === "environment_variable" ? (
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
-                  <Label htmlFor="endpoint-repo-filter">Repo filter</Label>
-                  <FieldHelpTooltip content="Optional repository gate. For GitHub, use owner/repo. Leave blank to accept any repo." />
+                  <Label htmlFor="endpoint-webhook-secret-env-var">Webhook secret environment variable</Label>
+                  <FieldHelpTooltip content="Environment variable name on the MAPPO backend runtime that stores the webhook signing secret. Enter only the variable name, not the secret value." />
                 </div>
                 <Input
-                  id="endpoint-repo-filter"
-                  value={draft.repoFilter}
-                  onChange={(event) => setDraft((current) => ({ ...current, repoFilter: event.target.value }))}
-                  placeholder="Optional (for example org/repo)"
-                  disabled={isAzureDevOpsProvider}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1">
-                  <Label htmlFor="endpoint-branch-filter">Branch filter</Label>
-                  <FieldHelpTooltip content="Optional branch gate (for example main). Leave blank to accept any branch." />
-                </div>
-                <Input
-                  id="endpoint-branch-filter"
-                  value={draft.branchFilter}
-                  onChange={(event) => setDraft((current) => ({ ...current, branchFilter: event.target.value }))}
-                  placeholder="Optional (for example main)"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1">
-                  <Label htmlFor="endpoint-pipeline-filter">Pipeline filter</Label>
-                  <FieldHelpTooltip content="Optional Azure DevOps pipeline ID gate. Leave blank to accept any pipeline event." />
-                </div>
-                <Input
-                  id="endpoint-pipeline-filter"
-                  value={draft.pipelineIdFilter}
+                  id="endpoint-webhook-secret-env-var"
+                  value={draft.webhookSecretEnvVar}
                   onChange={(event) =>
-                    setDraft((current) => ({ ...current, pipelineIdFilter: event.target.value }))
+                    setDraft((current) => ({
+                      ...current,
+                      webhookSecretEnvVar: event.target.value,
+                    }))
                   }
-                  placeholder="Optional (for example 1)"
-                  disabled={!isAzureDevOpsProvider}
+                  placeholder={draft.provider === "azure_devops" ? "MAPPO_AZURE_DEVOPS_WEBHOOK_SECRET" : "MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET"}
                 />
               </div>
-            </div>
+            ) : null}
 
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1">
-                <Label htmlFor="endpoint-manifest-path">Manifest path</Label>
-                <FieldHelpTooltip content="Optional release manifest path for GitHub payloads. Leave blank to use provider default." />
+            {isAzureDevOpsProvider ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1">
+                    <Label htmlFor="endpoint-branch-filter">Branch filter</Label>
+                    <FieldHelpTooltip content="Optional branch gate for Azure DevOps events. Leave blank to accept any branch." />
+                  </div>
+                  <Input
+                    id="endpoint-branch-filter"
+                    value={draft.branchFilter}
+                    onChange={(event) => setDraft((current) => ({ ...current, branchFilter: event.target.value }))}
+                    placeholder="Optional (for example main)"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1">
+                    <Label htmlFor="endpoint-pipeline-filter">Pipeline filter</Label>
+                    <FieldHelpTooltip content="Optional Azure DevOps pipeline ID gate. Leave blank to accept any pipeline event." />
+                  </div>
+                  <Input
+                    id="endpoint-pipeline-filter"
+                    value={draft.pipelineIdFilter}
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, pipelineIdFilter: event.target.value }))
+                    }
+                    placeholder="Optional (for example 1)"
+                  />
+                </div>
               </div>
-              <Input
-                id="endpoint-manifest-path"
-                value={draft.manifestPath}
-                onChange={(event) => setDraft((current) => ({ ...current, manifestPath: event.target.value }))}
-                placeholder="Optional (for example releases/releases.manifest.json)"
-                disabled={isAzureDevOpsProvider}
-              />
-            </div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1">
+                    <Label htmlFor="endpoint-repo-filter">Repository filter</Label>
+                    <FieldHelpTooltip content="Optional GitHub repository gate. Use owner/repo. Leave blank to accept any repository that hits this endpoint." />
+                  </div>
+                  <Input
+                    id="endpoint-repo-filter"
+                    value={draft.repoFilter}
+                    onChange={(event) => setDraft((current) => ({ ...current, repoFilter: event.target.value }))}
+                    placeholder="Optional (for example org/repo)"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1">
+                    <Label htmlFor="endpoint-branch-filter">Branch filter</Label>
+                    <FieldHelpTooltip content="Optional branch gate for GitHub events. Leave blank to accept any branch." />
+                  </div>
+                  <Input
+                    id="endpoint-branch-filter"
+                    value={draft.branchFilter}
+                    onChange={(event) => setDraft((current) => ({ ...current, branchFilter: event.target.value }))}
+                    placeholder="Optional (for example main)"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1">
+                    <Label htmlFor="endpoint-manifest-path">Manifest path</Label>
+                    <FieldHelpTooltip content="Optional release manifest path for GitHub payloads. Leave blank to use the default manifest path." />
+                  </div>
+                  <Input
+                    id="endpoint-manifest-path"
+                    value={draft.manifestPath}
+                    onChange={(event) => setDraft((current) => ({ ...current, manifestPath: event.target.value }))}
+                    placeholder="Optional (for example releases/releases.manifest.json)"
+                  />
+                </div>
+              </div>
+            )}
           </form>
           <DrawerFooter>
             <div className="flex w-full items-center justify-end gap-2">

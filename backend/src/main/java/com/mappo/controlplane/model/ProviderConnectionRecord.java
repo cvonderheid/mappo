@@ -14,8 +14,8 @@ public record ProviderConnectionRecord(
     ProviderConnectionProviderType provider,
     @Schema(description = "Whether this provider connection is enabled.")
     boolean enabled,
-    @Schema(description = "Optional organization scope filter.", example = "https://dev.azure.com/pg123")
-    String organizationFilter,
+    @Schema(description = "Azure DevOps organization URL used for project discovery.", example = "https://dev.azure.com/pg123")
+    String organizationUrl,
     @Schema(
         description = "Secret reference for API credential lookup.",
         example = "mappo.azure-devops.personal-access-token"

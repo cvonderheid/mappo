@@ -3,7 +3,9 @@ package com.mappo.controlplane.service.providerconnection;
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ProviderConnectionCreateRequest;
 import com.mappo.controlplane.api.request.ProviderConnectionPatchRequest;
+import com.mappo.controlplane.api.request.ProviderConnectionVerifyRequest;
 import com.mappo.controlplane.domain.providerconnection.ProviderConnectionProviderType;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsUrlNormalizer;
 import com.mappo.controlplane.model.ProviderConnectionRecord;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
@@ -19,14 +21,14 @@ public class ProviderConnectionMutationService {
         String name = requiredName(request.name());
         ProviderConnectionProviderType provider = requiredProvider(request.provider());
         boolean enabled = request.enabled() == null || Boolean.TRUE.equals(request.enabled());
-        String organizationFilter = normalizeOrganizationFilter(request.organizationFilter());
+        String organizationUrl = normalizeOrganizationUrl(request.organizationUrl(), provider);
         String personalAccessTokenRef = normalizePersonalAccessTokenRef(request.personalAccessTokenRef(), provider);
         return new ProviderConnectionMutationRecord(
             id,
             name,
             provider,
             enabled,
-            organizationFilter,
+            organizationUrl,
             personalAccessTokenRef
         );
     }
@@ -45,9 +47,9 @@ public class ProviderConnectionMutationService {
         }
         ProviderConnectionProviderType provider = patch.provider() == null ? current.provider() : patch.provider();
         boolean enabled = patch.enabled() == null ? current.enabled() : patch.enabled();
-        String organizationFilter = patch.organizationFilter() == null
-            ? normalizeOrganizationFilter(current.organizationFilter())
-            : normalizeOrganizationFilter(patch.organizationFilter());
+        String organizationUrl = patch.organizationUrl() == null
+            ? normalizeOrganizationUrl(current.organizationUrl(), provider)
+            : normalizeOrganizationUrl(patch.organizationUrl(), provider);
         String personalAccessTokenRef = patch.personalAccessTokenRef() == null
             ? normalizePersonalAccessTokenRef(current.personalAccessTokenRef(), provider)
             : normalizePersonalAccessTokenRef(patch.personalAccessTokenRef(), provider);
@@ -56,8 +58,22 @@ public class ProviderConnectionMutationService {
             requiredName(name),
             requiredProvider(provider),
             enabled,
-            organizationFilter,
+            organizationUrl,
             personalAccessTokenRef
+        );
+    }
+
+    public ProviderConnectionMutationRecord fromVerification(ProviderConnectionVerifyRequest request) {
+        ProviderConnectionProviderType provider = request == null || request.provider() == null
+            ? ProviderConnectionProviderType.azure_devops
+            : request.provider();
+        return new ProviderConnectionMutationRecord(
+            normalize(request == null ? "" : request.id()).isBlank() ? "__preview__" : normalize(request.id()),
+            "Preview",
+            requiredProvider(provider),
+            true,
+            normalizeOrganizationUrl(request == null ? "" : request.organizationUrl(), provider),
+            normalizePersonalAccessTokenRef(request == null ? "" : request.personalAccessTokenRef(), provider)
         );
     }
 
@@ -67,7 +83,7 @@ public class ProviderConnectionMutationService {
             requiredName(connection.name()),
             requiredProvider(connection.provider()),
             connection.enabled(),
-            normalizeOrganizationFilter(connection.organizationFilter()),
+            normalizeOrganizationUrl(connection.organizationUrl(), connection.provider()),
             normalizePersonalAccessTokenRef(connection.personalAccessTokenRef(), connection.provider())
         );
     }
@@ -98,8 +114,15 @@ public class ProviderConnectionMutationService {
         return value;
     }
 
-    private String normalizeOrganizationFilter(String value) {
-        return normalize(value);
+    private String normalizeOrganizationUrl(String value, ProviderConnectionProviderType provider) {
+        String normalized = normalize(value);
+        if (provider != ProviderConnectionProviderType.azure_devops) {
+            return "";
+        }
+        if (normalized.isBlank()) {
+            return "";
+        }
+        return AzureDevOpsUrlNormalizer.normalizeOrganizationUrl(normalized, "https://dev.azure.com");
     }
 
     private String normalizePersonalAccessTokenRef(String value, ProviderConnectionProviderType provider) {

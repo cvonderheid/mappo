@@ -8,7 +8,7 @@ public record ProviderConnectionPatchRequest(
     String name,
     ProviderConnectionProviderType provider,
     Boolean enabled,
-    String organizationFilter,
+    String organizationUrl,
     String personalAccessTokenRef
 ) {
 }

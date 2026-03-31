@@ -4,6 +4,8 @@ import java.util.List;
 
 public interface AzureDevOpsPipelineClient {
 
+    List<AzureDevOpsProjectDefinitionRecord> listProjects(String organization, String personalAccessToken);
+
     AzureDevOpsPipelineRunRecord queueRun(AzureDevOpsPipelineInputs inputs);
 
     AzureDevOpsPipelineRunRecord getRun(AzureDevOpsPipelineInputs inputs, String runId);

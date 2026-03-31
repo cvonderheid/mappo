@@ -10,6 +10,21 @@ public class AzureDevOpsPipelineDiscoveryService {
 
     private final AzureDevOpsPipelineClient pipelineClient;
 
+    public List<AzureDevOpsProjectDefinitionRecord> discoverProjects(
+        String organization,
+        String personalAccessToken
+    ) {
+        String token = normalize(personalAccessToken);
+        if (token.isBlank()) {
+            throw new IllegalArgumentException("Azure DevOps PAT could not be resolved.");
+        }
+        String normalizedOrganization = normalize(organization);
+        if (normalizedOrganization.isBlank()) {
+            throw new IllegalArgumentException("Azure DevOps organization URL is required.");
+        }
+        return pipelineClient.listProjects(normalizedOrganization, token);
+    }
+
     public List<AzureDevOpsPipelineDefinitionRecord> discoverPipelines(
         String organization,
         String project,

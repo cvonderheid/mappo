@@ -14,8 +14,9 @@ import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineCli
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDefinitionRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDiscoveryInputs;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineInputs;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsRepositoryDefinitionRecord;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsProjectDefinitionRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineRunRecord;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsRepositoryDefinitionRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsServiceConnectionDefinitionRecord;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -198,12 +199,29 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                 .contentType(APPLICATION_JSON)
                 .content("""
                     {
+                      "organizationUrl": "https://dev.azure.com/pg123",
                       "personalAccessTokenRef": "mappo.azure-devops.personal-access-token"
                     }
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value("ado-default"))
+            .andExpect(jsonPath("$.organizationUrl").value("https://dev.azure.com/pg123"))
             .andExpect(jsonPath("$.personalAccessTokenRef").value("mappo.azure-devops.personal-access-token"));
+    }
+
+    @Test
+    void verifyProviderConnectionEnumeratesReachableProjects() throws Exception {
+        mockMvc.perform(post("/api/v1/provider-connections/ado/verify")
+                .contentType(APPLICATION_JSON)
+                .content("""
+                    {
+                      "organizationUrl": "https://pg123.visualstudio.com/demo-app-service/_git/demo-app-service",
+                      "personalAccessTokenRef": "mappo.azure-devops.personal-access-token"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.organizationUrl").value("https://pg123.visualstudio.com"))
+            .andExpect(jsonPath("$.projects[0].name").value("demo-app-service"));
     }
 
     @TestConfiguration
@@ -213,6 +231,25 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
         @Primary
         AzureDevOpsPipelineClient azureDevOpsPipelineClient() {
             return new AzureDevOpsPipelineClient() {
+                @Override
+                public List<AzureDevOpsProjectDefinitionRecord> listProjects(
+                    String organization,
+                    String personalAccessToken
+                ) {
+                    return List.of(
+                        new AzureDevOpsProjectDefinitionRecord(
+                            "demo-app-service",
+                            "demo-app-service",
+                            organization + "/demo-app-service"
+                        ),
+                        new AzureDevOpsProjectDefinitionRecord(
+                            "shared-platform",
+                            "shared-platform",
+                            organization + "/shared-platform"
+                        )
+                    );
+                }
+
                 @Override
                 public AzureDevOpsPipelineRunRecord queueRun(AzureDevOpsPipelineInputs inputs) {
                     throw new UnsupportedOperationException("not used");

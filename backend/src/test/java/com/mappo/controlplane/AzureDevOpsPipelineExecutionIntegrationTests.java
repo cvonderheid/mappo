@@ -15,6 +15,7 @@ import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineCli
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDefinitionRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDiscoveryInputs;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineInputs;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsProjectDefinitionRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsRepositoryDefinitionRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineRunRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsServiceConnectionDefinitionRecord;
@@ -217,6 +218,11 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
     static class StubAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
 
         private final Map<String, AtomicInteger> pollsByRun = new ConcurrentHashMap<>();
+
+        @Override
+        public List<AzureDevOpsProjectDefinitionRecord> listProjects(String organization, String personalAccessToken) {
+            return List.of(new AzureDevOpsProjectDefinitionRecord("demo-app-service", "demo-app-service", organization + "/demo-app-service"));
+        }
 
         @Override
         public AzureDevOpsPipelineRunRecord queueRun(AzureDevOpsPipelineInputs inputs) {

@@ -26,8 +26,10 @@ import type {
   ProjectAdoRepositoryDiscoveryResult,
   ProjectAdoServiceConnectionDiscoveryResult,
   ProviderConnection,
+  ProviderConnectionAdoProjectDiscoveryResult,
   ProviderConnectionCreateRequest,
   ProviderConnectionPatchRequest,
+  ProviderConnectionVerifyRequest,
   Release,
   ReleaseIngestEndpoint,
   ReleaseIngestEndpointCreateRequest,
@@ -257,6 +259,48 @@ export async function patchProviderConnection(
     throw new Error(`patchProviderConnection failed (${response.status}): ${detail}`);
   }
   return payload as ProviderConnection;
+}
+
+export async function verifyProviderConnectionAdoProjects(
+  request: ProviderConnectionVerifyRequest
+): Promise<ProviderConnectionAdoProjectDiscoveryResult> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/provider-connections/ado/verify`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request ?? {}),
+  });
+  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!response.ok) {
+    const detail = typeof payload.detail === "string" ? payload.detail : "unknown error";
+    throw new Error(`verifyProviderConnectionAdoProjects failed (${response.status}): ${detail}`);
+  }
+  return payload as ProviderConnectionAdoProjectDiscoveryResult;
+}
+
+export async function discoverProviderConnectionAdoProjects(
+  connectionId: string,
+  nameContains?: string
+): Promise<ProviderConnectionAdoProjectDiscoveryResult> {
+  const query = nameContains && nameContains.trim() !== ""
+    ? `?nameContains=${encodeURIComponent(nameContains.trim())}`
+    : "";
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/provider-connections/${encodeURIComponent(connectionId)}/ado/projects/discover${query}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!response.ok) {
+    const detail = typeof payload.detail === "string" ? payload.detail : "unknown error";
+    throw new Error(`discoverProviderConnectionAdoProjects failed (${response.status}): ${detail}`);
+  }
+  return payload as ProviderConnectionAdoProjectDiscoveryResult;
 }
 
 export async function deleteProviderConnection(connectionId: string): Promise<void> {

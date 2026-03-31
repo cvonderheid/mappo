@@ -49,6 +49,13 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
     }
 
     @Override
+    public List<AzureDevOpsProjectDefinitionRecord> listProjects(String organization, String personalAccessToken) {
+        String url = projectCollectionApiUrl(organization);
+        HttpResponse<String> response = sendJson(personalAccessToken, url, "GET", null);
+        return toProjectDefinitions(organization, response.body());
+    }
+
+    @Override
     public AzureDevOpsPipelineRunRecord queueRun(AzureDevOpsPipelineInputs inputs) {
         String url = runCollectionApiUrl(inputs);
         Map<String, Object> body = new LinkedHashMap<>();
@@ -156,6 +163,38 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
                 "Azure DevOps API request interrupted: " + exception.getMessage(),
                 0,
                 ""
+            );
+        }
+    }
+
+    private List<AzureDevOpsProjectDefinitionRecord> toProjectDefinitions(
+        String organization,
+        String responseBody
+    ) {
+        try {
+            JsonNode root = objectMapper.readTree(responseBody);
+            List<AzureDevOpsProjectDefinitionRecord> projects = new ArrayList<>();
+            JsonNode values = root.path("value");
+            if (values.isArray()) {
+                for (JsonNode node : values) {
+                    String id = normalize(text(node.path("id")));
+                    if (id.isBlank()) {
+                        continue;
+                    }
+                    String name = firstNonBlank(text(node.path("name")), "project-" + id);
+                    String webUrl = firstNonBlank(
+                        text(node.at("/_links/web/href")),
+                        organizationUrl(organization) + "/" + encodePath(name)
+                    );
+                    projects.add(new AzureDevOpsProjectDefinitionRecord(id, name, webUrl));
+                }
+            }
+            return projects;
+        } catch (Exception exception) {
+            throw new AzureDevOpsClientException(
+                "Azure DevOps project list response parsing failed: " + exception.getMessage(),
+                0,
+                responseBody
             );
         }
     }
@@ -347,6 +386,11 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
             + "&$top=200";
     }
 
+    private String projectCollectionApiUrl(String organization) {
+        return organizationUrl(organization)
+            + "/_apis/projects?api-version=7.1-preview.4&$top=200";
+    }
+
     private String repositoryCollectionApiUrl(AzureDevOpsPipelineDiscoveryInputs inputs) {
         return organizationUrl(inputs.organization())
             + "/" + encodePath(inputs.project())
@@ -367,13 +411,10 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
     }
 
     private String organizationUrl(String organization) {
-        String normalizedOrganization = normalize(organization);
-        if (normalizedOrganization.startsWith("https://") || normalizedOrganization.startsWith("http://")) {
-            return trimTrailingSlash(normalizedOrganization);
-        }
-        String baseUrl = normalize(properties.getAzureDevOps().getBaseUrl());
-        String resolvedBase = baseUrl.isBlank() ? "https://dev.azure.com" : trimTrailingSlash(baseUrl);
-        return resolvedBase + "/" + encodePath(normalizedOrganization);
+        return AzureDevOpsUrlNormalizer.normalizeOrganizationUrl(
+            organization,
+            properties.getAzureDevOps().getBaseUrl()
+        );
     }
 
     private String branchRef(String branch) {

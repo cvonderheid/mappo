@@ -7,7 +7,7 @@ public record ProviderConnectionMutationRecord(
     String name,
     ProviderConnectionProviderType provider,
     boolean enabled,
-    String organizationFilter,
+    String organizationUrl,
     String personalAccessTokenRef
 ) {
 }
