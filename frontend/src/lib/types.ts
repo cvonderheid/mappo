@@ -50,11 +50,30 @@ export type DiscoverProjectAdoPipelinesRequest = {
   providerConnectionId?: string;
   nameContains?: string;
 };
+export type DiscoverProjectAdoRepositoriesRequest = {
+  organization?: string;
+  project?: string;
+  providerConnectionId?: string;
+  nameContains?: string;
+};
 export type DiscoverProjectAdoServiceConnectionsRequest = {
   organization?: string;
   project?: string;
   providerConnectionId?: string;
   nameContains?: string;
+};
+export type ProjectAdoRepository = {
+  id: string;
+  name: string;
+  defaultBranch?: string;
+  webUrl?: string;
+  remoteUrl?: string;
+};
+export type ProjectAdoRepositoryDiscoveryResult = {
+  projectId: string;
+  organization: string;
+  project: string;
+  repositories: ProjectAdoRepository[];
 };
 export type ProjectAdoPipeline = {
   id: string;

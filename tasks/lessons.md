@@ -202,6 +202,12 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Detection signal: operators hit “PAT could not be resolved” while all visible project fields appear complete.
 - Enforcement (test/lint/checklist): for any external driver discovery action, require a visible admin-configured credential source and show the resolved reference in project config before allowing discovery.
 
+- Date: 2026-03-30
+- Pattern: Operator setup screens become confusing when project-scoped integrations are entered as raw text fields even though MAPPO can derive or discover the values from an authenticated provider context.
+- Preventative rule: If a value can be derived from a selected provider connection plus one higher-level locator (for example project URL), prefer discovery-backed dropdowns and read-only derived context over freeform fields.
+- Detection signal: users ask “where do I get this value?” for repo/pipeline/service-connection fields or expect those values to populate after choosing the provider connection.
+- Enforcement (test/lint/checklist): for each setup field, classify it as manual, derived, or discovered; remove manual entry for derived/discovered values before closing the walkthrough slice.
+
 - Date: 2026-03-22
 - Pattern: JSONB config values appeared to “not persist” because the query layer re-serialized JSON text before parsing, collapsing valid objects to `{}` in API responses.
 - Preventative rule: For JSONB columns read as text (`jsonbColumn.data()`), parse with `readMap` directly; reserve `toMap` for object instances, not raw JSON strings.

@@ -4,6 +4,7 @@ public record PipelineTriggerDriverConfig(
     String pipelineSystem,
     String organization,
     String project,
+    String repository,
     String pipelineId,
     String branch,
     String azureServiceConnectionName,
@@ -14,6 +15,7 @@ public record PipelineTriggerDriverConfig(
     public static PipelineTriggerDriverConfig defaults() {
         return new PipelineTriggerDriverConfig(
             "azure_devops",
+            "",
             "",
             "",
             "",

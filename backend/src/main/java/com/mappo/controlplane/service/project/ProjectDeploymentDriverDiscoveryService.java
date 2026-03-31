@@ -2,6 +2,7 @@ package com.mappo.controlplane.service.project;
 
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ProjectAdoPipelineDiscoveryRequest;
+import com.mappo.controlplane.api.request.ProjectAdoRepositoryDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoServiceConnectionDiscoveryRequest;
 import com.mappo.controlplane.domain.project.PipelineTriggerDriverConfig;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
@@ -9,9 +10,12 @@ import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsClientException;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDefinitionRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDiscoveryService;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsRepositoryDefinitionRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsServiceConnectionDefinitionRecord;
 import com.mappo.controlplane.model.ProjectAdoPipelineDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProjectAdoPipelineRecord;
+import com.mappo.controlplane.model.ProjectAdoRepositoryDiscoveryResultRecord;
+import com.mappo.controlplane.model.ProjectAdoRepositoryRecord;
 import com.mappo.controlplane.model.ProjectAdoServiceConnectionDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProjectAdoServiceConnectionRecord;
 import com.mappo.controlplane.model.ProviderConnectionRecord;
@@ -119,6 +123,67 @@ public class ProjectDeploymentDriverDiscoveryService {
             throw new ApiException(
                 HttpStatus.BAD_GATEWAY,
                 "Azure DevOps pipeline discovery failed: " + normalize(exception.responseBody())
+            );
+        }
+    }
+
+    public ProjectAdoRepositoryDiscoveryResultRecord discoverAdoRepositories(
+        String projectId,
+        ProjectAdoRepositoryDiscoveryRequest request
+    ) {
+        ProjectDefinition definition = projectCatalogService.getRequired(projectId);
+        PipelineTriggerDriverConfig config = requireAdoPipelineTriggerConfig(definition);
+
+        String organization = firstNonBlank(
+            request == null ? null : request.organization(),
+            config.organization()
+        );
+        String adoProject = firstNonBlank(
+            request == null ? null : request.project(),
+            config.project()
+        );
+        String personalAccessToken = resolveAdoPersonalAccessToken(
+            definition,
+            request == null ? null : request.providerConnectionId()
+        );
+        String nameContains = normalize(request == null ? null : request.nameContains());
+
+        if (organization.isBlank() || adoProject.isBlank()) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "organization and project are required to discover Azure DevOps repositories."
+            );
+        }
+
+        try {
+            List<ProjectAdoRepositoryRecord> repositories = pipelineDiscoveryService
+                .discoverRepositories(organization, adoProject, personalAccessToken)
+                .stream()
+                .filter(repository -> nameContains.isBlank()
+                    || normalize(repository.name()).toLowerCase(Locale.ROOT).contains(nameContains.toLowerCase(Locale.ROOT)))
+                .sorted(Comparator
+                    .comparing((AzureDevOpsRepositoryDefinitionRecord repository) -> normalize(repository.name()).toLowerCase(Locale.ROOT))
+                    .thenComparing(repository -> normalize(repository.id())))
+                .map(repository -> new ProjectAdoRepositoryRecord(
+                    normalize(repository.id()),
+                    normalize(repository.name()),
+                    normalize(repository.defaultBranch()),
+                    normalize(repository.webUrl()),
+                    normalize(repository.remoteUrl())
+                ))
+                .toList();
+            return new ProjectAdoRepositoryDiscoveryResultRecord(
+                definition.id(),
+                organization,
+                adoProject,
+                repositories
+            );
+        } catch (IllegalArgumentException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, exception.getMessage());
+        } catch (AzureDevOpsClientException exception) {
+            throw new ApiException(
+                HttpStatus.BAD_GATEWAY,
+                "Azure DevOps repository discovery failed: " + normalize(exception.responseBody())
             );
         }
     }

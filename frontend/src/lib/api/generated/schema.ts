@@ -238,6 +238,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{projectId}/deployment-driver/ado/repositories/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Discover Azure DevOps repositories
+         * @description Discovers Azure DevOps repositories for the selected project using organization/project from request or project config, and Azure DevOps credentials from the linked provider connection.
+         */
+        post: operations["discoverProjectAdoRepositories"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{projectId}/deployment-driver/ado/pipelines/discover": {
         parameters: {
             query?: never;
@@ -1038,6 +1058,7 @@ export interface components {
             pipelineSystem?: string;
             organization?: string;
             project?: string;
+            repository?: string;
             pipelineId?: string;
             branch?: string;
             azureServiceConnectionName?: string;
@@ -1127,6 +1148,25 @@ export interface components {
             name?: string;
             type?: string;
             webUrl?: string;
+        };
+        ProjectAdoRepositoryDiscoveryRequest: {
+            organization?: string;
+            project?: string;
+            providerConnectionId?: string;
+            nameContains?: string;
+        };
+        ProjectAdoRepositoryDiscoveryResultRecord: {
+            projectId?: string;
+            organization?: string;
+            project?: string;
+            repositories?: components["schemas"]["ProjectAdoRepositoryRecord"][];
+        };
+        ProjectAdoRepositoryRecord: {
+            id?: string;
+            name?: string;
+            defaultBranch?: string;
+            webUrl?: string;
+            remoteUrl?: string;
         };
         ProjectAdoPipelineDiscoveryRequest: {
             organization?: string;
@@ -2032,6 +2072,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ProjectAdoServiceConnectionDiscoveryResultRecord"];
+                };
+            };
+        };
+    };
+    discoverProjectAdoRepositories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ProjectAdoRepositoryDiscoveryRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ProjectAdoRepositoryDiscoveryResultRecord"];
                 };
             };
         };

@@ -2,9 +2,11 @@ package com.mappo.controlplane.api;
 
 import com.mappo.controlplane.api.query.ProjectAuditPageParameters;
 import com.mappo.controlplane.api.request.ProjectAdoPipelineDiscoveryRequest;
+import com.mappo.controlplane.api.request.ProjectAdoRepositoryDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoServiceConnectionDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectConfigurationPatchRequest;
 import com.mappo.controlplane.api.request.ProjectCreateRequest;
+import com.mappo.controlplane.model.ProjectAdoRepositoryDiscoveryResultRecord;
 import com.mappo.controlplane.api.request.ProjectValidationRequest;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.model.ProjectAdoPipelineDiscoveryResultRecord;
@@ -95,6 +97,18 @@ public class ProjectsController {
         @RequestBody(required = false) ProjectAdoPipelineDiscoveryRequest request
     ) {
         return projectDeploymentDriverDiscoveryService.discoverAdoPipelines(projectId, request);
+    }
+
+    @PostMapping("/{projectId}/deployment-driver/ado/repositories/discover")
+    @Operation(
+        summary = "Discover Azure DevOps repositories",
+        description = "Discovers Azure DevOps repositories for the selected project using organization/project from request or project config, and Azure DevOps credentials from the linked provider connection."
+    )
+    public ProjectAdoRepositoryDiscoveryResultRecord discoverProjectAdoRepositories(
+        @PathVariable("projectId") String projectId,
+        @RequestBody(required = false) ProjectAdoRepositoryDiscoveryRequest request
+    ) {
+        return projectDeploymentDriverDiscoveryService.discoverAdoRepositories(projectId, request);
     }
 
     @PostMapping("/{projectId}/deployment-driver/ado/service-connections/discover")

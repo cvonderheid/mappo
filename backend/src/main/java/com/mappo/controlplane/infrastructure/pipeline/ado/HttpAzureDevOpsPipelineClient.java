@@ -75,6 +75,13 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
     }
 
     @Override
+    public List<AzureDevOpsRepositoryDefinitionRecord> listRepositories(AzureDevOpsPipelineDiscoveryInputs inputs) {
+        String url = repositoryCollectionApiUrl(inputs);
+        HttpResponse<String> response = sendJson(inputs, url, "GET", null);
+        return toRepositoryDefinitions(inputs, response.body());
+    }
+
+    @Override
     public List<AzureDevOpsPipelineDefinitionRecord> listPipelines(AzureDevOpsPipelineDiscoveryInputs inputs) {
         String url = pipelineCollectionApiUrl(inputs);
         HttpResponse<String> response = sendJson(inputs, url, "GET", null);
@@ -195,6 +202,44 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
         }
     }
 
+    private List<AzureDevOpsRepositoryDefinitionRecord> toRepositoryDefinitions(
+        AzureDevOpsPipelineDiscoveryInputs inputs,
+        String responseBody
+    ) {
+        try {
+            JsonNode root = objectMapper.readTree(responseBody);
+            List<AzureDevOpsRepositoryDefinitionRecord> repositories = new ArrayList<>();
+            JsonNode values = root.path("value");
+            if (values.isArray()) {
+                for (JsonNode node : values) {
+                    String id = normalize(text(node.path("id")));
+                    if (id.isBlank()) {
+                        continue;
+                    }
+                    String name = firstNonBlank(text(node.path("name")), "repo-" + id);
+                    String defaultBranch = normalize(text(node.path("defaultBranch")));
+                    String remoteUrl = normalize(text(node.path("remoteUrl")));
+                    String webUrl = firstNonBlank(
+                        text(node.path("webUrl")),
+                        organizationUrl(inputs.organization())
+                            + "/" + encodePath(inputs.project())
+                            + "/_git/" + encodePath(name)
+                    );
+                    repositories.add(
+                        new AzureDevOpsRepositoryDefinitionRecord(id, name, defaultBranch, webUrl, remoteUrl)
+                    );
+                }
+            }
+            return repositories;
+        } catch (Exception exception) {
+            throw new AzureDevOpsClientException(
+                "Azure DevOps repository list response parsing failed: " + exception.getMessage(),
+                0,
+                responseBody
+            );
+        }
+    }
+
     private List<AzureDevOpsServiceConnectionDefinitionRecord> toServiceConnectionDefinitions(
         AzureDevOpsPipelineDiscoveryInputs inputs,
         String responseBody
@@ -300,6 +345,12 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
             + "/" + encodePath(inputs.project())
             + "/_apis/pipelines?api-version=" + encodeQueryParam(properties.getAzureDevOps().getApiVersion())
             + "&$top=200";
+    }
+
+    private String repositoryCollectionApiUrl(AzureDevOpsPipelineDiscoveryInputs inputs) {
+        return organizationUrl(inputs.organization())
+            + "/" + encodePath(inputs.project())
+            + "/_apis/git/repositories?api-version=7.1-preview.1";
     }
 
     private String serviceConnectionCollectionApiUrl(AzureDevOpsPipelineDiscoveryInputs inputs) {

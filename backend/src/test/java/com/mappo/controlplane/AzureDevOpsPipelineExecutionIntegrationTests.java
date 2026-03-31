@@ -15,6 +15,7 @@ import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineCli
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDefinitionRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDiscoveryInputs;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineInputs;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsRepositoryDefinitionRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineRunRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsServiceConnectionDefinitionRecord;
 import java.util.LinkedHashMap;
@@ -255,6 +256,19 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
                 "https://dev.azure.com/pg123/demo-app-service/_build/results?buildId=" + runId + "&view=results",
                 "https://dev.azure.com/pg123/demo-app-service/_build/results?buildId=" + runId + "&view=logs",
                 "https://dev.azure.com/pg123/demo-app-service/_apis/pipelines/1/runs/" + runId
+            );
+        }
+
+        @Override
+        public List<AzureDevOpsRepositoryDefinitionRecord> listRepositories(AzureDevOpsPipelineDiscoveryInputs inputs) {
+            return List.of(
+                new AzureDevOpsRepositoryDefinitionRecord(
+                    "repo-1",
+                    "demo-app-service",
+                    "refs/heads/main",
+                    "https://dev.azure.com/pg123/demo-app-service/_git/demo-app-service",
+                    "https://pg123@dev.azure.com/pg123/demo-app-service/_git/demo-app-service"
+                )
             );
         }
 

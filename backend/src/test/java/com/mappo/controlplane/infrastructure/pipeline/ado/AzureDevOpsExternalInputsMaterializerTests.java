@@ -42,6 +42,7 @@ class AzureDevOpsExternalInputsMaterializerTests {
                 "azure_devops",
                 "https://dev.azure.com/pg123",
                 "demo-app-service",
+                "demo-app-service",
                 "1",
                 "main",
                 "mappo-ado-demo-rg-contributor",

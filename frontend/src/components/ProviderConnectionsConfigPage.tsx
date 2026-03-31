@@ -39,7 +39,6 @@ type ProviderConnectionDraft = {
   name: string;
   provider: ProviderConnectionProvider;
   enabled: boolean;
-  organizationFilter: string;
   personalAccessTokenRef: string;
 };
 
@@ -51,7 +50,6 @@ function emptyDraft(): ProviderConnectionDraft {
     name: "",
     provider: "azure_devops",
     enabled: true,
-    organizationFilter: "",
     personalAccessTokenRef: DEFAULT_AZURE_DEVOPS_PAT_REF,
   };
 }
@@ -62,7 +60,6 @@ function toDraft(connection: ProviderConnection): ProviderConnectionDraft {
     name: connection.name ?? "",
     provider: (connection.provider ?? "azure_devops") as ProviderConnectionProvider,
     enabled: connection.enabled ?? true,
-    organizationFilter: connection.organizationFilter ?? "",
     personalAccessTokenRef: connection.personalAccessTokenRef ?? DEFAULT_AZURE_DEVOPS_PAT_REF,
   };
 }
@@ -158,7 +155,7 @@ export default function ProviderConnectionsConfigPage({
           name,
           provider: draft.provider,
           enabled: draft.enabled,
-          organizationFilter: normalize(draft.organizationFilter) || undefined,
+          organizationFilter: "",
           personalAccessTokenRef: personalAccessTokenRef || undefined,
         };
         await patchProviderConnection(editingId, patchRequest);
@@ -169,7 +166,7 @@ export default function ProviderConnectionsConfigPage({
           name,
           provider: draft.provider,
           enabled: draft.enabled,
-          organizationFilter: normalize(draft.organizationFilter) || undefined,
+          organizationFilter: undefined,
           personalAccessTokenRef: personalAccessTokenRef || undefined,
         };
         await createProviderConnection(createRequest);
@@ -266,12 +263,6 @@ export default function ProviderConnectionsConfigPage({
                 </div>
                 <div className="mt-2 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
                   <p>
-                    Organization filter:{" "}
-                    <span className="font-mono text-foreground">
-                      {normalize(connection.organizationFilter ?? "") || "all organizations"}
-                    </span>
-                  </p>
-                  <p>
                     PAT secret reference:{" "}
                     <span className="font-mono text-foreground">
                       {maskedSecretRef(connection.personalAccessTokenRef ?? DEFAULT_AZURE_DEVOPS_PAT_REF)}
@@ -331,7 +322,7 @@ export default function ProviderConnectionsConfigPage({
           <DrawerHeader>
             <DrawerTitle>{editingId ? `Edit ${editingId}` : "New Provider Connection"}</DrawerTitle>
             <DrawerDescription>
-              Configure provider API auth and scope used by linked project deployment drivers.
+              Configure provider API auth used by linked project deployment drivers.
             </DrawerDescription>
           </DrawerHeader>
           <div className="max-h-[72vh] overflow-y-auto px-4 pb-2">
@@ -399,20 +390,6 @@ export default function ProviderConnectionsConfigPage({
                     <SelectItem value="disabled">Disabled</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-1 sm:col-span-2">
-                <div className="flex items-center gap-1">
-                  <Label htmlFor="provider-connection-org-filter">Organization URL filter (optional)</Label>
-                  <FieldHelpTooltip content="Optional Azure DevOps organization scope. Leave blank to allow any org in project driver settings." />
-                </div>
-                <Input
-                  id="provider-connection-org-filter"
-                  value={draft.organizationFilter}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, organizationFilter: event.target.value }))
-                  }
-                  placeholder="https://dev.azure.com/pg123"
-                />
               </div>
               <div className="space-y-1 sm:col-span-2">
                 <div className="flex items-center gap-1">

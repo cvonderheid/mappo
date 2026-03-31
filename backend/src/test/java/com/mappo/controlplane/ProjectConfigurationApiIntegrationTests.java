@@ -14,6 +14,7 @@ import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineCli
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDefinitionRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDiscoveryInputs;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineInputs;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsRepositoryDefinitionRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineRunRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsServiceConnectionDefinitionRecord;
 import java.util.LinkedHashMap;
@@ -154,6 +155,25 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
     }
 
     @Test
+    void discoverAdoRepositoriesReturnsConfiguredRepositories() throws Exception {
+        mockMvc.perform(post("/api/v1/projects/{projectId}/deployment-driver/ado/repositories/discover", "azure-appservice-ado-pipeline")
+                .contentType(APPLICATION_JSON)
+                .content("""
+                    {
+                      "organization": "https://dev.azure.com/pg123",
+                      "project": "demo-app-service",
+                      "providerConnectionId": "ado-default"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.projectId").value("azure-appservice-ado-pipeline"))
+            .andExpect(jsonPath("$.organization").value("https://dev.azure.com/pg123"))
+            .andExpect(jsonPath("$.project").value("demo-app-service"))
+            .andExpect(jsonPath("$.repositories[0].id").value("repo-1"))
+            .andExpect(jsonPath("$.repositories[0].name").value("demo-app-service"));
+    }
+
+    @Test
     void discoverAdoServiceConnectionsReturnsConfiguredConnections() throws Exception {
         mockMvc.perform(post("/api/v1/projects/{projectId}/deployment-driver/ado/service-connections/discover", "azure-appservice-ado-pipeline")
                 .contentType(APPLICATION_JSON)
@@ -201,6 +221,28 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                 @Override
                 public AzureDevOpsPipelineRunRecord getRun(AzureDevOpsPipelineInputs inputs, String runId) {
                     throw new UnsupportedOperationException("not used");
+                }
+
+                @Override
+                public List<AzureDevOpsRepositoryDefinitionRecord> listRepositories(
+                    AzureDevOpsPipelineDiscoveryInputs inputs
+                ) {
+                    return List.of(
+                        new AzureDevOpsRepositoryDefinitionRecord(
+                            "repo-1",
+                            "demo-app-service",
+                            "refs/heads/main",
+                            "https://dev.azure.com/pg123/demo-app-service/_git/demo-app-service",
+                            "https://pg123@dev.azure.com/pg123/demo-app-service/_git/demo-app-service"
+                        ),
+                        new AzureDevOpsRepositoryDefinitionRecord(
+                            "repo-2",
+                            "shared-library",
+                            "refs/heads/main",
+                            "https://dev.azure.com/pg123/demo-app-service/_git/shared-library",
+                            "https://pg123@dev.azure.com/pg123/demo-app-service/_git/shared-library"
+                        )
+                    );
                 }
 
                 @Override

@@ -35,6 +35,7 @@ import {
   adminUpdateTargetRegistration,
   createRun,
   discoverProjectAdoPipelines,
+  discoverProjectAdoRepositories,
   discoverProjectAdoServiceConnections,
   getRun,
   listProjectAudit,
@@ -54,6 +55,7 @@ import type {
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
   PageMetadata,
+  ProjectAdoRepositoryDiscoveryResult,
   ProjectConfigurationAuditPage,
   ProjectConfigurationPatchRequest,
   ProjectCreateRequest,
@@ -1247,11 +1249,23 @@ function AppShell() {
     request: {
       organization?: string;
       project?: string;
-      releaseIngestEndpointId?: string;
+      providerConnectionId?: string;
       nameContains?: string;
     }
   ): Promise<ProjectAdoPipelineDiscoveryResult> {
     return discoverProjectAdoPipelines(projectId, request);
+  }
+
+  async function handleDiscoverProjectAdoRepositories(
+    projectId: string,
+    request: {
+      organization?: string;
+      project?: string;
+      providerConnectionId?: string;
+      nameContains?: string;
+    }
+  ): Promise<ProjectAdoRepositoryDiscoveryResult> {
+    return discoverProjectAdoRepositories(projectId, request);
   }
 
   async function handleDiscoverProjectAdoServiceConnections(
@@ -1259,7 +1273,7 @@ function AppShell() {
     request: {
       organization?: string;
       project?: string;
-      releaseIngestEndpointId?: string;
+      providerConnectionId?: string;
       nameContains?: string;
     }
   ): Promise<ProjectAdoServiceConnectionDiscoveryResult> {
@@ -1431,6 +1445,7 @@ function AppShell() {
                     onPatchProject={handlePatchProject}
                     onValidateProject={handleValidateProject}
                     onListProjectAudit={handleListProjectAudit}
+                    onDiscoverAdoRepositories={handleDiscoverProjectAdoRepositories}
                     onDiscoverAdoPipelines={handleDiscoverProjectAdoPipelines}
                     onDiscoverAdoServiceConnections={handleDiscoverProjectAdoServiceConnections}
                   />

@@ -436,3 +436,4 @@ Post-demo production-path planning and execution setup:
 - [ ] Harden retry/resume semantics for pipeline-driven runs.
 - [ ] Decide whether the next driver should be `pulumi_automation` or whether ADO/Lighthouse needs another hardening sprint first.
 - [x] Move ADO PAT discovery auth from hidden runtime assumption to admin-managed endpoint configuration and project-linked consumption.
+- [x] Refactor Project → Deployment Driver so provider connection + Azure DevOps project URL drive repo/pipeline/service-connection discovery, reducing manual operator entry to project-scoped selections.
