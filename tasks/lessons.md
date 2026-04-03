@@ -204,9 +204,21 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 
 - Date: 2026-03-30
 - Pattern: Operator setup screens become confusing when project-scoped integrations are entered as raw text fields even though MAPPO can derive or discover the values from an authenticated provider context.
-- Preventative rule: If a value can be derived from a selected provider connection plus one higher-level locator (for example project URL), prefer discovery-backed dropdowns and read-only derived context over freeform fields.
-- Detection signal: users ask “where do I get this value?” for repo/pipeline/service-connection fields or expect those values to populate after choosing the provider connection.
+- Preventative rule: If a value can be derived from a selected deployment connection plus one higher-level locator (for example project URL), prefer discovery-backed dropdowns and read-only derived context over freeform fields.
+- Detection signal: users ask “where do I get this value?” for repo/pipeline/service-connection fields or expect those values to populate after choosing the deployment connection.
 - Enforcement (test/lint/checklist): for each setup field, classify it as manual, derived, or discovered; remove manual entry for derived/discovered values before closing the walkthrough slice.
+
+- Date: 2026-04-01
+- Pattern: Global integration screens confuse operators when they mix credential configuration, verification preconditions, and project-specific setup without making the direction of responsibility explicit.
+- Preventative rule: Keep outbound system auth in Admin → Deployment Connections, keep inbound webhook routing in Admin → Release Sources, and make project config consume verified/discovered values from those global records instead of re-asking operators for the same information.
+- Detection signal: users ask whether a provider/deployment connection is “the project”, or expect project/repo/pipeline choices to appear automatically after selecting a verified connection.
+- Enforcement (test/lint/checklist): every new external-system integration screen must state whether it is global auth, global inbound routing, or project-specific selection, and discovery-backed dropdowns should replace raw typed values wherever APIs exist.
+
+- Date: 2026-04-01
+- Pattern: Frontend error toasts become confusing and erode trust when they expose internal API wrapper names or backend discovery method names instead of the operator action that failed.
+- Preventative rule: All user-facing API wrappers and UI actions must throw operator-language errors that describe the failed task (`Could not load Azure DevOps projects`, `Could not load deployment runs`) and never surface method identifiers such as `discoverProviderConnectionAdoProjects`.
+- Detection signal: a toast or inline error contains a camelCase function name, controller name, or repository/service noun that only exists in code.
+- Enforcement (test/lint/checklist): during UX review, trigger at least one failure path per major config screen and confirm the resulting toast/error text names the operator task rather than the implementation detail.
 
 - Date: 2026-03-22
 - Pattern: JSONB config values appeared to “not persist” because the query layer re-serialized JSON text before parsing, collapsing valid objects to `{}` in API responses.

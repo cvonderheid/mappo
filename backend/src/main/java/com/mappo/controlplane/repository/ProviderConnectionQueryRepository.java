@@ -1,11 +1,13 @@
 package com.mappo.controlplane.repository;
 
 import static com.mappo.controlplane.jooq.Tables.PROJECTS;
+import static com.mappo.controlplane.jooq.Tables.PROVIDER_CONNECTION_ADO_PROJECTS;
 import static com.mappo.controlplane.jooq.Tables.PROVIDER_CONNECTIONS;
 
 import com.mappo.controlplane.domain.providerconnection.ProviderConnectionProviderType;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsUrlNormalizer;
 import com.mappo.controlplane.jooq.enums.MappoReleaseIngestProvider;
+import com.mappo.controlplane.model.ProviderConnectionAdoProjectRecord;
 import com.mappo.controlplane.model.ProviderConnectionLinkedProjectRecord;
 import com.mappo.controlplane.model.ProviderConnectionRecord;
 import java.util.ArrayList;
@@ -41,11 +43,17 @@ public class ProviderConnectionQueryRepository {
         if (rows.isEmpty()) {
             return List.of();
         }
+        Map<String, List<ProviderConnectionAdoProjectRecord>> discoveredProjectsByConnectionId =
+            loadDiscoveredProjects(connectionIds(rows));
         Map<String, List<ProviderConnectionLinkedProjectRecord>> linkedProjectsByConnectionId = loadLinkedProjects(connectionIds(rows));
         List<ProviderConnectionRecord> records = new ArrayList<>(rows.size());
         for (Record row : rows) {
             String connectionId = row.get(PROVIDER_CONNECTIONS.ID);
-            records.add(toRecord(row, linkedProjectsByConnectionId.getOrDefault(connectionId, List.of())));
+            records.add(toRecord(
+                row,
+                discoveredProjectsByConnectionId.getOrDefault(connectionId, List.of()),
+                linkedProjectsByConnectionId.getOrDefault(connectionId, List.of())
+            ));
         }
         return records;
     }
@@ -71,9 +79,11 @@ public class ProviderConnectionQueryRepository {
         if (row == null) {
             return Optional.empty();
         }
+        List<ProviderConnectionAdoProjectRecord> discoveredProjects = loadDiscoveredProjects(List.of(normalizedConnectionId))
+            .getOrDefault(normalizedConnectionId, List.of());
         List<ProviderConnectionLinkedProjectRecord> linkedProjects = loadLinkedProjects(List.of(normalizedConnectionId))
             .getOrDefault(normalizedConnectionId, List.of());
-        return Optional.of(toRecord(row, linkedProjects));
+        return Optional.of(toRecord(row, discoveredProjects, linkedProjects));
     }
 
     public boolean exists(String connectionId) {
@@ -124,6 +134,47 @@ public class ProviderConnectionQueryRepository {
         return immutable;
     }
 
+    private Map<String, List<ProviderConnectionAdoProjectRecord>> loadDiscoveredProjects(List<String> connectionIds) {
+        if (connectionIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<ProviderConnectionAdoProjectRecord>> index = new LinkedHashMap<>();
+        for (String connectionId : connectionIds) {
+            index.put(connectionId, new ArrayList<>());
+        }
+        var rows = dsl.select(
+                PROVIDER_CONNECTION_ADO_PROJECTS.CONNECTION_ID,
+                PROVIDER_CONNECTION_ADO_PROJECTS.PROJECT_ID,
+                PROVIDER_CONNECTION_ADO_PROJECTS.PROJECT_NAME,
+                PROVIDER_CONNECTION_ADO_PROJECTS.WEB_URL
+            )
+            .from(PROVIDER_CONNECTION_ADO_PROJECTS)
+            .where(PROVIDER_CONNECTION_ADO_PROJECTS.CONNECTION_ID.in(connectionIds))
+            .orderBy(
+                PROVIDER_CONNECTION_ADO_PROJECTS.PROJECT_NAME.asc(),
+                PROVIDER_CONNECTION_ADO_PROJECTS.PROJECT_ID.asc()
+            )
+            .fetch();
+        for (Record row : rows) {
+            String connectionId = normalize(row.get(PROVIDER_CONNECTION_ADO_PROJECTS.CONNECTION_ID));
+            if (connectionId.isBlank()) {
+                continue;
+            }
+            List<ProviderConnectionAdoProjectRecord> discoveredProjects = index.get(connectionId);
+            if (discoveredProjects == null) {
+                continue;
+            }
+            discoveredProjects.add(new ProviderConnectionAdoProjectRecord(
+                normalize(row.get(PROVIDER_CONNECTION_ADO_PROJECTS.PROJECT_ID)),
+                normalize(row.get(PROVIDER_CONNECTION_ADO_PROJECTS.PROJECT_NAME)),
+                normalize(row.get(PROVIDER_CONNECTION_ADO_PROJECTS.WEB_URL))
+            ));
+        }
+        Map<String, List<ProviderConnectionAdoProjectRecord>> immutable = new LinkedHashMap<>();
+        index.forEach((key, value) -> immutable.put(key, List.copyOf(value)));
+        return immutable;
+    }
+
     private List<String> connectionIds(Iterable<? extends Record> rows) {
         List<String> ids = new ArrayList<>();
         for (Record row : rows) {
@@ -137,6 +188,7 @@ public class ProviderConnectionQueryRepository {
 
     private ProviderConnectionRecord toRecord(
         Record row,
+        List<ProviderConnectionAdoProjectRecord> discoveredProjects,
         List<ProviderConnectionLinkedProjectRecord> linkedProjects
     ) {
         MappoReleaseIngestProvider provider = row.get(PROVIDER_CONNECTIONS.PROVIDER);
@@ -152,6 +204,7 @@ public class ProviderConnectionQueryRepository {
                 ? AzureDevOpsUrlNormalizer.normalizeOrganizationUrl(row.get(PROVIDER_CONNECTIONS.ORGANIZATION_FILTER), "https://dev.azure.com")
                 : "",
             row.get(PROVIDER_CONNECTIONS.PERSONAL_ACCESS_TOKEN_REF),
+            discoveredProjects,
             linkedProjects,
             row.get(PROVIDER_CONNECTIONS.CREATED_AT),
             row.get(PROVIDER_CONNECTIONS.UPDATED_AT)

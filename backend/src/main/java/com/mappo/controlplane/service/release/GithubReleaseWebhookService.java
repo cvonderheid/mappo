@@ -136,11 +136,11 @@ public class GithubReleaseWebhookService {
         if (endpoint.provider() != ReleaseIngestProviderType.github) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "release ingest endpoint %s is not configured for github webhooks".formatted(normalizedEndpointId)
+                "release source %s is not configured for GitHub webhooks".formatted(normalizedEndpointId)
             );
         }
         if (!endpoint.enabled()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "release ingest endpoint is disabled: " + normalizedEndpointId);
+            throw new ApiException(HttpStatus.BAD_REQUEST, "release source is disabled: " + normalizedEndpointId);
         }
         return endpoint;
     }

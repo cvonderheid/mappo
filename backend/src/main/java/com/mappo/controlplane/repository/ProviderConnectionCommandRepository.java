@@ -1,12 +1,15 @@
 package com.mappo.controlplane.repository;
 
 import static com.mappo.controlplane.jooq.Tables.PROVIDER_CONNECTIONS;
+import static com.mappo.controlplane.jooq.Tables.PROVIDER_CONNECTION_ADO_PROJECTS;
 
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.jooq.enums.MappoReleaseIngestProvider;
+import com.mappo.controlplane.model.ProviderConnectionAdoProjectRecord;
 import com.mappo.controlplane.service.providerconnection.ProviderConnectionMutationRecord;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
 import org.springframework.dao.DataAccessException;
@@ -31,7 +34,7 @@ public class ProviderConnectionCommandRepository {
                 .set(PROVIDER_CONNECTIONS.UPDATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
                 .execute();
         } catch (DataAccessException exception) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "provider connection already exists: " + normalize(mutation.id()));
+            throw new ApiException(HttpStatus.BAD_REQUEST, "deployment connection already exists: " + normalize(mutation.id()));
         }
     }
 
@@ -46,7 +49,7 @@ public class ProviderConnectionCommandRepository {
             .where(PROVIDER_CONNECTIONS.ID.eq(normalize(mutation.id())))
             .execute();
         if (updated <= 0) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "provider connection not found: " + normalize(mutation.id()));
+            throw new ApiException(HttpStatus.BAD_REQUEST, "deployment connection not found: " + normalize(mutation.id()));
         }
     }
 
@@ -56,7 +59,25 @@ public class ProviderConnectionCommandRepository {
             .where(PROVIDER_CONNECTIONS.ID.eq(normalizedConnectionId))
             .execute();
         if (deleted <= 0) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "provider connection not found: " + normalizedConnectionId);
+            throw new ApiException(HttpStatus.BAD_REQUEST, "deployment connection not found: " + normalizedConnectionId);
+        }
+    }
+
+    public void replaceDiscoveredAdoProjects(String connectionId, List<ProviderConnectionAdoProjectRecord> projects) {
+        String normalizedConnectionId = normalize(connectionId);
+        dsl.deleteFrom(PROVIDER_CONNECTION_ADO_PROJECTS)
+            .where(PROVIDER_CONNECTION_ADO_PROJECTS.CONNECTION_ID.eq(normalizedConnectionId))
+            .execute();
+        if (projects == null || projects.isEmpty()) {
+            return;
+        }
+        for (ProviderConnectionAdoProjectRecord project : projects) {
+            dsl.insertInto(PROVIDER_CONNECTION_ADO_PROJECTS)
+                .set(PROVIDER_CONNECTION_ADO_PROJECTS.CONNECTION_ID, normalizedConnectionId)
+                .set(PROVIDER_CONNECTION_ADO_PROJECTS.PROJECT_ID, normalize(project.id()))
+                .set(PROVIDER_CONNECTION_ADO_PROJECTS.PROJECT_NAME, normalize(project.name()))
+                .set(PROVIDER_CONNECTION_ADO_PROJECTS.WEB_URL, optional(project.webUrl()))
+                .execute();
         }
     }
 
@@ -64,7 +85,7 @@ public class ProviderConnectionCommandRepository {
         String literal = mutation.provider() == null ? "" : mutation.provider().name();
         MappoReleaseIngestProvider provider = MappoReleaseIngestProvider.lookupLiteral(literal);
         if (provider == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "invalid provider connection provider");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "invalid deployment connection provider");
         }
         return provider;
     }

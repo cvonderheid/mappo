@@ -70,7 +70,7 @@ public class ProjectDeploymentDriverDiscoveryService {
         if (!"azure_devops".equalsIgnoreCase(pipelineSystem)) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "Project pipeline system must be azure_devops for discovery."
+                "This project must use the Azure DevOps pipeline system before MAPPO can discover Azure DevOps resources."
             );
         }
 
@@ -91,7 +91,7 @@ public class ProjectDeploymentDriverDiscoveryService {
         if (organization.isBlank() || adoProject.isBlank()) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "organization and project are required to discover Azure DevOps pipelines."
+                "Select an Azure DevOps project before MAPPO can discover pipelines."
             );
         }
 
@@ -151,7 +151,7 @@ public class ProjectDeploymentDriverDiscoveryService {
         if (organization.isBlank() || adoProject.isBlank()) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "organization and project are required to discover Azure DevOps repositories."
+                "Select an Azure DevOps project before MAPPO can discover repositories."
             );
         }
 
@@ -212,7 +212,7 @@ public class ProjectDeploymentDriverDiscoveryService {
         if (organization.isBlank() || adoProject.isBlank()) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "organization and project are required to discover Azure DevOps service connections."
+                "Select an Azure DevOps project before MAPPO can discover Azure service connections."
             );
         }
 
@@ -267,7 +267,7 @@ public class ProjectDeploymentDriverDiscoveryService {
         if (!"azure_devops".equalsIgnoreCase(pipelineSystem)) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "Project pipeline system must be azure_devops for discovery."
+                "This project must use the Azure DevOps pipeline system before MAPPO can discover Azure DevOps resources."
             );
         }
         return config;
@@ -278,21 +278,21 @@ public class ProjectDeploymentDriverDiscoveryService {
         if (providerConnectionId.isBlank()) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "Azure DevOps discovery requires a linked provider connection with a PAT reference."
+                "Select a deployment connection before MAPPO can discover Azure DevOps resources."
             );
         }
         ProviderConnectionRecord connection = providerConnectionCatalogService.getRequired(providerConnectionId);
         if (connection.provider() == null || !"azure_devops".equalsIgnoreCase(connection.provider().name())) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "Provider connection " + providerConnectionId + " is not an Azure DevOps connection."
+                "Deployment connection " + providerConnectionId + " is not configured for Azure DevOps."
             );
         }
         String token = normalize(providerConnectionSecretResolver.resolvePersonalAccessToken(connection));
         if (token.isBlank()) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "Azure DevOps PAT could not be resolved from provider connection " + providerConnectionId + "."
+                "Azure DevOps PAT could not be resolved from deployment connection " + providerConnectionId + ". Open Admin → Deployment Connections and verify its credential source."
             );
         }
         return token;

@@ -59,7 +59,7 @@ function normalizeTagValue(value: unknown, fallback: string): string {
 export default function TargetsPage({
   adminErrorMessage,
   adminIsSubmitting,
-  adminResult,
+  adminResult: _adminResult,
   projects,
   selectedProjectId,
   registrations,
@@ -88,6 +88,12 @@ export default function TargetsPage({
   const [editRegistryUsername, setEditRegistryUsername] = useState<string>("");
   const [editRegistryPasswordSecretName, setEditRegistryPasswordSecretName] =
     useState<string>("");
+  const [editPipelineTargetResourceGroup, setEditPipelineTargetResourceGroup] =
+    useState<string>("");
+  const [editPipelineTargetAppName, setEditPipelineTargetAppName] =
+    useState<string>("");
+  const [editPipelineSlotName, setEditPipelineSlotName] = useState<string>("");
+  const [editPipelineHealthPath, setEditPipelineHealthPath] = useState<string>("");
   const [editTargetGroup, setEditTargetGroup] = useState<string>("prod");
   const [editRegion, setEditRegion] = useState<string>("eastus");
   const [editEnvironment, setEditEnvironment] = useState<string>("prod");
@@ -96,18 +102,22 @@ export default function TargetsPage({
   const [isRefreshingSnapshot, setIsRefreshingSnapshot] = useState<boolean>(false);
   const [deletingTargetId, setDeletingTargetId] = useState<string | null>(null);
 
-  const selectedProjectLabel = useMemo(() => {
-    const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
-    if (!selectedProjectId) {
-      return "No project selected";
-    }
-    return selectedProject?.name || selectedProject?.id || selectedProjectId;
-  }, [projects, selectedProjectId]);
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === selectedProjectId) ?? null,
+    [projects, selectedProjectId]
+  );
+  const selectedDriver = useMemo(() => {
+    const driver = (selectedProject?.deploymentDriver ?? "").trim();
+    return driver === "pipeline_trigger" ? "pipeline_trigger" : "azure_deployment_stack";
+  }, [selectedProject?.deploymentDriver]);
+  const isPipelineProject = selectedDriver === "pipeline_trigger";
 
   const canSubmitEdit =
     editingTargetId.trim() !== "" &&
     editDisplayName.trim() !== "" &&
-    editContainerAppResourceId.trim() !== "";
+    (isPipelineProject
+      ? editPipelineTargetResourceGroup.trim() !== "" && editPipelineTargetAppName.trim() !== ""
+      : editContainerAppResourceId.trim() !== "");
 
   useEffect(() => {
     if (location.pathname !== "/targets" && location.pathname !== "/onboarding") {
@@ -131,6 +141,7 @@ export default function TargetsPage({
   }, [location.pathname, location.search, navigate]);
 
   function openEditDrawer(registration: TargetRegistrationRecord): void {
+    const executionConfig = registration.metadata?.executionConfig ?? {};
     setEditingTargetId(registration.targetId ?? "");
     setEditDisplayName(registration.displayName ?? "");
     setEditCustomerName(registration.customerName ?? "");
@@ -144,6 +155,14 @@ export default function TargetsPage({
     setEditRegistryPasswordSecretName(
       registration.metadata?.registryPasswordSecretName ?? ""
     );
+    setEditPipelineTargetResourceGroup(
+      `${executionConfig.targetResourceGroup ?? executionConfig.resourceGroup ?? ""}`
+    );
+    setEditPipelineTargetAppName(
+      `${executionConfig.targetAppName ?? executionConfig.appServiceName ?? ""}`
+    );
+    setEditPipelineSlotName(`${executionConfig.slotName ?? ""}`);
+    setEditPipelineHealthPath(`${executionConfig.healthPath ?? ""}`);
     setEditTargetGroup(normalizeTagValue(registration.tags?.ring, "prod"));
     setEditRegion(normalizeTagValue(registration.tags?.region, "unknown"));
     setEditEnvironment(normalizeTagValue(registration.tags?.environment, "prod"));
@@ -181,16 +200,32 @@ export default function TargetsPage({
     const request: UpdateTargetRegistrationRequest = {
       displayName: editDisplayName.trim(),
       customerName: editCustomerName.trim() || undefined,
-      managedApplicationId: editManagedApplicationId.trim() || undefined,
-      containerAppResourceId: editContainerAppResourceId.trim(),
       metadata: {
-        deploymentStackName: editDeploymentStackName.trim() || undefined,
-        registryAuthMode:
-          editRegistryAuthMode === "none" ? "none" : editRegistryAuthMode,
-        registryServer: editRegistryServer.trim() || undefined,
-        registryUsername: editRegistryUsername.trim() || undefined,
-        registryPasswordSecretName:
-          editRegistryPasswordSecretName.trim() || undefined,
+        executionConfig: isPipelineProject
+          ? {
+              targetResourceGroup: editPipelineTargetResourceGroup.trim(),
+              resourceGroup: editPipelineTargetResourceGroup.trim(),
+              targetAppName: editPipelineTargetAppName.trim(),
+              appServiceName: editPipelineTargetAppName.trim(),
+              ...(editPipelineSlotName.trim() !== ""
+                ? { slotName: editPipelineSlotName.trim() }
+                : {}),
+              ...(editPipelineHealthPath.trim() !== ""
+                ? { healthPath: editPipelineHealthPath.trim() }
+                : {}),
+            }
+          : undefined,
+        ...(isPipelineProject
+          ? {}
+          : {
+              deploymentStackName: editDeploymentStackName.trim() || undefined,
+              registryAuthMode:
+                editRegistryAuthMode === "none" ? "none" : editRegistryAuthMode,
+              registryServer: editRegistryServer.trim() || undefined,
+              registryUsername: editRegistryUsername.trim() || undefined,
+              registryPasswordSecretName:
+                editRegistryPasswordSecretName.trim() || undefined,
+            }),
       },
       tags: {
         ring: editTargetGroup.trim() || "prod",
@@ -199,6 +234,10 @@ export default function TargetsPage({
         tier: editTier.trim() || "standard",
       },
     };
+    if (!isPipelineProject) {
+      request.containerAppResourceId = editContainerAppResourceId.trim();
+      request.managedApplicationId = editManagedApplicationId.trim() || undefined;
+    }
     if (editManagedResourceGroupId.trim() !== "") {
       request.managedResourceGroupId = editManagedResourceGroupId.trim();
     }
@@ -253,19 +292,10 @@ export default function TargetsPage({
           {adminErrorMessage}
         </div>
       ) : null}
-      <div className="rounded-md border border-border/70 bg-background/40 p-2 text-xs text-muted-foreground">
-        Target operations apply to project: <span className="font-medium text-foreground">{selectedProjectLabel}</span>
-      </div>
-      {adminResult ? (
-        <div className="rounded-md border border-primary/30 bg-primary/10 p-2 text-xs text-muted-foreground">
-          Last onboarding event <span className="font-mono">{adminResult.eventId}</span>: {adminResult.status}{" "}
-          ({adminResult.message})
-        </div>
-      ) : null}
 
       <Card className="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]">
         <CardHeader>
-          <CardTitle>{viewMode === "onboarding" ? "Onboarding" : "Targets"}</CardTitle>
+          <CardTitle>{viewMode === "onboarding" ? "Onboarding events" : "Registered Targets"}</CardTitle>
         </CardHeader>
         <CardContent>
           {viewMode === "targets" ? (
@@ -300,7 +330,9 @@ export default function TargetsPage({
           <DrawerHeader>
             <DrawerTitle>Edit Registered Target</DrawerTitle>
             <DrawerDescription>
-              Update target metadata and managed app references.
+              {isPipelineProject
+                ? "Update target metadata and App Service deployment details for this project."
+                : "Update target metadata and managed app references."}
             </DrawerDescription>
           </DrawerHeader>
           <div className="max-h-[74vh] overflow-y-auto px-4 pb-2">
@@ -332,96 +364,141 @@ export default function TargetsPage({
                   placeholder="Contoso"
                 />
               </div>
-              <div className="space-y-1 lg:col-span-2">
-                <Label htmlFor="edit-container-app-id">Container App ID</Label>
-                <Input
-                  id="edit-container-app-id"
-                  value={editContainerAppResourceId}
-                  onChange={(item) => setEditContainerAppResourceId(item.target.value)}
-                  placeholder="/subscriptions/.../providers/Microsoft.App/containerApps/..."
-                  required
-                />
-              </div>
-              <div className="space-y-1 lg:col-span-2">
-                <Label htmlFor="edit-managed-application-id">Managed Application ID</Label>
-                <Input
-                  id="edit-managed-application-id"
-                  value={editManagedApplicationId}
-                  onChange={(item) => setEditManagedApplicationId(item.target.value)}
-                  placeholder="/subscriptions/.../providers/Microsoft.Solutions/applications/..."
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="edit-managed-rg-id">Managed RG ID</Label>
-                <Input
-                  id="edit-managed-rg-id"
-                  value={editManagedResourceGroupId}
-                  onChange={(item) => setEditManagedResourceGroupId(item.target.value)}
-                  placeholder="/subscriptions/.../resourceGroups/..."
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="edit-deployment-stack-name">Deployment Stack Name</Label>
-                <Input
-                  id="edit-deployment-stack-name"
-                  value={editDeploymentStackName}
-                  onChange={(item) => setEditDeploymentStackName(item.target.value)}
-                  placeholder="mappo-stack-target-01"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="edit-registry-auth-mode">Registry Auth Mode</Label>
-                <Select
-                  value={editRegistryAuthMode}
-                  onValueChange={(value) =>
-                    setEditRegistryAuthMode(value as RegistryAuthMode)
-                  }
-                >
-                  <SelectTrigger id="edit-registry-auth-mode">
-                    <SelectValue placeholder="Select auth mode" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    <SelectItem value="shared_service_principal_secret">
-                      Shared Service Principal
-                    </SelectItem>
-                    <SelectItem value="customer_managed_secret">
-                      Customer Managed Secret
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="edit-registry-server">Registry Server</Label>
-                <Input
-                  id="edit-registry-server"
-                  value={editRegistryServer}
-                  onChange={(item) => setEditRegistryServer(item.target.value)}
-                  placeholder="acr.example.azurecr.io"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="edit-registry-username">Registry Username</Label>
-                <Input
-                  id="edit-registry-username"
-                  value={editRegistryUsername}
-                  onChange={(item) => setEditRegistryUsername(item.target.value)}
-                  placeholder="service-principal-client-id"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="edit-registry-password-secret-name">
-                  Registry Password Secret Name
-                </Label>
-                <Input
-                  id="edit-registry-password-secret-name"
-                  value={editRegistryPasswordSecretName}
-                  onChange={(item) =>
-                    setEditRegistryPasswordSecretName(item.target.value)
-                  }
-                  placeholder="publisher-acr-pull"
-                />
-              </div>
+              {isPipelineProject ? (
+                <>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-pipeline-rg">Azure Resource Group</Label>
+                    <Input
+                      id="edit-pipeline-rg"
+                      value={editPipelineTargetResourceGroup}
+                      onChange={(item) => setEditPipelineTargetResourceGroup(item.target.value)}
+                      placeholder="rg-demo-appservice-target-01"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-pipeline-app-name">App Service Name</Label>
+                    <Input
+                      id="edit-pipeline-app-name"
+                      value={editPipelineTargetAppName}
+                      onChange={(item) => setEditPipelineTargetAppName(item.target.value)}
+                      placeholder="appsvc-demo-target-01"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-pipeline-slot">Deployment Slot</Label>
+                    <Input
+                      id="edit-pipeline-slot"
+                      value={editPipelineSlotName}
+                      onChange={(item) => setEditPipelineSlotName(item.target.value)}
+                      placeholder="staging"
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2 lg:col-span-3">
+                    <Label htmlFor="edit-pipeline-health-path">Health Check Path</Label>
+                    <Input
+                      id="edit-pipeline-health-path"
+                      value={editPipelineHealthPath}
+                      onChange={(item) => setEditPipelineHealthPath(item.target.value)}
+                      placeholder="/health"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-1 lg:col-span-2">
+                    <Label htmlFor="edit-container-app-id">Container App ID</Label>
+                    <Input
+                      id="edit-container-app-id"
+                      value={editContainerAppResourceId}
+                      onChange={(item) => setEditContainerAppResourceId(item.target.value)}
+                      placeholder="/subscriptions/.../providers/Microsoft.App/containerApps/..."
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1 lg:col-span-2">
+                    <Label htmlFor="edit-managed-application-id">Managed Application ID</Label>
+                    <Input
+                      id="edit-managed-application-id"
+                      value={editManagedApplicationId}
+                      onChange={(item) => setEditManagedApplicationId(item.target.value)}
+                      placeholder="/subscriptions/.../providers/Microsoft.Solutions/applications/..."
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-managed-rg-id">Managed RG ID</Label>
+                    <Input
+                      id="edit-managed-rg-id"
+                      value={editManagedResourceGroupId}
+                      onChange={(item) => setEditManagedResourceGroupId(item.target.value)}
+                      placeholder="/subscriptions/.../resourceGroups/..."
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-deployment-stack-name">Deployment Stack Name</Label>
+                    <Input
+                      id="edit-deployment-stack-name"
+                      value={editDeploymentStackName}
+                      onChange={(item) => setEditDeploymentStackName(item.target.value)}
+                      placeholder="mappo-stack-target-01"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-registry-auth-mode">Registry Auth Mode</Label>
+                    <Select
+                      value={editRegistryAuthMode}
+                      onValueChange={(value) =>
+                        setEditRegistryAuthMode(value as RegistryAuthMode)
+                      }
+                    >
+                      <SelectTrigger id="edit-registry-auth-mode">
+                        <SelectValue placeholder="Select auth mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="shared_service_principal_secret">
+                          Shared Service Principal
+                        </SelectItem>
+                        <SelectItem value="customer_managed_secret">
+                          Customer Managed Secret
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-registry-server">Registry Server</Label>
+                    <Input
+                      id="edit-registry-server"
+                      value={editRegistryServer}
+                      onChange={(item) => setEditRegistryServer(item.target.value)}
+                      placeholder="acr.example.azurecr.io"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-registry-username">Registry Username</Label>
+                    <Input
+                      id="edit-registry-username"
+                      value={editRegistryUsername}
+                      onChange={(item) => setEditRegistryUsername(item.target.value)}
+                      placeholder="service-principal-client-id"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="edit-registry-password-secret-name">
+                      Registry Password Secret Name
+                    </Label>
+                    <Input
+                      id="edit-registry-password-secret-name"
+                      value={editRegistryPasswordSecretName}
+                      onChange={(item) =>
+                        setEditRegistryPasswordSecretName(item.target.value)
+                      }
+                      placeholder="publisher-acr-pull"
+                    />
+                  </div>
+                </>
+              )}
               <div className="space-y-1">
                 <Label htmlFor="edit-target-group">Target Group</Label>
                 <Input

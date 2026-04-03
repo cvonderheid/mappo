@@ -47,7 +47,7 @@ public class ReleaseIngestEndpointMutationService {
         String id = requiredId(current.id());
         String name = firstNonBlank(patch.name(), current.name());
         if (name.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "release ingest endpoint name must not be blank");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "release source name must not be blank");
         }
         ReleaseIngestProviderType provider = patch.provider() == null ? current.provider() : patch.provider();
         boolean enabled = patch.enabled() == null ? current.enabled() : patch.enabled();
@@ -92,10 +92,10 @@ public class ReleaseIngestEndpointMutationService {
     private String requiredId(String value) {
         String normalized = normalize(value);
         if (normalized.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "release ingest endpoint id must not be blank");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "release source id must not be blank");
         }
         if (!ID_PATTERN.matcher(normalized).matches()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "release ingest endpoint id must match " + ID_PATTERN.pattern());
+            throw new ApiException(HttpStatus.BAD_REQUEST, "release source id must match " + ID_PATTERN.pattern());
         }
         return normalized;
     }
@@ -103,14 +103,14 @@ public class ReleaseIngestEndpointMutationService {
     private String requiredName(String value) {
         String normalized = normalize(value);
         if (normalized.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "release ingest endpoint name must not be blank");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "release source name must not be blank");
         }
         return normalized;
     }
 
     private ReleaseIngestProviderType requiredProvider(ReleaseIngestProviderType value) {
         if (value == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "release ingest endpoint provider is required");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "release source provider is required");
         }
         return value;
     }

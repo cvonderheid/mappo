@@ -34,7 +34,7 @@
     <docker.registry.password>${env.MAPPO_DOCKER_PASSWORD}</docker.registry.password>
     <docker.platforms>linux/amd64</docker.platforms>
     <mappo.image.tag>${project.version}</mappo.image.tag>
-    <pulumi.stack>dev</pulumi.stack>
+    <pulumi.stack>demo</pulumi.stack>
     <pulumi.dir>infra/pulumi</pulumi.dir>
     <pulumi.demoFleetDir>infra/demo-fleet</pulumi.demoFleetDir>
     <pulumi.appServiceFleetDir>infra/appservice-fleet</pulumi.appServiceFleetDir>

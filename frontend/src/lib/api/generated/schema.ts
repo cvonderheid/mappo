@@ -106,12 +106,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List release ingest endpoints
-         * @description Returns all configured release ingest endpoints and linked projects.
+         * List release sources
+         * @description Returns all configured release sources and linked projects.
          */
         get: operations["listEndpoints"];
         put?: never;
-        /** Create release ingest endpoint */
+        /** Create release source */
         post: operations["createEndpoint"];
         delete?: never;
         options?: never;
@@ -128,7 +128,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Receive GitHub release-manifest webhook for endpoint */
+        /** Receive GitHub release-manifest webhook for release source */
         post: operations["ingestGithubWebhook"];
         delete?: never;
         options?: never;
@@ -145,7 +145,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Receive Azure DevOps release webhook for endpoint */
+        /** Receive Azure DevOps release webhook for release source */
         post: operations["ingestAzureDevOpsWebhook"];
         delete?: never;
         options?: never;
@@ -161,13 +161,33 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List provider connections
-         * @description Returns configured provider connections and linked projects.
+         * List deployment connections
+         * @description Returns configured deployment connections and linked projects.
          */
         get: operations["listConnections"];
         put?: never;
-        /** Create provider connection */
+        /** Create deployment connection */
         post: operations["createConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/provider-connections/ado/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Azure DevOps deployment connection draft
+         * @description Normalizes the submitted Azure DevOps URL, resolves the configured PAT source, and enumerates reachable Azure DevOps projects without persisting the deployment connection.
+         */
+        post: operations["verifyAdoConnection"];
         delete?: never;
         options?: never;
         head?: never;
@@ -229,7 +249,7 @@ export interface paths {
         put?: never;
         /**
          * Discover Azure DevOps service connections
-         * @description Discovers Azure DevOps service connections for the selected project using organization/project from request or project config, and Azure DevOps credentials from the linked provider connection.
+         * @description Discovers Azure DevOps service connections for the selected project using organization/project from request or project config, and Azure DevOps credentials from the linked deployment connection.
          */
         post: operations["discoverProjectAdoServiceConnections"];
         delete?: never;
@@ -249,7 +269,7 @@ export interface paths {
         put?: never;
         /**
          * Discover Azure DevOps repositories
-         * @description Discovers Azure DevOps repositories for the selected project using organization/project from request or project config, and Azure DevOps credentials from the linked provider connection.
+         * @description Discovers Azure DevOps repositories for the selected project using organization/project from request or project config, and Azure DevOps credentials from the linked deployment connection.
          */
         post: operations["discoverProjectAdoRepositories"];
         delete?: never;
@@ -269,7 +289,7 @@ export interface paths {
         put?: never;
         /**
          * Discover Azure DevOps pipelines
-         * @description Discovers Azure DevOps pipelines for the selected project using organization/project from request or project config, and Azure DevOps credentials from the linked provider connection.
+         * @description Discovers Azure DevOps pipelines for the selected project using organization/project from request or project config, and Azure DevOps credentials from the linked deployment connection.
          */
         post: operations["discoverProjectAdoPipelines"];
         delete?: never;
@@ -377,11 +397,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete release ingest endpoint */
+        /** Delete release source */
         delete: operations["deleteEndpoint"];
         options?: never;
         head?: never;
-        /** Patch release ingest endpoint */
+        /** Patch release source */
         patch: operations["patchEndpoint"];
         trace?: never;
     };
@@ -395,11 +415,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete provider connection */
+        /** Delete deployment connection */
         delete: operations["deleteConnection"];
         options?: never;
         head?: never;
-        /** Patch provider connection */
+        /** Patch deployment connection */
         patch: operations["patchConnection"];
         trace?: never;
     };
@@ -521,6 +541,26 @@ export interface paths {
          * @description Returns the latest persisted detail for one deployment run.
          */
         get: operations["getRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/provider-connections/{connectionId}/ado/projects/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Discover Azure DevOps projects
+         * @description Lists Azure DevOps projects reachable through the selected deployment connection using its configured PAT and verified Azure DevOps URL.
+         */
+        get: operations["discoverAdoProjects"];
         put?: never;
         post?: never;
         delete?: never;
@@ -849,24 +889,24 @@ export interface components {
         };
         ReleaseIngestEndpointRecord: {
             /**
-             * @description Release ingest endpoint id.
+             * @description Release source id.
              * @example github-managed-app-default
              */
             id?: string;
             /**
-             * @description Release ingest endpoint display name.
+             * @description Release source display name.
              * @example GitHub Managed App Default
              */
             name?: string;
             /**
-             * @description Webhook provider for this endpoint.
+             * @description External system that sends release notifications to this source.
              * @enum {string}
              */
             provider?: "github" | "azure_devops";
-            /** @description Whether this endpoint is active for webhook processing. */
+            /** @description Whether this release source is active for inbound webhook processing. */
             enabled?: boolean;
             /**
-             * @description Secret reference used for webhook authentication.
+             * @description Secret reference used to verify inbound webhook deliveries.
              * @example mappo.managed-app-release.webhook-secret
              */
             secretRef?: string;
@@ -890,7 +930,7 @@ export interface components {
              * @example releases/releases.manifest.json
              */
             manifestPath?: string;
-            /** @description Projects currently linked to this release ingest endpoint. */
+            /** @description Projects currently linked to this release source. */
             linkedProjects?: components["schemas"]["ReleaseIngestLinkedProjectRecord"][];
             /**
              * Format: date-time
@@ -935,44 +975,51 @@ export interface components {
             /** @enum {string} */
             provider: "github" | "azure_devops";
             enabled?: boolean;
-            organizationFilter?: string;
+            organizationUrl?: string;
             personalAccessTokenRef?: string;
         };
+        ProviderConnectionAdoProjectRecord: {
+            id?: string;
+            name?: string;
+            webUrl?: string;
+        };
         ProviderConnectionLinkedProjectRecord: {
-            /** @description Project id linked to this provider connection. */
+            /** @description Project id using this deployment connection. */
             projectId?: string;
-            /** @description Project display name linked to this provider connection. */
+            /** @description Project display name using this deployment connection. */
             projectName?: string;
         };
         ProviderConnectionRecord: {
             /**
-             * @description Provider connection id.
+             * @description Deployment connection id.
              * @example ado-default
              */
             id?: string;
             /**
-             * @description Provider connection display name.
+             * @description Deployment connection display name.
              * @example Azure DevOps Default Connection
              */
             name?: string;
             /**
-             * @description Provider type for this connection.
+             * @description External system this deployment connection talks to.
              * @enum {string}
              */
             provider?: "github" | "azure_devops";
-            /** @description Whether this provider connection is enabled. */
+            /** @description Whether this deployment connection is enabled. */
             enabled?: boolean;
             /**
-             * @description Optional organization scope filter.
+             * @description Verified Azure DevOps URL used for project discovery.
              * @example https://dev.azure.com/pg123
              */
-            organizationFilter?: string;
+            organizationUrl?: string;
             /**
-             * @description Secret reference for API credential lookup.
+             * @description Secret reference used to resolve the external-system API credential.
              * @example mappo.azure-devops.personal-access-token
              */
             personalAccessTokenRef?: string;
-            /** @description Projects currently linked to this provider connection. */
+            /** @description Azure DevOps projects MAPPO discovered and cached for this deployment connection. */
+            discoveredProjects?: components["schemas"]["ProviderConnectionAdoProjectRecord"][];
+            /** @description Projects currently using this deployment connection. */
             linkedProjects?: components["schemas"]["ProviderConnectionLinkedProjectRecord"][];
             /**
              * Format: date-time
@@ -984,6 +1031,18 @@ export interface components {
              * @description Last updated timestamp (UTC).
              */
             updatedAt?: string;
+        };
+        ProviderConnectionVerifyRequest: {
+            id?: string;
+            /** @enum {string} */
+            provider?: "github" | "azure_devops";
+            organizationUrl?: string;
+            personalAccessTokenRef?: string;
+        };
+        ProviderConnectionAdoProjectDiscoveryResultRecord: {
+            connectionId?: string;
+            organizationUrl?: string;
+            projects?: components["schemas"]["ProviderConnectionAdoProjectRecord"][];
         };
         ProjectCreateRequest: {
             id: string;
@@ -1281,7 +1340,7 @@ export interface components {
             /** @enum {string} */
             provider?: "github" | "azure_devops";
             enabled?: boolean;
-            organizationFilter?: string;
+            organizationUrl?: string;
             personalAccessTokenRef?: string;
         };
         ProjectConfigurationPatchRequest: {
@@ -1980,6 +2039,32 @@ export interface operations {
             };
         };
     };
+    verifyAdoConnection: {
+        parameters: {
+            query?: {
+                nameContains?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ProviderConnectionVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ProviderConnectionAdoProjectDiscoveryResultRecord"];
+                };
+            };
+        };
+    };
     listProjects: {
         parameters: {
             query?: never;
@@ -2627,6 +2712,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["RunDetailRecord"];
+                };
+            };
+        };
+    };
+    discoverAdoProjects: {
+        parameters: {
+            query?: {
+                nameContains?: string;
+            };
+            header?: never;
+            path: {
+                connectionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ProviderConnectionAdoProjectDiscoveryResultRecord"];
                 };
             };
         };

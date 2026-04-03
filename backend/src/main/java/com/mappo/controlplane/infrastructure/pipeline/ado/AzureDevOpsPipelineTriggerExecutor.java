@@ -140,9 +140,9 @@ class AzureDevOpsPipelineTriggerExecutor implements DeploymentDriver {
         if (pat.isBlank()) {
             throw deploymentFailure(
                 "ADO_PIPELINE_CONFIGURATION_INVALID",
-                "Azure DevOps execution is not configured: missing provider connection PAT secret.",
+                "Azure DevOps execution is not configured: missing deployment connection PAT secret.",
                 null,
-                "personalAccessToken is blank after resolving linked provider connection PAT",
+                "personalAccessToken is blank after resolving linked deployment connection PAT",
                 correlationId,
                 null
             );
@@ -185,7 +185,7 @@ class AzureDevOpsPipelineTriggerExecutor implements DeploymentDriver {
         if (providerConnectionId.isBlank()) {
             throw deploymentFailure(
                 "ADO_PIPELINE_CONFIGURATION_INVALID",
-                "Azure DevOps execution is not configured: project has no linked provider connection.",
+                "Azure DevOps execution is not configured: project has no linked deployment connection.",
                 null,
                 "project.providerConnectionId is blank",
                 correlationId,
@@ -196,7 +196,7 @@ class AzureDevOpsPipelineTriggerExecutor implements DeploymentDriver {
         if (connection.provider() == null || !"azure_devops".equals(connection.provider().name())) {
             throw deploymentFailure(
                 "ADO_PIPELINE_CONFIGURATION_INVALID",
-                "Azure DevOps execution is not configured: linked provider connection is not Azure DevOps.",
+                "Azure DevOps execution is not configured: linked deployment connection is not Azure DevOps.",
                 null,
                 "providerConnectionId=%s provider=%s".formatted(providerConnectionId, connection.provider()),
                 correlationId,
@@ -207,7 +207,7 @@ class AzureDevOpsPipelineTriggerExecutor implements DeploymentDriver {
         if (token.isBlank()) {
             throw deploymentFailure(
                 "ADO_PIPELINE_CONFIGURATION_INVALID",
-                "Azure DevOps execution is not configured: linked provider connection PAT secret is unresolved.",
+                "Azure DevOps execution is not configured: linked deployment connection PAT secret is unresolved.",
                 null,
                 "providerConnectionId=%s personalAccessTokenRef=%s".formatted(
                     providerConnectionId,

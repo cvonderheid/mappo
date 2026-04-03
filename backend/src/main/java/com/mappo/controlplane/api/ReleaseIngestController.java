@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/release-ingest/endpoints")
 @RequiredArgsConstructor
-@Tag(name = "Release Ingest", description = "Release-ingest endpoint configuration and project link visibility.")
+@Tag(name = "Release Sources", description = "Inbound release-source configuration and project link visibility.")
 public class ReleaseIngestController {
 
     private final ReleaseIngestEndpointCatalogService releaseIngestEndpointCatalogService;
@@ -36,14 +36,14 @@ public class ReleaseIngestController {
     private final ReleaseManifestIngestService releaseManifestIngestService;
 
     @GetMapping
-    @Operation(summary = "List release ingest endpoints", description = "Returns all configured release ingest endpoints and linked projects.")
+    @Operation(summary = "List release sources", description = "Returns all configured release sources and linked projects.")
     public List<ReleaseIngestEndpointRecord> listEndpoints() {
         return releaseIngestEndpointCatalogService.listEndpoints();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Create release ingest endpoint")
+    @Operation(summary = "Create release source")
     public ReleaseIngestEndpointRecord createEndpoint(
         @Valid @RequestBody ReleaseIngestEndpointCreateRequest request
     ) {
@@ -51,7 +51,7 @@ public class ReleaseIngestController {
     }
 
     @PatchMapping("/{endpointId}")
-    @Operation(summary = "Patch release ingest endpoint")
+    @Operation(summary = "Patch release source")
     public ReleaseIngestEndpointRecord patchEndpoint(
         @PathVariable("endpointId") String endpointId,
         @RequestBody(required = false) ReleaseIngestEndpointPatchRequest patchRequest
@@ -61,13 +61,13 @@ public class ReleaseIngestController {
 
     @DeleteMapping("/{endpointId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Delete release ingest endpoint")
+    @Operation(summary = "Delete release source")
     public void deleteEndpoint(@PathVariable("endpointId") String endpointId) {
         releaseIngestEndpointCommandService.deleteEndpoint(endpointId);
     }
 
     @PostMapping("/{endpointId}/webhooks/github")
-    @Operation(summary = "Receive GitHub release-manifest webhook for endpoint")
+    @Operation(summary = "Receive GitHub release-manifest webhook for release source")
     public ReleaseManifestIngestResultRecord ingestGithubWebhook(
         @PathVariable("endpointId") String endpointId,
         @RequestBody(required = false) String payload,
@@ -85,7 +85,7 @@ public class ReleaseIngestController {
     }
 
     @PostMapping("/{endpointId}/webhooks/ado")
-    @Operation(summary = "Receive Azure DevOps release webhook for endpoint")
+    @Operation(summary = "Receive Azure DevOps release webhook for release source")
     public ReleaseManifestIngestResultRecord ingestAzureDevOpsWebhook(
         @PathVariable("endpointId") String endpointId,
         @RequestBody(required = false) String payload,

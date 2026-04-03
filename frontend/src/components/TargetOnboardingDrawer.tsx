@@ -219,14 +219,10 @@ function validateDraft(
       executionConfig.appServiceName
     );
     if (resourceGroup === "") {
-      errors.push(
-        "Pipeline project requires executionConfig.targetResourceGroup (or resourceGroup)."
-      );
+      errors.push("Azure resource group is required for pipeline-trigger projects.");
     }
     if (appName === "") {
-      errors.push(
-        "Pipeline project requires executionConfig.targetAppName (or appServiceName)."
-      );
+      errors.push("App Service name is required for pipeline-trigger projects.");
     }
   } else {
     const containerAppResourceId = normalize(draft.containerAppResourceId);
@@ -565,7 +561,7 @@ export default function TargetOnboardingDrawer({
         <DrawerHeader>
           <DrawerTitle>Target Onboarding</DrawerTitle>
           <DrawerDescription>
-            Register targets directly in MAPPO using project-aware contract validation.
+            Register targets directly in MAPPO. The form only shows the fields required by the selected project's deployment contract.
           </DrawerDescription>
         </DrawerHeader>
         <div className="max-h-[74vh] overflow-y-auto px-4 pb-2">
@@ -591,18 +587,6 @@ export default function TargetOnboardingDrawer({
                   <p className="text-xs text-muted-foreground">
                     Driver: <span className="font-mono text-foreground">{selectedDriver}</span>
                   </p>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="onboard-target-id">Target ID</Label>
-                    <FieldHelpTooltip content="Stable target key inside MAPPO. Leave blank to auto-generate from metadata." />
-                  </div>
-                  <Input
-                    id="onboard-target-id"
-                    value={draft.targetId}
-                    onChange={(event) => updateDraft("targetId", event.target.value)}
-                    placeholder="Optional (auto-generated if blank)"
-                  />
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
@@ -656,8 +640,8 @@ export default function TargetOnboardingDrawer({
                   <>
                     <div className="space-y-1">
                       <div className="flex items-center gap-1">
-                        <Label htmlFor="onboard-pipeline-rg">Target Resource Group</Label>
-                        <FieldHelpTooltip content="Resource group that contains the App Service for this target. Required for pipeline-trigger projects." />
+                        <Label htmlFor="onboard-pipeline-rg">Azure Resource Group</Label>
+                        <FieldHelpTooltip content="Azure resource group that contains the App Service for this target. Required for pipeline-trigger projects." />
                       </div>
                       <Input
                         id="onboard-pipeline-rg"
@@ -670,8 +654,8 @@ export default function TargetOnboardingDrawer({
                     </div>
                     <div className="space-y-1">
                       <div className="flex items-center gap-1">
-                        <Label htmlFor="onboard-pipeline-app">Target App Service Name</Label>
-                        <FieldHelpTooltip content="App Service app name used by the pipeline deployment step. Required for pipeline-trigger projects." />
+                        <Label htmlFor="onboard-pipeline-app">App Service Name</Label>
+                        <FieldHelpTooltip content="Azure App Service app name that the deployment pipeline updates for this target. Required for pipeline-trigger projects." />
                       </div>
                       <Input
                         id="onboard-pipeline-app"
@@ -680,30 +664,6 @@ export default function TargetOnboardingDrawer({
                           updateDraft("pipelineTargetAppName", event.target.value)
                         }
                         placeholder="appsvc-demo-target-01"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1">
-                        <Label htmlFor="onboard-pipeline-slot">Target Slot (optional)</Label>
-                        <FieldHelpTooltip content="Deployment slot name if this target deploys to a specific App Service slot." />
-                      </div>
-                      <Input
-                        id="onboard-pipeline-slot"
-                        value={draft.pipelineSlotName}
-                        onChange={(event) => updateDraft("pipelineSlotName", event.target.value)}
-                        placeholder="staging"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1">
-                        <Label htmlFor="onboard-pipeline-health-path">Health Path (optional)</Label>
-                        <FieldHelpTooltip content="Path checked by runtime probes for this target (for example /health)." />
-                      </div>
-                      <Input
-                        id="onboard-pipeline-health-path"
-                        value={draft.pipelineHealthPath}
-                        onChange={(event) => updateDraft("pipelineHealthPath", event.target.value)}
-                        placeholder="/health"
                       />
                     </div>
                   </>
@@ -764,50 +724,6 @@ export default function TargetOnboardingDrawer({
                     </div>
                   </>
                 )}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="onboard-target-group">Target Group</Label>
-                    <FieldHelpTooltip content="Deployment cohort tag (for example canary, prod) used when selecting run scope." />
-                  </div>
-                  <Input
-                    id="onboard-target-group"
-                    value={draft.targetGroup}
-                    onChange={(event) => updateDraft("targetGroup", event.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="onboard-region">Region</Label>
-                    <FieldHelpTooltip content="Azure region tag for this target (for example eastus)." />
-                  </div>
-                  <Input
-                    id="onboard-region"
-                    value={draft.region}
-                    onChange={(event) => updateDraft("region", event.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="onboard-environment">Environment</Label>
-                    <FieldHelpTooltip content="Environment tag such as prod, stage, or dev." />
-                  </div>
-                  <Input
-                    id="onboard-environment"
-                    value={draft.environment}
-                    onChange={(event) => updateDraft("environment", event.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="onboard-tier">Tier</Label>
-                    <FieldHelpTooltip content="Commercial/operational tier tag used for filtering and rollout policies." />
-                  </div>
-                  <Input
-                    id="onboard-tier"
-                    value={draft.tier}
-                    onChange={(event) => updateDraft("tier", event.target.value)}
-                  />
-                </div>
                 <div className="lg:col-span-3">
                   <Accordion type="single" collapsible className="rounded-md border border-border/70 bg-background/50 px-3">
                     <AccordionItem value="advanced-onboarding-fields" className="border-b-0">
@@ -816,6 +732,18 @@ export default function TargetOnboardingDrawer({
                       </AccordionTrigger>
                       <AccordionContent>
                         <div className="grid grid-cols-1 gap-3 pb-2 sm:grid-cols-2 lg:grid-cols-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1">
+                              <Label htmlFor="onboard-target-id">Target ID</Label>
+                              <FieldHelpTooltip content="Stable target key inside MAPPO. Leave blank to let MAPPO generate one from the target metadata." />
+                            </div>
+                            <Input
+                              id="onboard-target-id"
+                              value={draft.targetId}
+                              onChange={(event) => updateDraft("targetId", event.target.value)}
+                              placeholder="Optional"
+                            />
+                          </div>
                           <div className="space-y-1">
                             <div className="flex items-center gap-1">
                               <Label htmlFor="onboard-event-id">Event ID</Label>
@@ -827,12 +755,84 @@ export default function TargetOnboardingDrawer({
                               onChange={(event) => updateDraft("eventId", event.target.value)}
                             />
                           </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1">
+                              <Label htmlFor="onboard-target-group">Target Group</Label>
+                              <FieldHelpTooltip content="Deployment cohort tag such as canary or prod. Used when operators scope deployment runs." />
+                            </div>
+                            <Input
+                              id="onboard-target-group"
+                              value={draft.targetGroup}
+                              onChange={(event) => updateDraft("targetGroup", event.target.value)}
+                            />
+                          </div>
+                          {selectedDriver === "pipeline_trigger" ? (
+                            <>
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1">
+                                  <Label htmlFor="onboard-pipeline-slot">Deployment Slot</Label>
+                                  <FieldHelpTooltip content="Optional App Service deployment slot name if this target deploys to a specific slot." />
+                                </div>
+                                <Input
+                                  id="onboard-pipeline-slot"
+                                  value={draft.pipelineSlotName}
+                                  onChange={(event) => updateDraft("pipelineSlotName", event.target.value)}
+                                  placeholder="Optional"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1">
+                                  <Label htmlFor="onboard-pipeline-health-path">Health Check Path</Label>
+                                  <FieldHelpTooltip content="Optional HTTP path MAPPO checks when probing the deployed target, for example /health." />
+                                </div>
+                                <Input
+                                  id="onboard-pipeline-health-path"
+                                  value={draft.pipelineHealthPath}
+                                  onChange={(event) => updateDraft("pipelineHealthPath", event.target.value)}
+                                  placeholder="Optional"
+                                />
+                              </div>
+                            </>
+                          ) : null}
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1">
+                              <Label htmlFor="onboard-region">Region</Label>
+                              <FieldHelpTooltip content="Azure region tag for this target, for example eastus or centralus." />
+                            </div>
+                            <Input
+                              id="onboard-region"
+                              value={draft.region}
+                              onChange={(event) => updateDraft("region", event.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1">
+                              <Label htmlFor="onboard-environment">Environment</Label>
+                              <FieldHelpTooltip content="Environment tag such as prod, stage, or dev." />
+                            </div>
+                            <Input
+                              id="onboard-environment"
+                              value={draft.environment}
+                              onChange={(event) => updateDraft("environment", event.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1">
+                              <Label htmlFor="onboard-tier">Tier</Label>
+                              <FieldHelpTooltip content="Commercial or operational tier tag used for filtering and rollout policies." />
+                            </div>
+                            <Input
+                              id="onboard-tier"
+                              value={draft.tier}
+                              onChange={(event) => updateDraft("tier", event.target.value)}
+                            />
+                          </div>
                           <div className="space-y-1 sm:col-span-2 lg:col-span-3">
                             <div className="flex items-center gap-1">
                               <Label htmlFor="onboard-execution-config">
-                                Driver-specific execution config (JSON, optional)
+                                Additional deployment inputs (advanced)
                               </Label>
-                              <FieldHelpTooltip content="Extra driver metadata only when the standard fields above are not enough. Most operators should leave this empty." />
+                              <FieldHelpTooltip content="Optional JSON key/value pairs passed through to the deployment driver when the standard fields above are not enough. Most operators should leave this empty." />
                             </div>
                             <Textarea
                               id="onboard-execution-config"
@@ -846,17 +846,6 @@ export default function TargetOnboardingDrawer({
                                   : '{"runtimeBaseUrl":"https://example.azurewebsites.net"}'
                               }
                               rows={5}
-                            />
-                          </div>
-                          <div className="space-y-1 sm:col-span-2 lg:col-span-3">
-                            <div className="flex items-center gap-1">
-                              <Label htmlFor="onboard-ingest-token">Ingest token (optional)</Label>
-                              <FieldHelpTooltip content="Only needed when onboarding-token validation is enabled on the backend. Leave blank in the normal operator flow." />
-                            </div>
-                            <Input
-                              id="onboard-ingest-token"
-                              value={draft.ingestToken}
-                              onChange={(event) => updateDraft("ingestToken", event.target.value)}
                             />
                           </div>
                         </div>

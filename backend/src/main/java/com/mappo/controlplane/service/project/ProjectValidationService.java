@@ -107,7 +107,7 @@ public class ProjectValidationService {
                 findings.add(fail(
                     ProjectValidationScope.credentials,
                     "AZURE_DEVOPS_PAT_MISSING",
-                    "Azure DevOps deployment driver requires a linked Azure DevOps provider connection with a resolvable PAT."
+                    "Azure DevOps deployment driver requires a linked Azure DevOps deployment connection with a resolvable PAT."
                 ));
             } else {
                 try {
@@ -116,26 +116,26 @@ public class ProjectValidationService {
                         findings.add(fail(
                             ProjectValidationScope.credentials,
                             "AZURE_DEVOPS_PAT_MISSING",
-                            "Linked provider connection " + providerConnectionId + " is not an Azure DevOps connection."
+                            "Linked deployment connection " + providerConnectionId + " is not an Azure DevOps connection."
                         ));
                     } else if (hasText(providerConnectionSecretResolver.resolvePersonalAccessToken(connection))) {
                         findings.add(pass(
                             ProjectValidationScope.credentials,
                             "AZURE_DEVOPS_PAT_PRESENT",
-                            "Azure DevOps personal access token resolved from linked provider connection " + providerConnectionId + "."
+                            "Azure DevOps personal access token resolved from linked deployment connection " + providerConnectionId + "."
                         ));
                     } else {
                         findings.add(fail(
                             ProjectValidationScope.credentials,
                             "AZURE_DEVOPS_PAT_MISSING",
-                            "Linked provider connection " + providerConnectionId + " does not resolve an Azure DevOps PAT."
+                            "Linked deployment connection " + providerConnectionId + " does not resolve an Azure DevOps PAT."
                         ));
                     }
                 } catch (RuntimeException exception) {
                     findings.add(fail(
                         ProjectValidationScope.credentials,
                         "AZURE_DEVOPS_PAT_MISSING",
-                        "Provider connection " + providerConnectionId + " was not found."
+                        "Deployment connection " + providerConnectionId + " was not found."
                     ));
                 }
             }
@@ -171,7 +171,7 @@ public class ProjectValidationService {
                 findings.add(fail(
                     ProjectValidationScope.webhook,
                     "AZURE_DEVOPS_WEBHOOK_SECRET_MISSING",
-                    "Azure DevOps webhook ingest requires a linked Azure DevOps release ingest endpoint with a resolvable webhook secret."
+                    "Azure DevOps webhook ingest requires a linked Azure DevOps release source with a resolvable webhook secret."
                 ));
                 return findings;
             }
@@ -181,7 +181,7 @@ public class ProjectValidationService {
                     findings.add(fail(
                         ProjectValidationScope.webhook,
                         "AZURE_DEVOPS_WEBHOOK_ENDPOINT_MISSING",
-                        "Linked release ingest endpoint " + endpointId + " is not an Azure DevOps endpoint."
+                        "Linked release source " + endpointId + " is not an Azure DevOps release source."
                     ));
                     return findings;
                 }
@@ -189,20 +189,20 @@ public class ProjectValidationService {
                     findings.add(pass(
                         ProjectValidationScope.webhook,
                         "AZURE_DEVOPS_WEBHOOK_SECRET_PRESENT",
-                        "Azure DevOps webhook secret resolved from linked release ingest endpoint " + endpointId + "."
+                        "Azure DevOps webhook secret resolved from linked release source " + endpointId + "."
                     ));
                 } else {
                     findings.add(fail(
                         ProjectValidationScope.webhook,
                         "AZURE_DEVOPS_WEBHOOK_SECRET_MISSING",
-                        "Linked release ingest endpoint " + endpointId + " has no resolvable webhook secret."
+                        "Linked release source " + endpointId + " has no resolvable webhook secret."
                     ));
                 }
             } catch (RuntimeException exception) {
                 findings.add(fail(
                     ProjectValidationScope.webhook,
                     "AZURE_DEVOPS_WEBHOOK_ENDPOINT_MISSING",
-                    "Release ingest endpoint " + endpointId + " was not found."
+                    "Release source " + endpointId + " was not found."
                 ));
             }
             return findings;
@@ -218,7 +218,7 @@ public class ProjectValidationService {
             findings.add(warning(
                 ProjectValidationScope.webhook,
                 "MANAGED_APP_WEBHOOK_SECRET_MISSING",
-                "Managed-app release webhook secret is not configured; release ingest may rely on manual actions."
+                "Managed-app release webhook secret is not configured; release registration may rely on manual actions."
             ));
         }
         return findings;

@@ -20,7 +20,7 @@ public class ProviderConnectionCatalogService {
 
     public ProviderConnectionRecord getRequired(String connectionId) {
         return providerConnectionQueryRepository.getConnection(connectionId).orElseThrow(
-            () -> new ApiException(HttpStatus.BAD_REQUEST, "provider connection not found: " + normalize(connectionId))
+            () -> new ApiException(HttpStatus.BAD_REQUEST, "deployment connection not found: " + normalize(connectionId))
         );
     }
 

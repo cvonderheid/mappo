@@ -344,11 +344,11 @@ public class AzureDevOpsReleaseWebhookService {
         if (endpoint.provider() != ReleaseIngestProviderType.azure_devops) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "release ingest endpoint %s is not configured for azure devops webhooks".formatted(normalizedEndpointId)
+                "release source %s is not configured for Azure DevOps webhooks".formatted(normalizedEndpointId)
             );
         }
         if (!endpoint.enabled()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "release ingest endpoint is disabled: " + normalizedEndpointId);
+            throw new ApiException(HttpStatus.BAD_REQUEST, "release source is disabled: " + normalizedEndpointId);
         }
         return endpoint;
     }

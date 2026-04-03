@@ -20,7 +20,7 @@ public class ReleaseIngestEndpointCatalogService {
 
     public ReleaseIngestEndpointRecord getRequired(String endpointId) {
         return releaseIngestEndpointQueryRepository.getEndpoint(endpointId).orElseThrow(
-            () -> new ApiException(HttpStatus.BAD_REQUEST, "release ingest endpoint not found: " + normalize(endpointId))
+            () -> new ApiException(HttpStatus.BAD_REQUEST, "release source not found: " + normalize(endpointId))
         );
     }
 

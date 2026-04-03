@@ -34,7 +34,7 @@ public class ReleaseIngestEndpointCommandRepository {
                 .set(RELEASE_INGEST_ENDPOINTS.UPDATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
                 .execute();
         } catch (DataAccessException exception) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "release ingest endpoint already exists: " + normalize(mutation.id()));
+            throw new ApiException(HttpStatus.BAD_REQUEST, "release source already exists: " + normalize(mutation.id()));
         }
     }
 
@@ -52,7 +52,7 @@ public class ReleaseIngestEndpointCommandRepository {
             .where(RELEASE_INGEST_ENDPOINTS.ID.eq(normalize(mutation.id())))
             .execute();
         if (updated <= 0) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "release ingest endpoint not found: " + normalize(mutation.id()));
+            throw new ApiException(HttpStatus.BAD_REQUEST, "release source not found: " + normalize(mutation.id()));
         }
     }
 
@@ -62,7 +62,7 @@ public class ReleaseIngestEndpointCommandRepository {
             .where(RELEASE_INGEST_ENDPOINTS.ID.eq(normalizedEndpointId))
             .execute();
         if (deleted <= 0) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "release ingest endpoint not found: " + normalizedEndpointId);
+            throw new ApiException(HttpStatus.BAD_REQUEST, "release source not found: " + normalizedEndpointId);
         }
     }
 
@@ -70,7 +70,7 @@ public class ReleaseIngestEndpointCommandRepository {
         String literal = mutation.provider() == null ? "" : mutation.provider().name();
         MappoReleaseIngestProvider provider = MappoReleaseIngestProvider.lookupLiteral(literal);
         if (provider == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "invalid release ingest provider");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "invalid release source provider");
         }
         return provider;
     }

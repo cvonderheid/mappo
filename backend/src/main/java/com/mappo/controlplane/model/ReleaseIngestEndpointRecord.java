@@ -6,15 +6,15 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 public record ReleaseIngestEndpointRecord(
-    @Schema(description = "Release ingest endpoint id.", example = "github-managed-app-default")
+    @Schema(description = "Release source id.", example = "github-managed-app-default")
     String id,
-    @Schema(description = "Release ingest endpoint display name.", example = "GitHub Managed App Default")
+    @Schema(description = "Release source display name.", example = "GitHub Managed App Default")
     String name,
-    @Schema(description = "Webhook provider for this endpoint.")
+    @Schema(description = "External system that sends release notifications to this source.")
     ReleaseIngestProviderType provider,
-    @Schema(description = "Whether this endpoint is active for webhook processing.")
+    @Schema(description = "Whether this release source is active for inbound webhook processing.")
     boolean enabled,
-    @Schema(description = "Secret reference used for webhook authentication.", example = "mappo.managed-app-release.webhook-secret")
+    @Schema(description = "Secret reference used to verify inbound webhook deliveries.", example = "mappo.managed-app-release.webhook-secret")
     String secretRef,
     @Schema(description = "Optional provider repository filter.", example = "cvonderheid/mappo-managed-app")
     String repoFilter,
@@ -24,7 +24,7 @@ public record ReleaseIngestEndpointRecord(
     String pipelineIdFilter,
     @Schema(description = "Optional manifest path filter for release files.", example = "releases/releases.manifest.json")
     String manifestPath,
-    @Schema(description = "Projects currently linked to this release ingest endpoint.")
+    @Schema(description = "Projects currently linked to this release source.")
     List<ReleaseIngestLinkedProjectRecord> linkedProjects,
     @Schema(description = "Created timestamp (UTC).")
     OffsetDateTime createdAt,

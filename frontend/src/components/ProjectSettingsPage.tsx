@@ -1,7 +1,8 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import DataTablePagination from "@/components/DataTablePagination";
 import FieldHelpTooltip from "@/components/FieldHelpTooltip";
 import { Badge } from "@/components/ui/badge";
@@ -20,11 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  discoverProviderConnectionAdoProjects,
-  listProviderConnections,
-  listReleaseIngestEndpoints,
-} from "@/lib/api";
+import { listProviderConnections, listReleaseIngestEndpoints } from "@/lib/api";
 import type {
   DiscoverProjectAdoRepositoriesRequest,
   DiscoverProjectAdoServiceConnectionsRequest,
@@ -43,7 +40,6 @@ import type {
   ProjectCreateRequest,
   ProjectDefinition,
   ProviderConnection,
-  ProviderConnectionAdoProject,
   ReleaseIngestEndpoint,
   ProjectValidationRequest,
   ProjectValidationResult,
@@ -144,10 +140,10 @@ type DraftValidationIssue = {
 
 const PROJECT_TABS: { key: ProjectTab; label: string }[] = [
   { key: "general", label: "General" },
-  { key: "release-ingest", label: "Release Ingest" },
+  { key: "release-ingest", label: "Release Source" },
   { key: "deployment-driver", label: "Deployment Driver" },
   { key: "access-identity", label: "Access & Identity" },
-  { key: "target-contract", label: "Target Contract" },
+  { key: "target-contract", label: "Target Requirements" },
   { key: "runtime-health", label: "Runtime Health" },
   { key: "validation", label: "Validation" },
   { key: "audit", label: "Audit" },
@@ -165,26 +161,42 @@ const DEFAULT_EXTERNAL_INPUT_SOURCE_SYSTEM = "azure_devops";
 const DEFAULT_EXTERNAL_INPUT_DESCRIPTOR_PATH = "pipelineInputs";
 const DEFAULT_EXTERNAL_INPUT_VERSION_FIELD = "artifactVersion";
 
-const DRIVER_CAPABILITIES: Record<ProjectDraft["deploymentDriver"], { preview: boolean; cancel: boolean; externalLogs: boolean; externalHandle: boolean }> = {
-  azure_deployment_stack: {
-    preview: true,
-    cancel: false,
-    externalLogs: true,
-    externalHandle: true,
-  },
-  azure_template_spec: {
-    preview: false,
-    cancel: false,
-    externalLogs: true,
-    externalHandle: false,
-  },
-  pipeline_trigger: {
-    preview: false,
-    cancel: false,
-    externalLogs: true,
-    externalHandle: true,
-  },
-};
+function deriveAzureDevOpsAccountUrl(value: string): string {
+  const normalized = value.trim();
+  if (normalized === "") {
+    return "";
+  }
+  try {
+    const parsed = new URL(normalized);
+    const host = parsed.hostname.toLowerCase();
+    if (host === "dev.azure.com") {
+      const [organization] = parsed.pathname.split("/").filter(Boolean);
+      return organization ? `${parsed.protocol}//${parsed.host}/${organization}` : "";
+    }
+    if (host.endsWith(".visualstudio.com")) {
+      return `${parsed.protocol}//${parsed.host}`;
+    }
+    return "";
+  } catch {
+    return "";
+  }
+}
+
+function resolveProviderConnectionAccountUrl(
+  connection: ProviderConnection | null | undefined
+): string {
+  const persisted = (connection?.organizationUrl ?? "").trim();
+  if (persisted !== "") {
+    return deriveAzureDevOpsAccountUrl(persisted) || persisted;
+  }
+  for (const project of connection?.discoveredProjects ?? []) {
+    const derived = deriveAzureDevOpsAccountUrl(project.webUrl ?? "");
+    if (derived !== "") {
+      return derived;
+    }
+  }
+  return "";
+}
 
 const TARGET_CONTRACTS: Record<ProjectDraft["deploymentDriver"], { required: TargetContractField[]; optional: TargetContractField[] }> = {
   azure_deployment_stack: {
@@ -528,20 +540,16 @@ export default function ProjectSettingsPage({
   const [isDiscoveringRepositories, setIsDiscoveringRepositories] = useState(false);
   const [isDiscoveringPipelines, setIsDiscoveringPipelines] = useState(false);
   const [isDiscoveringServiceConnections, setIsDiscoveringServiceConnections] = useState(false);
-  const [isDiscoveringAdoProjects, setIsDiscoveringAdoProjects] = useState(false);
   const [repositoryDiscoveryError, setRepositoryDiscoveryError] = useState("");
   const [pipelineDiscoveryError, setPipelineDiscoveryError] = useState("");
   const [serviceConnectionDiscoveryError, setServiceConnectionDiscoveryError] = useState("");
-  const [adoProjectDiscoveryError, setAdoProjectDiscoveryError] = useState("");
   const [discoveredRepositories, setDiscoveredRepositories] = useState<ProjectAdoRepository[]>([]);
   const [discoveredPipelines, setDiscoveredPipelines] = useState<ProjectAdoPipeline[]>([]);
   const [discoveredServiceConnections, setDiscoveredServiceConnections] = useState<ProjectAdoServiceConnection[]>([]);
-  const [discoveredAdoProjects, setDiscoveredAdoProjects] = useState<ProviderConnectionAdoProject[]>([]);
   const [releaseIngestEndpoints, setReleaseIngestEndpoints] = useState<ReleaseIngestEndpoint[]>([]);
   const [providerConnections, setProviderConnections] = useState<ProviderConnection[]>([]);
   const [isLoadingReleaseIngestEndpoints, setIsLoadingReleaseIngestEndpoints] = useState(false);
   const [isLoadingProviderConnections, setIsLoadingProviderConnections] = useState(false);
-  const adoProjectDiscoveryKeyRef = useRef("");
   const repositoryDiscoveryKeyRef = useRef("");
   const pipelineDiscoveryKeyRef = useRef("");
   const serviceConnectionDiscoveryKeyRef = useRef("");
@@ -565,12 +573,9 @@ export default function ProjectSettingsPage({
     setDiscoveredRepositories([]);
     setDiscoveredPipelines([]);
     setDiscoveredServiceConnections([]);
-    setDiscoveredAdoProjects([]);
     setRepositoryDiscoveryError("");
     setPipelineDiscoveryError("");
     setServiceConnectionDiscoveryError("");
-    setAdoProjectDiscoveryError("");
-    adoProjectDiscoveryKeyRef.current = "";
     repositoryDiscoveryKeyRef.current = "";
     pipelineDiscoveryKeyRef.current = "";
     serviceConnectionDiscoveryKeyRef.current = "";
@@ -661,51 +666,6 @@ export default function ProjectSettingsPage({
     }));
   }, [draft.deploymentDriver, draft.driver.pipelineSystem]);
 
-  useEffect(() => {
-    if (draft.deploymentDriver !== "pipeline_trigger") {
-      return;
-    }
-    if (draft.providerConnectionId.trim() !== "") {
-      return;
-    }
-    const firstEnabledAdoConnection = providerConnections.find(
-      (connection) =>
-        (connection.provider ?? "").toLowerCase() === "azure_devops" &&
-        (connection.enabled ?? true) &&
-        (connection.id ?? "").trim() !== ""
-    );
-    if (!firstEnabledAdoConnection?.id) {
-      return;
-    }
-    setDraft((current) => ({
-      ...current,
-      providerConnectionId: firstEnabledAdoConnection.id ?? "",
-    }));
-  }, [draft.deploymentDriver, draft.providerConnectionId, providerConnections]);
-
-  useEffect(() => {
-    if (draft.deploymentDriver !== "pipeline_trigger") {
-      return;
-    }
-    if (draft.releaseIngestEndpointId.trim() !== "") {
-      return;
-    }
-    const firstEnabledAdoEndpoint = releaseIngestEndpoints.find(
-      (endpoint) =>
-        (endpoint.provider ?? "").toLowerCase() === "azure_devops" &&
-        (endpoint.enabled ?? true) &&
-        (endpoint.id ?? "").trim() !== ""
-    );
-    if (!firstEnabledAdoEndpoint?.id) {
-      return;
-    }
-    setDraft((current) => ({
-      ...current,
-      releaseIngestEndpointId: firstEnabledAdoEndpoint.id ?? "",
-    }));
-  }, [draft.deploymentDriver, draft.releaseIngestEndpointId, releaseIngestEndpoints]);
-
-  const capabilities = DRIVER_CAPABILITIES[draft.deploymentDriver];
   const targetContract = TARGET_CONTRACTS[draft.deploymentDriver];
   const targetCount = targets.length;
   const sortedReleaseIngestEndpoints = useMemo(
@@ -735,6 +695,14 @@ export default function ProjectSettingsPage({
       providerConnections.find((connection) => (connection.id ?? "").trim() === connectionId) ?? null
     );
   }, [providerConnections, draft.providerConnectionId]);
+  const isVerifiedAzureDevOpsConnection = useCallback(
+    (connection: ProviderConnection | null | undefined) =>
+      (connection?.provider ?? "").toLowerCase() === "azure_devops" &&
+      (connection?.enabled ?? true) &&
+      resolveProviderConnectionAccountUrl(connection) !== "" &&
+      (connection?.discoveredProjects?.length ?? 0) > 0,
+    []
+  );
   const pipelineProviderConnections = useMemo(
     () =>
       sortedProviderConnections.filter(
@@ -746,31 +714,46 @@ export default function ProjectSettingsPage({
   );
   const selectedProviderConnectionIsAzureDevOps =
     (selectedProviderConnection?.provider ?? "").toLowerCase() === "azure_devops";
+  const selectedProviderConnectionDiscoveryUrl = resolveProviderConnectionAccountUrl(
+    selectedProviderConnection
+  );
+  const cachedProviderConnectionProjects = useMemo(
+    () =>
+      [...(selectedProviderConnection?.discoveredProjects ?? [])].sort((left, right) =>
+        `${left.name ?? ""}`.localeCompare(`${right.name ?? ""}`, undefined, { sensitivity: "base" })
+      ),
+    [selectedProviderConnection]
+  );
+  const selectedProviderConnectionRequiresVerification =
+    draft.deploymentDriver === "pipeline_trigger" &&
+    draft.providerConnectionId.trim() !== "" &&
+    selectedProviderConnectionIsAzureDevOps &&
+    selectedProviderConnectionDiscoveryUrl === "";
   const selectedDiscoveredAdoProjectId = useMemo(() => {
     const currentValue = draft.driver.project.trim();
     if (currentValue === "") {
       return "__none";
     }
-    const matching = discoveredAdoProjects.find((projectOption) => projectOption.name === currentValue);
+    const matching = cachedProviderConnectionProjects.find((projectOption) => projectOption.name === currentValue);
     return matching ? matching.id : "__none";
-  }, [discoveredAdoProjects, draft.driver.project]);
+  }, [cachedProviderConnectionProjects, draft.driver.project]);
   const selectedDiscoveredAdoProject = useMemo(() => {
     if (selectedDiscoveredAdoProjectId === "__none") {
       return null;
     }
-    return discoveredAdoProjects.find((projectOption) => projectOption.id === selectedDiscoveredAdoProjectId) ?? null;
-  }, [discoveredAdoProjects, selectedDiscoveredAdoProjectId]);
+    return cachedProviderConnectionProjects.find((projectOption) => projectOption.id === selectedDiscoveredAdoProjectId) ?? null;
+  }, [cachedProviderConnectionProjects, selectedDiscoveredAdoProjectId]);
   const resolvedAdoOrganization = draft.driver.organization.trim();
   const resolvedAdoProject = draft.driver.project.trim();
-  const selectedAdoProjectUrl = useMemo(() => {
-    if (selectedDiscoveredAdoProject?.webUrl?.trim()) {
-      return selectedDiscoveredAdoProject.webUrl.trim();
-    }
-    if (resolvedAdoOrganization !== "" && resolvedAdoProject !== "") {
-      return `${resolvedAdoOrganization}/${encodeURIComponent(resolvedAdoProject)}`;
-    }
-    return "";
-  }, [resolvedAdoOrganization, resolvedAdoProject, selectedDiscoveredAdoProject]);
+  const canSelectAzureDevOpsProject =
+    draft.deploymentDriver === "pipeline_trigger" &&
+    draft.providerConnectionId.trim() !== "" &&
+    !selectedProviderConnectionRequiresVerification &&
+    cachedProviderConnectionProjects.length > 0;
+  const hasSelectedAzureDevOpsProject = resolvedAdoOrganization !== "" && resolvedAdoProject !== "";
+  const canDiscoverAzureDevOpsProjectResources =
+    canSelectAzureDevOpsProject &&
+    hasSelectedAzureDevOpsProject;
   const providerConnectionOptions = useMemo(() => {
     if (draft.deploymentDriver !== "pipeline_trigger") {
       return sortedProviderConnections;
@@ -778,7 +761,7 @@ export default function ProjectSettingsPage({
     const base = [...pipelineProviderConnections];
     if (
       selectedProviderConnection &&
-      !selectedProviderConnectionIsAzureDevOps &&
+      !isVerifiedAzureDevOpsConnection(selectedProviderConnection) &&
       !base.some((connection) => (connection.id ?? "").trim() === (selectedProviderConnection.id ?? "").trim())
     ) {
       base.unshift(selectedProviderConnection);
@@ -789,7 +772,7 @@ export default function ProjectSettingsPage({
     sortedProviderConnections,
     pipelineProviderConnections,
     selectedProviderConnection,
-    selectedProviderConnectionIsAzureDevOps,
+    isVerifiedAzureDevOpsConnection,
   ]);
   const selectedReleaseIngestEndpoint = useMemo(() => {
     const endpointId = draft.releaseIngestEndpointId.trim();
@@ -863,9 +846,6 @@ export default function ProjectSettingsPage({
   }, [discoveredServiceConnections, draft.driver.azureServiceConnectionName]);
 
   useEffect(() => {
-    setDiscoveredAdoProjects([]);
-    setAdoProjectDiscoveryError("");
-    adoProjectDiscoveryKeyRef.current = "";
     setDiscoveredRepositories([]);
     setDiscoveredPipelines([]);
     setDiscoveredServiceConnections([]);
@@ -875,7 +855,7 @@ export default function ProjectSettingsPage({
     repositoryDiscoveryKeyRef.current = "";
     pipelineDiscoveryKeyRef.current = "";
     serviceConnectionDiscoveryKeyRef.current = "";
-  }, [draft.providerConnectionId]);
+  }, [cachedProviderConnectionProjects, draft.providerConnectionId]);
 
   useEffect(() => {
     setDiscoveredRepositories([]);
@@ -889,16 +869,142 @@ export default function ProjectSettingsPage({
     serviceConnectionDiscoveryKeyRef.current = "";
   }, [draft.driver.organization, draft.driver.project]);
 
-  function normalizeDiscoveryError(message: string, providerLabel: string): string {
-    const normalizedMessage = message.toLowerCase();
-    if (normalizedMessage.includes("pat could not be resolved")) {
-      return `${providerLabel} PAT could not be resolved. Open Admin → Provider Connections and verify the credential source for the selected connection.`;
+  useEffect(() => {
+    if (
+      draft.deploymentDriver !== "pipeline_trigger" ||
+      draft.providerConnectionId.trim() === "" ||
+      draft.driver.project.trim() !== "" ||
+      cachedProviderConnectionProjects.length !== 1
+    ) {
+      return;
     }
-    if (normalizedMessage.includes("organization url is required on the provider connection")) {
-      return `${providerLabel} project discovery is blocked because the selected Provider Connection is missing its Azure DevOps URL. Open Admin → Provider Connections and paste an Azure DevOps organization, project, or repo URL for that connection.`;
+    const onlyProject = cachedProviderConnectionProjects[0];
+    if (!onlyProject?.name) {
+      return;
     }
-    return message;
+    const resolvedOrganization =
+      deriveAzureDevOpsAccountUrl(onlyProject.webUrl ?? "") || selectedProviderConnectionDiscoveryUrl;
+    if (resolvedOrganization === "") {
+      return;
+    }
+    setDraft((current) => ({
+      ...current,
+      driver: {
+        ...current.driver,
+        organization: resolvedOrganization,
+        project: onlyProject.name,
+      },
+    }));
+  }, [
+    cachedProviderConnectionProjects,
+    draft.deploymentDriver,
+    draft.driver.project,
+    draft.providerConnectionId,
+    selectedProviderConnectionDiscoveryUrl,
+  ]);
+
+  useEffect(() => {
+    if (draft.deploymentDriver !== "pipeline_trigger") {
+      return;
+    }
+    if (draft.providerConnectionId.trim() === "") {
+      return;
+    }
+    if (draft.driver.project.trim() === "") {
+      return;
+    }
+    const matchingProject = cachedProviderConnectionProjects.find(
+      (projectOption) => projectOption.name === draft.driver.project.trim()
+    );
+    if (matchingProject) {
+      return;
+    }
+    setDraft((current) => ({
+      ...current,
+      driver: {
+        ...current.driver,
+        organization: "",
+        project: "",
+        repository: "",
+        pipelineId: "",
+        azureServiceConnectionName: "",
+      },
+    }));
+  }, [
+    cachedProviderConnectionProjects,
+    draft.deploymentDriver,
+    draft.driver.project,
+    draft.providerConnectionId,
+  ]);
+
+  useEffect(() => {
+    if (draft.deploymentDriver !== "pipeline_trigger") {
+      return;
+    }
+    if (draft.providerConnectionId.trim() !== "") {
+      return;
+    }
+    if (pipelineProviderConnections.length !== 1) {
+      return;
+    }
+    const onlyConnectionId = (pipelineProviderConnections[0]?.id ?? "").trim();
+    if (onlyConnectionId === "") {
+      return;
+    }
+    setDraft((current) => {
+      if (current.providerConnectionId.trim() !== "") {
+        return current;
+      }
+      return {
+        ...current,
+        providerConnectionId: onlyConnectionId,
+      };
+    });
+  }, [draft.deploymentDriver, draft.providerConnectionId, pipelineProviderConnections]);
+
+  useEffect(() => {
+    if (draft.releaseIngestEndpointId.trim() !== "") {
+      return;
+    }
+    if (releaseIngestEndpointOptions.length !== 1) {
+      return;
+    }
+    const onlyEndpointId = (releaseIngestEndpointOptions[0]?.id ?? "").trim();
+    if (onlyEndpointId === "") {
+      return;
+    }
+    setDraft((current) => {
+      if (current.releaseIngestEndpointId.trim() !== "") {
+        return current;
+      }
+      return {
+        ...current,
+        releaseIngestEndpointId: onlyEndpointId,
+      };
+    });
+  }, [draft.releaseIngestEndpointId, releaseIngestEndpointOptions]);
+
+function normalizeDiscoveryError(message: string, providerLabel: string): string {
+  const normalizedMessage = message.toLowerCase();
+  if (normalizedMessage.includes("pat could not be resolved")) {
+    return `${providerLabel} access is not configured correctly for the selected deployment connection. Open Admin → Deployment Connections, edit that connection, and verify the API credential source.`;
   }
+  if (
+    normalizedMessage.includes("azure devops url is required")
+    || normalizedMessage.includes("project or repo url")
+    || normalizedMessage.includes("verified azure devops url")
+  ) {
+    return `${providerLabel} projects are not available yet because the selected deployment connection has not been verified. Open Admin → Deployment Connections, edit that connection, and verify it first.`;
+  }
+  return message;
+}
+
+  const canUseManualServiceConnectionName =
+    draft.deploymentDriver === "pipeline_trigger"
+    && draft.providerConnectionId.trim() !== ""
+    && resolvedAdoOrganization !== ""
+    && resolvedAdoProject !== ""
+    && discoveredServiceConnections.length === 0;
 
   const draftValidationIssues = useMemo(() => {
     const issues: DraftValidationIssue[] = [];
@@ -916,7 +1022,7 @@ export default function ProjectSettingsPage({
           id: "driver-provider-connection-required",
           tab: "deployment-driver",
           fieldId: "driver-provider-connection-id",
-          message: "Deployment Driver: linked Azure DevOps provider connection is required.",
+          message: "Deployment Driver: linked Azure DevOps deployment connection is required.",
         });
       } else if (
         selectedProviderConnection &&
@@ -926,40 +1032,50 @@ export default function ProjectSettingsPage({
           id: "driver-provider-connection-provider",
           tab: "deployment-driver",
           fieldId: "driver-provider-connection-id",
-          message: "Deployment Driver: linked provider connection must use Azure DevOps.",
+          message: "Deployment Driver: linked deployment connection must use Azure DevOps.",
         });
-      }
-      if (draft.driver.organization.trim() === "" || draft.driver.project.trim() === "") {
+      } else if (selectedProviderConnectionRequiresVerification) {
+        issues.push({
+          id: "driver-provider-connection-scope",
+          tab: "deployment-driver",
+          fieldId: "driver-provider-connection-id",
+          message:
+            "Deployment Driver: selected deployment connection must be verified in Admin → Deployment Connections before Azure DevOps projects can be selected.",
+        });
+      } else if (draft.driver.organization.trim() === "" || draft.driver.project.trim() === "") {
         issues.push({
           id: "driver-project-required",
           tab: "deployment-driver",
           fieldId: "driver-project-select",
-          message: "Deployment Driver: Azure DevOps project selection is required.",
+          message: "Deployment Driver: choose an Azure DevOps project.",
         });
-      }
-      if (draft.driver.repository.trim() === "") {
-        issues.push({
-          id: "driver-repository-required",
-          tab: "deployment-driver",
-          fieldId: "driver-repository-select",
-          message: "Deployment Driver: Azure DevOps repository is required.",
-        });
-      }
-      if (draft.driver.pipelineId.trim() === "") {
-        issues.push({
-          id: "driver-pipeline-id-required",
-          tab: "deployment-driver",
-          fieldId: "driver-pipeline-select",
-          message: "Deployment Driver: Azure DevOps pipeline is required.",
-        });
-      }
-      if (draft.driver.azureServiceConnectionName.trim() === "") {
-        issues.push({
-          id: "driver-service-connection-required",
-          tab: "deployment-driver",
-          fieldId: "driver-service-connection",
-          message: "Deployment Driver: Azure service connection is required.",
-        });
+      } else {
+        if (draft.driver.repository.trim() === "") {
+          issues.push({
+            id: "driver-repository-required",
+            tab: "deployment-driver",
+            fieldId: "driver-repository-select",
+            message: "Deployment Driver: choose an Azure DevOps repository.",
+          });
+        }
+        if (draft.driver.pipelineId.trim() === "") {
+          issues.push({
+            id: "driver-pipeline-id-required",
+            tab: "deployment-driver",
+            fieldId: "driver-pipeline-select",
+            message: "Deployment Driver: choose an Azure DevOps pipeline.",
+          });
+        }
+        if (draft.driver.azureServiceConnectionName.trim() === "") {
+          issues.push({
+            id: "driver-service-connection-required",
+            tab: "deployment-driver",
+            fieldId: "driver-service-connection",
+            message: canUseManualServiceConnectionName
+              ? "Deployment Driver: enter the Azure service connection name that the pipeline uses."
+              : "Deployment Driver: choose the Azure service connection that pipeline uses.",
+          });
+        }
       }
     }
     if (parseOptionalNumber(draft.runtime.expectedStatus) === undefined) {
@@ -979,7 +1095,12 @@ export default function ProjectSettingsPage({
       });
     }
     return issues;
-  }, [draft, selectedProviderConnection]);
+  }, [
+    canUseManualServiceConnectionName,
+    draft,
+    selectedProviderConnection,
+    selectedProviderConnectionRequiresVerification,
+  ]);
 
   const normalizedPayloadPreview = useMemo(
     () =>
@@ -1074,60 +1195,17 @@ export default function ProjectSettingsPage({
     }
   }
 
-  async function discoverAdoProjects(options?: { silent?: boolean }): Promise<void> {
-    const providerConnectionId = draft.providerConnectionId.trim();
-    if (providerConnectionId === "") {
+  async function discoverAdoPipelines(options?: { silent?: boolean }): Promise<void> {
+    if (!project?.id) {
       return;
     }
-    setIsDiscoveringAdoProjects(true);
-    setAdoProjectDiscoveryError("");
-    try {
-      const response = await discoverProviderConnectionAdoProjects(providerConnectionId);
-      const projects = [...(response.projects ?? [])].sort((left, right) =>
-        `${left.name ?? ""}`.localeCompare(`${right.name ?? ""}`, undefined, { sensitivity: "base" })
-      );
-      setDiscoveredAdoProjects(projects);
-      setDraft((current) => {
-        const currentProjectName = current.driver.project.trim();
-        const currentSelection =
-          projects.find((projectOption) => projectOption.name === currentProjectName) ??
-          (currentProjectName === "" && projects.length === 1 ? projects[0] : undefined);
-        if (!currentSelection) {
-          return current;
-        }
-        if (
-          current.driver.organization.trim() === response.organizationUrl &&
-          current.driver.project.trim() === currentSelection.name
-        ) {
-          return current;
-        }
-        return {
-          ...current,
-          driver: {
-            ...current.driver,
-            organization: response.organizationUrl,
-            project: currentSelection.name,
-          },
-        };
-      });
-      if (!options?.silent) {
-        toast.success(
-          `Discovered ${projects.length} Azure DevOps project${projects.length === 1 ? "" : "s"} for ${selectedProviderConnection?.name || providerConnectionId}.`
-        );
-      }
-    } catch (error) {
-      const message = normalizeDiscoveryError((error as Error).message, "Azure DevOps");
-      setAdoProjectDiscoveryError(message);
+    if (selectedProviderConnectionRequiresVerification) {
+      const message =
+        "Open Admin → Deployment Connections, verify the selected connection, and select an Azure DevOps project before MAPPO can browse pipelines.";
+      setPipelineDiscoveryError(message);
       if (!options?.silent) {
         toast.error(message);
       }
-    } finally {
-      setIsDiscoveringAdoProjects(false);
-    }
-  }
-
-  async function discoverAdoPipelines(options?: { silent?: boolean }): Promise<void> {
-    if (!project?.id) {
       return;
     }
     const resolvedOrganization = resolvedAdoOrganization || undefined;
@@ -1152,7 +1230,7 @@ export default function ProjectSettingsPage({
       }
       if (!options?.silent) {
         toast.success(
-          `Discovered ${pipelines.length} pipeline${pipelines.length === 1 ? "" : "s"} in ${response.organization}/${response.project}.`
+          `Discovered ${pipelines.length} pipeline${pipelines.length === 1 ? "" : "s"} from ${response.organization}/${response.project}.`
         );
       }
     } catch (error) {
@@ -1160,7 +1238,7 @@ export default function ProjectSettingsPage({
       const normalizedMessage = normalizeDiscoveryError(message, "Azure DevOps");
       setPipelineDiscoveryError(normalizedMessage);
       if (!options?.silent) {
-        toast.error(normalizedMessage);
+        toast.error(`Unable to load Azure DevOps pipelines. ${normalizedMessage}`);
       }
     } finally {
       setIsDiscoveringPipelines(false);
@@ -1169,6 +1247,15 @@ export default function ProjectSettingsPage({
 
   async function discoverAdoRepositories(options?: { silent?: boolean }): Promise<void> {
     if (!project?.id) {
+      return;
+    }
+    if (selectedProviderConnectionRequiresVerification) {
+      const message =
+        "Open Admin → Deployment Connections, verify the selected connection, and select an Azure DevOps project before MAPPO can browse repositories.";
+      setRepositoryDiscoveryError(message);
+      if (!options?.silent) {
+        toast.error(message);
+      }
       return;
     }
     const resolvedOrganization = resolvedAdoOrganization || undefined;
@@ -1206,7 +1293,7 @@ export default function ProjectSettingsPage({
       }
       if (!options?.silent) {
         toast.success(
-          `Discovered ${repositories.length} repositor${repositories.length === 1 ? "y" : "ies"} in ${response.organization}/${response.project}.`
+          `Discovered ${repositories.length} repositor${repositories.length === 1 ? "y" : "ies"} from ${response.organization}/${response.project}.`
         );
       }
     } catch (error) {
@@ -1214,7 +1301,7 @@ export default function ProjectSettingsPage({
       const normalizedMessage = normalizeDiscoveryError(message, "Azure DevOps");
       setRepositoryDiscoveryError(normalizedMessage);
       if (!options?.silent) {
-        toast.error(normalizedMessage);
+        toast.error(`Unable to load Azure DevOps repositories. ${normalizedMessage}`);
       }
     } finally {
       setIsDiscoveringRepositories(false);
@@ -1223,6 +1310,15 @@ export default function ProjectSettingsPage({
 
   async function discoverAdoServiceConnections(options?: { silent?: boolean }): Promise<void> {
     if (!project?.id) {
+      return;
+    }
+    if (selectedProviderConnectionRequiresVerification) {
+      const message =
+        "Open Admin → Deployment Connections, verify the selected connection, and select an Azure DevOps project before MAPPO can browse service connections.";
+      setServiceConnectionDiscoveryError(message);
+      if (!options?.silent) {
+        toast.error(message);
+      }
       return;
     }
     const resolvedOrganization = resolvedAdoOrganization || undefined;
@@ -1250,7 +1346,7 @@ export default function ProjectSettingsPage({
       }
       if (!options?.silent) {
         toast.success(
-          `Discovered ${serviceConnections.length} service connection${serviceConnections.length === 1 ? "" : "s"} in ${response.organization}/${response.project}.`
+          `Discovered ${serviceConnections.length} service connection${serviceConnections.length === 1 ? "" : "s"} from ${response.organization}/${response.project}.`
         );
       }
     } catch (error) {
@@ -1258,7 +1354,7 @@ export default function ProjectSettingsPage({
       const normalizedMessage = normalizeDiscoveryError(message, "Azure DevOps");
       setServiceConnectionDiscoveryError(normalizedMessage);
       if (!options?.silent) {
-        toast.error(normalizedMessage);
+        toast.error(`Unable to load Azure service connections. ${normalizedMessage}`);
       }
     } finally {
       setIsDiscoveringServiceConnections(false);
@@ -1270,32 +1366,10 @@ export default function ProjectSettingsPage({
       activeTab !== "deployment-driver" ||
       draft.deploymentDriver !== "pipeline_trigger" ||
       draft.driver.pipelineSystem !== "azure_devops" ||
-      draft.providerConnectionId.trim() === ""
-    ) {
-      return;
-    }
-
-    const discoveryKey = draft.providerConnectionId.trim();
-    if (adoProjectDiscoveryKeyRef.current === discoveryKey) {
-      return;
-    }
-    adoProjectDiscoveryKeyRef.current = discoveryKey;
-    void discoverAdoProjects({ silent: true });
-  }, [
-    activeTab,
-    draft.deploymentDriver,
-    draft.driver.pipelineSystem,
-    draft.providerConnectionId,
-  ]);
-
-  useEffect(() => {
-    if (
-      activeTab !== "deployment-driver" ||
-      draft.deploymentDriver !== "pipeline_trigger" ||
-      draft.driver.pipelineSystem !== "azure_devops" ||
       draft.providerConnectionId.trim() === "" ||
-      resolvedAdoOrganization === "" ||
-      resolvedAdoProject === ""
+      selectedProviderConnectionRequiresVerification ||
+      selectedProviderConnectionDiscoveryUrl === "" ||
+      !hasSelectedAzureDevOpsProject
     ) {
       return;
     }
@@ -1319,6 +1393,9 @@ export default function ProjectSettingsPage({
     draft.deploymentDriver,
     draft.driver.pipelineSystem,
     draft.providerConnectionId,
+    hasSelectedAzureDevOpsProject,
+    selectedProviderConnectionDiscoveryUrl,
+    selectedProviderConnectionRequiresVerification,
     resolvedAdoOrganization,
     resolvedAdoProject,
   ]);
@@ -1399,34 +1476,34 @@ export default function ProjectSettingsPage({
             <div className="rounded-md border border-border/70 bg-background/40 p-2">
               <p className="text-xs font-medium">Project selected</p>
               <Badge className="mt-1" variant={project ? "default" : "secondary"}>
-                {project ? "Done" : "Pending"}
+                {project ? "Complete" : "Missing"}
               </Badge>
             </div>
             <div className="rounded-md border border-border/70 bg-background/40 p-2">
-              <p className="text-xs font-medium">Config complete</p>
+              <p className="text-xs font-medium">Configuration valid</p>
               <Badge className="mt-1" variant={configComplete ? "default" : "secondary"}>
-                {project ? (configComplete ? "Done" : "Needs input") : "Pending"}
+                {project ? (configComplete ? "Complete" : "Needs attention") : "Missing"}
               </Badge>
             </div>
             <div className="rounded-md border border-border/70 bg-background/40 p-2">
               <p className="text-xs font-medium">Target onboarded</p>
               <Badge className="mt-1" variant={targetCount > 0 ? "default" : "secondary"}>
-                {targetCount > 0 ? "Done" : "Pending"}
+                {targetCount > 0 ? "Complete" : "Missing"}
               </Badge>
             </div>
             <div className="rounded-md border border-border/70 bg-background/40 p-2">
-              <p className="text-xs font-medium">Release ingested</p>
+              <p className="text-xs font-medium">Release available</p>
               <Badge className="mt-1" variant={projectReleaseCount > 0 ? "default" : "secondary"}>
-                {projectReleaseCount > 0 ? "Done" : "Pending"}
+                {projectReleaseCount > 0 ? "Complete" : "Missing"}
               </Badge>
             </div>
             <div className="rounded-md border border-border/70 bg-background/40 p-2">
-              <p className="text-xs font-medium">Ready to deploy</p>
+              <p className="text-xs font-medium">Ready for deployment</p>
               <Badge
                 className="mt-1"
                 variant={configComplete && targetCount > 0 && projectReleaseCount > 0 ? "default" : "secondary"}
               >
-                {configComplete && targetCount > 0 && projectReleaseCount > 0 ? "Ready" : "Blocked"}
+                {configComplete && targetCount > 0 && projectReleaseCount > 0 ? "Complete" : "Blocked"}
               </Badge>
             </div>
           </div>
@@ -1439,13 +1516,8 @@ export default function ProjectSettingsPage({
           <div className="space-y-2">
             <CardTitle>Project Settings</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Configure release ingest, deployment driver, identity model, runtime health, validation, and audit history.
+              Configure release sources, deployment driver, identity model, runtime health, validation, and audit history.
             </p>
-            {project?.id ? (
-              <p className="font-mono text-xs text-muted-foreground">Selected project: {project.id}</p>
-            ) : (
-              <p className="font-mono text-xs text-muted-foreground">No project selected.</p>
-            )}
           </div>
           <div className="sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-background/80 p-2 backdrop-blur">
             <Button
@@ -1492,12 +1564,12 @@ export default function ProjectSettingsPage({
           <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <div className="min-w-0">
               <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ProjectTab)} className="space-y-4">
-                <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-background/70 p-1 sm:grid-cols-4 xl:grid-cols-8">
+                <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-background/70 p-1">
                   {PROJECT_TABS.map((tab) => (
                     <TabsTrigger
                       key={tab.key}
                       value={tab.key}
-                      className="h-auto whitespace-normal px-3 py-2 text-center text-xs leading-tight"
+                      className="h-auto min-w-[120px] whitespace-normal px-3 py-2 text-center text-xs leading-tight sm:min-w-[140px]"
                     >
                       {tab.label}
                     </TabsTrigger>
@@ -1527,25 +1599,9 @@ export default function ProjectSettingsPage({
             </TabsContent>
 
             <TabsContent value="release-ingest" className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Release Ingest</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Release Source</h3>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {draft.deploymentDriver === "pipeline_trigger" ? (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1">
-                      <Label htmlFor="release-source-derived">Release source</Label>
-                      <FieldHelpTooltip content="Pipeline Trigger projects always ingest releases from webhook or pipeline events. Operators do not need to choose this manually." />
-                    </div>
-                    <div
-                      id="release-source-derived"
-                      className="rounded-md border border-border/70 bg-background/60 px-3 py-2 text-sm text-foreground"
-                    >
-                      Webhook / Pipeline Event
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Derived automatically from <span className="font-medium text-foreground">Pipeline Trigger</span>.
-                    </p>
-                  </div>
-                ) : (
+                {draft.deploymentDriver !== "pipeline_trigger" ? (
                   <div className="space-y-1">
                     <div className="flex items-center gap-1">
                       <Label htmlFor="release-source-type">Release source</Label>
@@ -1569,11 +1625,13 @@ export default function ProjectSettingsPage({
                       </SelectContent>
                     </Select>
                   </div>
-                )}
+                ) : null}
                 <div className="space-y-1 md:col-span-2">
                   <div className="flex items-center gap-1">
-                    <Label htmlFor="release-ingest-endpoint-id">Linked release ingest endpoint</Label>
-                    <FieldHelpTooltip content="Pick a global release-ingest endpoint from Admin > Release Ingest. That endpoint controls webhook auth and routing for this project." />
+                    <Label htmlFor="release-ingest-endpoint-id">
+                      Release source
+                    </Label>
+                    <FieldHelpTooltip content="Pick the global release source from Admin > Release Sources. MAPPO uses it to decide which inbound webhook or pipeline events are trusted for this project." />
                   </div>
                   <div className="flex flex-col gap-2 md:flex-row">
                     <Select
@@ -1583,10 +1641,10 @@ export default function ProjectSettingsPage({
                       }
                     >
                       <SelectTrigger id="release-ingest-endpoint-id" className="md:flex-1">
-                        <SelectValue placeholder="Select endpoint" />
+                        <SelectValue placeholder="Select release source" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__none">No linked endpoint</SelectItem>
+                        <SelectItem value="__none">No linked release source</SelectItem>
                         {releaseIngestEndpointOptions
                           .filter((endpoint) => (endpoint.id ?? "").trim() !== "")
                           .map((endpoint) => (
@@ -1611,60 +1669,82 @@ export default function ProjectSettingsPage({
                       }}
                       disabled={isLoadingReleaseIngestEndpoints}
                     >
-                      {isLoadingReleaseIngestEndpoints ? "Refreshing..." : "Refresh"}
+                      {isLoadingReleaseIngestEndpoints ? "Reloading..." : "Reload release sources"}
                     </Button>
                   </div>
                   {draft.releaseIngestEndpointId.trim() !== "" && selectedReleaseIngestEndpoint ? (
-                    <p className="text-xs text-muted-foreground">
+                    <div className="rounded-md border border-border/60 bg-background/40 px-3 py-2 text-xs text-muted-foreground">
                       Using <span className="font-medium text-foreground">{selectedReleaseIngestEndpoint.name || selectedReleaseIngestEndpoint.id}</span>{" "}
-                      from <span className="font-medium text-foreground">Admin → Release Ingest</span>.
-                    </p>
+                      from <span className="font-medium text-foreground">Admin → Release Sources</span>.
+                    </div>
                   ) : null}
                   {releaseIngestEndpointOptions.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
-                      No compatible endpoints found. Create one in{" "}
-                      <span className="font-medium text-foreground">Admin → Release Ingest</span>.
+                      No compatible release sources found. Create one in{" "}
+                      <span className="font-medium text-foreground">Admin → Release Sources</span>.
                     </p>
                   ) : draft.releaseIngestEndpointId.trim() === "" ? (
                     <p className="text-xs text-muted-foreground">
-                      Select the global release-ingest endpoint MAPPO should trust for this project.
+                      Select the global release source MAPPO should trust for this project.
                     </p>
                   ) : null}
                 </div>
                 {draft.releaseArtifactSource === "blob_arm_template" ? (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1">
-                      <Label htmlFor="release-template-uri-field">Template URI Field</Label>
-                      <FieldHelpTooltip content="Payload field that contains the ARM template URI for blob-based release sources." />
-                    </div>
-                    <Input
-                      id="release-template-uri-field"
-                      value={draft.release.templateUriField}
-                      onChange={(event) =>
-                        setDraft((current) => ({
-                          ...current,
-                          release: { ...current.release, templateUriField: event.target.value },
-                        }))
-                      }
-                    />
+                  <div className="md:col-span-2">
+                    <Accordion type="single" collapsible className="rounded-md border border-border/60 bg-background/40 px-3">
+                      <AccordionItem value="release-source-advanced" className="border-none">
+                        <AccordionTrigger className="py-2 text-sm font-medium text-foreground hover:no-underline">
+                          Advanced mapping (rare)
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-1 pb-1">
+                            <div className="flex items-center gap-1">
+                              <Label htmlFor="release-template-uri-field">Template URI Field</Label>
+                              <FieldHelpTooltip content="Payload field that contains the ARM template URI for blob-based release sources." />
+                            </div>
+                            <Input
+                              id="release-template-uri-field"
+                              value={draft.release.templateUriField}
+                              onChange={(event) =>
+                                setDraft((current) => ({
+                                  ...current,
+                                  release: { ...current.release, templateUriField: event.target.value },
+                                }))
+                              }
+                            />
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
                   </div>
                 ) : null}
                 {draft.releaseArtifactSource === "template_spec_resource" ? (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1">
-                      <Label htmlFor="release-version-ref-field">Version Ref Field</Label>
-                      <FieldHelpTooltip content="Payload field that points to the template spec version reference for template spec sources." />
-                    </div>
-                    <Input
-                      id="release-version-ref-field"
-                      value={draft.release.versionRefField}
-                      onChange={(event) =>
-                        setDraft((current) => ({
-                          ...current,
-                          release: { ...current.release, versionRefField: event.target.value },
-                        }))
-                      }
-                    />
+                  <div className="md:col-span-2">
+                    <Accordion type="single" collapsible className="rounded-md border border-border/60 bg-background/40 px-3">
+                      <AccordionItem value="release-source-template-spec-advanced" className="border-none">
+                        <AccordionTrigger className="py-2 text-sm font-medium text-foreground hover:no-underline">
+                          Advanced mapping (rare)
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-1 pb-1">
+                            <div className="flex items-center gap-1">
+                              <Label htmlFor="release-version-ref-field">Version Ref Field</Label>
+                              <FieldHelpTooltip content="Payload field that points to the template spec version reference for template spec sources." />
+                            </div>
+                            <Input
+                              id="release-version-ref-field"
+                              value={draft.release.versionRefField}
+                              onChange={(event) =>
+                                setDraft((current) => ({
+                                  ...current,
+                                  release: { ...current.release, versionRefField: event.target.value },
+                                }))
+                              }
+                            />
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
                   </div>
                 ) : null}
               </div>
@@ -1673,7 +1753,7 @@ export default function ProjectSettingsPage({
             <TabsContent value="deployment-driver" className="space-y-3">
               <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Deployment Driver</h3>
               <div className="space-y-3">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="space-y-1">
                     <div className="flex items-center gap-1">
                       <Label htmlFor="driver-type">Deployment driver</Label>
@@ -1702,33 +1782,19 @@ export default function ProjectSettingsPage({
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1">
-                      <Label htmlFor="driver-pipeline-system">Pipeline system</Label>
-                      <FieldHelpTooltip content="Pipeline provider MAPPO will talk to when the deployment driver is Pipeline Trigger." />
+                  {draft.deploymentDriver === "pipeline_trigger" ? (
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="driver-pipeline-system-readonly">Deployment system</Label>
+                        <FieldHelpTooltip content="Pipeline Trigger currently deploys through Azure DevOps. MAPPO uses the selected deployment connection to browse Azure DevOps projects, repositories, pipelines, and service connections." />
+                      </div>
+                      <Input id="driver-pipeline-system-readonly" value="Azure DevOps" disabled />
                     </div>
-                    <Select
-                      value={draft.driver.pipelineSystem || "azure_devops"}
-                      onValueChange={(value) =>
-                        setDraft((current) => ({
-                          ...current,
-                          driver: { ...current.driver, pipelineSystem: value },
-                        }))
-                      }
-                      disabled={draft.deploymentDriver !== "pipeline_trigger"}
-                    >
-                      <SelectTrigger id="driver-pipeline-system">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="azure_devops">Azure DevOps</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
+                  ) : null}
+                  <div className="space-y-1 md:col-span-2">
                     <div className="flex items-center gap-1">
-                      <Label htmlFor="driver-provider-connection-id">Provider connection</Label>
-                      <FieldHelpTooltip content="Admin-managed Azure DevOps API connection that MAPPO uses to discover projects, repositories, pipelines, and service connections for this project." />
+                      <Label htmlFor="driver-provider-connection-id">Deployment connection</Label>
+                      <FieldHelpTooltip content="Admin-managed Azure DevOps connection that MAPPO uses to discover projects, repositories, pipelines, and service connections for this project." />
                     </div>
                     <div className="flex flex-col gap-2">
                       <Select
@@ -1739,18 +1805,21 @@ export default function ProjectSettingsPage({
                         disabled={draft.deploymentDriver !== "pipeline_trigger"}
                       >
                         <SelectTrigger id="driver-provider-connection-id">
-                          <SelectValue placeholder="Select Azure DevOps connection" />
+                          <SelectValue placeholder="Select deployment connection" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="__none">No linked Azure DevOps connection</SelectItem>
+                          <SelectItem value="__none">Select deployment connection</SelectItem>
                           {providerConnectionOptions
                             .filter((connection) => (connection.id ?? "").trim() !== "")
                             .map((connection) => (
                               <SelectItem key={connection.id ?? connection.name} value={connection.id ?? ""}>
                                 {connection.name || connection.id}
-                                {draft.deploymentDriver === "pipeline_trigger" &&
-                                (connection.provider ?? "").toLowerCase() !== "azure_devops"
-                                  ? " (incompatible provider)"
+                                {draft.deploymentDriver === "pipeline_trigger"
+                                  ? (connection.provider ?? "").toLowerCase() !== "azure_devops"
+                                    ? " (incompatible provider)"
+                                    : isVerifiedAzureDevOpsConnection(connection)
+                                      ? ""
+                                      : " (needs verification)"
                                   : ""}
                               </SelectItem>
                             ))}
@@ -1766,428 +1835,441 @@ export default function ProjectSettingsPage({
                           }}
                           disabled={isLoadingProviderConnections || draft.deploymentDriver !== "pipeline_trigger"}
                         >
-                          {isLoadingProviderConnections ? "Refreshing..." : "Refresh"}
+                          {isLoadingProviderConnections ? "Reloading..." : "Reload deployment connections"}
                         </Button>
                         <span className="text-xs text-muted-foreground">
-                          Manage in <span className="font-medium text-foreground">Admin → Provider Connections</span>.
+                          Configure in <span className="font-medium text-foreground">Admin → Deployment Connections</span>.
                         </span>
                       </div>
+                      {draft.deploymentDriver === "pipeline_trigger" && pipelineProviderConnections.length === 0 ? (
+                        <p className="rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                          No verified Azure DevOps deployment connections are available yet. Open Admin → Deployment Connections, add one, and verify it.
+                        </p>
+                      ) : null}
+                      {selectedProviderConnectionRequiresVerification ? (
+                        <p className="rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                          The selected deployment connection still needs verification before MAPPO can load Azure DevOps projects. Open Admin → Deployment Connections, edit{" "}
+                          <span className="font-medium text-foreground">
+                            {selectedProviderConnection?.name || selectedProviderConnection?.id}
+                          </span>
+                          , and verify it.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 </div>
 
                 {draft.deploymentDriver === "pipeline_trigger" ? (
                   <div className="space-y-3">
-                    <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                      <h4 className="text-sm font-semibold text-foreground">Azure DevOps Project</h4>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Choose the Azure DevOps project that this MAPPO project deploys through. MAPPO discovers the
-                        list from the selected Azure DevOps connection so operators do not need to reconstruct organization
-                        and project details manually.
+                    <div className="rounded-md border border-border/70 bg-background/40 p-3 text-xs text-muted-foreground">
+                      <p>
+                        Pipeline Trigger currently deploys through <span className="font-medium text-foreground">Azure DevOps</span>. Select a verified deployment connection first, then MAPPO will guide you through the project, repository, pipeline, and service connection choices.
                       </p>
-                      <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-end">
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-1">
-                            <Label htmlFor="driver-project-select">Azure DevOps Project</Label>
-                            <FieldHelpTooltip content="Discovered Azure DevOps project. MAPPO loads this list from the selected Provider Connection by calling the Azure DevOps Projects API with that connection's PAT." />
-                          </div>
-                          {discoveredAdoProjects.length > 0 ? (
-                            <Select
-                              value={selectedDiscoveredAdoProjectId}
-                              onValueChange={(value) => {
-                                if (value === "__none") {
+                    </div>
+
+                    {!canSelectAzureDevOpsProject ? (
+                      <div className="rounded-md border border-dashed border-border/70 bg-background/40 p-3 text-xs text-muted-foreground">
+                        <p>
+                          {draft.providerConnectionId.trim() === ""
+                            ? (
+                                <>
+                                  Select a <span className="font-medium text-foreground">Deployment connection</span> first.
+                                </>
+                              )
+                            : selectedProviderConnectionRequiresVerification
+                              ? (
+                                  <>
+                                    Verify the selected <span className="font-medium text-foreground">Deployment connection</span> in Admin before configuring this project.
+                                  </>
+                                )
+                              : (
+                                  <>
+                                    No Azure DevOps projects were loaded for the selected <span className="font-medium text-foreground">Deployment connection</span>. Refresh it in Admin and verify the account scope.
+                                  </>
+                                )}
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {canSelectAzureDevOpsProject ? (
+                      <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                        <h4 className="text-sm font-semibold text-foreground">Azure DevOps Project</h4>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Choose the Azure DevOps project that owns this deployment. MAPPO loads the list directly from the selected deployment connection.
+                        </p>
+                        <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-end">
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center gap-1">
+                              <Label htmlFor="driver-project-select">Azure DevOps Project</Label>
+                              <FieldHelpTooltip content="Azure DevOps project discovered through the selected deployment connection. Manage the authenticated Azure DevOps account scope in Admin → Deployment Connections." />
+                            </div>
+                            {cachedProviderConnectionProjects.length > 0 ? (
+                              <Select
+                                value={selectedDiscoveredAdoProjectId}
+                                onValueChange={(value) => {
+                                  if (value === "__none") {
+                                    setDraft((current) => ({
+                                      ...current,
+                                      driver: {
+                                        ...current.driver,
+                                        organization: "",
+                                        project: "",
+                                        repository: "",
+                                        pipelineId: "",
+                                        azureServiceConnectionName: "",
+                                      },
+                                    }));
+                                    return;
+                                  }
+                                  const selectedProject = cachedProviderConnectionProjects.find(
+                                    (projectOption) => projectOption.id === value
+                                  );
+                                  if (!selectedProject) {
+                                    return;
+                                  }
+                                  const resolvedOrganization =
+                                    deriveAzureDevOpsAccountUrl(selectedProject.webUrl ?? "") ||
+                                    selectedProviderConnectionDiscoveryUrl;
+                                  if (resolvedOrganization === "") {
+                                    return;
+                                  }
                                   setDraft((current) => ({
                                     ...current,
                                     driver: {
                                       ...current.driver,
-                                      organization: "",
-                                      project: "",
+                                      organization: resolvedOrganization,
+                                      project: selectedProject.name,
                                       repository: "",
                                       pipelineId: "",
                                       azureServiceConnectionName: "",
                                     },
                                   }));
-                                  return;
-                                }
-                                const selectedProject = discoveredAdoProjects.find(
-                                  (projectOption) => projectOption.id === value
-                                );
-                                if (!selectedProject || !selectedProviderConnection?.organizationUrl?.trim()) {
-                                  return;
-                                }
-                                setDraft((current) => ({
-                                  ...current,
-                                  driver: {
-                                    ...current.driver,
-                                    organization: selectedProviderConnection.organizationUrl!.trim(),
-                                    project: selectedProject.name,
-                                    repository: "",
-                                    pipelineId: "",
-                                    azureServiceConnectionName: "",
-                                  },
-                                }));
+                                }}
+                              >
+                                <SelectTrigger id="driver-project-select">
+                                  <SelectValue placeholder="Select discovered Azure DevOps project" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none">Select Azure DevOps project</SelectItem>
+                                  {cachedProviderConnectionProjects.map((projectOption) => (
+                                    <SelectItem key={projectOption.id} value={projectOption.id}>
+                                      {projectOption.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <p
+                                id="driver-project-select"
+                                className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground"
+                                >
+                                  {draft.providerConnectionId.trim() === ""
+                                    ? "Select a deployment connection above first."
+                                    : selectedProviderConnectionRequiresVerification
+                                      ? "Open Admin → Deployment Connections and verify the selected connection first."
+                                      : "No Azure DevOps projects are available on the selected deployment connection. Refresh it in Admin → Deployment Connections."}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <p className="mt-3 text-xs text-muted-foreground">
+                          Azure DevOps projects are managed on the selected <span className="font-medium text-foreground">Deployment connection</span> in Admin → Deployment Connections.
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {canSelectAzureDevOpsProject && !hasSelectedAzureDevOpsProject ? (
+                      <div className="rounded-md border border-dashed border-border/70 bg-background/40 p-3 text-xs text-muted-foreground">
+                        <p>
+                          Select an <span className="font-medium text-foreground">Azure DevOps project</span> above to continue with repository, pipeline, and service connection setup.
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {canDiscoverAzureDevOpsProjectResources ? (
+                      <>
+                        <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <h4 className="text-sm font-semibold text-foreground">Azure DevOps Repo</h4>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Select the repository this MAPPO project deploys from by default.
+                              </p>
+                            </div>
+                            <Button
+                              id="driver-repository-discovery-action"
+                              type="button"
+                              variant="outline"
+                              disabled={isDiscoveringRepositories || !canDiscoverAzureDevOpsProjectResources}
+                              onClick={() => {
+                                void discoverAdoRepositories();
                               }}
                             >
-                              <SelectTrigger id="driver-project-select">
-                                <SelectValue placeholder="Select discovered Azure DevOps project" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none">Select Azure DevOps project</SelectItem>
-                                {discoveredAdoProjects.map((projectOption) => (
-                                  <SelectItem key={projectOption.id} value={projectOption.id}>
-                                    {projectOption.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <p
-                              id="driver-project-select"
-                              className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground"
-                            >
-                              No Azure DevOps projects loaded yet. Choose a Provider Connection and click{" "}
-                              <span className="font-medium text-foreground">Refresh Projects</span>.
-                            </p>
-                          )}
-                        </div>
-                        <Button
-                          id="driver-project-discovery-action"
-                          type="button"
-                          variant="outline"
-                          disabled={isDiscoveringAdoProjects || draft.providerConnectionId.trim() === ""}
-                          onClick={() => {
-                            void discoverAdoProjects();
-                          }}
-                        >
-                          {isDiscoveringAdoProjects
-                            ? "Discovering..."
-                            : discoveredAdoProjects.length > 0
-                              ? "Refresh Projects"
-                              : "Discover Projects"}
-                        </Button>
-                      </div>
-                      <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-                        <div className="rounded-md border border-border/60 bg-background/50 px-2 py-1 text-xs text-muted-foreground">
-                          <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Organization URL</p>
-                          <p className="mt-1 font-mono text-foreground">
-                            {resolvedAdoOrganization || "Waiting for a discovered project"}
-                          </p>
-                        </div>
-                        <div className="rounded-md border border-border/60 bg-background/50 px-2 py-1 text-xs text-muted-foreground">
-                          <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Project URL</p>
-                          <p className="mt-1 font-mono text-foreground">
-                            {selectedAdoProjectUrl || "Waiting for a discovered project"}
-                          </p>
-                        </div>
-                      </div>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {selectedProviderConnection ? (
-                          <>
-                            Discovery and trigger calls will use Azure DevOps connection{" "}
-                            <span className="font-medium text-foreground">
-                              {selectedProviderConnection.name || selectedProviderConnection.id}
-                            </span>
-                            .
-                          </>
-                        ) : (
-                          <>
-                            Select an Azure DevOps connection above before discovering project resources.
-                          </>
-                        )}
-                      </p>
-                      {adoProjectDiscoveryError ? (
-                        <p className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                          {adoProjectDiscoveryError}
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                        <div>
-                          <h4 className="text-sm font-semibold text-foreground">Azure DevOps Repo</h4>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Select the repository MAPPO should treat as this project’s default Azure DevOps repo context.
-                          </p>
-                        </div>
-                        <Button
-                          id="driver-repository-discovery-action"
-                          type="button"
-                          variant="outline"
-                          disabled={
-                            isDiscoveringRepositories ||
-                            resolvedAdoOrganization === "" ||
-                            resolvedAdoProject === "" ||
-                            draft.providerConnectionId.trim() === ""
-                          }
-                          onClick={() => {
-                            void discoverAdoRepositories();
-                          }}
-                        >
-                          {isDiscoveringRepositories
-                            ? "Discovering..."
-                            : discoveredRepositories.length > 0
-                              ? "Refresh Repositories"
-                              : "Discover Repositories"}
-                        </Button>
-                      </div>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        MAPPO loads repositories from the selected Azure DevOps project using the linked Provider Connection.
-                      </p>
-                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1">
-                            <Label htmlFor="driver-repository-select">Azure DevOps Repo</Label>
-                            <FieldHelpTooltip content="Repository selected for this project. MAPPO stores the repository name as part of the project definition so pipeline runs stay tied to the same Azure DevOps repo context." />
+                              {isDiscoveringRepositories
+                                ? "Loading..."
+                                : discoveredRepositories.length > 0
+                                  ? "Reload repositories"
+                                  : "Load repositories"}
+                            </Button>
                           </div>
-                          {discoveredRepositories.length > 0 ? (
-                            <Select
-                              value={selectedDiscoveredRepositoryId}
-                              onValueChange={(value) => {
-                                if (value === "__none") {
+                          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1">
+                                <Label htmlFor="driver-repository-select">Azure DevOps Repo</Label>
+                                <FieldHelpTooltip content="Repository selected for this project. MAPPO stores the repository name as part of the project definition so pipeline runs stay tied to the same Azure DevOps repo context." />
+                              </div>
+                              {discoveredRepositories.length > 0 ? (
+                                <Select
+                                  value={selectedDiscoveredRepositoryId}
+                                  onValueChange={(value) => {
+                                    if (value === "__none") {
+                                      setDraft((current) => ({
+                                        ...current,
+                                        driver: { ...current.driver, repository: "" },
+                                      }));
+                                      return;
+                                    }
+                                    const selected = discoveredRepositories.find((repository) => repository.id === value);
+                                    if (!selected) {
+                                      return;
+                                    }
+                                    setDraft((current) => ({
+                                      ...current,
+                                      driver: {
+                                        ...current.driver,
+                                        repository: selected.name,
+                                        branch:
+                                          current.driver.branch.trim() === "" || current.driver.branch.trim() === "main"
+                                            ? selected.defaultBranch || current.driver.branch
+                                            : current.driver.branch,
+                                      },
+                                    }));
+                                  }}
+                                >
+                                  <SelectTrigger id="driver-repository-select">
+                                    <SelectValue placeholder="Select discovered repository" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__none">Select discovered repository</SelectItem>
+                                    {discoveredRepositories.map((repository) => (
+                                      <SelectItem key={repository.id} value={repository.id}>
+                                        {repository.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <p
+                                  id="driver-repository-select"
+                                  className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground"
+                                >
+                                  {isDiscoveringRepositories
+                                    ? "Loading Azure DevOps repositories from the selected project..."
+                                  : "MAPPO has not loaded repositories for this Azure DevOps project yet. Use Load repositories to continue."}
+                                </p>
+                              )}
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1">
+                                <Label htmlFor="driver-branch">Branch</Label>
+                                <FieldHelpTooltip content="Default Git branch/ref MAPPO passes when it queues the Azure DevOps pipeline run." />
+                              </div>
+                              <Input
+                                id="driver-branch"
+                                value={draft.driver.branch}
+                                onChange={(event) =>
                                   setDraft((current) => ({
                                     ...current,
-                                    driver: { ...current.driver, repository: "" },
-                                  }));
-                                  return;
+                                    driver: { ...current.driver, branch: event.target.value },
+                                  }))
                                 }
-                                const selected = discoveredRepositories.find((repository) => repository.id === value);
-                                if (!selected) {
-                                  return;
-                                }
-                                setDraft((current) => ({
-                                  ...current,
-                                  driver: {
-                                    ...current.driver,
-                                    repository: selected.name,
-                                    branch:
-                                      current.driver.branch.trim() === "" || current.driver.branch.trim() === "main"
-                                        ? selected.defaultBranch || current.driver.branch
-                                        : current.driver.branch,
-                                  },
-                                }));
-                              }}
-                            >
-                              <SelectTrigger id="driver-repository-select">
-                                <SelectValue placeholder="Select discovered repository" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none">Select discovered repository</SelectItem>
-                                {discoveredRepositories.map((repository) => (
-                                  <SelectItem key={repository.id} value={repository.id}>
-                                    {repository.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                          <p
-                              id="driver-repository-select"
-                              className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground"
-                            >
-                              No repositories loaded yet. MAPPO will load them from the selected Azure DevOps project after you click{" "}
-                              <span className="font-medium text-foreground">Discover Repositories</span>.
-                            </p>
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1">
-                            <Label htmlFor="driver-branch">Branch</Label>
-                            <FieldHelpTooltip content="Default Git branch/ref MAPPO passes when it queues the Azure DevOps pipeline run." />
+                              />
+                              {draft.driver.repository.trim() !== "" ? (
+                                <p className="text-xs text-muted-foreground">
+                                  Selected repo: <span className="font-medium text-foreground">{draft.driver.repository}</span>
+                                </p>
+                              ) : null}
+                            </div>
                           </div>
-                          <Input
-                            id="driver-branch"
-                            value={draft.driver.branch}
-                            onChange={(event) =>
-                              setDraft((current) => ({
-                                ...current,
-                                driver: { ...current.driver, branch: event.target.value },
-                              }))
-                            }
-                          />
-                          {draft.driver.repository.trim() !== "" ? (
-                            <p className="text-xs text-muted-foreground">
-                              Selected repo: <span className="font-medium text-foreground">{draft.driver.repository}</span>
+                          {repositoryDiscoveryError ? (
+                            <p className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                              {repositoryDiscoveryError}
                             </p>
                           ) : null}
                         </div>
-                      </div>
-                      {repositoryDiscoveryError ? (
-                        <p className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                          {repositoryDiscoveryError}
-                        </p>
-                      ) : null}
-                    </div>
 
-                    <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                        <div>
-                          <h4 className="text-sm font-semibold text-foreground">Azure DevOps Pipeline</h4>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Discover and select the Azure DevOps pipeline MAPPO should trigger for this project.
-                          </p>
+                        <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <h4 className="text-sm font-semibold text-foreground">Azure DevOps Pipeline</h4>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Choose the pipeline MAPPO should trigger when operators start a deployment run.
+                              </p>
+                            </div>
+                            <Button
+                              id="driver-pipeline-discovery-action"
+                              type="button"
+                              variant="outline"
+                              disabled={isDiscoveringPipelines || !canDiscoverAzureDevOpsProjectResources}
+                              onClick={() => {
+                                void discoverAdoPipelines();
+                              }}
+                            >
+                              {isDiscoveringPipelines
+                                ? "Loading..."
+                                : discoveredPipelines.length > 0
+                                  ? "Reload pipelines"
+                                  : "Load pipelines"}
+                            </Button>
+                          </div>
+                          <div className="mt-3 space-y-1">
+                            <div className="flex items-center gap-1">
+                              <Label htmlFor="driver-pipeline-select">Azure DevOps Pipeline</Label>
+                              <FieldHelpTooltip content="Pipeline MAPPO queues when an operator starts a deployment run for this project." />
+                            </div>
+                            {discoveredPipelines.length > 0 ? (
+                              <Select
+                                value={selectedDiscoveredPipelineId}
+                                onValueChange={(value) => {
+                                  if (value === "__none") {
+                                    setDraft((current) => ({
+                                      ...current,
+                                      driver: { ...current.driver, pipelineId: "" },
+                                    }));
+                                    return;
+                                  }
+                                  setDraft((current) => ({
+                                    ...current,
+                                    driver: { ...current.driver, pipelineId: value },
+                                  }));
+                                }}
+                              >
+                                <SelectTrigger id="driver-pipeline-select">
+                                  <SelectValue placeholder="Select discovered pipeline" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none">Select discovered pipeline</SelectItem>
+                                  {discoveredPipelines.map((pipeline) => (
+                                    <SelectItem key={`${pipeline.id}-${pipeline.name}`} value={pipeline.id}>
+                                      {pipeline.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <p className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
+                                {isDiscoveringPipelines
+                                  ? "Loading Azure DevOps pipelines from the selected project..."
+                                  : "MAPPO has not loaded pipelines for this Azure DevOps project yet. Use Load pipelines to continue."}
+                              </p>
+                            )}
+                          </div>
+                          {pipelineDiscoveryError ? (
+                            <p className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                              {pipelineDiscoveryError}
+                            </p>
+                          ) : null}
                         </div>
-                        <Button
-                          id="driver-pipeline-discovery-action"
-                          type="button"
-                          variant="outline"
-                          disabled={
-                            isDiscoveringPipelines ||
-                            resolvedAdoOrganization === "" ||
-                            resolvedAdoProject === "" ||
-                            draft.providerConnectionId.trim() === ""
-                          }
-                          onClick={() => {
-                            void discoverAdoPipelines();
-                          }}
-                        >
-                          {isDiscoveringPipelines
-                            ? "Discovering..."
-                            : discoveredPipelines.length > 0
-                              ? "Refresh Pipelines"
-                              : "Discover Pipelines"}
-                        </Button>
-                      </div>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        Pipelines are loaded from the selected Azure DevOps project. MAPPO stores the selected pipeline ID for deployment runs.
-                      </p>
-                      <div className="mt-3 space-y-1">
-                        <div className="flex items-center gap-1">
-                          <Label htmlFor="driver-pipeline-select">Azure DevOps Pipeline</Label>
-                          <FieldHelpTooltip content="Pipeline MAPPO queues when an operator starts a deployment run for this project." />
-                        </div>
-                        {discoveredPipelines.length > 0 ? (
-                          <Select
-                            value={selectedDiscoveredPipelineId}
-                            onValueChange={(value) => {
-                              if (value === "__none") {
-                                setDraft((current) => ({
-                                  ...current,
-                                  driver: { ...current.driver, pipelineId: "" },
-                                }));
-                                return;
-                              }
-                              setDraft((current) => ({
-                                ...current,
-                                driver: { ...current.driver, pipelineId: value },
-                              }));
-                            }}
-                          >
-                            <SelectTrigger id="driver-pipeline-select">
-                              <SelectValue placeholder="Select discovered pipeline" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none">Select discovered pipeline</SelectItem>
-                              {discoveredPipelines.map((pipeline) => (
-                                <SelectItem key={`${pipeline.id}-${pipeline.name}`} value={pipeline.id}>
-                                  {pipeline.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <p className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
-                            No pipelines loaded yet. MAPPO will load them from the selected Azure DevOps project after you click{" "}
-                            <span className="font-medium text-foreground">Discover Pipelines</span>.
-                          </p>
-                        )}
-                      </div>
-                      {pipelineDiscoveryError ? (
-                        <p className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                          {pipelineDiscoveryError}
-                        </p>
-                      ) : null}
-                    </div>
 
-                    <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                        <div>
-                          <h4 className="text-sm font-semibold text-foreground">Azure Service Connection</h4>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Select the Azure service connection name that the Azure DevOps pipeline uses to authenticate
-                            to the target Azure subscription.
+                        <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <h4 className="text-sm font-semibold text-foreground">Azure Service Connection</h4>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Choose the Azure service connection the selected pipeline uses to authenticate to Azure.
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={isDiscoveringServiceConnections || !canDiscoverAzureDevOpsProjectResources}
+                              onClick={() => {
+                                void discoverAdoServiceConnections();
+                              }}
+                            >
+                              {isDiscoveringServiceConnections
+                                ? "Loading..."
+                                : discoveredServiceConnections.length > 0
+                                  ? "Reload service connections"
+                                  : "Load service connections"}
+                            </Button>
+                          </div>
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            MAPPO loads service connections from the same Azure DevOps project. If Azure DevOps does not return any, enter the exact service connection name shown in Azure DevOps.
                           </p>
+                          <div className="mt-3 space-y-1">
+                            <div className="flex items-center gap-1">
+                              <Label htmlFor="driver-service-connection">Azure Service Connection</Label>
+                              <FieldHelpTooltip content="Service connection name that the Azure DevOps pipeline expects when MAPPO asks it to deploy into a target subscription." />
+                            </div>
+                            {discoveredServiceConnections.length > 0 ? (
+                              <Select
+                                value={selectedDiscoveredServiceConnectionId}
+                                onValueChange={(value) => {
+                                  if (value === "__none") {
+                                    setDraft((current) => ({
+                                      ...current,
+                                      driver: { ...current.driver, azureServiceConnectionName: "" },
+                                    }));
+                                    return;
+                                  }
+                                  const selected = discoveredServiceConnections.find((connection) => connection.id === value);
+                                  if (!selected) {
+                                    return;
+                                  }
+                                  setDraft((current) => ({
+                                    ...current,
+                                    driver: {
+                                      ...current.driver,
+                                      azureServiceConnectionName: selected.name,
+                                    },
+                                  }));
+                                }}
+                              >
+                                <SelectTrigger id="driver-service-connection">
+                                  <SelectValue placeholder="Select discovered service connection" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none">Select discovered service connection</SelectItem>
+                                  {discoveredServiceConnections.map((connection) => (
+                                    <SelectItem key={connection.id} value={connection.id}>
+                                      {connection.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <>
+                                <Input
+                                  id="driver-service-connection"
+                                  value={draft.driver.azureServiceConnectionName}
+                                  onChange={(event) =>
+                                    setDraft((current) => ({
+                                      ...current,
+                                      driver: {
+                                        ...current.driver,
+                                        azureServiceConnectionName: event.target.value,
+                                      },
+                                    }))
+                                  }
+                                  placeholder="Enter Azure service connection name"
+                                />
+                                <p className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
+                                  {isDiscoveringServiceConnections
+                                    ? "Loading Azure service connections from the selected project..."
+                                    : "Azure DevOps did not return service connections for this project. Enter the service connection name exactly as it appears in Azure DevOps, or use Load service connections to retry."}
+                                </p>
+                              </>
+                            )}
+                          </div>
+                          {serviceConnectionDiscoveryError ? (
+                            <p className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                              {serviceConnectionDiscoveryError}
+                            </p>
+                          ) : null}
                         </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={
-                            isDiscoveringServiceConnections ||
-                            resolvedAdoOrganization === "" ||
-                            resolvedAdoProject === "" ||
-                            draft.providerConnectionId.trim() === ""
-                          }
-                          onClick={() => {
-                            void discoverAdoServiceConnections();
-                          }}
-                        >
-                          {isDiscoveringServiceConnections
-                            ? "Discovering..."
-                            : discoveredServiceConnections.length > 0
-                              ? "Refresh Service Connections"
-                              : "Discover Service Connections"}
-                        </Button>
-                      </div>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        Service connections are loaded from the same Azure DevOps project and should match the pipeline’s Azure authentication entry.
-                      </p>
-                      <div className="mt-3 space-y-1">
-                        <div className="flex items-center gap-1">
-                          <Label htmlFor="driver-service-connection">Azure Service Connection</Label>
-                          <FieldHelpTooltip content="Service connection name that the Azure DevOps pipeline expects when MAPPO asks it to deploy into a target subscription." />
-                        </div>
-                        {discoveredServiceConnections.length > 0 ? (
-                          <Select
-                            value={selectedDiscoveredServiceConnectionId}
-                            onValueChange={(value) => {
-                              if (value === "__none") {
-                                setDraft((current) => ({
-                                  ...current,
-                                  driver: { ...current.driver, azureServiceConnectionName: "" },
-                                }));
-                                return;
-                              }
-                              const selected = discoveredServiceConnections.find((connection) => connection.id === value);
-                              if (!selected) {
-                                return;
-                              }
-                              setDraft((current) => ({
-                                ...current,
-                                driver: {
-                                  ...current.driver,
-                                  azureServiceConnectionName: selected.name,
-                                },
-                              }));
-                            }}
-                          >
-                            <SelectTrigger id="driver-service-connection">
-                              <SelectValue placeholder="Select discovered service connection" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none">Select discovered service connection</SelectItem>
-                              {discoveredServiceConnections.map((connection) => (
-                                <SelectItem key={connection.id} value={connection.id}>
-                                  {connection.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <p
-                            id="driver-service-connection"
-                            className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground"
-                          >
-                            No service connections loaded yet. MAPPO will load them from the selected Azure DevOps project after you click{" "}
-                            <span className="font-medium text-foreground">Discover Service Connections</span>.
-                          </p>
-                        )}
-                      </div>
-                      {serviceConnectionDiscoveryError ? (
-                        <p className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                          {serviceConnectionDiscoveryError}
-                        </p>
-                      ) : null}
-                    </div>
+                      </>
+                    ) : null}
                   </div>
                 ) : (
                   <div className="rounded-md border border-border/70 bg-background/40 p-3 text-xs text-muted-foreground">
@@ -2198,23 +2280,6 @@ export default function ProjectSettingsPage({
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Capability matrix</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant={capabilities.preview ? "default" : "outline"}>
-                      {capabilities.preview ? "Supports Preview" : "No Preview"}
-                    </Badge>
-                    <Badge variant={capabilities.cancel ? "default" : "outline"}>
-                      {capabilities.cancel ? "Supports Cancel" : "No Cancel"}
-                    </Badge>
-                    <Badge variant={capabilities.externalLogs ? "default" : "outline"}>
-                      {capabilities.externalLogs ? "External Logs" : "No External Logs"}
-                    </Badge>
-                    <Badge variant={capabilities.externalHandle ? "default" : "outline"}>
-                      {capabilities.externalHandle ? "External Handle" : "No External Handle"}
-                    </Badge>
-                  </div>
-                </div>
               </div>
             </TabsContent>
 
@@ -2244,8 +2309,8 @@ export default function ProjectSettingsPage({
                 </div>
                 <div className="md:col-span-2 rounded-md border border-border/70 bg-background/60 p-3 text-xs text-muted-foreground">
                   <p>
-                    MAPPO sets internal auth flags from this access model automatically. You only need to provide
-                    extra identity values when using delegated models.
+                    MAPPO fills in the internal auth settings for the selected access model automatically. Most
+                    operators only need to add extra identity values when using delegated-access setups.
                   </p>
                 </div>
                 {draft.accessStrategy === "lighthouse_delegated_access" ? (
@@ -2288,16 +2353,13 @@ export default function ProjectSettingsPage({
             </TabsContent>
 
             <TabsContent value="target-contract" className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Target Contract</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Target Requirements</h3>
               <div className="rounded-md border border-border/70 bg-background/60 p-3">
                 <p className="text-sm font-semibold">Required onboarding fields</p>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   {targetContract.required.map((field) => (
                     <div key={field.key} className="rounded-md border border-border/60 bg-background/50 p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-sm font-medium text-foreground">{field.label}</p>
-                        <Badge>{field.key}</Badge>
-                      </div>
+                      <p className="text-sm font-medium text-foreground">{field.label}</p>
                       <p className="mt-2 text-xs text-muted-foreground">{field.description}</p>
                     </div>
                   ))}
@@ -2308,10 +2370,7 @@ export default function ProjectSettingsPage({
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   {targetContract.optional.map((field) => (
                     <div key={field.key} className="rounded-md border border-border/60 bg-background/50 p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-sm font-medium text-foreground">{field.label}</p>
-                        <Badge variant="secondary">{field.key}</Badge>
-                      </div>
+                      <p className="text-sm font-medium text-foreground">{field.label}</p>
                       <p className="mt-2 text-xs text-muted-foreground">{field.description}</p>
                     </div>
                   ))}
@@ -2397,7 +2456,7 @@ export default function ProjectSettingsPage({
               <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Validation</h3>
               <div className="grid gap-3 lg:grid-cols-3">
                 <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                  <p className="text-sm font-semibold text-foreground">Provider connection access</p>
+                  <p className="text-sm font-semibold text-foreground">Deployment connection access</p>
                   <p className="mt-2 text-xs text-muted-foreground">
                     Confirms MAPPO can authenticate to the deployment system configured for this project.
                   </p>
@@ -2414,9 +2473,9 @@ export default function ProjectSettingsPage({
                   </Button>
                 </div>
                 <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                  <p className="text-sm font-semibold text-foreground">Release ingest</p>
+                  <p className="text-sm font-semibold text-foreground">Release source</p>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Confirms the linked release ingest endpoint is ready to receive release events for this project.
+                    Confirms the linked release source is ready to receive release events for this project.
                   </p>
                   <Button
                     type="button"
@@ -2427,11 +2486,11 @@ export default function ProjectSettingsPage({
                       void runValidation(["webhook"]);
                     }}
                   >
-                    Verify Release Ingest
+                    Verify Release Source
                   </Button>
                 </div>
                 <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                  <p className="text-sm font-semibold text-foreground">Target contract</p>
+                  <p className="text-sm font-semibold text-foreground">Target requirements</p>
                   <p className="mt-2 text-xs text-muted-foreground">
                     Confirms an onboarded target includes the metadata required by this deployment driver.
                   </p>
@@ -2440,7 +2499,7 @@ export default function ProjectSettingsPage({
                       <div className="space-y-1">
                         <div className="flex items-center gap-1">
                           <Label htmlFor="validation-target">Target for contract check</Label>
-                          <FieldHelpTooltip content="Target used to validate the required onboarding metadata contract." />
+                          <FieldHelpTooltip content="Target used to validate the required onboarding metadata for this project." />
                         </div>
                         <Select value={validationTargetId} onValueChange={setValidationTargetId}>
                           <SelectTrigger id="validation-target">
@@ -2463,12 +2522,12 @@ export default function ProjectSettingsPage({
                           void runValidation(["target_contract"]);
                         }}
                       >
-                        Verify Target Contract
+                        Verify Target Requirements
                       </Button>
                     </div>
                   ) : (
                     <p className="mt-3 rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
-                      Onboard at least one target before MAPPO can verify this project’s target metadata contract.
+                      Onboard at least one target before MAPPO can verify this project’s required target metadata.
                     </p>
                   )}
                 </div>
@@ -2510,7 +2569,7 @@ export default function ProjectSettingsPage({
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Run validation to confirm credentials, webhook configuration, and target contract readiness.
+                  Run validation to confirm credentials, release-source configuration, and target readiness.
                 </p>
               )}
             </TabsContent>
@@ -2595,12 +2654,12 @@ export default function ProjectSettingsPage({
             <Card className="h-fit border-border/70 bg-background/50 xl:sticky xl:top-4">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm uppercase tracking-[0.08em]">Configuration Summary</CardTitle>
-                <p className="text-xs text-muted-foreground">Updates live as project settings are edited.</p>
+                <p className="text-xs text-muted-foreground">Updates live as project settings change.</p>
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="space-y-4 text-xs">
                   <div className="space-y-2">
-                    <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Release ingest</p>
+                    <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Release source</p>
                     <dl className="space-y-1">
                       <div className="flex justify-between gap-3">
                         <dt className="text-muted-foreground">Source</dt>
@@ -2625,20 +2684,16 @@ export default function ProjectSettingsPage({
                       {draft.deploymentDriver === "pipeline_trigger" ? (
                         <>
                           <div className="flex justify-between gap-3">
-                            <dt className="text-muted-foreground">Pipeline system</dt>
-                            <dd className="text-right text-foreground">
-                              {draft.driver.pipelineSystem === "azure_devops" ? "Azure DevOps" : draft.driver.pipelineSystem}
-                            </dd>
-                          </div>
-                          <div className="flex justify-between gap-3">
-                            <dt className="text-muted-foreground">Provider connection</dt>
+                            <dt className="text-muted-foreground">Deployment connection</dt>
                             <dd className="text-right text-foreground">
                               {selectedProviderConnection?.name || selectedProviderConnection?.id || "Not linked"}
                             </dd>
                           </div>
                           <div className="flex justify-between gap-3">
                             <dt className="text-muted-foreground">Azure DevOps project</dt>
-                            <dd className="text-right text-foreground">{resolvedAdoProject || "Not selected"}</dd>
+                            <dd className="text-right text-foreground">
+                              {selectedDiscoveredAdoProject?.name || resolvedAdoProject || "Not selected"}
+                            </dd>
                           </div>
                           <div className="flex justify-between gap-3">
                             <dt className="text-muted-foreground">Repository</dt>

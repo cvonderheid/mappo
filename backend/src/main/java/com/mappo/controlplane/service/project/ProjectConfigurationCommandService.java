@@ -97,7 +97,7 @@ public class ProjectConfigurationCommandService {
             return;
         }
         if (!releaseIngestEndpointCatalogService.exists(normalized)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "release ingest endpoint not found: " + normalized);
+            throw new ApiException(HttpStatus.BAD_REQUEST, "release source not found: " + normalized);
         }
     }
 
@@ -107,7 +107,7 @@ public class ProjectConfigurationCommandService {
             return;
         }
         if (!providerConnectionCatalogService.exists(normalized)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "provider connection not found: " + normalized);
+            throw new ApiException(HttpStatus.BAD_REQUEST, "deployment connection not found: " + normalized);
         }
     }
 

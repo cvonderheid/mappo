@@ -16,11 +16,13 @@ public class AzureDevOpsPipelineDiscoveryService {
     ) {
         String token = normalize(personalAccessToken);
         if (token.isBlank()) {
-            throw new IllegalArgumentException("Azure DevOps PAT could not be resolved.");
+            throw new IllegalArgumentException("Azure DevOps PAT could not be resolved for the selected deployment connection.");
         }
         String normalizedOrganization = normalize(organization);
         if (normalizedOrganization.isBlank()) {
-            throw new IllegalArgumentException("Azure DevOps organization URL is required.");
+            throw new IllegalArgumentException(
+                "An Azure DevOps project or repo URL is required before MAPPO can discover Azure DevOps projects."
+            );
         }
         return pipelineClient.listProjects(normalizedOrganization, token);
     }
@@ -32,7 +34,7 @@ public class AzureDevOpsPipelineDiscoveryService {
     ) {
         String token = normalize(personalAccessToken);
         if (token.isBlank()) {
-            throw new IllegalArgumentException("Azure DevOps PAT could not be resolved.");
+            throw new IllegalArgumentException("Azure DevOps PAT could not be resolved for the selected deployment connection.");
         }
         return pipelineClient.listPipelines(new AzureDevOpsPipelineDiscoveryInputs(organization, project, token));
     }
@@ -44,7 +46,7 @@ public class AzureDevOpsPipelineDiscoveryService {
     ) {
         String token = normalize(personalAccessToken);
         if (token.isBlank()) {
-            throw new IllegalArgumentException("Azure DevOps PAT could not be resolved.");
+            throw new IllegalArgumentException("Azure DevOps PAT could not be resolved for the selected deployment connection.");
         }
         return pipelineClient.listRepositories(new AzureDevOpsPipelineDiscoveryInputs(organization, project, token));
     }
@@ -56,7 +58,7 @@ public class AzureDevOpsPipelineDiscoveryService {
     ) {
         String token = normalize(personalAccessToken);
         if (token.isBlank()) {
-            throw new IllegalArgumentException("Azure DevOps PAT could not be resolved.");
+            throw new IllegalArgumentException("Azure DevOps PAT could not be resolved for the selected deployment connection.");
         }
         return pipelineClient.listServiceConnections(
             new AzureDevOpsPipelineDiscoveryInputs(organization, project, token)

@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/provider-connections")
 @RequiredArgsConstructor
-@Tag(name = "Provider Connections", description = "Provider API auth/scope configuration used by project deployment drivers.")
+@Tag(name = "Deployment Connections", description = "Outbound authenticated connection records MAPPO uses when deployment drivers call external systems.")
 public class ProviderConnectionsController {
 
     private final ProviderConnectionCatalogService providerConnectionCatalogService;
@@ -36,7 +36,7 @@ public class ProviderConnectionsController {
     private final ProviderConnectionDiscoveryService providerConnectionDiscoveryService;
 
     @GetMapping
-    @Operation(summary = "List provider connections", description = "Returns configured provider connections and linked projects.")
+    @Operation(summary = "List deployment connections", description = "Returns configured deployment connections and linked projects.")
     public List<ProviderConnectionRecord> listConnections() {
         return providerConnectionCatalogService.listConnections();
     }
@@ -44,7 +44,7 @@ public class ProviderConnectionsController {
     @GetMapping("/{connectionId}/ado/projects/discover")
     @Operation(
         summary = "Discover Azure DevOps projects",
-        description = "Lists Azure DevOps projects reachable through the selected provider connection using its configured PAT and organization URL."
+        description = "Lists Azure DevOps projects reachable through the selected deployment connection using its configured PAT and verified Azure DevOps URL."
     )
     public ProviderConnectionAdoProjectDiscoveryResultRecord discoverAdoProjects(
         @PathVariable("connectionId") String connectionId,
@@ -55,8 +55,8 @@ public class ProviderConnectionsController {
 
     @PostMapping("/ado/verify")
     @Operation(
-        summary = "Verify Azure DevOps provider connection draft",
-        description = "Normalizes the submitted Azure DevOps URL, resolves the configured PAT source, and enumerates reachable Azure DevOps projects without persisting the connection."
+        summary = "Verify Azure DevOps deployment connection draft",
+        description = "Normalizes the submitted Azure DevOps URL, resolves the configured PAT source, and enumerates reachable Azure DevOps projects without persisting the deployment connection."
     )
     public ProviderConnectionAdoProjectDiscoveryResultRecord verifyAdoConnection(
         @RequestBody(required = false) ProviderConnectionVerifyRequest request,
@@ -67,7 +67,7 @@ public class ProviderConnectionsController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Create provider connection")
+    @Operation(summary = "Create deployment connection")
     public ProviderConnectionRecord createConnection(
         @Valid @RequestBody ProviderConnectionCreateRequest request
     ) {
@@ -75,7 +75,7 @@ public class ProviderConnectionsController {
     }
 
     @PatchMapping("/{connectionId}")
-    @Operation(summary = "Patch provider connection")
+    @Operation(summary = "Patch deployment connection")
     public ProviderConnectionRecord patchConnection(
         @PathVariable("connectionId") String connectionId,
         @RequestBody(required = false) ProviderConnectionPatchRequest patchRequest
@@ -85,7 +85,7 @@ public class ProviderConnectionsController {
 
     @DeleteMapping("/{connectionId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Delete provider connection")
+    @Operation(summary = "Delete deployment connection")
     public void deleteConnection(@PathVariable("connectionId") String connectionId) {
         providerConnectionCommandService.deleteConnection(connectionId);
     }

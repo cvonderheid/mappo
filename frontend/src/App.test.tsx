@@ -304,7 +304,7 @@ describe("App", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Targets" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Registered Targets" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Onboard Targets/i })).not.toBeInTheDocument();
       expect(screen.getByText(/Refresh Registered Targets/i)).toBeInTheDocument();
     });
@@ -314,7 +314,7 @@ describe("App", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Onboarding" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: /Onboarding events/i })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Onboard Targets/i })).toBeInTheDocument();
       expect(screen.getByRole("columnheader", { name: /Event ID/i })).toBeInTheDocument();
     });

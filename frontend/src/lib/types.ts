@@ -116,6 +116,7 @@ export type ProviderConnection = {
   enabled?: boolean;
   organizationUrl?: string;
   personalAccessTokenRef?: string;
+  discoveredProjects?: ProviderConnectionAdoProject[];
   linkedProjects?: ProviderConnectionLinkedProject[];
   createdAt?: string;
   updatedAt?: string;

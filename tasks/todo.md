@@ -66,7 +66,7 @@ Operator-first setup and integration clarity before additional coding:
 ### Tasks
 - [x] Add Project Settings route and navigation.
 - [x] Implement tabs from spec:
-- General, Release Ingest, Deployment Driver, Access & Identity, Target Contract, Runtime Health, Validation, Audit.
+- General, Release Source, Deployment Driver, Access & Identity, Target Contract, Runtime Health, Validation, Audit.
 - [x] Add Save/Validate/Publish workflow with Sonner notifications.
 - [x] Add project config payload preview and inline field validation.
 
@@ -222,6 +222,7 @@ Post-demo production-path planning and execution setup:
   - removed operator-editable webhook payload mapping internals for pipeline-trigger projects (source/path/version now internal defaults),
   - simplified Access & Identity to strategy + delegated identity fields and moved internal auth flags to backend-derived config behavior,
   - removed literal webhook-secret mode from Admin Release Ingest endpoint form in favor of plain secret-reference input + provider default.
+- 2026-04-01: Continued the operator-first Azure DevOps cleanup by separating Deployment Connections from Release Sources, shifting project config to discovered Azure DevOps project/repo/pipeline/service-connection selections, removing visible capability-matrix noise, and normalizing frontend API error text so toasts describe operator tasks instead of leaking internal function names.
 
 ## Milestones
 
@@ -436,4 +437,4 @@ Post-demo production-path planning and execution setup:
 - [ ] Harden retry/resume semantics for pipeline-driven runs.
 - [ ] Decide whether the next driver should be `pulumi_automation` or whether ADO/Lighthouse needs another hardening sprint first.
 - [x] Move ADO PAT discovery auth from hidden runtime assumption to admin-managed endpoint configuration and project-linked consumption.
-- [x] Refactor Project → Deployment Driver so provider connection + Azure DevOps project URL drive repo/pipeline/service-connection discovery, reducing manual operator entry to project-scoped selections.
+- [x] Refactor Project → Deployment Driver so deployment connection + Azure DevOps project selection drive repo/pipeline/service-connection discovery, reducing manual operator entry to project-scoped selections.

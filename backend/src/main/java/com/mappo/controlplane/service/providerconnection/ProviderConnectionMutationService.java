@@ -43,7 +43,7 @@ public class ProviderConnectionMutationService {
         String id = requiredId(current.id());
         String name = firstNonBlank(patch.name(), current.name());
         if (name.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "provider connection name must not be blank");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "deployment connection name must not be blank");
         }
         ProviderConnectionProviderType provider = patch.provider() == null ? current.provider() : patch.provider();
         boolean enabled = patch.enabled() == null ? current.enabled() : patch.enabled();
@@ -91,10 +91,10 @@ public class ProviderConnectionMutationService {
     private String requiredId(String value) {
         String normalized = normalize(value);
         if (normalized.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "provider connection id must not be blank");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "deployment connection id must not be blank");
         }
         if (!ID_PATTERN.matcher(normalized).matches()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "provider connection id must match " + ID_PATTERN.pattern());
+            throw new ApiException(HttpStatus.BAD_REQUEST, "deployment connection id must match " + ID_PATTERN.pattern());
         }
         return normalized;
     }
@@ -102,14 +102,14 @@ public class ProviderConnectionMutationService {
     private String requiredName(String value) {
         String normalized = normalize(value);
         if (normalized.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "provider connection name must not be blank");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "deployment connection name must not be blank");
         }
         return normalized;
     }
 
     private ProviderConnectionProviderType requiredProvider(ProviderConnectionProviderType value) {
         if (value == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "provider connection provider is required");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "deployment connection provider is required");
         }
         return value;
     }
@@ -149,7 +149,7 @@ public class ProviderConnectionMutationService {
             HttpStatus.BAD_REQUEST,
             "personalAccessTokenRef must be "
                 + ProviderConnectionSecretResolver.AZURE_DEVOPS_PAT_SECRET_REF
-                + " or env:VAR_NAME for Azure DevOps provider connections."
+                + " or env:VAR_NAME for Azure DevOps deployment connections."
         );
     }
 

@@ -2,6 +2,7 @@ package com.mappo.controlplane.service.providerconnection;
 
 import com.mappo.controlplane.api.request.ProviderConnectionCreateRequest;
 import com.mappo.controlplane.api.request.ProviderConnectionPatchRequest;
+import com.mappo.controlplane.model.ProviderConnectionAdoProjectDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProviderConnectionRecord;
 import com.mappo.controlplane.repository.ProviderConnectionCommandRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,8 +21,10 @@ public class ProviderConnectionCommandService {
     @Transactional
     public ProviderConnectionRecord createConnection(ProviderConnectionCreateRequest request) {
         ProviderConnectionMutationRecord mutation = providerConnectionMutationService.fromCreate(request);
-        providerConnectionDiscoveryService.validateForSave(mutation);
+        ProviderConnectionAdoProjectDiscoveryResultRecord discoveryResult =
+            providerConnectionDiscoveryService.validateForSave(mutation);
         providerConnectionCommandRepository.createConnection(mutation);
+        providerConnectionCommandRepository.replaceDiscoveredAdoProjects(mutation.id(), discoveryResult.projects());
         return providerConnectionCatalogService.getRequired(mutation.id());
     }
 
@@ -32,8 +35,10 @@ public class ProviderConnectionCommandService {
     ) {
         ProviderConnectionRecord current = providerConnectionCatalogService.getRequired(connectionId);
         ProviderConnectionMutationRecord mutation = providerConnectionMutationService.fromPatch(current, patchRequest);
-        providerConnectionDiscoveryService.validateForSave(mutation);
+        ProviderConnectionAdoProjectDiscoveryResultRecord discoveryResult =
+            providerConnectionDiscoveryService.validateForSave(mutation);
         providerConnectionCommandRepository.updateConnection(mutation);
+        providerConnectionCommandRepository.replaceDiscoveredAdoProjects(mutation.id(), discoveryResult.projects());
         return providerConnectionCatalogService.getRequired(mutation.id());
     }
 

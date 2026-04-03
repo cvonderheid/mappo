@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import FieldHelpTooltip from "@/components/FieldHelpTooltip";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -98,12 +99,12 @@ function describeWebhookSecretSource(endpoint: ReleaseIngestEndpoint): string {
   const provider = (endpoint.provider ?? "github") as ReleaseIngestProvider;
   const normalized = (endpoint.secretRef ?? "").trim() || providerDefaultSecretRef(provider);
   if (normalized === providerDefaultSecretRef(provider)) {
-    return "Provider default backend secret";
+    return "MAPPO runtime secret";
   }
   if (normalized.startsWith("env:")) {
     return `Environment variable (${normalized.slice("env:".length).trim()})`;
   }
-  return "Unsupported legacy value";
+  return "Named runtime secret";
 }
 
 function formatTimestamp(value: string | null | undefined): string {
@@ -177,6 +178,10 @@ export default function ReleaseIngestConfigPage({
 
   const isAzureDevOpsProvider = draft.provider === "azure_devops";
   const webhookSecretRef = buildWebhookSecretRef(draft);
+  const webhookUrlPreview =
+    draft.id.trim() === ""
+      ? ""
+      : `${apiBaseUrl.replace(/\/+$/, "")}${webhookPathFor(draft.id.trim(), draft.provider)}`;
 
   const sortedEndpoints = useMemo(() => {
     return [...endpoints].sort((left, right) => {
@@ -208,7 +213,7 @@ export default function ReleaseIngestConfigPage({
       return;
     }
     if (draft.webhookSecretMode === "environment_variable" && webhookSecretRef === "") {
-      toast.error("Environment variable name is required when Webhook secret source is Environment variable.");
+      toast.error("Environment variable name is required when Webhook verification secret is Environment variable.");
       return;
     }
 
@@ -226,7 +231,7 @@ export default function ReleaseIngestConfigPage({
           manifestPath: draft.manifestPath.trim() || undefined,
         };
         await patchReleaseIngestEndpoint(editingId, patchRequest);
-        toast.success(`Updated release ingest endpoint ${editingId}.`);
+        toast.success(`Updated release source ${editingId}.`);
       } else {
         const createRequest: ReleaseIngestEndpointCreateRequest = {
           id: draft.id.trim(),
@@ -240,7 +245,7 @@ export default function ReleaseIngestConfigPage({
           manifestPath: draft.manifestPath.trim() || undefined,
         };
         await createReleaseIngestEndpoint(createRequest);
-        toast.success(`Created release ingest endpoint ${draft.id.trim()}.`);
+        toast.success(`Created release source ${draft.id.trim()}.`);
       }
       setDrawerOpen(false);
       await loadEndpoints(true);
@@ -257,14 +262,14 @@ export default function ReleaseIngestConfigPage({
       return;
     }
     const confirmed = window.confirm(
-      `Delete release ingest endpoint ${endpointId}? This fails if projects are still linked.`
+      `Delete release source ${endpointId}? This fails if projects are still linked.`
     );
     if (!confirmed) {
       return;
     }
     try {
       await deleteReleaseIngestEndpoint(endpointId);
-      toast.success(`Deleted release ingest endpoint ${endpointId}.`);
+      toast.success(`Deleted release source ${endpointId}.`);
       await loadEndpoints(true);
     } catch (error) {
       toast.error((error as Error).message);
@@ -290,14 +295,14 @@ export default function ReleaseIngestConfigPage({
     <div className="space-y-4">
       <div className="flex animate-fade-up items-center justify-between [animation-delay:60ms] [animation-fill-mode:forwards]">
         <p className="text-xs text-muted-foreground">
-          Configure global release ingest endpoints and webhook routing for linked projects.
+          Configure inbound release sources. External systems call these webhook URLs when new versions are available, and MAPPO routes those events to linked projects.
         </p>
         <div className="flex items-center gap-2">
           <Button type="button" variant="outline" onClick={() => void loadEndpoints(true)}>
             {isRefreshing ? "Refreshing..." : "Refresh"}
           </Button>
           <Button type="button" onClick={openCreateDrawer}>
-            New Release Ingest Endpoint
+            New Release Source
           </Button>
         </div>
       </div>
@@ -309,18 +314,15 @@ export default function ReleaseIngestConfigPage({
       ) : null}
 
       <Card className="glass-card animate-fade-up [animation-delay:100ms] [animation-fill-mode:forwards]">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle>Release Ingest Endpoints</CardTitle>
-          <span className="rounded-full border border-border/70 px-3 py-1 font-mono text-[11px] text-muted-foreground">
-            {sortedEndpoints.length} endpoints
-          </span>
+        <CardHeader>
+          <CardTitle>Release Sources</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading release ingest endpoints...</p>
+            <p className="text-sm text-muted-foreground">Loading release sources...</p>
           ) : null}
           {!isLoading && sortedEndpoints.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No release ingest endpoints configured yet.</p>
+            <p className="text-sm text-muted-foreground">No release sources configured yet.</p>
           ) : null}
           {sortedEndpoints.map((endpoint) => {
             const endpointId = endpoint.id ?? "";
@@ -355,27 +357,9 @@ export default function ReleaseIngestConfigPage({
 
                 <div className="mt-3 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
                   <p>
-                    Webhook credential source:{" "}
+                    Webhook verification secret:{" "}
                     <span className="font-medium text-foreground">{describeWebhookSecretSource(endpoint)}</span>
                   </p>
-                  <p>
-                    Branch filter: <span className="font-mono text-foreground">{endpoint.branchFilter || "none"}</span>
-                  </p>
-                  {provider === "github" ? (
-                    <>
-                      <p>
-                        Repo filter: <span className="font-mono text-foreground">{endpoint.repoFilter || "none"}</span>
-                      </p>
-                      <p>
-                        Manifest path: <span className="font-mono text-foreground">{endpoint.manifestPath || "default"}</span>
-                      </p>
-                    </>
-                  ) : (
-                    <p>
-                      Pipeline filter:{" "}
-                      <span className="font-mono text-foreground">{endpoint.pipelineIdFilter || "none"}</span>
-                    </p>
-                  )}
                   <p>
                     Updated: <span className="text-foreground">{formatTimestamp(endpoint.updatedAt)}</span>
                   </p>
@@ -385,6 +369,40 @@ export default function ReleaseIngestConfigPage({
                   <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">Webhook URL</p>
                   <p className="mt-1 break-all font-mono text-[11px] text-foreground">{webhookUrl}</p>
                 </div>
+
+                {endpoint.repoFilter || endpoint.branchFilter || endpoint.pipelineIdFilter || endpoint.manifestPath ? (
+                  <Accordion type="single" collapsible className="mt-2 rounded-md border border-border/60 bg-background/40 px-3">
+                    <AccordionItem value="advanced-routing" className="border-none">
+                      <AccordionTrigger className="py-2 text-xs font-medium text-muted-foreground hover:no-underline">
+                        Advanced routing rules
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
+                          {endpoint.branchFilter ? (
+                            <p>
+                              Branch filter: <span className="font-mono text-foreground">{endpoint.branchFilter}</span>
+                            </p>
+                          ) : null}
+                          {provider === "github" && endpoint.repoFilter ? (
+                            <p>
+                              Repository filter: <span className="font-mono text-foreground">{endpoint.repoFilter}</span>
+                            </p>
+                          ) : null}
+                          {provider === "github" && endpoint.manifestPath ? (
+                            <p>
+                              Manifest path: <span className="font-mono text-foreground">{endpoint.manifestPath}</span>
+                            </p>
+                          ) : null}
+                          {provider === "azure_devops" && endpoint.pipelineIdFilter ? (
+                            <p>
+                              Pipeline filter: <span className="font-mono text-foreground">{endpoint.pipelineIdFilter}</span>
+                            </p>
+                          ) : null}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                ) : null}
 
                 <div className="mt-2">
                   <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">Linked projects</p>
@@ -440,9 +458,9 @@ export default function ReleaseIngestConfigPage({
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} direction="top">
         <DrawerContent>
           <DrawerHeader>
-            <DrawerTitle>{editingId ? `Edit ${editingId}` : "New release ingest endpoint"}</DrawerTitle>
+            <DrawerTitle>{editingId ? `Edit ${editingId}` : "New release source"}</DrawerTitle>
             <DrawerDescription>
-              Configure provider routing and webhook authentication for release ingest.
+              Configure how an external system notifies MAPPO about new releases.
             </DrawerDescription>
           </DrawerHeader>
           <form
@@ -453,7 +471,7 @@ export default function ReleaseIngestConfigPage({
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
-                  <Label htmlFor="endpoint-id">Endpoint ID</Label>
+                  <Label htmlFor="endpoint-id">Release source ID</Label>
                   <FieldHelpTooltip content="Stable key used in webhook URL paths. Use lowercase letters, numbers, and hyphens." />
                 </div>
                 <Input
@@ -466,8 +484,8 @@ export default function ReleaseIngestConfigPage({
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
-                  <Label htmlFor="endpoint-name">Name</Label>
-                  <FieldHelpTooltip content="Display name shown in the Admin > Release Ingest list." />
+                  <Label htmlFor="endpoint-name">Display name</Label>
+                  <FieldHelpTooltip content="Display name shown in the Admin > Release Sources list." />
                 </div>
                 <Input
                   id="endpoint-name"
@@ -481,8 +499,8 @@ export default function ReleaseIngestConfigPage({
             <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
-                  <Label htmlFor="endpoint-provider">Provider</Label>
-                  <FieldHelpTooltip content="Webhook sender for this endpoint." />
+                  <Label htmlFor="endpoint-provider">Notification system</Label>
+                  <FieldHelpTooltip content="External system that sends release notifications to this release source." />
                 </div>
                 <Select
                   value={draft.provider}
@@ -520,7 +538,7 @@ export default function ReleaseIngestConfigPage({
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
                   <Label htmlFor="endpoint-webhook-secret-mode">Webhook secret source</Label>
-                  <FieldHelpTooltip content="How MAPPO resolves the webhook signing secret for this endpoint. Use the provider default backend secret unless you intentionally store the secret in a specific environment variable." />
+                  <FieldHelpTooltip content="How MAPPO resolves the shared secret used to verify inbound webhook deliveries for this release source. Use the MAPPO backend secret unless you intentionally keep the secret in a named environment variable." />
                 </div>
                 <Select
                   value={draft.webhookSecretMode}
@@ -537,17 +555,30 @@ export default function ReleaseIngestConfigPage({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="provider_default">Provider default backend secret</SelectItem>
-                    <SelectItem value="environment_variable">Environment variable</SelectItem>
+                    <SelectItem value="provider_default">Use MAPPO backend secret</SelectItem>
+                    <SelectItem value="environment_variable">Use backend environment variable</SelectItem>
                   </SelectContent>
                 </Select>
                 {draft.webhookSecretMode === "provider_default" ? (
                   <p className="text-xs text-muted-foreground">
-                    MAPPO will resolve <span className="font-mono text-foreground">{providerDefaultSecretRef(draft.provider)}</span> on the backend.
+                    MAPPO will resolve <span className="font-mono text-foreground">{providerDefaultSecretRef(draft.provider)}</span> from the backend runtime.
                   </p>
                 ) : null}
               </div>
             </div>
+
+            {webhookUrlPreview ? (
+              <div className="rounded-md border border-border/60 bg-background/40 p-3 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">Webhook URL preview</p>
+                <p className="mt-1 break-all font-mono text-foreground">{webhookUrlPreview}</p>
+                <p className="mt-2">
+                  Use this URL when creating the webhook or service hook in{" "}
+                  <span className="font-medium text-foreground">
+                    {draft.provider === "azure_devops" ? "Azure DevOps" : "GitHub"}
+                  </span>.
+                </p>
+              </div>
+            ) : null}
 
             {draft.webhookSecretMode === "environment_variable" ? (
               <div className="space-y-1.5">
@@ -569,75 +600,87 @@ export default function ReleaseIngestConfigPage({
               </div>
             ) : null}
 
-            {isAzureDevOpsProvider ? (
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="endpoint-branch-filter">Branch filter</Label>
-                    <FieldHelpTooltip content="Optional branch gate for Azure DevOps events. Leave blank to accept any branch." />
-                  </div>
-                  <Input
-                    id="endpoint-branch-filter"
-                    value={draft.branchFilter}
-                    onChange={(event) => setDraft((current) => ({ ...current, branchFilter: event.target.value }))}
-                    placeholder="Optional (for example main)"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="endpoint-pipeline-filter">Pipeline filter</Label>
-                    <FieldHelpTooltip content="Optional Azure DevOps pipeline ID gate. Leave blank to accept any pipeline event." />
-                  </div>
-                  <Input
-                    id="endpoint-pipeline-filter"
-                    value={draft.pipelineIdFilter}
-                    onChange={(event) =>
-                      setDraft((current) => ({ ...current, pipelineIdFilter: event.target.value }))
-                    }
-                    placeholder="Optional (for example 1)"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="endpoint-repo-filter">Repository filter</Label>
-                    <FieldHelpTooltip content="Optional GitHub repository gate. Use owner/repo. Leave blank to accept any repository that hits this endpoint." />
-                  </div>
-                  <Input
-                    id="endpoint-repo-filter"
-                    value={draft.repoFilter}
-                    onChange={(event) => setDraft((current) => ({ ...current, repoFilter: event.target.value }))}
-                    placeholder="Optional (for example org/repo)"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="endpoint-branch-filter">Branch filter</Label>
-                    <FieldHelpTooltip content="Optional branch gate for GitHub events. Leave blank to accept any branch." />
-                  </div>
-                  <Input
-                    id="endpoint-branch-filter"
-                    value={draft.branchFilter}
-                    onChange={(event) => setDraft((current) => ({ ...current, branchFilter: event.target.value }))}
-                    placeholder="Optional (for example main)"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="endpoint-manifest-path">Manifest path</Label>
-                    <FieldHelpTooltip content="Optional release manifest path for GitHub payloads. Leave blank to use the default manifest path." />
-                  </div>
-                  <Input
-                    id="endpoint-manifest-path"
-                    value={draft.manifestPath}
-                    onChange={(event) => setDraft((current) => ({ ...current, manifestPath: event.target.value }))}
-                    placeholder="Optional (for example releases/releases.manifest.json)"
-                  />
-                </div>
-              </div>
-            )}
+            <Accordion type="single" collapsible className="rounded-md border border-border/60 bg-background/30 px-3">
+              <AccordionItem value="advanced-routing" className="border-none">
+                <AccordionTrigger className="py-2 text-sm font-medium text-foreground hover:no-underline">
+                          Advanced routing (rare)
+                </AccordionTrigger>
+                <AccordionContent>
+                  <p className="mb-3 text-xs text-muted-foreground">
+                    Most operators can leave this empty. Use routing filters only when one release source accepts events from multiple repositories or pipelines and MAPPO must narrow which deliveries it trusts.
+                  </p>
+                  {isAzureDevOpsProvider ? (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1">
+                          <Label htmlFor="endpoint-branch-filter">Branch filter</Label>
+                          <FieldHelpTooltip content="Optional branch gate for Azure DevOps events. Leave blank to accept any branch." />
+                        </div>
+                        <Input
+                          id="endpoint-branch-filter"
+                          value={draft.branchFilter}
+                          onChange={(event) => setDraft((current) => ({ ...current, branchFilter: event.target.value }))}
+                          placeholder="Optional (for example main)"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1">
+                          <Label htmlFor="endpoint-pipeline-filter">Pipeline filter</Label>
+                          <FieldHelpTooltip content="Optional Azure DevOps pipeline ID gate. Leave blank to accept any pipeline event." />
+                        </div>
+                        <Input
+                          id="endpoint-pipeline-filter"
+                          value={draft.pipelineIdFilter}
+                          onChange={(event) =>
+                            setDraft((current) => ({ ...current, pipelineIdFilter: event.target.value }))
+                          }
+                          placeholder="Optional (for example 1)"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1">
+                          <Label htmlFor="endpoint-repo-filter">Repository filter</Label>
+                          <FieldHelpTooltip content="Optional GitHub repository gate. Use owner/repo. Leave blank to accept any repository that hits this endpoint." />
+                        </div>
+                        <Input
+                          id="endpoint-repo-filter"
+                          value={draft.repoFilter}
+                          onChange={(event) => setDraft((current) => ({ ...current, repoFilter: event.target.value }))}
+                          placeholder="Optional (for example org/repo)"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1">
+                          <Label htmlFor="endpoint-branch-filter">Branch filter</Label>
+                          <FieldHelpTooltip content="Optional branch gate for GitHub events. Leave blank to accept any branch." />
+                        </div>
+                        <Input
+                          id="endpoint-branch-filter"
+                          value={draft.branchFilter}
+                          onChange={(event) => setDraft((current) => ({ ...current, branchFilter: event.target.value }))}
+                          placeholder="Optional (for example main)"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1">
+                          <Label htmlFor="endpoint-manifest-path">Manifest path</Label>
+                          <FieldHelpTooltip content="Optional release manifest path for GitHub payloads. Leave blank to use the default manifest path." />
+                        </div>
+                        <Input
+                          id="endpoint-manifest-path"
+                          value={draft.manifestPath}
+                          onChange={(event) => setDraft((current) => ({ ...current, manifestPath: event.target.value }))}
+                          placeholder="Optional (for example releases/releases.manifest.json)"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </form>
           <DrawerFooter>
             <div className="flex w-full items-center justify-end gap-2">

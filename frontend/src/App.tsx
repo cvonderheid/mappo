@@ -127,8 +127,8 @@ const SIDEBAR_NAVIGATION: SidebarNavigationGroup[] = [
   {
     label: "Admin",
     items: [
-      { label: "Provider Connections", to: "/provider-connections" },
-      { label: "Release Ingest", to: "/release-ingest" },
+      { label: "Deployment Connections", to: "/deployment-connections" },
+      { label: "Release Sources", to: "/release-sources" },
       { label: "Managed App", to: "/managed-app" },
     ],
   },
@@ -213,15 +213,15 @@ function AppShell() {
       location.pathname === "/demo" ||
       location.pathname === "/onboarding" ||
       location.pathname === "/targets" ||
-      location.pathname === "/provider-connections" ||
-      location.pathname === "/release-ingest" ||
+      location.pathname === "/deployment-connections" ||
+      location.pathname === "/release-sources" ||
       location.pathname === "/managed-app",
     [location.pathname]
   );
   const isGlobalScopeRoute = useMemo(
     () =>
-      location.pathname === "/release-ingest" ||
-      location.pathname === "/provider-connections" ||
+      location.pathname === "/release-sources" ||
+      location.pathname === "/deployment-connections" ||
       location.pathname === "/managed-app" ||
       location.pathname === "/demo",
     [location.pathname]
@@ -900,12 +900,12 @@ function AppShell() {
       items.push({ label: "Project", to: "/projects" }, { label: "Config" });
       return items;
     }
-    if (path.startsWith("/release-ingest")) {
-      items.push({ label: "Admin", to: "/release-ingest" }, { label: "Release Ingest" });
+    if (path.startsWith("/release-sources")) {
+      items.push({ label: "Admin", to: "/release-sources" }, { label: "Release Sources" });
       return items;
     }
-    if (path.startsWith("/provider-connections")) {
-      items.push({ label: "Admin", to: "/provider-connections" }, { label: "Provider Connections" });
+    if (path.startsWith("/deployment-connections")) {
+      items.push({ label: "Admin", to: "/deployment-connections" }, { label: "Deployment Connections" });
       return items;
     }
     if (path.startsWith("/targets")) {
@@ -1322,7 +1322,7 @@ function AppShell() {
             <div className="space-y-1">
               <p className="text-sm font-semibold">No projects configured yet.</p>
               <p className="text-sm text-muted-foreground">
-                Start by creating a project profile, then configure onboarding and release ingest.
+                Start by creating a project profile, then configure onboarding and release sources.
               </p>
             </div>
             <Button type="button" onClick={() => navigate("/projects?new=1")}>
@@ -1452,11 +1452,11 @@ function AppShell() {
                 }
               />
               <Route
-                path="/provider-connections"
+                path="/deployment-connections"
                 element={<ProviderConnectionsConfigPage selectedProjectId={selectedProjectId} />}
               />
               <Route
-                path="/release-ingest"
+                path="/release-sources"
                 element={<ReleaseIngestConfigPage selectedProjectId={selectedProjectId} />}
               />
               <Route

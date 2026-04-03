@@ -66,6 +66,11 @@ function formatError(error: unknown): string {
   return JSON.stringify(error);
 }
 
+function httpErrorMessage(action: string, status: number, error: unknown): string {
+  const detail = formatError(error);
+  return `${action} (${status}): ${detail}`;
+}
+
 function requireData<T>(label: string, result: ApiResult<T>): T {
   if (result.data !== undefined) {
     return result.data;
@@ -95,12 +100,12 @@ export async function listTargetsPage(query: ListTargetsPageQuery = {}): Promise
       },
     },
   });
-  return requireData("listTargetsPage", { data, error, response });
+  return requireData("Could not load fleet targets", { data, error, response });
 }
 
 export async function listProjects(): Promise<ProjectDefinition[]> {
   const { data, error, response } = await apiClient.GET("/api/v1/projects");
-  return requireData("listProjects", { data, error, response });
+  return requireData("Could not load projects", { data, error, response });
 }
 
 export async function createProject(
@@ -109,7 +114,7 @@ export async function createProject(
   const { data, error, response } = await apiClient.POST("/api/v1/projects", {
     body: request,
   });
-  return requireData("createProject", { data, error, response });
+  return requireData("Could not create project", { data, error, response });
 }
 
 export async function patchProjectConfiguration(
@@ -120,7 +125,7 @@ export async function patchProjectConfiguration(
     params: { path: { projectId } },
     body: request,
   });
-  return requireData("patchProjectConfiguration", { data, error, response });
+  return requireData("Could not update project configuration", { data, error, response });
 }
 
 export async function validateProjectConfiguration(
@@ -131,7 +136,7 @@ export async function validateProjectConfiguration(
     params: { path: { projectId } },
     body: request,
   });
-  return requireData("validateProjectConfiguration", { data, error, response });
+  return requireData("Could not validate project configuration", { data, error, response });
 }
 
 export async function discoverProjectAdoPipelines(
@@ -151,8 +156,7 @@ export async function discoverProjectAdoPipelines(
 
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
-    const detail = typeof payload.detail === "string" ? payload.detail : "unknown error";
-    throw new Error(`discoverProjectAdoPipelines failed (${response.status}): ${detail}`);
+    throw new Error(httpErrorMessage("Could not load Azure DevOps pipelines", response.status, payload));
   }
   return payload as ProjectAdoPipelineDiscoveryResult;
 }
@@ -174,8 +178,7 @@ export async function discoverProjectAdoRepositories(
 
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
-    const detail = typeof payload.detail === "string" ? payload.detail : "unknown error";
-    throw new Error(`discoverProjectAdoRepositories failed (${response.status}): ${detail}`);
+    throw new Error(httpErrorMessage("Could not load Azure DevOps repositories", response.status, payload));
   }
   return payload as ProjectAdoRepositoryDiscoveryResult;
 }
@@ -197,8 +200,7 @@ export async function discoverProjectAdoServiceConnections(
 
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
-    const detail = typeof payload.detail === "string" ? payload.detail : "unknown error";
-    throw new Error(`discoverProjectAdoServiceConnections failed (${response.status}): ${detail}`);
+    throw new Error(httpErrorMessage("Could not load Azure service connections", response.status, payload));
   }
   return payload as ProjectAdoServiceConnectionDiscoveryResult;
 }
@@ -212,11 +214,7 @@ export async function listProviderConnections(): Promise<ProviderConnection[]> {
   });
   const payload = (await response.json().catch(() => ([]))) as unknown;
   if (!response.ok) {
-    const detail =
-      payload && typeof payload === "object" && "detail" in payload
-        ? String((payload as { detail?: unknown }).detail ?? "unknown error")
-        : "unknown error";
-    throw new Error(`listProviderConnections failed (${response.status}): ${detail}`);
+    throw new Error(httpErrorMessage("Could not load deployment connections", response.status, payload));
   }
   return Array.isArray(payload) ? (payload as ProviderConnection[]) : [];
 }
@@ -233,8 +231,7 @@ export async function createProviderConnection(
   });
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
-    const detail = typeof payload.detail === "string" ? payload.detail : "unknown error";
-    throw new Error(`createProviderConnection failed (${response.status}): ${detail}`);
+    throw new Error(httpErrorMessage("Could not create deployment connection", response.status, payload));
   }
   return payload as ProviderConnection;
 }
@@ -255,8 +252,7 @@ export async function patchProviderConnection(
   );
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
-    const detail = typeof payload.detail === "string" ? payload.detail : "unknown error";
-    throw new Error(`patchProviderConnection failed (${response.status}): ${detail}`);
+    throw new Error(httpErrorMessage("Could not update deployment connection", response.status, payload));
   }
   return payload as ProviderConnection;
 }
@@ -273,8 +269,7 @@ export async function verifyProviderConnectionAdoProjects(
   });
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
-    const detail = typeof payload.detail === "string" ? payload.detail : "unknown error";
-    throw new Error(`verifyProviderConnectionAdoProjects failed (${response.status}): ${detail}`);
+    throw new Error(httpErrorMessage("Could not verify deployment connection", response.status, payload));
   }
   return payload as ProviderConnectionAdoProjectDiscoveryResult;
 }
@@ -297,8 +292,7 @@ export async function discoverProviderConnectionAdoProjects(
   );
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
-    const detail = typeof payload.detail === "string" ? payload.detail : "unknown error";
-    throw new Error(`discoverProviderConnectionAdoProjects failed (${response.status}): ${detail}`);
+    throw new Error(httpErrorMessage("Could not load Azure DevOps projects", response.status, payload));
   }
   return payload as ProviderConnectionAdoProjectDiscoveryResult;
 }
@@ -317,8 +311,7 @@ export async function deleteProviderConnection(connectionId: string): Promise<vo
     return;
   }
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-  const detail = typeof payload.detail === "string" ? payload.detail : "unknown error";
-  throw new Error(`deleteProviderConnection failed (${response.status}): ${detail}`);
+  throw new Error(httpErrorMessage("Could not delete deployment connection", response.status, payload));
 }
 
 export async function listProjectAudit(
@@ -335,17 +328,17 @@ export async function listProjectAudit(
       },
     },
   });
-  return requireData("listProjectAudit", { data, error, response });
+  return requireData("Could not load project audit", { data, error, response });
 }
 
 export async function listReleases(): Promise<Release[]> {
   const { data, error, response } = await apiClient.GET("/api/v1/releases");
-  return requireData("listReleases", { data, error, response });
+  return requireData("Could not load releases", { data, error, response });
 }
 
 export async function listReleaseIngestEndpoints(): Promise<ReleaseIngestEndpoint[]> {
   const { data, error, response } = await apiClient.GET("/api/v1/release-ingest/endpoints");
-  return requireData("listReleaseIngestEndpoints", { data, error, response });
+  return requireData("Could not load release sources", { data, error, response });
 }
 
 export async function createReleaseIngestEndpoint(
@@ -354,7 +347,7 @@ export async function createReleaseIngestEndpoint(
   const { data, error, response } = await apiClient.POST("/api/v1/release-ingest/endpoints", {
     body: request,
   });
-  return requireData("createReleaseIngestEndpoint", { data, error, response });
+  return requireData("Could not create release source", { data, error, response });
 }
 
 export async function patchReleaseIngestEndpoint(
@@ -365,7 +358,7 @@ export async function patchReleaseIngestEndpoint(
     params: { path: { endpointId } },
     body: request,
   });
-  return requireData("patchReleaseIngestEndpoint", { data, error, response });
+  return requireData("Could not update release source", { data, error, response });
 }
 
 export async function deleteReleaseIngestEndpoint(endpointId: string): Promise<void> {
@@ -376,7 +369,7 @@ export async function deleteReleaseIngestEndpoint(endpointId: string): Promise<v
     return;
   }
   const errorText = error !== undefined ? formatError(error) : "unknown error";
-  throw new Error(`deleteReleaseIngestEndpoint failed (${response.status}): ${errorText}`);
+  throw new Error(`Could not delete release source (${response.status}): ${errorText}`);
 }
 
 export async function listRuns(query: ListRunsQuery = {}): Promise<RunSummaryPage> {
@@ -392,21 +385,21 @@ export async function listRuns(query: ListRunsQuery = {}): Promise<RunSummaryPag
       },
     },
   });
-  return requireData("listRuns", { data, error, response });
+  return requireData("Could not load deployment runs", { data, error, response });
 }
 
 export async function getRun(runId: string): Promise<RunDetail> {
   const { data, error, response } = await apiClient.GET("/api/v1/runs/{runId}", {
     params: { path: { runId } },
   });
-  return requireData("getRun", { data, error, response });
+  return requireData("Could not load run details", { data, error, response });
 }
 
 export async function createRun(request: CreateRunRequest): Promise<RunDetail> {
   const { data, error, response } = await apiClient.POST("/api/v1/runs", {
     body: request,
   });
-  return requireData("createRun", { data, error, response });
+  return requireData("Could not start deployment run", { data, error, response });
 }
 
 export async function previewRun(request: CreateRunRequest, signal?: AbortSignal): Promise<RunPreview> {
@@ -414,21 +407,21 @@ export async function previewRun(request: CreateRunRequest, signal?: AbortSignal
     body: request,
     signal,
   });
-  return requireData("previewRun", { data, error, response });
+  return requireData("Could not preview deployment changes", { data, error, response });
 }
 
 export async function resumeRun(runId: string): Promise<RunDetail> {
   const { data, error, response } = await apiClient.POST("/api/v1/runs/{runId}/resume", {
     params: { path: { runId } },
   });
-  return requireData("resumeRun", { data, error, response });
+  return requireData("Could not resume deployment run", { data, error, response });
 }
 
 export async function retryFailed(runId: string): Promise<RunDetail> {
   const { data, error, response } = await apiClient.POST("/api/v1/runs/{runId}/retry-failed", {
     params: { path: { runId } },
   });
-  return requireData("retryFailed", { data, error, response });
+  return requireData("Could not retry failed targets", { data, error, response });
 }
 
 export async function adminListTargetRegistrations(
@@ -447,7 +440,7 @@ export async function adminListTargetRegistrations(
       },
     },
   });
-  return requireData("adminListTargetRegistrations", { data, error, response });
+  return requireData("Could not load registered targets", { data, error, response });
 }
 
 export async function adminListMarketplaceEvents(
@@ -463,7 +456,7 @@ export async function adminListMarketplaceEvents(
       },
     },
   });
-  return requireData("adminListMarketplaceEvents", { data, error, response });
+  return requireData("Could not load onboarding events", { data, error, response });
 }
 
 export async function adminListForwarderLogs(
@@ -479,7 +472,7 @@ export async function adminListForwarderLogs(
       },
     },
   });
-  return requireData("adminListForwarderLogs", { data, error, response });
+  return requireData("Could not load managed app logs", { data, error, response });
 }
 
 export async function adminListReleaseWebhookDeliveries(
@@ -495,7 +488,7 @@ export async function adminListReleaseWebhookDeliveries(
       },
     },
   });
-  return requireData("adminListReleaseWebhookDeliveries", { data, error, response });
+  return requireData("Could not load release source events", { data, error, response });
 }
 
 export async function adminIngestMarketplaceEvent(
@@ -509,7 +502,7 @@ export async function adminIngestMarketplaceEvent(
         ? undefined
         : { "x-mappo-ingest-token": ingestToken.trim() },
   });
-  return requireData("adminIngestMarketplaceEvent", { data, error, response });
+  return requireData("Could not onboard targets from event", { data, error, response });
 }
 
 export async function adminUpdateTargetRegistration(
@@ -523,7 +516,7 @@ export async function adminUpdateTargetRegistration(
       body: request,
     }
   );
-  return requireData("adminUpdateTargetRegistration", { data, error, response });
+  return requireData("Could not update target registration", { data, error, response });
 }
 
 export async function adminDeleteTargetRegistration(
@@ -535,7 +528,7 @@ export async function adminDeleteTargetRegistration(
       params: { path: { targetId } },
     }
   );
-  return requireData("adminDeleteTargetRegistration", { data, error, response });
+  return requireData("Could not delete target registration", { data, error, response });
 }
 
 export async function adminIngestGithubReleaseManifest(
@@ -544,5 +537,5 @@ export async function adminIngestGithubReleaseManifest(
   const { data, error, response } = await apiClient.POST("/api/v1/admin/releases/ingest/github", {
     body: request,
   });
-  return requireData("adminIngestGithubReleaseManifest", { data, error, response });
+  return requireData("Could not ingest managed-app releases", { data, error, response });
 }

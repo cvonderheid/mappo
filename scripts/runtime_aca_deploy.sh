@@ -16,6 +16,7 @@ AZURE_ENV_FILE="${ROOT_DIR}/.data/mappo-azure.env"
 DB_ENV_FILE="${ROOT_DIR}/.data/mappo-db.env"
 PUBLISHER_ACR_ENV_FILE="${ROOT_DIR}/.data/mappo-publisher-acr.env"
 GITHUB_ENV_FILE="${ROOT_DIR}/.data/mappo-github.env"
+ADO_ENV_FILE="${ROOT_DIR}/.data/mappo-ado.env"
 OUTPUT_ENV_FILE="${ROOT_DIR}/.data/mappo-runtime.env"
 REDIS_CLUSTER_NAME=""
 REDIS_SKU="Balanced_B0"
@@ -53,6 +54,7 @@ Options:
   --publisher-acr-env-file <path>
                                Optional publisher ACR env file (default: .data/mappo-publisher-acr.env)
   --github-env-file <path>     Optional GitHub/webhook env file (default: .data/mappo-github.env)
+  --ado-env-file <path>        Optional Azure DevOps env file (default: .data/mappo-ado.env)
   --output-env-file <path>     Output env file with deployed URLs (default: .data/mappo-runtime.env)
   --redis-name <name>          Azure Managed Redis cluster name (default: redis-mappo-<stack>)
   --redis-sku <sku>            Azure Managed Redis SKU (default: Balanced_B0)
@@ -120,6 +122,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --github-env-file)
       GITHUB_ENV_FILE="${2:-}"
+      shift 2
+      ;;
+    --ado-env-file)
+      ADO_ENV_FILE="${2:-}"
       shift 2
       ;;
     --output-env-file)
@@ -244,6 +250,13 @@ if [[ -f "${PUBLISHER_ACR_ENV_FILE}" ]]; then
 fi
 if [[ -f "${GITHUB_ENV_FILE}" ]]; then
   source "${GITHUB_ENV_FILE}"
+fi
+if [[ -f "${ADO_ENV_FILE}" ]]; then
+  source "${ADO_ENV_FILE}"
+fi
+
+if [[ -z "${MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN:-}" && -n "${AZURE_DEVOPS_EXT_PAT:-}" ]]; then
+  MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN="${AZURE_DEVOPS_EXT_PAT}"
 fi
 set +a
 
@@ -761,6 +774,10 @@ fi
 if [[ -n "${MAPPO_MANAGED_APP_RELEASE_GITHUB_TOKEN:-}" ]]; then
   backend_env_vars+=("MAPPO_MANAGED_APP_RELEASE_GITHUB_TOKEN=secretref:managed-app-release-github-token")
   backend_secrets+=("managed-app-release-github-token=${MAPPO_MANAGED_APP_RELEASE_GITHUB_TOKEN}")
+fi
+if [[ -n "${MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN:-}" ]]; then
+  backend_env_vars+=("MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN=secretref:azure-devops-personal-access-token")
+  backend_secrets+=("azure-devops-personal-access-token=${MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN}")
 fi
 
 backend_base_url=""

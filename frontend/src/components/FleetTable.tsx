@@ -668,7 +668,7 @@ export default function FleetTable({ latestRelease, refreshKey, selectedProjectI
             setPageSize(size);
             setPage(0);
           }}
-          noun="subscriptions"
+          noun="targets"
         />
       </CardContent>
     </Card>

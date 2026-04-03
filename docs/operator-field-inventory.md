@@ -17,11 +17,11 @@ Owner: MAPPO UI/UX cleanup pass
 | Project ID | required (read-only in edit) | Keep visible for identity and support. |
 | Project display name | required | Keep editable. |
 
-### Release Ingest
+### Release Source
 | Field | Classification | Decision |
 |---|---|---|
 | Release source | required | Keep; auto-locked to `Webhook / Pipeline Event` for `Pipeline Trigger` driver. |
-| Linked release ingest endpoint | required (pipeline trigger) | Keep; selects provider/auth/routing from global endpoint config and is the only PAT source for Azure DevOps discovery/trigger. |
+| Linked release source | required (pipeline trigger) | Keep; selects webhook verification and routing from global release-source config. |
 | Template URI field (blob source) | optional/advanced | Keep for blob template projects only. |
 | Incoming release event type | auto/internal | Removed from operator input. |
 | Release event provider (auto-derived) | auto/internal | Removed from operator input. |
@@ -34,17 +34,16 @@ Owner: MAPPO UI/UX cleanup pass
 |---|---|---|
 | Deployment driver | required | Keep; controls available execution model. |
 | Pipeline system | required (single supported value) | Keep as constrained dropdown (`Azure DevOps`) for now. |
-| Organization URL | required (pipeline trigger) | Keep with explicit URL guidance. |
-| Project | required (pipeline trigger) | Keep. |
-| Repository URL helper | optional | Keep; auto-parses org/project from URL. |
-| Discover pipeline by name | optional | Keep helper workflow. |
-| Pipeline ID | required (pipeline trigger) | Keep; can be auto-filled via discovery. |
+| Deployment connection | required (pipeline trigger) | Keep; selects the verified Azure DevOps auth/context from Admin → Deployment Connections. |
+| Azure DevOps project | required (pipeline trigger) | Keep as discovered dropdown populated from the selected deployment connection. |
+| Azure DevOps repo | required (pipeline trigger) | Keep as discovered dropdown populated from the selected Azure DevOps project. |
+| Azure DevOps pipeline | required (pipeline trigger) | Keep as discovered dropdown populated from the selected Azure DevOps project; store the selected pipeline ID internally after selection. |
 | Branch | optional | Keep; default `main`. |
-| Discover service connection by name | optional | Keep helper workflow. |
-| Azure service connection | required (pipeline trigger) | Keep; can be selected from discovery. |
+| Azure service connection | required (pipeline trigger) | Keep; selected from Azure DevOps project-scoped discovery. |
+| Organization/project freeform typing | legacy/remove | Removed from operator input when deployment connection + project discovery are available. |
 | PAT source mode selector | legacy/remove | Removed from operator input. |
 | PAT literal value input | legacy/remove | Removed from operator input. |
-| Provider API secret reference wiring | auto/internal | Fixed to backend-managed secret ref on the linked Azure DevOps release-ingest endpoint: `mappo.azure-devops.personal-access-token`. |
+| Provider API secret reference wiring | auto/internal | Owned by the linked Admin → Deployment Connections record. |
 
 ### Access & Identity
 | Field | Classification | Decision |
@@ -85,10 +84,23 @@ Owner: MAPPO UI/UX cleanup pass
 | Refresh audit | operational action | Keep. |
 | Before/After snapshots | operational evidence | Keep. |
 
-## Admin -> Release Ingest Endpoint Form
+## Admin -> Deployment Connections
 | Field | Classification | Decision |
 |---|---|---|
-| Endpoint ID | required | Keep. |
+| Connection ID | required | Keep. |
+| Name | required | Keep. |
+| Deployment system | required | Keep. |
+| Enabled | required | Keep. |
+| Azure DevOps URL | required (Azure DevOps) | Keep; operator can paste any org/project/repository URL and MAPPO normalizes it. |
+| Azure DevOps PAT source | required (Azure DevOps) | Keep, but only as backend-default or env-var source; verify it before save. |
+| Literal PAT entry | legacy/remove | Removed from operator input. |
+| Verified Azure DevOps root URL | auto/internal (display) | Keep visible read-only after verification. |
+| Discovered Azure DevOps projects | auto/internal (display) | Keep visible read-only after verification. |
+
+## Admin -> Release Sources
+| Field | Classification | Decision |
+|---|---|---|
+| Release source ID | required | Keep. |
 | Name | required | Keep. |
 | Provider | required | Keep. |
 | Enabled | required | Keep. |
