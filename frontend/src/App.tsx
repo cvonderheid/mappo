@@ -1200,7 +1200,7 @@ function AppShell() {
   }
 
   async function handleIngestManagedAppReleases(
-    request: ReleaseManifestIngestRequest
+    request?: ReleaseManifestIngestRequest
   ): Promise<ReleaseManifestIngestResponse> {
     setReleaseIngestIsSubmitting(true);
     try {

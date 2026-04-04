@@ -499,13 +499,22 @@ export default function ReleaseIngestConfigPage({
             <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
-                  <Label htmlFor="endpoint-provider">Release system</Label>
+                  <Label htmlFor="endpoint-provider">Release provider</Label>
                   <FieldHelpTooltip content="External system that tells MAPPO a new release is available." />
                 </div>
                 <Select
                   value={draft.provider}
                   onValueChange={(value) =>
-                    setDraft((current) => ({ ...current, provider: value as ReleaseIngestProvider }))
+                    setDraft((current) => {
+                      const nextProvider = value as ReleaseIngestProvider;
+                      return {
+                        ...current,
+                        provider: nextProvider,
+                        repoFilter: nextProvider === "github" ? current.repoFilter : "",
+                        pipelineIdFilter: nextProvider === "azure_devops" ? current.pipelineIdFilter : "",
+                        manifestPath: nextProvider === "github" ? current.manifestPath : "",
+                      };
+                    })
                   }
                 >
                   <SelectTrigger id="endpoint-provider" className="h-10 w-full bg-background/90 text-sm">
@@ -577,6 +586,11 @@ export default function ReleaseIngestConfigPage({
                     {draft.provider === "azure_devops" ? "Azure DevOps" : "GitHub"}
                   </span>.
                 </p>
+                {editingId ? (
+                  <p className="mt-2">
+                    The <span className="font-medium text-foreground">Source ID</span> stays in the webhook path. If you change provider on an existing source, the path keeps the same ID segment.
+                  </p>
+                ) : null}
               </div>
             ) : null}
 

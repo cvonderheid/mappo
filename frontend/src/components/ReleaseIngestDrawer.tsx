@@ -27,7 +27,8 @@ type ReleaseIngestDrawerProps = {
   isSubmitting: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  onIngest: (request: ReleaseManifestIngestRequest) => Promise<void>;
+  onIngest: (request?: ReleaseManifestIngestRequest) => Promise<void>;
+  showTrigger?: boolean;
 };
 
 export default function ReleaseIngestDrawer({
@@ -35,6 +36,7 @@ export default function ReleaseIngestDrawer({
   open,
   onOpenChange,
   onIngest,
+  showTrigger = true,
 }: ReleaseIngestDrawerProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [repo, setRepo] = useState(DEFAULT_REPO);
@@ -64,16 +66,18 @@ export default function ReleaseIngestDrawer({
 
   return (
     <Drawer direction="top" open={isOpen} onOpenChange={setDrawerOpen}>
-      <DrawerTrigger asChild>
-        <Button type="button" variant="outline">
-          Ingest Managed-App Releases
-        </Button>
-      </DrawerTrigger>
+      {showTrigger ? (
+        <DrawerTrigger asChild>
+          <Button type="button" variant="outline">
+            Advanced release import
+          </Button>
+        </DrawerTrigger>
+      ) : null}
       <DrawerContent className="glass-card">
         <DrawerHeader>
-          <DrawerTitle>Ingest Managed-App Releases</DrawerTitle>
+          <DrawerTitle>Advanced release import</DrawerTitle>
           <DrawerDescription>
-            Pull release definitions from the managed-app GitHub manifest and register any new releases in MAPPO.
+            Use this only when you need to override the default release source settings for a one-off import.
           </DrawerDescription>
         </DrawerHeader>
         <div className="max-h-[74vh] overflow-y-auto px-4 pb-2">
@@ -133,7 +137,7 @@ export default function ReleaseIngestDrawer({
             </Button>
           </DrawerClose>
           <Button type="submit" form="release-ingest-form" disabled={isSubmitting}>
-            {isSubmitting ? "Ingesting..." : "Ingest Releases"}
+            {isSubmitting ? "Importing..." : "Import releases"}
           </Button>
         </DrawerFooter>
       </DrawerContent>

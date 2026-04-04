@@ -373,7 +373,6 @@ export function RegistrationsDataTable({
       { accessorKey: "displayName", header: "Display Name" },
       { accessorKey: "customerName", header: "Customer" },
       { accessorKey: "deploymentStackName", header: "Stack" },
-      { accessorKey: "registryAuthMode", header: "Registry Auth" },
       { accessorKey: "targetGroup", header: "Group" },
       { accessorKey: "region", header: "Region" },
       { accessorKey: "tier", header: "Tier" },

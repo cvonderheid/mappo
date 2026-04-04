@@ -532,7 +532,7 @@ export async function adminDeleteTargetRegistration(
 }
 
 export async function adminIngestGithubReleaseManifest(
-  request: ReleaseManifestIngestRequest
+  request?: ReleaseManifestIngestRequest
 ): Promise<ReleaseManifestIngestResponse> {
   const { data, error, response } = await apiClient.POST("/api/v1/admin/releases/ingest/github", {
     body: request,

@@ -25,6 +25,7 @@ Operator-first setup and integration clarity before additional coding:
 - [ ] Before production cutover, create a clean baseline migration (`V1__baseline.sql`) from the finalized schema and retire interim migration complexity.
 - [ ] Remove backward-compatibility overloads/shims once UI/API consumers are fully migrated.
 - [ ] Expand project theming into full operator theming controls (palette + spacing + typography) if needed beyond the current per-project theme assignment.
+- [ ] Replace the current one-default-secret-per-provider model with first-class selectable secret references so operators can manage multiple Azure DevOps or GitHub accounts of the same provider type without relying on ad hoc `env:` naming conventions.
 
 ## Sprint 0: Identity Boundary Cleanup and Baseline Reconciliation
 ### Tasks
@@ -438,3 +439,45 @@ Post-demo production-path planning and execution setup:
 - [ ] Decide whether the next driver should be `pulumi_automation` or whether ADO/Lighthouse needs another hardening sprint first.
 - [x] Move ADO PAT discovery auth from hidden runtime assumption to admin-managed endpoint configuration and project-linked consumption.
 - [x] Refactor Project → Deployment Driver so deployment connection + Azure DevOps project selection drive repo/pipeline/service-connection discovery, reducing manual operator entry to project-scoped selections.
+- [ ] Walkthrough cleanup: when editing a Release Source and changing `Release system`, recompute the webhook preview, provider-specific setup copy, and routing guidance immediately so stale GitHub-derived values do not remain visible under Azure DevOps (and vice versa).
+- [ ] Walkthrough cleanup: continue the operator-first review across all config panels and replace manual/provider-internal inputs with verified discovery, dropdowns, and explicit guidance wherever the API can supply the value.
+- [ ] Walkthrough cleanup: make Project → Config → Deployment Driver tooltips and helper copy reflect the currently selected driver (`deployment_stack`, `pipeline_trigger`, etc.) instead of always describing the pipeline-trigger path.
+- [ ] Walkthrough cleanup: reword direct Azure deployment copy so it explicitly says MAPPO updates each selected target directly in Azure using that target's Deployment Stack, avoiding the false impression that one global Azure stack fans out the rollout automatically.
+- [ ] Walkthrough cleanup: when `Deployment driver` is `Azure Deployment Stack`, hide or clear `Deployment connection` and any Azure DevOps-specific helper text/summary fields so the UI does not imply an ADO connection is part of the direct Azure rollout path.
+- Walkthrough follow-up: in Project > Config > Deployment Driver, replace freeform Azure DevOps branch input with discovered branch dropdown for the selected repository, with an explicit advanced/manual fallback only if refs discovery is unavailable.
+- Walkthrough follow-up: when Azure DevOps service connection discovery returns zero, explain that MAPPO is querying the Azure DevOps service endpoint API and that zero results commonly means PAT scope or project permissions do not allow service endpoint enumeration; keep manual fallback but make the reason explicit.
+- Walkthrough blocker: Azure DevOps Pipeline Trigger demo cannot complete against https://pg123.visualstudio.com/demo-app-service today because the Azure DevOps project has no service connections configured under Project Settings > Service connections. Either create an Azure Resource Manager service connection for that project or use the Azure Deployment Stack route for the demo.
+- Walkthrough follow-up: for Azure project types, treat Access & Identity as read-only execution context/metadata unless the selection actually changes backend behavior. Do not present RBAC/Lighthouse/Simulator as operator-configurable choices if they are dictated by IaC/runtime architecture.
+- Walkthrough follow-up: define "target" explicitly in the UI. Project -> Target Requirements currently assumes operators already know MAPPO vocabulary. Add a plain-language definition and explain where targets are created/managed.
+- Walkthrough follow-up: remove Target Requirements as a dedicated config tab or fold it into Project -> Onboarding/Targets. The current tab reads like backend schema documentation instead of helping operators onboard or validate targets.
+- Walkthrough follow-up: collapse operator-facing runtime health wording from provider-specific variants like "Azure Container App HTTP" into generic "HTTP endpoint" unless behavior/input requirements actually differ.
+- Walkthrough follow-up: move validation actions into the tabs/panels they validate (Release Source, Deployment Driver, Target Requirements/Onboarding, Runtime Health). Keep any page-level validation only as a final whole-project check if it still adds value.
+- Walkthrough follow-up: Project -> Config -> Audit currently shows an empty-state-only tab with no operator value. Either wire meaningful project config audit events into it or remove/fold the tab until there is real content.
+- Walkthrough follow-up: remove the dedicated `Authentication`, `Onboarding Guide`, `Validation`, and `Audit` tabs from Project -> Config unless a tab contains a real operator decision or real project history. Fold:
+  - `Authentication` into read-only metadata on General/summary,
+  - `Onboarding Guide` into Targets/Registration Events empty states and onboarding drawers,
+  - `Validation` into section-local validation actions,
+  - `Audit` into real page-specific history only if/when meaningful events exist.
+- Walkthrough follow-up: move/add target-creation entry points onto the Targets page. Operators reasonably expect "Add Target" or "New Target" there; hiding creation behind Registration Events/Onboarding makes the workflow non-obvious.
+- Walkthrough follow-up: remove the duplicate `Add Targets` entry point from Registration Events/Onboarding once the Targets page owns the primary target-creation flow. Registration Events should read as history/audit, not a second place to start the same action.
+- Walkthrough follow-up: rename/split `Admin -> Managed App`. The current page label is misleading when the operator is really looking for target registration/registration-history concepts. If the page is primarily about inbound registration events, rename it toward `Registrations` / `Target Registrations`; reserve `Managed App` only for true marketplace integration config/status.
+- Walkthrough follow-up: revisit scope for managed-app/registration screens. Current UX treats this as global admin state, but the operator mental model is likely project-scoped unless one marketplace integration truly fans out into multiple projects. Keep only platform-level webhook/forwarder settings global; move registration history under the project if it belongs to a single rollout domain.
+- Walkthrough follow-up: on Project -> Releases, replace the current ingest drawer with a direct "Check for new releases" action that uses the already-configured release source. Keep repo/ref/manifest overrides only as an advanced/manual path if still needed.
+- Walkthrough follow-up: introduce an explicit provider/system step in both Release Source and Deployment Driver. Operators should choose the provider first, then only see provider-specific source/driver options instead of one mixed list of backend terms.
+- Walkthrough follow-up: remove or hide read-only/redundant fields like Deployment system when they do not change operator behavior. If the selected driver already determines the system, show it as copy/badge instead of an extra field.
+- Walkthrough follow-up: when a direct Azure driver is selected, clear/hide any Deployment Connection state and ADO-specific summary rows so the UI does not imply Azure DevOps is still in the active rollout path.
+- Walkthrough follow-up: explain Azure DevOps service connections in operator terms or move them behind advanced guidance. The UI currently assumes operators know this is the Azure credential used by the selected pipeline at deploy time.
+- Walkthrough follow-up: for Azure DevOps repository selection, discover branches and offer a dropdown after repo selection instead of a freeform branch textbox in the normal path.
+- Later enhancement: improve traceability between imported releases and the release/webhook event(s) that produced them, if the relationship can be modeled clearly.
+- Later UX pass: simplify New Deployment -> Preview Changes. Current what-if presentation is still too dense even after earlier cleanup; keep the current release risk summary but reduce technical detail/default verbosity.
+
+- Target edit cleanup: hide or remove Managed Application ID from normal operator editing; treat it as registration/marketplace metadata unless a real workflow proves operators need to change it.
+- Target edit cleanup: move Registry Auth Mode / Registry Server / Registry Username / RegistryPasswordSecretName out of the main edit form. These are deployment-stack execution overrides today, but they read like platform/IaC defaults and should be advanced-only or project/release-level defaults.
+- Target edit cleanup: if registry settings remain mutable, label them explicitly as per-target image-pull overrides and only show them when the selected project type actually uses them.
+
+- Project Config cleanup: remove fake Save Draft / Publish Config split. Today both buttons call the same patch API and persist immediately. Replace with Validate + Save unless a real draft/publish workflow is introduced.
+- Project Config cleanup: move project-scoped platform defaults (registry auth, registry server/credentials, managed-app registration metadata) out of Target Edit and model them as project-level defaults that targets inherit unless an advanced override is explicitly needed.
+
+- Project Config layout cleanup: remove Project Setup Checklist -> Selected project box. The selected project is already shown in the app shell/header.
+- Project Config layout cleanup: remove Project Setup Checklist -> Current progress box. It duplicates global shell counters.
+- App shell cleanup: consider adding Releases count to the top-right shell stats so Project Config does not need local progress summary cards.

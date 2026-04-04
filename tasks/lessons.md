@@ -218,6 +218,13 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Pattern: Frontend error toasts become confusing and erode trust when they expose internal API wrapper names or backend discovery method names instead of the operator action that failed.
 - Preventative rule: All user-facing API wrappers and UI actions must throw operator-language errors that describe the failed task (`Could not load Azure DevOps projects`, `Could not load deployment runs`) and never surface method identifiers such as `discoverProviderConnectionAdoProjects`.
 - Detection signal: a toast or inline error contains a camelCase function name, controller name, or repository/service noun that only exists in code.
+- Enforcement (test/lint/checklist): add UI error-normalization coverage for every new discovery/validation action and reject raw method names in operator-facing copy during walkthrough review.
+
+- Date: 2026-04-04
+- Pattern: A single built-in runtime secret per provider type works for a demo but breaks down as soon as operators need multiple accounts of the same system (for example multiple Azure DevOps orgs with different PATs).
+- Preventative rule: Treat provider API credentials as selectable secret references owned by admin-managed deployment connections, not as one hard-coded provider default plus optional environment-variable escape hatch.
+- Detection signal: an operator asks how to configure two Azure DevOps connections with different credentials, or the only answer is “use different env vars.”
+- Enforcement (test/lint/checklist): before calling a provider integration production-ready, verify the admin UX can model at least two connections of the same provider type with distinct secret references and successful independent verification.
 - Enforcement (test/lint/checklist): during UX review, trigger at least one failure path per major config screen and confirm the resulting toast/error text names the operator task rather than the implementation detail.
 
 - Date: 2026-03-22
@@ -297,3 +304,41 @@ Purpose: capture recurring correction patterns and preventative guardrails that 
 - Preventative rule: For setup flows still in active development, prefer one strict contract with explicit required fields and remove fallback wiring in the same slice.
 - Detection signal: operator walkthrough blocks on a field that appears optional in UI but is actually inferred from hidden legacy rules, or vice-versa.
 - Enforcement (test/lint/checklist): when enforcing a new contract, add migration/backfill for existing rows, delete old resolver paths, and add validation checks that reject legacy values.
+
+- Date: 2026-04-04
+- Pattern: Editing a provider/system selector without immediately recomputing all derived previews and help text leaves stale cross-provider values on screen, which makes operators distrust the whole setup flow.
+- Preventative rule: Any provider/system switch in setup drawers must be treated as a full derived-state invalidation event: regenerate endpoint previews, provider-specific instructions, default secret references, and optional-filter labels immediately from the newly selected provider.
+- Detection signal: switching a Release Source from GitHub to Azure DevOps still shows a GitHub-based webhook preview, or vice versa.
+- Enforcement (test/lint/checklist): add component tests for provider-switch behavior in every setup drawer that has provider-specific previews or instructions.
+
+- Date: 2026-04-04
+- Pattern: Static tooltip/help text tied to the original implementation path confuses operators once a screen supports multiple execution modes.
+- Preventative rule: Tooltip copy and helper panels must derive from the currently selected driver/provider and never assume one mode (`pipeline_trigger`) when another (`deployment_stack`) is active.
+- Detection signal: switching Deployment Driver to Azure Deployment Stack still shows tooltip copy describing pipeline delegation.
+- Enforcement (test/lint/checklist): add UI tests that switch driver/provider selectors and assert the help text updates to the active mode.
+- Operator discovery flow: if a field value is owned by the external system (for example repo branches), prefer discovery-backed dropdowns over freeform text. Freeform fallback should be clearly marked as advanced/manual.
+- Empty-state lesson: "0 discovered" is not enough when discovery depends on external permissions. The UI should say which API was queried and whether zero likely indicates missing PAT scope/permissions versus a genuinely empty project.
+- Walkthrough blocker: Pipeline Trigger requires an actual Azure DevOps service connection in the selected Azure DevOps project, not just PAT/API access. If none exist, MAPPO should say the rollout path is blocked by missing Azure DevOps project configuration and suggest switching to a direct Azure driver for the demo.
+- Config vs metadata rule: if changing a field does not materially change execution behavior, it should not be presented as operator-editable configuration. Access model fields for Azure project types should likely be displayed as execution context instead of mutable settings.
+- Terminology lesson: if a core noun like "target" is not self-evident to a first-time operator, every downstream config screen becomes ambiguous. Define it where first used and cross-link to where it is created/managed.
+- Tab value rule: a dedicated config tab should only exist if it changes operator behavior or helps diagnose/complete a workflow. If it only restates schema requirements, fold it into onboarding/validation instead.
+- Health provider lesson: implementation-specific health-check adapters should not leak into operator labels when the real operator concept is simply "HTTP endpoint".
+- Validation UX lesson: colocate validation actions with the configuration area they verify. Page-level validation alone forces operators to remember which section a failure belongs to.
+- Empty-tab lesson: an always-empty Audit tab weakens operator trust. If there are no meaningful audit events yet, remove it or defer it until the backend emits real configuration history.
+- Config-tab lesson: do not give a setup concern its own top-level tab unless the operator must actually make decisions there. Authentication metadata, onboarding guidance, generic validation staging, and empty audit placeholders should be folded into the pages where the work happens instead of occupying primary navigation.
+- Workflow lesson: creation should live where operators look for it. If a page is named Targets, it should expose the path to create/register a target instead of assuming operators will discover Registration Events first.
+- Workflow lesson: once a primary creation path is moved onto the operator's main page (for example Targets), remove duplicate primary-action buttons from audit/history pages. Repeating the same start action on Registration Events blurs the difference between "do work" and "review history."
+- Naming lesson: if a page mostly shows how targets entered the system, do not label it `Managed App`. Operators will look for `Registrations` / `Target Registrations`; keep `Managed App` for actual marketplace integration objects and config, not registration history.
+- Scope lesson: do not promote a concept to global admin scope just because the current implementation uses one shared forwarder. If the operator reasons about it per project, the page should be project-scoped and only the truly shared integration plumbing should live in Admin.
+- Release UX lesson: if release sources are already configured globally and linked at the project level, the normal Releases-page action should be a direct operational check, not another configuration drawer.
+- Provider-first lesson: when a screen mixes multiple provider-specific execution modes, operators need to choose the provider/system first so the rest of the panel can collapse to only relevant options. Showing mixed Azure/GitHub/Azure DevOps terms in one flat control list forces them to reverse-engineer backend architecture.
+- Redundant-field lesson: read-only fields that merely restate the selected mode (for example Deployment system after Deployment driver already determines it) add noise and make operators think there is another hidden decision. If a field does not affect behavior, render it as explanatory copy or omit it.
+- Pipeline-auth lesson: "Azure service connection" is not self-evident operator language. When MAPPO needs a pipeline-owned Azure credential, the UI must explain that it is the Azure DevOps credential the selected pipeline uses when it deploys, not MAPPO's own Azure auth.
+
+- Walkthrough finding: operators interpret registry auth fields in Target Edit as infra/IaC concerns, not day-2 target management. Per-target execution overrides should not be presented as primary target configuration.
+- Walkthrough finding: marketplace/managed application identifiers read as registration metadata, not editable target state.
+
+- Walkthrough finding: Save Draft vs Publish Config is misleading because both buttons persist the same patch payload. Do not present a draft/publish model without distinct storage and reload semantics.
+- Walkthrough finding: operators expect registry/image-pull and managed-app registration details to be project-scoped defaults, not repeated per-target config.
+
+- Walkthrough finding: Project Config should not repeat selected project or progress summaries that already exist in the global shell. Repeated summary cards waste vertical space and make the page feel heavier than it is.

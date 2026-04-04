@@ -271,8 +271,8 @@ export default function TargetsPage({
       <div className="flex animate-fade-up items-center justify-between [animation-delay:60ms] [animation-fill-mode:forwards]">
         <p className="text-xs text-muted-foreground">
           {viewMode === "onboarding"
-            ? "Review registration events and add targets for this project."
-            : "Manage registered targets for this project."}
+            ? "Review registration events and how targets were added for this project."
+            : "Manage the deploy destinations MAPPO can roll out to for this project."}
         </p>
         {viewMode === "onboarding" ? (
           <TargetOnboardingDrawer
@@ -286,6 +286,17 @@ export default function TargetsPage({
           />
         ) : null}
       </div>
+      {viewMode === "targets" ? (
+        <TargetOnboardingDrawer
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          isSubmitting={adminIsSubmitting}
+          open={onboardingDrawerOpen}
+          onOpenChange={setOnboardingDrawerOpen}
+          onIngestMarketplaceEvent={onIngestMarketplaceEvent}
+          onRefreshRegistrations={onRefreshRegistrations}
+        />
+      ) : null}
 
       {adminErrorMessage ? (
         <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive-foreground">
@@ -303,15 +314,25 @@ export default function TargetsPage({
               refreshKey={refreshKey}
               projectId={selectedProjectId}
               headerActions={
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isRefreshingSnapshot}
-                  onClick={() => void handleRefreshRegistrations()}
-                >
-                  {isRefreshingSnapshot ? "Refreshing..." : "Refresh Targets"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setOnboardingDrawerOpen(true)}
+                  >
+                    Add Targets
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isRefreshingSnapshot}
+                    onClick={() => void handleRefreshRegistrations()}
+                  >
+                    {isRefreshingSnapshot ? "Refreshing..." : "Refresh Targets"}
+                  </Button>
+                </div>
               }
               onEditRegistration={openEditDrawer}
               onDeleteRegistration={(registration) => {

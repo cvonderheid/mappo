@@ -87,6 +87,8 @@ type ProjectTab =
   | "audit";
 
 type ValidationScope = "credentials" | "webhook" | "target_contract";
+type ReleaseSystem = "github" | "azure_devops";
+type DeploymentSystem = "azure" | "azure_devops";
 
 type ProjectDraft = {
   id: string;
@@ -124,12 +126,6 @@ type ProjectDraft = {
 type AuditItem = NonNullable<ProjectConfigurationAuditPage["items"]>[number];
 type ValidationFinding = NonNullable<ProjectValidationResult["findings"]>[number];
 
-type TargetContractField = {
-  key: string;
-  label: string;
-  description: string;
-};
-
 type DraftValidationIssue = {
   id: string;
   tab: ProjectTab;
@@ -141,12 +137,25 @@ const PROJECT_TABS: { key: ProjectTab; label: string }[] = [
   { key: "general", label: "General" },
   { key: "release-ingest", label: "Release Source" },
   { key: "deployment-driver", label: "Deployment Driver" },
-  { key: "access-identity", label: "Access & Identity" },
-  { key: "target-contract", label: "Target Requirements" },
+  { key: "access-identity", label: "Authentication" },
+  { key: "target-contract", label: "Onboarding Guide" },
   { key: "runtime-health", label: "Runtime Health" },
   { key: "validation", label: "Validation" },
   { key: "audit", label: "Audit" },
 ];
+
+const RELEASE_SYSTEM_ORDER: ReleaseSystem[] = ["github", "azure_devops"];
+const DEPLOYMENT_SYSTEM_ORDER: DeploymentSystem[] = ["azure", "azure_devops"];
+
+const RELEASE_SYSTEM_LABELS: Record<ReleaseSystem, string> = {
+  github: "GitHub",
+  azure_devops: "Azure DevOps",
+};
+
+const DEPLOYMENT_SYSTEM_LABELS: Record<DeploymentSystem, string> = {
+  azure: "Azure",
+  azure_devops: "Azure DevOps",
+};
 
 const RELEASE_SOURCE_OPTIONS: Array<{
   value: ProjectDraft["releaseArtifactSource"];
@@ -155,6 +164,12 @@ const RELEASE_SOURCE_OPTIONS: Array<{
   { value: "blob_arm_template", label: "Blob-hosted ARM Template" },
   { value: "external_deployment_inputs", label: "Release Event" },
 ];
+
+const RELEASE_SOURCE_TYPE_LABELS: Record<ProjectDraft["releaseArtifactSource"], string> = {
+  blob_arm_template: "Managed app release manifest",
+  external_deployment_inputs: "Webhook / Pipeline Event",
+  template_spec_resource: "Template Spec release reference",
+};
 
 const DEFAULT_TEMPLATE_URI_FIELD = "templateUri";
 const DEFAULT_TEMPLATE_SPEC_VERSION_FIELD = "templateSpecVersion";
@@ -199,127 +214,58 @@ function resolveProviderConnectionAccountUrl(
   return "";
 }
 
-const TARGET_CONTRACTS: Record<ProjectDraft["deploymentDriver"], { required: TargetContractField[]; optional: TargetContractField[] }> = {
-  azure_deployment_stack: {
-    required: [
-      {
-        key: "managedResourceGroupId",
-        label: "Managed resource group",
-        description: "Resource group MAPPO updates when it applies the deployment stack.",
-      },
-      {
-        key: "deploymentStackName",
-        label: "Deployment stack name",
-        description: "Deployment Stack resource name MAPPO should update in the target subscription.",
-      },
-      {
-        key: "containerAppResourceId",
-        label: "Container App resource ID",
-        description: "Runtime resource MAPPO probes after deployment to confirm health.",
-      },
-    ],
-    optional: [
-      {
-        key: "registryAuthMode",
-        label: "Registry auth mode",
-        description: "How the target authenticates to the container registry, if the deployment needs registry credentials.",
-      },
-      {
-        key: "registryServer",
-        label: "Registry server",
-        description: "Container registry hostname used by the target workload.",
-      },
-      {
-        key: "registryUsername",
-        label: "Registry username",
-        description: "Username value for registry authentication when username/password auth is used.",
-      },
-      {
-        key: "registryPasswordSecretName",
-        label: "Registry password secret name",
-        description: "Secret name that stores the registry password in the target environment.",
-      },
-    ],
-  },
-  azure_template_spec: {
-    required: [
-      {
-        key: "managedResourceGroupId",
-        label: "Managed resource group",
-        description: "Resource group MAPPO updates when it applies the template spec release.",
-      },
-      {
-        key: "containerAppResourceId",
-        label: "Container App resource ID",
-        description: "Runtime resource MAPPO probes after deployment to confirm health.",
-      },
-    ],
-    optional: [
-      {
-        key: "managedApplicationId",
-        label: "Managed application ID",
-        description: "Marketplace managed application resource that owns the target deployment.",
-      },
-      {
-        key: "registryAuthMode",
-        label: "Registry auth mode",
-        description: "How the target authenticates to the container registry, if needed.",
-      },
-      {
-        key: "registryServer",
-        label: "Registry server",
-        description: "Container registry hostname used by the target workload.",
-      },
-    ],
-  },
-  pipeline_trigger: {
-    required: [
-      {
-        key: "executionConfig.resourceGroup",
-        label: "Target resource group",
-        description: "Azure resource group containing the App Service deployment target.",
-      },
-      {
-        key: "executionConfig.appServiceName",
-        label: "App Service name",
-        description: "App Service that the Azure DevOps pipeline should deploy into.",
-      },
-    ],
-    optional: [
-      {
-        key: "executionConfig.slotName",
-        label: "Deployment slot",
-        description: "Optional App Service slot name if releases should target a slot instead of production.",
-      },
-      {
-        key: "executionConfig.healthPath",
-        label: "Health path override",
-        description: "Optional per-target runtime health path if it differs from the project default.",
-      },
-      {
-        key: "executionConfig.pipelineVariables",
-        label: "Pipeline variables",
-        description: "Optional extra Azure DevOps pipeline variables for this target.",
-      },
-    ],
-  },
-};
+function normalizeReleaseSystem(value: string | null | undefined): ReleaseSystem | null {
+  const normalized = (value ?? "").trim().toLowerCase();
+  if (normalized === "github") {
+    return "github";
+  }
+  if (normalized === "azure_devops") {
+    return "azure_devops";
+  }
+  return null;
+}
+
+function deriveDeploymentSystem(driver: ProjectDraft["deploymentDriver"]): DeploymentSystem {
+  return driver === "pipeline_trigger" ? "azure_devops" : "azure";
+}
+
+function driverForDeploymentSystem(system: DeploymentSystem): ProjectDraft["deploymentDriver"] {
+  return system === "azure_devops" ? "pipeline_trigger" : "azure_deployment_stack";
+}
 
 const DEPLOYMENT_DRIVER_LABELS: Record<ProjectDraft["deploymentDriver"], string> = {
-  azure_deployment_stack: "Azure Deployment Stack",
-  azure_template_spec: "Azure Template Spec",
-  pipeline_trigger: "Pipeline Trigger",
+  azure_deployment_stack: "Direct Azure rollout",
+  azure_template_spec: "Direct Azure rollout (template spec)",
+  pipeline_trigger: "Pipeline-driven rollout",
 };
 
 const ACCESS_STRATEGY_LABELS: Record<ProjectDraft["accessStrategy"], string> = {
-  azure_workload_rbac: "Azure Workload RBAC",
-  lighthouse_delegated_access: "Lighthouse Delegated Access",
-  simulator: "Simulator",
+  azure_workload_rbac: "MAPPO deploys with its Azure permissions",
+  lighthouse_delegated_access: "Deploy through Azure Lighthouse delegation",
+  simulator: "Simulation only (no Azure changes)",
 };
 
 const RUNTIME_HEALTH_LABELS: Record<ProjectDraft["runtimeHealthProvider"], string> = {
-  azure_container_app_http: "Azure Container App HTTP",
+  azure_container_app_http: "HTTP endpoint",
   http_endpoint: "HTTP Endpoint",
+};
+
+const DEPLOYMENT_DRIVER_HELP: Record<ProjectDraft["deploymentDriver"], string> = {
+  azure_deployment_stack:
+    "MAPPO updates each selected target directly in Azure using that target's Deployment Stack.",
+  azure_template_spec:
+    "MAPPO updates each selected target directly in Azure using that target's template-spec-backed release.",
+  pipeline_trigger:
+    "MAPPO asks an external CI/CD system to deploy each selected target instead of calling Azure directly.",
+};
+
+const ACCESS_STRATEGY_HELP: Record<ProjectDraft["accessStrategy"], string> = {
+  azure_workload_rbac:
+    "MAPPO uses its own Azure identity and RBAC permissions when it deploys this project.",
+  lighthouse_delegated_access:
+    "MAPPO reaches customer Azure subscriptions through Azure Lighthouse delegation before it deploys.",
+  simulator:
+    "MAPPO records and validates runs without making live Azure changes.",
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -474,7 +420,10 @@ function buildPatchRequest(draft: ProjectDraft): ProjectConfigurationPatchReques
   return {
     name: draft.name.trim(),
     releaseIngestEndpointId: draft.releaseIngestEndpointId.trim() || undefined,
-    providerConnectionId: draft.providerConnectionId.trim() || undefined,
+    providerConnectionId:
+      draft.deploymentDriver === "pipeline_trigger"
+        ? draft.providerConnectionId.trim() || undefined
+        : undefined,
     accessStrategy: draft.accessStrategy,
     accessStrategyConfig,
     deploymentDriver: draft.deploymentDriver,
@@ -547,6 +496,7 @@ export default function ProjectSettingsPage({
   const [providerConnections, setProviderConnections] = useState<ProviderConnection[]>([]);
   const [isLoadingReleaseIngestEndpoints, setIsLoadingReleaseIngestEndpoints] = useState(false);
   const [isLoadingProviderConnections, setIsLoadingProviderConnections] = useState(false);
+  const [selectedReleaseSystem, setSelectedReleaseSystem] = useState<ReleaseSystem>("github");
   const repositoryDiscoveryKeyRef = useRef("");
   const pipelineDiscoveryKeyRef = useRef("");
   const serviceConnectionDiscoveryKeyRef = useRef("");
@@ -564,6 +514,9 @@ export default function ProjectSettingsPage({
   useEffect(() => {
     const nextDraft = projectToDraft(project);
     setDraft(nextDraft);
+    setSelectedReleaseSystem(
+      nextDraft.deploymentDriver === "pipeline_trigger" ? "azure_devops" : "github"
+    );
     setValidationResult(null);
     setAuditPage(null);
     setAuditPageIndex(0);
@@ -663,7 +616,6 @@ export default function ProjectSettingsPage({
     }));
   }, [draft.deploymentDriver, draft.driver.pipelineSystem]);
 
-  const targetContract = TARGET_CONTRACTS[draft.deploymentDriver];
   const targetCount = targets.length;
   const sortedReleaseIngestEndpoints = useMemo(
     () =>
@@ -733,6 +685,8 @@ export default function ProjectSettingsPage({
     draft.providerConnectionId.trim() !== "" &&
     selectedProviderConnectionIsAzureDevOps &&
     !isVerifiedAzureDevOpsConnection(selectedProviderConnection);
+  const isPipelineDriver = draft.deploymentDriver === "pipeline_trigger";
+  const selectedDeploymentSystem = deriveDeploymentSystem(draft.deploymentDriver);
   const selectedDiscoveredAdoProjectId = useMemo(() => {
     const currentValue = draft.driver.project.trim();
     if (currentValue === "") {
@@ -794,9 +748,43 @@ export default function ProjectSettingsPage({
   }, [sortedReleaseIngestEndpoints]);
   const selectedReleaseIngestEndpointIsAzureDevOps =
     (selectedReleaseIngestEndpoint?.provider ?? "").toLowerCase() === "azure_devops";
+  const availableReleaseSystems = useMemo(() => {
+    const discovered = new Set<ReleaseSystem>();
+    sortedReleaseIngestEndpoints.forEach((endpoint) => {
+      const provider = normalizeReleaseSystem(endpoint.provider);
+      if (!provider) {
+        return;
+      }
+      if (draft.deploymentDriver === "pipeline_trigger" && provider !== "azure_devops") {
+        return;
+      }
+      discovered.add(provider);
+    });
+    if (draft.deploymentDriver === "pipeline_trigger") {
+      discovered.add("azure_devops");
+    }
+    if (discovered.size === 0) {
+      discovered.add(draft.deploymentDriver === "pipeline_trigger" ? "azure_devops" : "github");
+    }
+    return RELEASE_SYSTEM_ORDER.filter((provider) => discovered.has(provider));
+  }, [draft.deploymentDriver, sortedReleaseIngestEndpoints]);
+  const effectiveReleaseSystem = useMemo<ReleaseSystem>(() => {
+    if (draft.deploymentDriver === "pipeline_trigger") {
+      return "azure_devops";
+    }
+    if (availableReleaseSystems.includes(selectedReleaseSystem)) {
+      return selectedReleaseSystem;
+    }
+    return availableReleaseSystems[0] ?? "github";
+  }, [availableReleaseSystems, draft.deploymentDriver, selectedReleaseSystem]);
+  const releaseSourceTypeLabel = draft.deploymentDriver === "pipeline_trigger"
+    ? RELEASE_SOURCE_TYPE_LABELS.external_deployment_inputs
+    : RELEASE_SOURCE_TYPE_LABELS[draft.releaseArtifactSource];
   const releaseIngestEndpointOptions = useMemo(() => {
     if (draft.deploymentDriver !== "pipeline_trigger") {
-      return sortedReleaseIngestEndpoints;
+      return sortedReleaseIngestEndpoints.filter(
+        (endpoint) => normalizeReleaseSystem(endpoint.provider) === effectiveReleaseSystem
+      );
     }
     const base = [...pipelineReleaseIngestEndpoints];
     if (
@@ -809,6 +797,7 @@ export default function ProjectSettingsPage({
     return base;
   }, [
     draft.deploymentDriver,
+    effectiveReleaseSystem,
     sortedReleaseIngestEndpoints,
     pipelineReleaseIngestEndpoints,
     selectedReleaseIngestEndpoint,
@@ -996,6 +985,30 @@ export default function ProjectSettingsPage({
     });
   }, [draft.releaseIngestEndpointId, releaseIngestEndpointOptions]);
 
+  useEffect(() => {
+    if (draft.deploymentDriver === "pipeline_trigger" && selectedReleaseSystem !== "azure_devops") {
+      setSelectedReleaseSystem("azure_devops");
+    }
+  }, [draft.deploymentDriver, selectedReleaseSystem]);
+
+  useEffect(() => {
+    const linkedProvider = normalizeReleaseSystem(selectedReleaseIngestEndpoint?.provider);
+    if (linkedProvider && linkedProvider !== selectedReleaseSystem) {
+      setSelectedReleaseSystem(linkedProvider);
+    }
+  }, [selectedReleaseIngestEndpoint, selectedReleaseSystem]);
+
+  useEffect(() => {
+    const linkedProvider = normalizeReleaseSystem(selectedReleaseIngestEndpoint?.provider);
+    if (!linkedProvider || linkedProvider === effectiveReleaseSystem) {
+      return;
+    }
+    setDraft((current) => ({
+      ...current,
+      releaseIngestEndpointId: "",
+    }));
+  }, [effectiveReleaseSystem, selectedReleaseIngestEndpoint]);
+
 function normalizeDiscoveryError(message: string, providerLabel: string): string {
   const normalizedMessage = message.toLowerCase();
   if (normalizedMessage.includes("pat could not be resolved")) {
@@ -1118,11 +1131,12 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
   const configComplete = project !== null && draftValidationIssues.length === 0;
   const canPersist = project !== null && draftValidationIssues.length === 0;
   const canCreateProject = createDraft.id.trim() !== "" && createDraft.name.trim() !== "";
-  const releaseSourceLabel =
-    draft.deploymentDriver === "pipeline_trigger"
-      ? "Release Event"
-      : RELEASE_SOURCE_OPTIONS.find((option) => option.value === draft.releaseArtifactSource)?.label ??
-        draft.releaseArtifactSource;
+  const releaseSourceLabel = releaseSourceTypeLabel;
+  const createSelectedDeploymentSystem = deriveDeploymentSystem(createDraft.deploymentDriver);
+  const createSelectedReleaseSystem: ReleaseSystem =
+    createDraft.deploymentDriver === "pipeline_trigger" || createDraft.releaseArtifactSource === "external_deployment_inputs"
+      ? "azure_devops"
+      : "github";
 
   async function refreshAudit(): Promise<void> {
     if (!project?.id) {
@@ -1453,6 +1467,30 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
     setCreateDraft((current) => ({ ...current, [key]: value }));
   }
 
+  function updateCreateDeploymentSystem(system: DeploymentSystem): void {
+    setCreateDraft((current) => {
+      const nextDriver = driverForDeploymentSystem(system);
+      return {
+        ...current,
+        deploymentDriver: nextDriver,
+        releaseArtifactSource:
+          nextDriver === "pipeline_trigger"
+            ? "external_deployment_inputs"
+            : current.releaseArtifactSource === "external_deployment_inputs"
+              ? "blob_arm_template"
+              : current.releaseArtifactSource,
+      };
+    });
+  }
+
+  function updateCreateReleaseSystem(system: ReleaseSystem): void {
+    setCreateDraft((current) => ({
+      ...current,
+      releaseArtifactSource:
+        system === "azure_devops" ? "external_deployment_inputs" : "blob_arm_template",
+    }));
+  }
+
   function focusValidationIssue(issue: DraftValidationIssue): void {
     setActiveTab(issue.tab);
     window.setTimeout(() => {
@@ -1619,37 +1657,56 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
             <TabsContent value="release-ingest" className="space-y-3">
               <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Release Source</h3>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {draft.deploymentDriver !== "pipeline_trigger" ? (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1">
-                      <Label htmlFor="release-source-type">Release source</Label>
-                      <FieldHelpTooltip content="Where MAPPO reads deployable versions from for this project." />
-                    </div>
-                    <Select
-                      value={draft.releaseArtifactSource}
-                      onValueChange={(value) =>
-                        updateDraft("releaseArtifactSource", value as ProjectDraft["releaseArtifactSource"])
-                      }
-                    >
-                      <SelectTrigger id="release-source-type">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {RELEASE_SOURCE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1">
+                    <Label htmlFor="release-system">Release provider</Label>
+                    <FieldHelpTooltip content="Which external system tells MAPPO about new versions for this project. MAPPO filters the linked release sources below to this provider." />
                   </div>
-                ) : null}
+                  <Select
+                    value={effectiveReleaseSystem}
+                    onValueChange={(value) => {
+                      const nextSystem = value as ReleaseSystem;
+                      setSelectedReleaseSystem(nextSystem);
+                    }}
+                    disabled={draft.deploymentDriver === "pipeline_trigger" || availableReleaseSystems.length <= 1}
+                  >
+                    <SelectTrigger id="release-system">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableReleaseSystems.map((provider) => (
+                        <SelectItem key={provider} value={provider}>
+                          {RELEASE_SYSTEM_LABELS[provider]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {draft.deploymentDriver === "pipeline_trigger"
+                      ? "Pipeline-driven rollout always listens for Azure DevOps release events."
+                      : availableReleaseSystems.length <= 1
+                        ? `This project currently has one release provider option: ${RELEASE_SYSTEM_LABELS[effectiveReleaseSystem]}.`
+                        : "Choose the provider MAPPO should check for new versions for this project."}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1">
+                    <Label htmlFor="release-source-type">Release source type</Label>
+                    <FieldHelpTooltip content="How the selected provider tells MAPPO about deployable versions for this project." />
+                  </div>
+                  <Input id="release-source-type" value={releaseSourceTypeLabel} disabled />
+                  <p className="text-xs text-muted-foreground">
+                    {draft.deploymentDriver === "pipeline_trigger"
+                      ? "MAPPO learns about versions from an inbound webhook or pipeline event."
+                      : "MAPPO reads deployable versions from the selected provider's release manifest."}
+                  </p>
+                </div>
                 <div className="space-y-1 md:col-span-2">
                   <div className="flex items-center gap-1">
                     <Label htmlFor="release-ingest-endpoint-id">
                       Linked release source
                     </Label>
-                    <FieldHelpTooltip content="Pick the global release source from Admin > Release Sources. MAPPO uses it to decide which inbound webhook or pipeline events are trusted for this project." />
+                    <FieldHelpTooltip content="Pick the global release source from Admin > Release Sources. MAPPO uses it to decide which inbound webhook or release notifications are trusted for this project." />
                   </div>
                   <div className="flex flex-col gap-2 md:flex-row">
                     <Select
@@ -1668,10 +1725,6 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                           .map((endpoint) => (
                           <SelectItem key={endpoint.id ?? endpoint.name} value={endpoint.id ?? ""}>
                             {endpoint.name || endpoint.id}
-                            {draft.deploymentDriver === "pipeline_trigger" &&
-                            (endpoint.provider ?? "").toLowerCase() !== "azure_devops"
-                              ? " (incompatible provider)"
-                              : ""}
                             {" ("}
                             {endpoint.id}
                             {")"}
@@ -1698,12 +1751,12 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                   ) : null}
                   {releaseIngestEndpointOptions.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
-                      No compatible release sources found. Create one in{" "}
+                      No {RELEASE_SYSTEM_LABELS[effectiveReleaseSystem]} release sources are available yet. Create one in{" "}
                       <span className="font-medium text-foreground">Admin → Release Sources</span>.
                     </p>
                   ) : draft.releaseIngestEndpointId.trim() === "" ? (
                     <p className="text-xs text-muted-foreground">
-                      Select the global release source MAPPO should trust for this project.
+                      Select the {RELEASE_SYSTEM_LABELS[effectiveReleaseSystem]} release source MAPPO should trust for this project.
                     </p>
                   ) : null}
                 </div>
@@ -1716,110 +1769,133 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="space-y-1">
                     <div className="flex items-center gap-1">
-                      <Label htmlFor="driver-type">Deployment driver</Label>
-                      <FieldHelpTooltip content="Execution engine for this project. Pipeline Trigger delegates deployment to a CI/CD system instead of calling Azure resource APIs directly." />
+                      <Label htmlFor="deployment-system">Deployment system</Label>
+                      <FieldHelpTooltip content="Which external system or Azure control plane MAPPO uses for this project's rollouts." />
                     </div>
                     <Select
-                      value={draft.deploymentDriver}
+                      value={selectedDeploymentSystem}
                       onValueChange={(value) => {
-                        const nextDriver = value as ProjectDraft["deploymentDriver"];
+                        const nextSystem = value as DeploymentSystem;
+                        const nextDriver = driverForDeploymentSystem(nextSystem);
                         setDraft((current) => ({
                           ...current,
                           deploymentDriver: nextDriver,
                           releaseArtifactSource:
                             nextDriver === "pipeline_trigger"
                               ? "external_deployment_inputs"
-                              : current.releaseArtifactSource,
+                              : current.releaseArtifactSource === "external_deployment_inputs"
+                                ? "blob_arm_template"
+                                : current.releaseArtifactSource,
+                          providerConnectionId: nextDriver === "pipeline_trigger" ? current.providerConnectionId : "",
+                          driver: {
+                            ...current.driver,
+                            organization: nextDriver === "pipeline_trigger" ? current.driver.organization : "",
+                            project: nextDriver === "pipeline_trigger" ? current.driver.project : "",
+                            repository: nextDriver === "pipeline_trigger" ? current.driver.repository : "",
+                            pipelineId: nextDriver === "pipeline_trigger" ? current.driver.pipelineId : "",
+                            azureServiceConnectionName:
+                              nextDriver === "pipeline_trigger" ? current.driver.azureServiceConnectionName : "",
+                            branch: nextDriver === "pipeline_trigger" ? current.driver.branch : "main",
+                          },
                         }));
                       }}
                     >
-                      <SelectTrigger id="driver-type">
+                      <SelectTrigger id="deployment-system">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="azure_deployment_stack">Azure Deployment Stack</SelectItem>
-                        <SelectItem value="pipeline_trigger">Pipeline Trigger</SelectItem>
+                        <SelectItem value="azure">
+                          {DEPLOYMENT_SYSTEM_LABELS.azure}
+                        </SelectItem>
+                        <SelectItem value="azure_devops">
+                          {DEPLOYMENT_SYSTEM_LABELS.azure_devops}
+                        </SelectItem>
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedDeploymentSystem === "azure"
+                        ? "MAPPO deploys directly into each selected Azure target."
+                        : "MAPPO triggers an Azure DevOps pipeline for each selected target."}
+                    </p>
                   </div>
-                  {draft.deploymentDriver === "pipeline_trigger" ? (
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1">
-                        <Label htmlFor="driver-pipeline-system-readonly">Deployment system</Label>
-                        <FieldHelpTooltip content="Pipeline Trigger currently deploys through Azure DevOps. MAPPO uses the selected deployment connection to discover Azure DevOps projects, repositories, pipelines, and service connections." />
-                      </div>
-                      <Input id="driver-pipeline-system-readonly" value="Azure DevOps" disabled />
-                    </div>
-                  ) : null}
-                  <div className="space-y-1 md:col-span-2">
+                  <div className="space-y-1">
                     <div className="flex items-center gap-1">
-                      <Label htmlFor="driver-provider-connection-id">Deployment connection</Label>
-                      <FieldHelpTooltip content="Verified Azure DevOps API connection from Admin > Deployment Connections. This owns authentication and browse scope; Project Config only chooses which discovered Azure DevOps project, repository, pipeline, and service connection this MAPPO project should use." />
+                      <Label htmlFor="deployment-method">Deployment method</Label>
+                      <FieldHelpTooltip content={DEPLOYMENT_DRIVER_HELP[draft.deploymentDriver]} />
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <Select
-                        value={draft.providerConnectionId.trim() === "" ? "__none" : draft.providerConnectionId}
-                        onValueChange={(value) =>
-                          updateDraft("providerConnectionId", value === "__none" ? "" : value)
-                        }
-                        disabled={draft.deploymentDriver !== "pipeline_trigger"}
-                      >
-                        <SelectTrigger id="driver-provider-connection-id">
-                          <SelectValue placeholder="Select deployment connection" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none">Select deployment connection</SelectItem>
-                          {providerConnectionOptions
-                            .filter((connection) => (connection.id ?? "").trim() !== "")
-                            .map((connection) => (
-                              <SelectItem key={connection.id ?? connection.name} value={connection.id ?? ""}>
-                                {connection.name || connection.id}
-                                {draft.deploymentDriver === "pipeline_trigger"
-                                  ? (connection.provider ?? "").toLowerCase() !== "azure_devops"
+                    <Input id="deployment-method" value={DEPLOYMENT_DRIVER_LABELS[draft.deploymentDriver]} disabled />
+                    <p className="text-xs text-muted-foreground">
+                      {DEPLOYMENT_DRIVER_HELP[draft.deploymentDriver]}
+                    </p>
+                  </div>
+                  {isPipelineDriver ? (
+                    <div className="space-y-1 md:col-span-2">
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="driver-provider-connection-id">Deployment connection</Label>
+                        <FieldHelpTooltip content="Verified Azure DevOps API connection from Admin > Deployment Connections. This owns authentication and browse scope; Project Config only chooses which discovered Azure DevOps project, repository, pipeline, and service connection this MAPPO project should use." />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Select
+                          value={draft.providerConnectionId.trim() === "" ? "__none" : draft.providerConnectionId}
+                          onValueChange={(value) =>
+                            updateDraft("providerConnectionId", value === "__none" ? "" : value)
+                          }
+                        >
+                          <SelectTrigger id="driver-provider-connection-id">
+                            <SelectValue placeholder="Select deployment connection" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none">Select deployment connection</SelectItem>
+                            {providerConnectionOptions
+                              .filter((connection) => (connection.id ?? "").trim() !== "")
+                              .map((connection) => (
+                                <SelectItem key={connection.id ?? connection.name} value={connection.id ?? ""}>
+                                  {connection.name || connection.id}
+                                  {(connection.provider ?? "").toLowerCase() !== "azure_devops"
                                     ? " (incompatible provider)"
                                     : isVerifiedAzureDevOpsConnection(connection)
                                       ? ""
-                                      : " (needs verification)"
-                                  : ""}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            void refreshProviderConnectionOptions();
-                          }}
-                          disabled={isLoadingProviderConnections || draft.deploymentDriver !== "pipeline_trigger"}
-                        >
-                          {isLoadingProviderConnections ? "Refreshing..." : "Refresh connections"}
-                        </Button>
-                        <span className="text-xs text-muted-foreground">
-                          Configure in <span className="font-medium text-foreground">Admin → Deployment Connections</span>.
-                        </span>
-                      </div>
-                      {draft.deploymentDriver === "pipeline_trigger" && verifiedPipelineProviderConnections.length === 0 ? (
-                        <p className="rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                          No verified Azure DevOps deployment connections are available yet. Open Admin → Deployment Connections, add one, and verify it.
-                        </p>
-                      ) : null}
-                      {selectedProviderConnectionRequiresVerification ? (
-                        <p className="rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                          The selected deployment connection still needs verification before MAPPO can load Azure DevOps projects. Open Admin → Deployment Connections, edit{" "}
-                          <span className="font-medium text-foreground">
-                            {selectedProviderConnection?.name || selectedProviderConnection?.id}
+                                      : " (needs verification)"}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              void refreshProviderConnectionOptions();
+                            }}
+                            disabled={isLoadingProviderConnections}
+                          >
+                            {isLoadingProviderConnections ? "Refreshing..." : "Refresh connections"}
+                          </Button>
+                          <span className="text-xs text-muted-foreground">
+                            Configure in <span className="font-medium text-foreground">Admin → Deployment Connections</span>.
                           </span>
-                          , then verify it.
-                        </p>
-                      ) : null}
+                        </div>
+                        {verifiedPipelineProviderConnections.length === 0 ? (
+                          <p className="rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                            No verified Azure DevOps deployment connections are available yet. Open Admin → Deployment Connections, add one, and verify it.
+                          </p>
+                        ) : null}
+                        {selectedProviderConnectionRequiresVerification ? (
+                          <p className="rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                            The selected deployment connection still needs verification before MAPPO can load Azure DevOps projects. Open Admin → Deployment Connections, edit{" "}
+                            <span className="font-medium text-foreground">
+                              {selectedProviderConnection?.name || selectedProviderConnection?.id}
+                            </span>
+                            , then verify it.
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
                 </div>
 
-                {draft.deploymentDriver === "pipeline_trigger" ? (
+                {isPipelineDriver ? (
                   <div className="space-y-3">
                       <div className="rounded-md border border-border/70 bg-background/40 p-3 text-xs text-muted-foreground">
                       <p>
@@ -2285,11 +2361,28 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                     ) : null}
                   </div>
                 ) : (
-                  <div className="rounded-md border border-border/70 bg-background/40 p-3 text-xs text-muted-foreground">
-                    <p>
-                      Pipeline settings appear when Deployment driver is set to{" "}
-                      <span className="font-medium text-foreground">Pipeline Trigger</span>.
-                    </p>
+                  <div className="space-y-3">
+                    <div className="rounded-md border border-border/70 bg-background/40 p-3">
+                      <p className="text-sm font-semibold text-foreground">Direct Azure rollout</p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        MAPPO updates each selected target directly in Azure using that target&apos;s Deployment Stack.
+                      </p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        No deployment connection is required for this mode because MAPPO talks to Azure directly.
+                      </p>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          void runValidation(["credentials"]);
+                        }}
+                        disabled={!project?.id || isValidating}
+                      >
+                        Check Azure access
+                      </Button>
+                    </div>
                   </div>
                 )}
 
@@ -2297,123 +2390,104 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
             </TabsContent>
 
             <TabsContent value="access-identity" className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Access & Identity</h3>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="access-strategy">Access model</Label>
-                    <FieldHelpTooltip content="How MAPPO authenticates to deploy for this project. Most operators should use Azure Workload RBAC." />
-                  </div>
-                  <Select
-                    value={draft.accessStrategy}
-                    onValueChange={(value) =>
-                      updateDraft("accessStrategy", value as ProjectDraft["accessStrategy"])
-                    }
-                  >
-                    <SelectTrigger id="access-strategy">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="azure_workload_rbac">Azure Workload RBAC</SelectItem>
-                      <SelectItem value="lighthouse_delegated_access">Lighthouse Delegated Access</SelectItem>
-                      <SelectItem value="simulator">Simulator</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="md:col-span-2 rounded-md border border-border/70 bg-background/60 p-3 text-xs text-muted-foreground">
-                  <p>
-                    MAPPO fills in the internal auth settings for the selected access model automatically. Most
-                    operators only need to add extra identity values when using delegated-access setups.
-                  </p>
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Authentication</h3>
+              <div className="space-y-3">
+                <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                  <p className="text-sm font-semibold text-foreground">Authentication model</p>
+                  <p className="mt-2 text-sm text-foreground">{ACCESS_STRATEGY_LABELS[draft.accessStrategy]}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{ACCESS_STRATEGY_HELP[draft.accessStrategy]}</p>
                 </div>
                 {draft.accessStrategy === "lighthouse_delegated_access" ? (
-                  <>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-1">
-                        <Label htmlFor="access-managing-tenant">Managing tenant ID (optional)</Label>
-                        <FieldHelpTooltip content="Publisher/managing tenant ID used for delegated access patterns." />
-                      </div>
-                      <Input
-                        id="access-managing-tenant"
-                        value={draft.access.managingTenantId}
-                        onChange={(event) =>
-                          setDraft((current) => ({
-                            ...current,
-                            access: { ...current.access, managingTenantId: event.target.value },
-                          }))
-                        }
-                      />
+                      <Label htmlFor="access-managing-tenant">Managing tenant ID</Label>
+                      <Input id="access-managing-tenant" value={draft.access.managingTenantId} readOnly />
                     </div>
                     <div className="space-y-1">
-                      <div className="flex items-center gap-1">
-                        <Label htmlFor="access-managing-principal">Managing principal client ID (optional)</Label>
-                        <FieldHelpTooltip content="Client/application ID of the managing principal for delegated access." />
-                      </div>
-                      <Input
-                        id="access-managing-principal"
-                        value={draft.access.managingPrincipalClientId}
-                        onChange={(event) =>
-                          setDraft((current) => ({
-                            ...current,
-                            access: { ...current.access, managingPrincipalClientId: event.target.value },
-                          }))
-                        }
-                      />
+                      <Label htmlFor="access-managing-principal">Managing principal client ID</Label>
+                      <Input id="access-managing-principal" value={draft.access.managingPrincipalClientId} readOnly />
                     </div>
-                  </>
+                  </div>
                 ) : null}
               </div>
             </TabsContent>
 
             <TabsContent value="target-contract" className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Target Requirements</h3>
-              <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                <p className="text-sm font-semibold">Required target fields</p>
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  {targetContract.required.map((field) => (
-                    <div key={field.key} className="rounded-md border border-border/60 bg-background/50 p-3">
-                      <p className="text-sm font-medium text-foreground">{field.label}</p>
-                      <p className="mt-2 text-xs text-muted-foreground">{field.description}</p>
-                    </div>
-                  ))}
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Onboarding Guide</h3>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                  <p className="text-sm font-semibold text-foreground">What a target means</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    A target is one deployable environment for this project. Targets tell MAPPO where a rollout should go.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => navigate("/targets")}>
+                      Open Targets
+                    </Button>
+                  </div>
+                </div>
+                <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                  <p className="text-sm font-semibold text-foreground">How targets are added</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Use Registration Events to review onboarding history and add or inspect project targets.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => navigate("/onboarding")}>
+                      Open Registration Events
+                    </Button>
+                  </div>
                 </div>
               </div>
-              <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                <p className="text-sm font-semibold">Optional target fields</p>
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  {targetContract.optional.map((field) => (
-                    <div key={field.key} className="rounded-md border border-border/60 bg-background/50 p-3">
-                      <p className="text-sm font-medium text-foreground">{field.label}</p>
-                      <p className="mt-2 text-xs text-muted-foreground">{field.description}</p>
+              {targets.length > 0 ? (
+                <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="validation-target">Check one target</Label>
+                        <FieldHelpTooltip content="Run MAPPO's target readiness validation against a registered target for this project." />
+                      </div>
+                      <Select value={validationTargetId} onValueChange={setValidationTargetId}>
+                        <SelectTrigger id="validation-target">
+                          <SelectValue placeholder="Select target" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {targets.map((target) => (
+                            <SelectItem key={target.id} value={target.id ?? ""}>
+                              {target.id}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!project?.id || isValidating}
+                      onClick={() => {
+                        void runValidation(["target_contract"]);
+                      }}
+                    >
+                      Check target
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
+                  Add at least one target before MAPPO can validate this project&apos;s deploy destinations.
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="runtime-health" className="space-y-3">
               <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Runtime Health</h3>
+              <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                <p className="text-sm font-semibold text-foreground">Health check type</p>
+                <p className="mt-2 text-sm text-foreground">HTTP endpoint</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  MAPPO checks a target by calling its HTTP health endpoint and verifying the expected status code.
+                </p>
+              </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="runtime-provider">Runtime health provider</Label>
-                    <FieldHelpTooltip content="Health check strategy MAPPO uses to classify runtime status for targets in this project." />
-                  </div>
-                  <Select
-                    value={draft.runtimeHealthProvider}
-                    onValueChange={(value) =>
-                      updateDraft("runtimeHealthProvider", value as ProjectDraft["runtimeHealthProvider"])
-                    }
-                  >
-                    <SelectTrigger id="runtime-provider">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="azure_container_app_http">Azure Container App HTTP</SelectItem>
-                      <SelectItem value="http_endpoint">HTTP Endpoint</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
                     <Label htmlFor="runtime-path">Path</Label>
@@ -2467,83 +2541,8 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
 
             <TabsContent value="validation" className="space-y-3">
               <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Validation</h3>
-              <div className="grid gap-3 lg:grid-cols-3">
-                <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                  <p className="text-sm font-semibold text-foreground">Deployment connection access</p>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Confirms MAPPO can authenticate to the deployment system configured for this project.
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="mt-3"
-                    disabled={!project?.id || isValidating}
-                    onClick={() => {
-                      void runValidation(["credentials"]);
-                    }}
-                  >
-                    Verify Access
-                  </Button>
-                </div>
-                <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                  <p className="text-sm font-semibold text-foreground">Release source</p>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Confirms the linked release source is ready to receive release events for this project.
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="mt-3"
-                    disabled={!project?.id || isValidating}
-                    onClick={() => {
-                      void runValidation(["webhook"]);
-                    }}
-                  >
-                    Verify Release Source
-                  </Button>
-                </div>
-                <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                  <p className="text-sm font-semibold text-foreground">Target requirements</p>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Confirms an onboarded target includes the metadata required by this deployment driver.
-                  </p>
-                  {targets.length > 0 ? (
-                    <div className="mt-3 space-y-2">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1">
-                          <Label htmlFor="validation-target">Target for contract check</Label>
-                          <FieldHelpTooltip content="Target used to validate the required target metadata for this project." />
-                        </div>
-                        <Select value={validationTargetId} onValueChange={setValidationTargetId}>
-                          <SelectTrigger id="validation-target">
-                            <SelectValue placeholder="Select target" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {targets.map((target) => (
-                              <SelectItem key={target.id} value={target.id ?? ""}>
-                                {target.id}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!project?.id || isValidating}
-                        onClick={() => {
-                          void runValidation(["target_contract"]);
-                        }}
-                      >
-                        Verify Target Requirements
-                      </Button>
-                    </div>
-                  ) : (
-                    <p className="mt-3 rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
-                      Onboard at least one target before MAPPO can verify this project’s required target metadata.
-                    </p>
-                  )}
-                </div>
+              <div className="rounded-md border border-border/70 bg-background/60 p-3 text-xs text-muted-foreground">
+                Run validation from the tab that owns the setting you are working on. Use this tab to review the latest validation results in one place.
               </div>
               {validationResult ? (
                 <div className="space-y-2 rounded-md border border-border/70 bg-background/60 p-3">
@@ -2675,11 +2674,15 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                     <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Release source</p>
                     <dl className="space-y-1">
                       <div className="flex justify-between gap-3">
-                        <dt className="text-muted-foreground">Source</dt>
+                        <dt className="text-muted-foreground">Provider</dt>
+                        <dd className="text-right text-foreground">{RELEASE_SYSTEM_LABELS[effectiveReleaseSystem]}</dd>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-muted-foreground">Type</dt>
                         <dd className="text-right text-foreground">{releaseSourceLabel}</dd>
                       </div>
                       <div className="flex justify-between gap-3">
-                        <dt className="text-muted-foreground">Endpoint</dt>
+                        <dt className="text-muted-foreground">Linked source</dt>
                         <dd className="text-right text-foreground">
                           {selectedReleaseIngestEndpoint?.name || selectedReleaseIngestEndpoint?.id || "Not linked"}
                         </dd>
@@ -2691,7 +2694,11 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                     <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Deployment</p>
                     <dl className="space-y-1">
                       <div className="flex justify-between gap-3">
-                        <dt className="text-muted-foreground">Driver</dt>
+                        <dt className="text-muted-foreground">System</dt>
+                        <dd className="text-right text-foreground">{DEPLOYMENT_SYSTEM_LABELS[selectedDeploymentSystem]}</dd>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-muted-foreground">Method</dt>
                         <dd className="text-right text-foreground">{DEPLOYMENT_DRIVER_LABELS[draft.deploymentDriver]}</dd>
                       </div>
                       {draft.deploymentDriver === "pipeline_trigger" ? (
@@ -2798,82 +2805,84 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
               </div>
               <div className="space-y-1">
                 <Label htmlFor="create-access-strategy">Access strategy</Label>
+                <Input
+                  id="create-access-strategy"
+                  value={ACCESS_STRATEGY_LABELS.azure_workload_rbac}
+                  disabled
+                />
+                <p className="text-xs text-muted-foreground">
+                  New projects start with MAPPO using its Azure permissions. You can review this later in Project → Config.
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="create-deployment-system">Deployment system</Label>
                 <Select
-                  value={createDraft.accessStrategy}
+                  value={createSelectedDeploymentSystem}
                   onValueChange={(value) =>
-                    updateCreateDraft("accessStrategy", value as ProjectDraft["accessStrategy"])
+                    updateCreateDeploymentSystem(value as DeploymentSystem)
                   }
                 >
-                  <SelectTrigger id="create-access-strategy">
+                  <SelectTrigger id="create-deployment-system">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="azure_workload_rbac">Azure Workload RBAC</SelectItem>
-                    <SelectItem value="lighthouse_delegated_access">Lighthouse Delegated Access</SelectItem>
-                    <SelectItem value="simulator">Simulator</SelectItem>
+                    <SelectItem value="azure">{DEPLOYMENT_SYSTEM_LABELS.azure}</SelectItem>
+                    <SelectItem value="azure_devops">{DEPLOYMENT_SYSTEM_LABELS.azure_devops}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="create-driver">Deployment driver</Label>
-                <Select
-                  value={createDraft.deploymentDriver}
-                  onValueChange={(value) =>
-                    updateCreateDraft("deploymentDriver", value as ProjectDraft["deploymentDriver"])
-                  }
-                >
-                  <SelectTrigger id="create-driver">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="azure_deployment_stack">Azure Deployment Stack</SelectItem>
-                    <SelectItem value="pipeline_trigger">Pipeline Trigger</SelectItem>
-                    <SelectItem value="azure_template_spec">Azure Template Spec</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="create-deployment-method">Deployment method</Label>
+                <Input
+                  id="create-deployment-method"
+                  value={DEPLOYMENT_DRIVER_LABELS[createDraft.deploymentDriver]}
+                  disabled
+                />
+                <p className="text-xs text-muted-foreground">
+                  {DEPLOYMENT_DRIVER_HELP[createDraft.deploymentDriver]}
+                </p>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="create-release-source">Release source</Label>
+                <Label htmlFor="create-release-provider">Release provider</Label>
                 <Select
-                  value={createDraft.releaseArtifactSource}
+                  value={createSelectedReleaseSystem}
                   onValueChange={(value) =>
-                    updateCreateDraft(
-                      "releaseArtifactSource",
-                      value as ProjectDraft["releaseArtifactSource"]
-                    )
+                    updateCreateReleaseSystem(value as ReleaseSystem)
                   }
+                  disabled={createDraft.deploymentDriver === "pipeline_trigger"}
                 >
-                  <SelectTrigger id="create-release-source">
+                  <SelectTrigger id="create-release-provider">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {RELEASE_SOURCE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="github">{RELEASE_SYSTEM_LABELS.github}</SelectItem>
+                    <SelectItem value="azure_devops">{RELEASE_SYSTEM_LABELS.azure_devops}</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  {createDraft.deploymentDriver === "pipeline_trigger"
+                    ? "Pipeline-driven rollout always expects Azure DevOps release events."
+                    : "Choose which provider MAPPO should check for new versions for this project."}
+                </p>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="create-runtime-provider">Runtime health provider</Label>
-                <Select
-                  value={createDraft.runtimeHealthProvider}
-                  onValueChange={(value) =>
-                    updateCreateDraft(
-                      "runtimeHealthProvider",
-                      value as ProjectDraft["runtimeHealthProvider"]
-                    )
-                  }
-                >
-                  <SelectTrigger id="create-runtime-provider">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="azure_container_app_http">Azure Container App HTTP</SelectItem>
-                    <SelectItem value="http_endpoint">HTTP Endpoint</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="create-release-type">Release source type</Label>
+                <Input
+                  id="create-release-type"
+                  value={RELEASE_SOURCE_TYPE_LABELS[createDraft.releaseArtifactSource]}
+                  disabled
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="create-runtime-provider">Runtime health check</Label>
+                <Input
+                  id="create-runtime-provider"
+                  value={RUNTIME_HEALTH_LABELS.http_endpoint}
+                  disabled
+                />
+                <p className="text-xs text-muted-foreground">
+                  New projects start with a standard HTTP endpoint health check. You can refine the path and status code later in Project → Config.
+                </p>
               </div>
             </form>
           </div>

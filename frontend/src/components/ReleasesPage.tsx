@@ -18,7 +18,7 @@ type ReleasesPageProps = {
   releaseIngestIsSubmitting: boolean;
   refreshKey: number;
   onIngestManagedAppReleases: (
-    request: ReleaseManifestIngestRequest
+    request?: ReleaseManifestIngestRequest
   ) => Promise<ReleaseManifestIngestResponse>;
 };
 
@@ -42,6 +42,7 @@ export default function ReleasesPage({
   const location = useLocation();
   const navigate = useNavigate();
   const [releaseIngestDrawerOpen, setReleaseIngestDrawerOpen] = useState(false);
+  const [isCheckingReleases, setIsCheckingReleases] = useState(false);
 
   const latestRelease = useMemo(() => releases[0] ?? null, [releases]);
 
@@ -67,7 +68,7 @@ export default function ReleasesPage({
   }, [location.pathname, location.search, navigate]);
 
   async function handleIngestManagedAppReleases(
-    request: ReleaseManifestIngestRequest
+    request?: ReleaseManifestIngestRequest
   ): Promise<void> {
     try {
       const result = await onIngestManagedAppReleases(request);
@@ -83,25 +84,45 @@ export default function ReleasesPage({
     }
   }
 
+  async function handleCheckForNewReleases(): Promise<void> {
+    setIsCheckingReleases(true);
+    try {
+      await handleIngestManagedAppReleases();
+    } finally {
+      setIsCheckingReleases(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex animate-fade-up items-center justify-between [animation-delay:60ms] [animation-fill-mode:forwards]">
         <p className="text-xs text-muted-foreground">
-          Release catalog, webhook audit, and manual ingest controls.
+          Review available releases, inspect inbound release events, and check linked release sources for new versions.
         </p>
         <div className="flex items-center gap-2">
           <Button
             type="button"
             variant="outline"
+            onClick={() => {
+              void handleCheckForNewReleases();
+            }}
+            disabled={releaseIngestIsSubmitting || isCheckingReleases}
+          >
+            {releaseIngestIsSubmitting || isCheckingReleases ? "Checking..." : "Check for new releases"}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
             onClick={() => setReleaseIngestDrawerOpen(true)}
           >
-            Check All Release Sources
+            Advanced
           </Button>
           <ReleaseIngestDrawer
             isSubmitting={releaseIngestIsSubmitting}
             open={releaseIngestDrawerOpen}
             onOpenChange={setReleaseIngestDrawerOpen}
             onIngest={handleIngestManagedAppReleases}
+            showTrigger={false}
           />
         </div>
       </div>
