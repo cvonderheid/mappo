@@ -92,7 +92,7 @@ public class ProviderConnectionDiscoveryService {
         if (organizationUrl.isBlank()) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "Azure DevOps project or repo URL is required before MAPPO can verify this deployment connection and discover Azure DevOps projects. Paste any Azure DevOps URL into the deployment connection."
+                "An Azure DevOps account, project, or repository URL is required before MAPPO can verify this deployment connection and discover Azure DevOps projects. Paste any Azure DevOps URL from the account MAPPO should browse."
             );
         }
         String personalAccessToken = providerConnectionSecretResolver.resolvePersonalAccessToken(
@@ -167,7 +167,7 @@ public class ProviderConnectionDiscoveryService {
                 HttpStatus.BAD_REQUEST,
                 "Deployment connection "
                     + normalize(connection.id())
-                    + " has cached Azure DevOps projects from multiple account URLs. Open Admin → Deployment Connections, edit it, and verify the correct Azure DevOps project or repo URL."
+                    + " has cached Azure DevOps projects from multiple account URLs. Open Admin → Deployment Connections, edit it, and verify the correct Azure DevOps account URL."
             );
         }
         List<String> linkedProjectOrganizations = projectCatalogService.listProjects()
@@ -187,7 +187,7 @@ public class ProviderConnectionDiscoveryService {
                 HttpStatus.BAD_REQUEST,
                 "Deployment connection "
                     + normalize(connection.id())
-                    + " is linked to multiple Azure DevOps account URLs. Open Admin → Deployment Connections, edit it, and verify the correct Azure DevOps project or repo URL."
+                    + " is linked to multiple Azure DevOps account URLs. Open Admin → Deployment Connections, edit it, and verify the correct Azure DevOps account URL."
             );
         }
         return linkedProjectOrganizations.getFirst();

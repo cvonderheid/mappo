@@ -21,7 +21,7 @@ public class AzureDevOpsPipelineDiscoveryService {
         String normalizedOrganization = normalize(organization);
         if (normalizedOrganization.isBlank()) {
             throw new IllegalArgumentException(
-                "An Azure DevOps project or repo URL is required before MAPPO can discover Azure DevOps projects."
+                "An Azure DevOps account, project, or repository URL is required before MAPPO can discover Azure DevOps projects. Paste any Azure DevOps URL from the account MAPPO should browse."
             );
         }
         return pipelineClient.listProjects(normalizedOrganization, token);

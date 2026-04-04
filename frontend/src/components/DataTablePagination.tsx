@@ -34,7 +34,7 @@ export default function DataTablePagination({
           Showing {startItem}-{endItem} of {totalItems} {noun}
         </span>
         <div className="flex items-center gap-2">
-          <span>Rows</span>
+          <span>Page size</span>
           <Select
             value={String(pageSize)}
             onValueChange={(value) => onPageSizeChange(Number(value))}

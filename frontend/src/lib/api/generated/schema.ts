@@ -185,7 +185,7 @@ export interface paths {
         put?: never;
         /**
          * Verify Azure DevOps deployment connection draft
-         * @description Normalizes the submitted Azure DevOps URL, resolves the configured PAT source, and enumerates reachable Azure DevOps projects without persisting the deployment connection.
+         * @description Normalizes the submitted Azure DevOps account URL, resolves the configured PAT source, and enumerates reachable Azure DevOps projects without persisting the deployment connection.
          */
         post: operations["verifyAdoConnection"];
         delete?: never;
@@ -558,7 +558,7 @@ export interface paths {
         };
         /**
          * Discover Azure DevOps projects
-         * @description Lists Azure DevOps projects reachable through the selected deployment connection using its configured PAT and verified Azure DevOps URL.
+         * @description Lists Azure DevOps projects reachable through the selected deployment connection using its configured PAT and verified Azure DevOps account URL.
          */
         get: operations["discoverAdoProjects"];
         put?: never;
@@ -1008,7 +1008,7 @@ export interface components {
             /** @description Whether this deployment connection is enabled. */
             enabled?: boolean;
             /**
-             * @description Verified Azure DevOps URL used for project discovery.
+             * @description Verified Azure DevOps account URL used for project discovery.
              * @example https://dev.azure.com/pg123
              */
             organizationUrl?: string;

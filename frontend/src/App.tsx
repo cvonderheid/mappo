@@ -121,7 +121,7 @@ const SIDEBAR_NAVIGATION: SidebarNavigationGroup[] = [
       { label: "Deployments", to: "/deployments" },
       { label: "Releases", to: "/releases" },
       { label: "Targets", to: "/targets" },
-      { label: "Onboarding", to: "/onboarding" },
+      { label: "Registration Events", to: "/onboarding" },
     ],
   },
   {
@@ -913,7 +913,7 @@ function AppShell() {
       return items;
     }
     if (path.startsWith("/onboarding")) {
-      items.push({ label: "Project", to: "/onboarding" }, { label: "Onboarding" });
+      items.push({ label: "Project", to: "/onboarding" }, { label: "Registration Events" });
       return items;
     }
     if (path.startsWith("/managed-app")) {
@@ -1322,7 +1322,7 @@ function AppShell() {
             <div className="space-y-1">
               <p className="text-sm font-semibold">No projects configured yet.</p>
               <p className="text-sm text-muted-foreground">
-                Start by creating a project profile, then configure onboarding and release sources.
+                Start by creating a project profile, then configure targets and release sources.
               </p>
             </div>
             <Button type="button" onClick={() => navigate("/projects?new=1")}>

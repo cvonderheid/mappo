@@ -178,6 +178,25 @@ function resolveDriver(project: ProjectDefinition | null): DriverType {
   return "azure_deployment_stack";
 }
 
+function driverLabel(driver: DriverType): string {
+  switch (driver) {
+    case "pipeline_trigger":
+      return "Pipeline Trigger";
+    case "azure_template_spec":
+      return "Azure Template Spec";
+    case "azure_deployment_stack":
+    default:
+      return "Azure Deployment Stack";
+  }
+}
+
+function requiredFieldSummary(driver: DriverType): string {
+  if (driver === "pipeline_trigger") {
+    return "MAPPO needs tenant ID, subscription ID, target resource group, and target App Service name.";
+  }
+  return "MAPPO needs tenant ID, subscription ID, and either a target Container App resource ID or a target managed resource group ID.";
+}
+
 function validateDraft(
   draft: OnboardingDraft,
   project: ProjectDefinition | null
@@ -554,14 +573,14 @@ export default function TargetOnboardingDrawer({
     <Drawer direction="top" open={isOpen} onOpenChange={handleOpenChange}>
       <DrawerTrigger asChild>
         <Button type="button" variant="outline" data-testid="open-target-onboarding-drawer">
-          Onboard Targets
+          Add Targets
         </Button>
       </DrawerTrigger>
       <DrawerContent className="glass-card">
         <DrawerHeader>
-          <DrawerTitle>Target Onboarding</DrawerTitle>
+          <DrawerTitle>Add Targets</DrawerTitle>
           <DrawerDescription>
-            Register targets directly in MAPPO. The form only shows the fields required by the selected project's deployment contract.
+            Register deployment targets in MAPPO. Start with the minimum fields required by the selected project's deployment model.
           </DrawerDescription>
         </DrawerHeader>
         <div className="max-h-[74vh] overflow-y-auto px-4 pb-2">
@@ -585,8 +604,9 @@ export default function TargetOnboardingDrawer({
                     {selectedProject?.name ?? "No project selected"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Driver: <span className="font-mono text-foreground">{selectedDriver}</span>
+                    Deployment model: <span className="font-medium text-foreground">{driverLabel(selectedDriver)}</span>
                   </p>
+                  <p className="mt-2 text-xs text-muted-foreground">{requiredFieldSummary(selectedDriver)}</p>
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
@@ -598,18 +618,6 @@ export default function TargetOnboardingDrawer({
                     value={draft.displayName}
                     onChange={(event) => updateDraft("displayName", event.target.value)}
                     placeholder="Contoso - Prod"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="onboard-customer-name">Customer Name</Label>
-                    <FieldHelpTooltip content="Customer/business name mapped to this target." />
-                  </div>
-                  <Input
-                    id="onboard-customer-name"
-                    value={draft.customerName}
-                    onChange={(event) => updateDraft("customerName", event.target.value)}
-                    placeholder="Contoso"
                   />
                 </div>
                 <div className="space-y-1">
@@ -641,7 +649,7 @@ export default function TargetOnboardingDrawer({
                     <div className="space-y-1">
                       <div className="flex items-center gap-1">
                         <Label htmlFor="onboard-pipeline-rg">Azure Resource Group</Label>
-                        <FieldHelpTooltip content="Azure resource group that contains the App Service for this target. Required for pipeline-trigger projects." />
+                        <FieldHelpTooltip content="Azure resource group that contains the App Service MAPPO will target. Required for pipeline-trigger projects." />
                       </div>
                       <Input
                         id="onboard-pipeline-rg"
@@ -654,8 +662,8 @@ export default function TargetOnboardingDrawer({
                     </div>
                     <div className="space-y-1">
                       <div className="flex items-center gap-1">
-                        <Label htmlFor="onboard-pipeline-app">App Service Name</Label>
-                        <FieldHelpTooltip content="Azure App Service app name that the deployment pipeline updates for this target. Required for pipeline-trigger projects." />
+                        <Label htmlFor="onboard-pipeline-app">Target App Service</Label>
+                        <FieldHelpTooltip content="Azure App Service name that the deployment pipeline updates for this target. Required for pipeline-trigger projects." />
                       </div>
                       <Input
                         id="onboard-pipeline-app"
@@ -671,8 +679,8 @@ export default function TargetOnboardingDrawer({
                   <>
                     <div className="space-y-1 lg:col-span-2">
                       <div className="flex items-center gap-1">
-                        <Label htmlFor="onboard-container-app-id">Container App Resource ID</Label>
-                        <FieldHelpTooltip content="Full Azure resource ID for the deployed app/runtime resource tracked for this target." />
+                        <Label htmlFor="onboard-container-app-id">Target Container App Resource ID</Label>
+                        <FieldHelpTooltip content="Full Azure resource ID for the deployed runtime MAPPO tracks for this target." />
                       </div>
                       <Input
                         id="onboard-container-app-id"
@@ -686,7 +694,7 @@ export default function TargetOnboardingDrawer({
                     <div className="space-y-1">
                       <div className="flex items-center gap-1">
                         <Label htmlFor="onboard-container-app-name">Container App Name</Label>
-                        <FieldHelpTooltip content="Resource name segment (without subscription/resource group path)." />
+                        <FieldHelpTooltip content="Optional resource name segment without the subscription/resource group path." />
                       </div>
                       <Input
                         id="onboard-container-app-name"
@@ -696,8 +704,8 @@ export default function TargetOnboardingDrawer({
                     </div>
                     <div className="space-y-1 lg:col-span-2">
                       <div className="flex items-center gap-1">
-                        <Label htmlFor="onboard-managed-rg-id">Managed Resource Group ID</Label>
-                        <FieldHelpTooltip content="Resource group that contains the customer-deployed runtime resources." />
+                        <Label htmlFor="onboard-managed-rg-id">Target Managed Resource Group ID</Label>
+                        <FieldHelpTooltip content="Azure resource group that contains the deployed runtime resources for this target." />
                       </div>
                       <Input
                         id="onboard-managed-rg-id"
@@ -711,7 +719,7 @@ export default function TargetOnboardingDrawer({
                     <div className="space-y-1 lg:col-span-2">
                       <div className="flex items-center gap-1">
                         <Label htmlFor="onboard-managed-app-id">Managed Application ID</Label>
-                        <FieldHelpTooltip content="Managed Application resource ID (if applicable). Used for traceability and managed-app workflows." />
+                        <FieldHelpTooltip content="Optional Managed Application resource ID used for traceability and managed-app workflows." />
                       </div>
                       <Input
                         id="onboard-managed-app-id"
@@ -728,10 +736,22 @@ export default function TargetOnboardingDrawer({
                   <Accordion type="single" collapsible className="rounded-md border border-border/70 bg-background/50 px-3">
                     <AccordionItem value="advanced-onboarding-fields" className="border-b-0">
                       <AccordionTrigger className="py-3 text-sm font-medium hover:no-underline">
-                        Advanced fields
+                        Optional target details
                       </AccordionTrigger>
                       <AccordionContent>
                         <div className="grid grid-cols-1 gap-3 pb-2 sm:grid-cols-2 lg:grid-cols-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1">
+                              <Label htmlFor="onboard-customer-name">Customer Name</Label>
+                              <FieldHelpTooltip content="Optional customer or business name mapped to this target." />
+                            </div>
+                            <Input
+                              id="onboard-customer-name"
+                              value={draft.customerName}
+                              onChange={(event) => updateDraft("customerName", event.target.value)}
+                              placeholder="Optional"
+                            />
+                          </div>
                           <div className="space-y-1">
                             <div className="flex items-center gap-1">
                               <Label htmlFor="onboard-target-id">Target ID</Label>
@@ -742,17 +762,6 @@ export default function TargetOnboardingDrawer({
                               value={draft.targetId}
                               onChange={(event) => updateDraft("targetId", event.target.value)}
                               placeholder="Optional"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1">
-                              <Label htmlFor="onboard-event-id">Event ID</Label>
-                              <FieldHelpTooltip content="Audit identifier recorded for this onboarding event. MAPPO auto-generates one; only override it if you need to match an external event." />
-                            </div>
-                            <Input
-                              id="onboard-event-id"
-                              value={draft.eventId}
-                              onChange={(event) => updateDraft("eventId", event.target.value)}
                             />
                           </div>
                           <div className="space-y-1">
@@ -829,9 +838,7 @@ export default function TargetOnboardingDrawer({
                           </div>
                           <div className="space-y-1 sm:col-span-2 lg:col-span-3">
                             <div className="flex items-center gap-1">
-                              <Label htmlFor="onboard-execution-config">
-                                Additional deployment inputs (advanced)
-                              </Label>
+                              <Label htmlFor="onboard-execution-config">Extra deployment inputs</Label>
                               <FieldHelpTooltip content="Optional JSON key/value pairs passed through to the deployment driver when the standard fields above are not enough. Most operators should leave this empty." />
                             </div>
                             <Textarea
@@ -866,17 +873,17 @@ export default function TargetOnboardingDrawer({
                 </div>
               ) : (
                 <div className="rounded-md border border-primary/40 bg-primary/10 p-2 text-sm">
-                  Target payload is valid for this project contract.
+                  Target details are valid for this project.
                 </div>
               )}
             </TabsContent>
 
             <TabsContent value="bulk" className="space-y-3 pt-2">
-              <div className="space-y-1">
-                <div className="flex items-center gap-1">
-                  <Label htmlFor="bulk-onboard-json">Bulk Payload (JSON array)</Label>
-                  <FieldHelpTooltip content="Array of onboarding request objects. Use Preview first to validate rows before commit." />
-                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1">
+                    <Label htmlFor="bulk-onboard-json">Bulk target import (JSON)</Label>
+                    <FieldHelpTooltip content="Array of target registration request objects. Use Preview first to validate rows before commit." />
+                  </div>
                 <Textarea
                   id="bulk-onboard-json"
                   value={bulkJson}
@@ -885,7 +892,7 @@ export default function TargetOnboardingDrawer({
                   placeholder='[{"projectId":"azure-appservice-ado-pipeline","displayName":"Demo AppService Target","tenantId":"...","subscriptionId":"...","metadata":{"executionConfig":{"targetResourceGroup":"rg-demo","targetAppName":"appsvc-demo"}}}]'
                 />
                 <p className="text-xs text-muted-foreground">
-                  Rows inherit the currently selected project when <span className="font-mono text-foreground">projectId</span> is omitted.
+                  If <span className="font-mono text-foreground">projectId</span> is omitted, MAPPO uses the currently selected project.
                 </p>
               </div>
               {bulkParseError ? (

@@ -210,7 +210,7 @@ export default function DemoPanel({
               <DrawerHeader>
                 <DrawerTitle>Simulate Marketplace Event</DrawerTitle>
                 <DrawerDescription>
-                  Submit lifecycle payloads through MAPPO onboarding to mirror marketplace behavior.
+                  Submit simulated marketplace lifecycle events through MAPPO registration handling to mirror marketplace behavior.
                 </DrawerDescription>
               </DrawerHeader>
               <div className="max-h-[74vh] overflow-y-auto px-4 pb-2">

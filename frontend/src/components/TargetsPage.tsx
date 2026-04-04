@@ -271,8 +271,8 @@ export default function TargetsPage({
       <div className="flex animate-fade-up items-center justify-between [animation-delay:60ms] [animation-fill-mode:forwards]">
         <p className="text-xs text-muted-foreground">
           {viewMode === "onboarding"
-            ? "Process onboarding events and register project targets."
-            : "Configure registered targets for this project."}
+            ? "Review registration events and add targets for this project."
+            : "Manage registered targets for this project."}
         </p>
         {viewMode === "onboarding" ? (
           <TargetOnboardingDrawer
@@ -295,7 +295,7 @@ export default function TargetsPage({
 
       <Card className="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]">
         <CardHeader>
-          <CardTitle>{viewMode === "onboarding" ? "Onboarding events" : "Registered Targets"}</CardTitle>
+          <CardTitle>{viewMode === "onboarding" ? "Registration Events" : "Registered Targets"}</CardTitle>
         </CardHeader>
         <CardContent>
           {viewMode === "targets" ? (
@@ -310,7 +310,7 @@ export default function TargetsPage({
                   disabled={isRefreshingSnapshot}
                   onClick={() => void handleRefreshRegistrations()}
                 >
-                  {isRefreshingSnapshot ? "Refreshing..." : "Refresh Registered Targets"}
+                  {isRefreshingSnapshot ? "Refreshing..." : "Refresh Targets"}
                 </Button>
               }
               onEditRegistration={openEditDrawer}

@@ -51,7 +51,7 @@ type ProviderConnectionDraft = {
 const DEFAULT_AZURE_DEVOPS_PAT_REF = "mappo.azure-devops.personal-access-token";
 
 const AZURE_DEVOPS_SCOPE_REQUIRED_MESSAGE =
-  "Paste an Azure DevOps project URL from the Azure DevOps account this deployment connection should use, then verify the connection so MAPPO can load reachable Azure DevOps projects. Repository URLs also work.";
+  "Paste any Azure DevOps project or repository URL from the Azure DevOps account MAPPO should browse. The access token proves MAPPO can authenticate; the URL tells MAPPO which Azure DevOps account to browse so it can load the projects operators choose later.";
 
 function normalizeDeploymentConnectionError(message: string): string {
   const trimmed = normalize(
@@ -65,6 +65,7 @@ function normalizeDeploymentConnectionError(message: string): string {
   if (
     normalized.includes("project or repo url is required")
     || normalized.includes("azure devops url is required")
+    || normalized.includes("account url is required")
   ) {
     return AZURE_DEVOPS_SCOPE_REQUIRED_MESSAGE;
   }
@@ -72,7 +73,7 @@ function normalizeDeploymentConnectionError(message: string): string {
     return "MAPPO could not resolve the Azure DevOps API credential for this deployment connection. Use the MAPPO backend secret or choose a backend environment variable that actually exists, then verify the connection again.";
   }
   if (normalized.includes("no accessible azure devops projects were returned")) {
-    return "MAPPO authenticated to Azure DevOps, but that credential could not see any Azure DevOps projects in the selected account. Confirm the Azure DevOps project URL is correct and that the credential can read at least one project.";
+    return "MAPPO authenticated to Azure DevOps, but that access token could not see any Azure DevOps projects in the selected account. Confirm the URL is correct and that the token can read at least one project.";
   }
   return trimmed;
 }
@@ -209,6 +210,13 @@ function describePersonalAccessTokenSource(connection: ProviderConnection): stri
   return maskedSecretRef(normalized);
 }
 
+function describeDiscoveredProjectCount(count: number): string {
+  if (count <= 0) {
+    return "No Azure DevOps projects verified yet";
+  }
+  return `${count} Azure DevOps project${count === 1 ? "" : "s"} available`;
+}
+
 type DraftVerificationResult = {
   effectiveDraft: ProviderConnectionDraft;
   projects: ProviderConnectionAdoProject[];
@@ -293,6 +301,16 @@ export default function ProviderConnectionsConfigPage({
       return `${left.id ?? ""}`.localeCompare(`${right.id ?? ""}`);
     });
   }, [connections]);
+
+  const canVerifyDraft =
+    normalize(draft.id) !== ""
+    && normalize(draft.name) !== ""
+    && (!isAzureDevOpsScopeMissing(draft))
+    && (
+      draft.personalAccessTokenMode !== "environment_variable"
+      || normalize(draft.personalAccessTokenEnvVar) !== ""
+    );
+  const canSaveDraft = canVerifyDraft;
 
   function openCreateDrawer(): void {
     setEditingId("");
@@ -395,7 +413,7 @@ export default function ProviderConnectionsConfigPage({
       const result = await verifyDraft();
       applyVerificationResult(result);
       toast.success(
-        `Verified Azure DevOps access. MAPPO found ${result.projects.length} project${result.projects.length === 1 ? "" : "s"}.`
+        `Previewed Azure DevOps access. MAPPO found ${result.projects.length} project${result.projects.length === 1 ? "" : "s"}.`
       );
     } catch (error) {
       const message = normalizeDeploymentConnectionError((error as Error).message);
@@ -448,7 +466,9 @@ export default function ProviderConnectionsConfigPage({
           personalAccessTokenRef: normalize(buildPersonalAccessTokenRef(effectiveDraft)) || undefined,
         };
         savedConnection = await patchProviderConnection(editingId, patchRequest);
-        toast.success(`Updated deployment connection ${editingId}.`);
+        toast.success(
+          `Saved and verified deployment connection ${editingId}. MAPPO can access ${verifiedProjects.length} Azure DevOps project${verifiedProjects.length === 1 ? "" : "s"}.`
+        );
       } else {
         const createRequest: ProviderConnectionCreateRequest = {
           id: connectionId,
@@ -459,7 +479,9 @@ export default function ProviderConnectionsConfigPage({
           personalAccessTokenRef: normalize(buildPersonalAccessTokenRef(effectiveDraft)) || undefined,
         };
         savedConnection = await createProviderConnection(createRequest);
-        toast.success(`Created deployment connection ${connectionId}.`);
+        toast.success(
+          `Created and verified deployment connection ${connectionId}. MAPPO can access ${verifiedProjects.length} Azure DevOps project${verifiedProjects.length === 1 ? "" : "s"}.`
+        );
       }
       setDiscoveredProjectsByConnectionId((current) => ({
         ...current,
@@ -547,11 +569,11 @@ export default function ProviderConnectionsConfigPage({
     <div className="space-y-4">
       <div className="flex animate-fade-up items-center justify-between [animation-delay:60ms] [animation-fill-mode:forwards]">
         <p className="text-xs text-muted-foreground">
-          Configure authenticated deployment systems MAPPO can call. For Azure DevOps, MAPPO verifies the API access, confirms the Azure DevOps account, and loads reachable Azure DevOps projects before operators use the connection in Project Config.
+          Configure how MAPPO authenticates to external deployment systems. For Azure DevOps, MAPPO verifies the access token, confirms which Azure DevOps account it can browse, and loads the Azure DevOps projects operators can choose later in Project → Config.
         </p>
         <div className="flex items-center gap-2">
           <Button type="button" variant="outline" onClick={() => void loadConnections(true)}>
-            {isRefreshing ? "Reloading..." : "Reload"}
+            {isRefreshing ? "Refreshing..." : "Refresh connections"}
           </Button>
           <Button type="button" onClick={openCreateDrawer}>
             New Deployment Connection
@@ -618,18 +640,23 @@ export default function ProviderConnectionsConfigPage({
                 </div>
                 <div className="mt-2 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
                   <p>
-                    Azure DevOps account:{" "}
+                    Azure DevOps account scope:{" "}
                     <span className="font-mono text-foreground">
                       {resolvedAccountUrl || "not configured"}
                     </span>
                   </p>
                   <p>
-                    Azure DevOps API access: <span className="font-medium text-foreground">{describePersonalAccessTokenSource(connection)}</span>
+                    API credential source: <span className="font-medium text-foreground">{describePersonalAccessTokenSource(connection)}</span>
                   </p>
                 </div>
                 {resolvedAccountUrl === "" ? (
                   <p className="mt-2 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                    This deployment connection still needs verification. Edit it, paste any Azure DevOps project or repository URL from the correct Azure DevOps account, then verify the connection.
+                    This deployment connection still needs verification. Edit it, paste any Azure DevOps project or repository URL from the Azure DevOps account MAPPO should browse, then verify the connection.
+                  </p>
+                ) : null}
+                {isVerified ? (
+                  <p className="mt-2 rounded-md border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
+                    Verified Azure DevOps access. MAPPO can browse {discoveredProjects.length} Azure DevOps project{discoveredProjects.length === 1 ? "" : "s"} through this deployment connection.
                   </p>
                 ) : null}
                 <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -653,7 +680,7 @@ export default function ProviderConnectionsConfigPage({
                 </div>
                 {hasDiscoveryState ? (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Accessible Azure DevOps projects:</span>
+                    <span className="text-xs text-muted-foreground">Azure DevOps projects MAPPO can browse:</span>
                     {discoveredProjects.length ? (
                       discoveredProjects.map((project) => (
                         <Badge key={`${connectionId}-${project.id}`} variant="secondary">
@@ -680,13 +707,15 @@ export default function ProviderConnectionsConfigPage({
                     }}
                     disabled={connectionId === "" || isDiscovering}
                   >
-                    {isDiscovering ? "Verifying..." : hasDiscoveryState ? "Re-verify connection" : "Verify connection"}
+                    {isDiscovering
+                      ? "Verifying..."
+                      : hasDiscoveryState
+                        ? "Re-verify access"
+                        : "Verify / refresh access"}
                   </Button>
-                  {discoveredProjects.length > 0 ? (
-                    <span className="text-xs text-muted-foreground">
-                      {discoveredProjects.length} accessible Azure DevOps project{discoveredProjects.length === 1 ? "" : "s"} loaded.
-                    </span>
-                  ) : null}
+                  <span className="text-xs text-muted-foreground">
+                    {describeDiscoveredProjectCount(discoveredProjects.length)}
+                  </span>
                   <Button
                     type="button"
                     variant="outline"
@@ -720,13 +749,16 @@ export default function ProviderConnectionsConfigPage({
           <DrawerHeader>
             <DrawerTitle>{editingId ? `Edit ${editingId}` : "New Deployment Connection"}</DrawerTitle>
             <DrawerDescription>
-              Configure how MAPPO authenticates to an external deployment system, then verify that MAPPO can browse the projects operators will select later.
+              Configure how MAPPO authenticates to an external deployment system, then verify that MAPPO can browse the Azure DevOps projects operators will select later.
             </DrawerDescription>
           </DrawerHeader>
           <div className="max-h-[72vh] overflow-y-auto px-4 pb-2">
             <form id="provider-connection-form" className="grid grid-cols-1 gap-3 sm:grid-cols-2" onSubmit={handleSubmit}>
               <div className="space-y-1">
-                <Label htmlFor="provider-connection-id">Connection ID</Label>
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="provider-connection-id">Deployment connection ID</Label>
+                  <FieldHelpTooltip content="Stable key MAPPO stores for this deployment connection. Use lowercase letters, numbers, and hyphens." />
+                </div>
                 <Input
                   id="provider-connection-id"
                   value={draft.id}
@@ -737,7 +769,10 @@ export default function ProviderConnectionsConfigPage({
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="provider-connection-name">Name</Label>
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="provider-connection-name">Display name</Label>
+                  <FieldHelpTooltip content="Friendly name operators will pick later in Project → Config when they choose how MAPPO talks to this deployment system." />
+                </div>
                 <Input
                   id="provider-connection-name"
                   value={draft.name}
@@ -787,89 +822,106 @@ export default function ProviderConnectionsConfigPage({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1 sm:col-span-2">
+              <div className="space-y-3 rounded-md border border-border/60 bg-background/40 p-3 sm:col-span-2">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Azure DevOps account scope</p>
+                  <p className="text-xs text-muted-foreground">
+                    Tell MAPPO which Azure DevOps account it should browse. Azure DevOps PATs do not tell MAPPO which account to inspect, so paste any project or repository URL from that account and MAPPO will derive the account automatically.
+                  </p>
+                </div>
+                <div className="space-y-1">
                   <div className="flex items-center gap-1">
-                    <Label htmlFor="provider-connection-organization-url">Azure DevOps Project URL</Label>
-                    <FieldHelpTooltip content="Paste an Azure DevOps project URL from the Azure DevOps account this deployment connection should use. Repository URLs also work. MAPPO derives the Azure DevOps account automatically, verifies the API credential, and lists reachable Azure DevOps projects that operators can choose later." />
+                    <Label htmlFor="provider-connection-organization-url">Example Azure DevOps project or repository URL</Label>
+                    <FieldHelpTooltip content="Paste any Azure DevOps project or repository URL from the account this deployment connection should browse. MAPPO derives the Azure DevOps account automatically from that URL and verifies that the access token can read projects there." />
                   </div>
                   <Input
                     id="provider-connection-organization-url"
                     value={draft.organizationUrl}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, organizationUrl: event.target.value }))
-                  }
-                  placeholder="https://dev.azure.com/pg123/demo-app-service"
-                />
-                <p className="text-xs text-muted-foreground">
-                  MAPPO derives the Azure DevOps account from this URL. Operators will choose from the discovered Azure DevOps projects later in Project → Config.
-                </p>
-                {deriveDraftAccountUrl(draft) !== "" ? (
-                  <p className="text-xs text-muted-foreground">
-                    Detected Azure DevOps account:{" "}
-                    <span className="font-mono text-foreground">{deriveDraftAccountUrl(draft)}</span>
-                  </p>
-                ) : null}
-              </div>
-              <div className="space-y-1 sm:col-span-2">
-                <div className="flex items-center gap-1">
-                  <Label htmlFor="provider-connection-pat-mode">Azure DevOps API access</Label>
-                  <FieldHelpTooltip content="How MAPPO resolves the Azure DevOps API credential for this deployment connection. Verify connection performs a real Azure DevOps API call so MAPPO can prove the credential works before operators use this connection in a project." />
-                </div>
-                <Select
-                  value={draft.personalAccessTokenMode}
-                  onValueChange={(value) =>
-                    setDraft((current) => ({
-                      ...current,
-                      personalAccessTokenMode: value as ProviderConnectionDraft["personalAccessTokenMode"],
-                      personalAccessTokenEnvVar:
-                        value === "backend_default" ? "" : current.personalAccessTokenEnvVar,
-                    }))
-                  }
-                >
-                  <SelectTrigger id="provider-connection-pat-mode">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="backend_default">Use MAPPO backend secret</SelectItem>
-                    <SelectItem value="environment_variable">Use backend environment variable</SelectItem>
-                  </SelectContent>
-                </Select>
-                {draft.personalAccessTokenMode === "backend_default" ? (
-                  <p className="text-xs text-muted-foreground">
-                    MAPPO will use the Azure DevOps API credential already configured on the backend runtime.
-                  </p>
-                ) : null}
-              </div>
-              {draft.personalAccessTokenMode === "environment_variable" ? (
-                <div className="space-y-1 sm:col-span-2">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="provider-connection-pat-env-var">Backend environment variable</Label>
-                    <FieldHelpTooltip content="Name of the environment variable on the MAPPO backend runtime that contains the Azure DevOps API credential." />
-                  </div>
-                  <Input
-                    id="provider-connection-pat-env-var"
-                    value={draft.personalAccessTokenEnvVar}
                     onChange={(event) =>
-                      setDraft((current) => ({ ...current, personalAccessTokenEnvVar: event.target.value }))
+                      setDraft((current) => ({ ...current, organizationUrl: event.target.value }))
                     }
-                    placeholder="MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN"
+                    placeholder="https://dev.azure.com/pg123/demo-app-service or https://pg123.visualstudio.com/demo-app-service/_git/demo-app-service"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    MAPPO derives the Azure DevOps account from this URL, verifies the access token against that account, and loads the Azure DevOps projects operators can choose later in Project → Config.
+                  </p>
+                  {deriveDraftAccountUrl(draft) !== "" ? (
+                    <p className="text-xs text-muted-foreground">
+                      Derived Azure DevOps account scope:{" "}
+                      <span className="font-mono text-foreground">{deriveDraftAccountUrl(draft)}</span>
+                    </p>
+                  ) : null}
                 </div>
-              ) : null}
+              </div>
+              <div className="space-y-3 rounded-md border border-border/60 bg-background/40 p-3 sm:col-span-2">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Azure DevOps API credential</p>
+                  <p className="text-xs text-muted-foreground">
+                    Choose how MAPPO resolves the Azure DevOps access token for this deployment connection. Save and verify performs a real Azure DevOps API call before operators can use this connection in a project.
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1">
+                    <Label htmlFor="provider-connection-pat-mode">Azure DevOps access token source</Label>
+                    <FieldHelpTooltip content="How MAPPO resolves the Azure DevOps access token for this deployment connection. Save and verify performs a real Azure DevOps API call so MAPPO can prove the credential works before operators use this connection in a project." />
+                  </div>
+                  <Select
+                    value={draft.personalAccessTokenMode}
+                    onValueChange={(value) =>
+                      setDraft((current) => ({
+                        ...current,
+                        personalAccessTokenMode: value as ProviderConnectionDraft["personalAccessTokenMode"],
+                        personalAccessTokenEnvVar:
+                          value === "backend_default" ? "" : current.personalAccessTokenEnvVar,
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="provider-connection-pat-mode">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="backend_default">Use MAPPO backend secret</SelectItem>
+                      <SelectItem value="environment_variable">Use backend environment variable</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {draft.personalAccessTokenMode === "backend_default" ? (
+                    <p className="text-xs text-muted-foreground">
+                      MAPPO will use the Azure DevOps access token already configured on the backend runtime at{" "}
+                      <span className="font-mono text-foreground">{DEFAULT_AZURE_DEVOPS_PAT_REF}</span>.
+                    </p>
+                  ) : null}
+                </div>
+                {draft.personalAccessTokenMode === "environment_variable" ? (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1">
+                      <Label htmlFor="provider-connection-pat-env-var">Backend environment variable</Label>
+                      <FieldHelpTooltip content="Name of the environment variable on the MAPPO backend runtime that contains the Azure DevOps access token." />
+                    </div>
+                    <Input
+                      id="provider-connection-pat-env-var"
+                      value={draft.personalAccessTokenEnvVar}
+                      onChange={(event) =>
+                        setDraft((current) => ({ ...current, personalAccessTokenEnvVar: event.target.value }))
+                      }
+                      placeholder="MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN"
+                    />
+                  </div>
+                ) : null}
+              </div>
               <div className="rounded-md border border-border/60 bg-background/40 p-3 text-xs text-muted-foreground sm:col-span-2">
-              <p className="font-medium text-foreground">What MAPPO checks</p>
+              <p className="font-medium text-foreground">Preview Azure DevOps access</p>
                 <p className="mt-1">
-                  MAPPO resolves the selected API credential source, derives the Azure DevOps account from the project URL above, and loads reachable Azure DevOps projects before saving this connection.
+                  Save and verify performs this check automatically. Use Preview only if you want to confirm the Azure DevOps account scope and the projects MAPPO can browse before you save the deployment connection.
                 </p>
                 {draftNormalizedOrganizationUrl ? (
                   <p className="mt-2">
-                    Verified Azure DevOps account:{" "}
+                    Verified Azure DevOps account scope:{" "}
                     <span className="font-mono text-foreground">{draftNormalizedOrganizationUrl}</span>
                   </p>
                 ) : null}
                 {draftDiscoveredProjects.length > 0 ? (
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Accessible Azure DevOps projects:</span>
+                    <span className="text-xs text-muted-foreground">Azure DevOps projects MAPPO can browse:</span>
                     {draftDiscoveredProjects.map((project) => (
                       <Badge key={`draft-${project.id}`} variant="secondary">
                         {project.name}
@@ -884,7 +936,7 @@ export default function ProviderConnectionsConfigPage({
                 ) : null}
                 {draftVerifiedSignature !== "" ? (
                   <p className="mt-2 text-emerald-300">
-                    Verification passed. Save will re-run the check and persist the discovered Azure DevOps projects.
+                    Preview passed. Save and verify will persist this Azure DevOps account and the Azure DevOps projects MAPPO discovered.
                   </p>
                 ) : null}
               </div>
@@ -896,22 +948,26 @@ export default function ProviderConnectionsConfigPage({
                 Cancel
               </Button>
             </DrawerClose>
-            <Button
+              <Button
               type="button"
               variant="outline"
               onClick={() => {
                 void handleVerifyDraft();
               }}
-              disabled={isSubmitting || isVerifyingDraft}
+              disabled={isSubmitting || isVerifyingDraft || !canVerifyDraft}
             >
-              {isVerifyingDraft ? "Verifying..." : "Verify and load projects"}
+              {isVerifyingDraft ? "Previewing..." : "Preview access"}
             </Button>
             <Button
               form="provider-connection-form"
               type="submit"
-              disabled={isSubmitting || isVerifyingDraft}
+              disabled={isSubmitting || isVerifyingDraft || !canSaveDraft}
             >
-              {isSubmitting ? "Saving..." : editingId ? "Save connection" : "Create connection"}
+              {isSubmitting
+                ? "Saving..."
+                : editingId
+                  ? "Save and verify connection"
+                  : "Create and verify connection"}
             </Button>
           </DrawerFooter>
         </DrawerContent>

@@ -23,9 +23,13 @@ public class ProviderConnectionCommandService {
         ProviderConnectionMutationRecord mutation = providerConnectionMutationService.fromCreate(request);
         ProviderConnectionAdoProjectDiscoveryResultRecord discoveryResult =
             providerConnectionDiscoveryService.validateForSave(mutation);
-        providerConnectionCommandRepository.createConnection(mutation);
-        providerConnectionCommandRepository.replaceDiscoveredAdoProjects(mutation.id(), discoveryResult.projects());
-        return providerConnectionCatalogService.getRequired(mutation.id());
+        ProviderConnectionMutationRecord verifiedMutation = applyDiscoveryResult(mutation, discoveryResult);
+        providerConnectionCommandRepository.createConnection(verifiedMutation);
+        providerConnectionCommandRepository.replaceDiscoveredAdoProjects(
+            verifiedMutation.id(),
+            discoveryResult.projects()
+        );
+        return providerConnectionCatalogService.getRequired(verifiedMutation.id());
     }
 
     @Transactional
@@ -37,13 +41,38 @@ public class ProviderConnectionCommandService {
         ProviderConnectionMutationRecord mutation = providerConnectionMutationService.fromPatch(current, patchRequest);
         ProviderConnectionAdoProjectDiscoveryResultRecord discoveryResult =
             providerConnectionDiscoveryService.validateForSave(mutation);
-        providerConnectionCommandRepository.updateConnection(mutation);
-        providerConnectionCommandRepository.replaceDiscoveredAdoProjects(mutation.id(), discoveryResult.projects());
-        return providerConnectionCatalogService.getRequired(mutation.id());
+        ProviderConnectionMutationRecord verifiedMutation = applyDiscoveryResult(mutation, discoveryResult);
+        providerConnectionCommandRepository.updateConnection(verifiedMutation);
+        providerConnectionCommandRepository.replaceDiscoveredAdoProjects(
+            verifiedMutation.id(),
+            discoveryResult.projects()
+        );
+        return providerConnectionCatalogService.getRequired(verifiedMutation.id());
     }
 
     @Transactional
     public void deleteConnection(String connectionId) {
         providerConnectionCommandRepository.deleteConnection(connectionId);
+    }
+
+    private ProviderConnectionMutationRecord applyDiscoveryResult(
+        ProviderConnectionMutationRecord mutation,
+        ProviderConnectionAdoProjectDiscoveryResultRecord discoveryResult
+    ) {
+        String normalizedOrganizationUrl =
+            discoveryResult == null || discoveryResult.organizationUrl() == null
+                ? ""
+                : discoveryResult.organizationUrl().trim();
+        if (normalizedOrganizationUrl.isBlank()) {
+            return mutation;
+        }
+        return new ProviderConnectionMutationRecord(
+            mutation.id(),
+            mutation.name(),
+            mutation.provider(),
+            mutation.enabled(),
+            normalizedOrganizationUrl,
+            mutation.personalAccessTokenRef()
+        );
     }
 }

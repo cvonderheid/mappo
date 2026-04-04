@@ -44,7 +44,7 @@ public class ProviderConnectionsController {
     @GetMapping("/{connectionId}/ado/projects/discover")
     @Operation(
         summary = "Discover Azure DevOps projects",
-        description = "Lists Azure DevOps projects reachable through the selected deployment connection using its configured PAT and verified Azure DevOps URL."
+        description = "Lists Azure DevOps projects reachable through the selected deployment connection using its configured PAT and verified Azure DevOps account URL."
     )
     public ProviderConnectionAdoProjectDiscoveryResultRecord discoverAdoProjects(
         @PathVariable("connectionId") String connectionId,
@@ -56,7 +56,7 @@ public class ProviderConnectionsController {
     @PostMapping("/ado/verify")
     @Operation(
         summary = "Verify Azure DevOps deployment connection draft",
-        description = "Normalizes the submitted Azure DevOps URL, resolves the configured PAT source, and enumerates reachable Azure DevOps projects without persisting the deployment connection."
+        description = "Normalizes the submitted Azure DevOps account URL, resolves the configured PAT source, and enumerates reachable Azure DevOps projects without persisting the deployment connection."
     )
     public ProviderConnectionAdoProjectDiscoveryResultRecord verifyAdoConnection(
         @RequestBody(required = false) ProviderConnectionVerifyRequest request,

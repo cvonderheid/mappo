@@ -199,13 +199,13 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                 .contentType(APPLICATION_JSON)
                 .content("""
                     {
-                      "organizationUrl": "https://dev.azure.com/pg123",
+                      "organizationUrl": "https://pg123.visualstudio.com/demo-app-service/_git/demo-app-service",
                       "personalAccessTokenRef": "mappo.azure-devops.personal-access-token"
                     }
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value("ado-default"))
-            .andExpect(jsonPath("$.organizationUrl").value("https://dev.azure.com/pg123"))
+            .andExpect(jsonPath("$.organizationUrl").value("https://pg123.visualstudio.com"))
             .andExpect(jsonPath("$.personalAccessTokenRef").value("mappo.azure-devops.personal-access-token"));
     }
 

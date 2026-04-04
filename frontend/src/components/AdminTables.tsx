@@ -625,7 +625,7 @@ export function EventsDataTable({ refreshKey }: EventsDataTableProps) {
       loading={loading}
       refreshing={refreshing}
       errorMessage={errorMessage}
-      emptyMessage="No onboarding events match current filters."
+      emptyMessage="No registration events match current filters."
       onPageChange={setPage}
       onPageSizeChange={(size) => {
         setPageSize(size);

@@ -295,7 +295,7 @@ export default function ReleaseIngestConfigPage({
     <div className="space-y-4">
       <div className="flex animate-fade-up items-center justify-between [animation-delay:60ms] [animation-fill-mode:forwards]">
         <p className="text-xs text-muted-foreground">
-          Configure inbound release sources. External systems call these webhook URLs when new versions are available, and MAPPO routes those events to linked projects.
+          Configure the webhook URLs external release systems call when new versions are available. Release Sources are inbound notifications; Deployment Connections are configured separately and let MAPPO call external deployment systems.
         </p>
         <div className="flex items-center gap-2">
           <Button type="button" variant="outline" onClick={() => void loadEndpoints(true)}>
@@ -357,7 +357,7 @@ export default function ReleaseIngestConfigPage({
 
                 <div className="mt-3 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
                   <p>
-                    Webhook verification secret:{" "}
+                    Verification secret:{" "}
                     <span className="font-medium text-foreground">{describeWebhookSecretSource(endpoint)}</span>
                   </p>
                   <p>
@@ -374,7 +374,7 @@ export default function ReleaseIngestConfigPage({
                   <Accordion type="single" collapsible className="mt-2 rounded-md border border-border/60 bg-background/40 px-3">
                     <AccordionItem value="advanced-routing" className="border-none">
                       <AccordionTrigger className="py-2 text-xs font-medium text-muted-foreground hover:no-underline">
-                        Advanced routing rules
+                        Optional routing filters
                       </AccordionTrigger>
                       <AccordionContent>
                         <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
@@ -458,9 +458,9 @@ export default function ReleaseIngestConfigPage({
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} direction="top">
         <DrawerContent>
           <DrawerHeader>
-            <DrawerTitle>{editingId ? `Edit ${editingId}` : "New release source"}</DrawerTitle>
+            <DrawerTitle>{editingId ? `Edit ${editingId}` : "New Release Source"}</DrawerTitle>
             <DrawerDescription>
-              Configure how an external system notifies MAPPO about new releases.
+              Configure how an external system notifies MAPPO about new releases. This is separate from Deployment Connections, which handle outbound API access.
             </DrawerDescription>
           </DrawerHeader>
           <form
@@ -471,7 +471,7 @@ export default function ReleaseIngestConfigPage({
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
-                  <Label htmlFor="endpoint-id">Release source ID</Label>
+                  <Label htmlFor="endpoint-id">Source ID</Label>
                   <FieldHelpTooltip content="Stable key used in webhook URL paths. Use lowercase letters, numbers, and hyphens." />
                 </div>
                 <Input
@@ -499,8 +499,8 @@ export default function ReleaseIngestConfigPage({
             <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
-                  <Label htmlFor="endpoint-provider">Notification system</Label>
-                  <FieldHelpTooltip content="External system that sends release notifications to this release source." />
+                  <Label htmlFor="endpoint-provider">Release system</Label>
+                  <FieldHelpTooltip content="External system that tells MAPPO a new release is available." />
                 </div>
                 <Select
                   value={draft.provider}
@@ -537,7 +537,7 @@ export default function ReleaseIngestConfigPage({
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
-                  <Label htmlFor="endpoint-webhook-secret-mode">Webhook secret source</Label>
+                  <Label htmlFor="endpoint-webhook-secret-mode">Webhook verification</Label>
                   <FieldHelpTooltip content="How MAPPO resolves the shared secret used to verify inbound webhook deliveries for this release source. Use the MAPPO backend secret unless you intentionally keep the secret in a named environment variable." />
                 </div>
                 <Select
@@ -580,6 +580,23 @@ export default function ReleaseIngestConfigPage({
               </div>
             ) : null}
 
+            <div className="rounded-md border border-border/60 bg-background/40 p-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">How operators wire this up</p>
+              {draft.provider === "azure_devops" ? (
+                <ul className="mt-2 list-disc space-y-1 pl-4">
+                  <li>Create an Azure DevOps service hook or webhook subscription that posts to the URL above.</li>
+                  <li>Configure the same shared secret MAPPO verifies here.</li>
+                  <li>Leave routing filters empty unless one endpoint accepts events from multiple pipelines.</li>
+                </ul>
+              ) : (
+                <ul className="mt-2 list-disc space-y-1 pl-4">
+                  <li>Create a GitHub webhook that posts JSON to the URL above.</li>
+                  <li>Configure the same shared secret MAPPO verifies here.</li>
+                  <li>Leave routing filters empty unless one endpoint accepts events from multiple repositories.</li>
+                </ul>
+              )}
+            </div>
+
             {draft.webhookSecretMode === "environment_variable" ? (
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
@@ -603,7 +620,7 @@ export default function ReleaseIngestConfigPage({
             <Accordion type="single" collapsible className="rounded-md border border-border/60 bg-background/30 px-3">
               <AccordionItem value="advanced-routing" className="border-none">
                 <AccordionTrigger className="py-2 text-sm font-medium text-foreground hover:no-underline">
-                          Advanced routing (rare)
+                          Optional routing filters
                 </AccordionTrigger>
                 <AccordionContent>
                   <p className="mb-3 text-xs text-muted-foreground">
@@ -690,7 +707,7 @@ export default function ReleaseIngestConfigPage({
                 </Button>
               </DrawerClose>
               <Button type="submit" form="release-ingest-endpoint-form" disabled={isSubmitting}>
-                {isSubmitting ? "Saving..." : editingId ? "Update endpoint" : "Create endpoint"}
+                {isSubmitting ? "Saving..." : editingId ? "Update release source" : "Create release source"}
               </Button>
             </div>
           </DrawerFooter>

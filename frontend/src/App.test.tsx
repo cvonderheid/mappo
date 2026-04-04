@@ -267,7 +267,7 @@ describe("App", () => {
       expect(screen.getByRole("link", { name: /Fleet/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Deployments/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Targets/i })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /Onboarding/i })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Registration Events/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Releases/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /^Managed App$/i })).toBeInTheDocument();
       expect(screen.getByText(/New release 2026.02.25.3 is available/i)).toBeInTheDocument();
@@ -306,7 +306,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Registered Targets" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Onboard Targets/i })).not.toBeInTheDocument();
-      expect(screen.getByText(/Refresh Registered Targets/i)).toBeInTheDocument();
+      expect(screen.getByText(/Refresh Targets/i)).toBeInTheDocument();
     });
 
     cleanup();
@@ -314,8 +314,8 @@ describe("App", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /Onboarding events/i })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Onboard Targets/i })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: /Registration Events/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Add Targets/i })).toBeInTheDocument();
       expect(screen.getByRole("columnheader", { name: /Event ID/i })).toBeInTheDocument();
     });
   });
