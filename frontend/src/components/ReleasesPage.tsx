@@ -14,6 +14,7 @@ import type {
 } from "@/lib/types";
 
 type ReleasesPageProps = {
+  selectedProjectId?: string;
   releases: Release[];
   releaseIngestIsSubmitting: boolean;
   refreshKey: number;
@@ -34,6 +35,7 @@ function formatTimestamp(value: string | null | undefined): string {
 }
 
 export default function ReleasesPage({
+  selectedProjectId,
   releases,
   releaseIngestIsSubmitting,
   refreshKey,
@@ -70,8 +72,14 @@ export default function ReleasesPage({
   async function handleIngestManagedAppReleases(
     request?: ReleaseManifestIngestRequest
   ): Promise<void> {
+    const resolvedRequest = selectedProjectId
+      ? {
+          ...request,
+          projectId: request?.projectId ?? selectedProjectId,
+        }
+      : request;
     try {
-      const result = await onIngestManagedAppReleases(request);
+      const result = await onIngestManagedAppReleases(resolvedRequest);
       const baseMessage = `Ingested ${result.createdCount} new release(s), skipped ${result.skippedCount}, ignored drafts ${result.ignoredCount ?? 0}, manifest entries ${result.manifestReleaseCount}.`;
       if ((result.createdCount ?? 0) > 0) {
         toast.success(baseMessage);
@@ -85,9 +93,13 @@ export default function ReleasesPage({
   }
 
   async function handleCheckForNewReleases(): Promise<void> {
+    if (!selectedProjectId) {
+      toast.error("Select a project before checking for new releases.");
+      return;
+    }
     setIsCheckingReleases(true);
     try {
-      await handleIngestManagedAppReleases();
+      await handleIngestManagedAppReleases({ projectId: selectedProjectId });
     } finally {
       setIsCheckingReleases(false);
     }
@@ -118,6 +130,7 @@ export default function ReleasesPage({
             Advanced
           </Button>
           <ReleaseIngestDrawer
+            defaultProjectId={selectedProjectId}
             isSubmitting={releaseIngestIsSubmitting}
             open={releaseIngestDrawerOpen}
             onOpenChange={setReleaseIngestDrawerOpen}

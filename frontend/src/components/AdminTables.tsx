@@ -507,9 +507,10 @@ export function RegistrationsDataTable({
 
 type EventsDataTableProps = {
   refreshKey: number;
+  projectId?: string;
 };
 
-export function EventsDataTable({ refreshKey }: EventsDataTableProps) {
+export function EventsDataTable({ refreshKey, projectId }: EventsDataTableProps) {
   const [pageData, setPageData] = useState<MarketplaceEventPage>({ items: [], page: EMPTY_PAGE });
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -533,6 +534,7 @@ export function EventsDataTable({ refreshKey }: EventsDataTableProps) {
     void adminListMarketplaceEvents({
       page,
       size: pageSize,
+      projectId: projectId || undefined,
       eventId: eventIdFilter || undefined,
       status: statusFilter === "all" ? undefined : statusFilter,
     })
@@ -559,7 +561,7 @@ export function EventsDataTable({ refreshKey }: EventsDataTableProps) {
     return () => {
       active = false;
     };
-  }, [eventIdFilter, page, pageSize, refreshKey, statusFilter]);
+  }, [eventIdFilter, page, pageSize, projectId, refreshKey, statusFilter]);
 
   const rows = useMemo<EventRow[]>(
     () =>

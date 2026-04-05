@@ -18,7 +18,9 @@ export type ListProjectAuditQuery = NonNullable<operations["listProjectAudit"]["
 export type ListTargetRegistrationsQuery =
   NonNullable<operations["listRegistrations"]["parameters"]["query"]>;
 export type ListMarketplaceEventsQuery =
-  NonNullable<operations["listMarketplaceEvents"]["parameters"]["query"]>;
+  NonNullable<operations["listMarketplaceEvents"]["parameters"]["query"]> & {
+    projectId?: string;
+  };
 export type ListForwarderLogsQuery =
   NonNullable<operations["listForwarderLogsPage"]["parameters"]["query"]>;
 export type ListReleaseWebhookDeliveriesQuery =
@@ -155,7 +157,9 @@ export type ProviderConnectionAdoProjectDiscoveryResult = {
 export type ReleaseWebhookDeliveryRecord = Schemas["ReleaseWebhookDeliveryRecord"];
 export type ReleaseWebhookDeliveryPage = Schemas["ReleaseWebhookDeliveryPageRecord"];
 export type ReleaseWebhookStatus = NonNullable<Schemas["ReleaseWebhookDeliveryRecord"]["status"]>;
-export type ReleaseManifestIngestRequest = Schemas["ReleaseManifestIngestRequest"];
+export type ReleaseManifestIngestRequest = Schemas["ReleaseManifestIngestRequest"] & {
+  projectId?: string;
+};
 export type ReleaseManifestIngestResponse = Schemas["ReleaseManifestIngestResultRecord"];
 export type RunDetail = Schemas["RunDetailRecord"];
 export type RunPreview = Schemas["RunPreviewRecord"];

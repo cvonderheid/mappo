@@ -38,7 +38,6 @@ import {
   discoverProjectAdoRepositories,
   discoverProjectAdoServiceConnections,
   getRun,
-  listProjectAudit,
   listProjects,
   listReleases,
   listRuns,
@@ -51,12 +50,10 @@ import {
 } from "@/lib/api";
 import type {
   CreateRunRequest,
-  ListProjectAuditQuery,
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
   PageMetadata,
   ProjectAdoRepositoryDiscoveryResult,
-  ProjectConfigurationAuditPage,
   ProjectConfigurationPatchRequest,
   ProjectCreateRequest,
   ProjectAdoServiceConnectionDiscoveryResult,
@@ -1280,13 +1277,6 @@ function AppShell() {
     return discoverProjectAdoServiceConnections(projectId, request);
   }
 
-  async function handleListProjectAudit(
-    projectId: string,
-    query: ListProjectAuditQuery
-  ): Promise<ProjectConfigurationAuditPage> {
-    return listProjectAudit(projectId, query);
-  }
-
   return (
     <main
       className="mx-auto flex w-[min(1480px,96vw)] flex-col gap-4 py-6"
@@ -1309,9 +1299,10 @@ function AppShell() {
               Theme: <span className="font-medium text-foreground">{selectedProjectTheme.name}</span>
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-2 lg:w-[320px]">
+          <div className="grid grid-cols-3 gap-2 lg:w-[480px]">
             <Kpi label="Total Targets" value={String(targets.length)} />
             <Kpi label="Active Runs" value={String(runStats.running)} />
+            <Kpi label="Releases" value={String(projectReleases.length)} />
           </div>
         </div>
       </div>
@@ -1444,7 +1435,6 @@ function AppShell() {
                     onCreateProject={handleCreateProject}
                     onPatchProject={handlePatchProject}
                     onValidateProject={handleValidateProject}
-                    onListProjectAudit={handleListProjectAudit}
                     onDiscoverAdoRepositories={handleDiscoverProjectAdoRepositories}
                     onDiscoverAdoPipelines={handleDiscoverProjectAdoPipelines}
                     onDiscoverAdoServiceConnections={handleDiscoverProjectAdoServiceConnections}
@@ -1594,6 +1584,7 @@ function AppShell() {
                 path="/releases"
                 element={
                   <ReleasesPage
+                    selectedProjectId={selectedProjectId}
                     releases={projectReleases}
                     releaseIngestIsSubmitting={releaseIngestIsSubmitting}
                     refreshKey={adminRefreshVersion}

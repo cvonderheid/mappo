@@ -451,6 +451,7 @@ export async function adminListMarketplaceEvents(
       query: {
         page: query.page,
         size: query.size,
+        projectId: query.projectId,
         eventId: query.eventId,
         status: query.status,
       },

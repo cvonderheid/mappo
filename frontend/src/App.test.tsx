@@ -315,7 +315,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Registration Events/i })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Add Targets/i })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Add Targets/i })).not.toBeInTheDocument();
       expect(screen.getByRole("columnheader", { name: /Event ID/i })).toBeInTheDocument();
     });
   });

@@ -13,10 +13,13 @@ public class MarketplaceEventPageParameters extends PageQueryParameters {
     @Schema(description = "Filter by onboarding event identifier.", example = "evt-20260308-001")
     private String eventId;
 
+    @Schema(description = "Filter by project identifier.", example = "azure-managed-app-deployment-stack")
+    private String projectId;
+
     @Schema(description = "Filter by onboarding event status.")
     private MappoMarketplaceEventStatus status;
 
     public MarketplaceEventPageQuery toQuery() {
-        return new MarketplaceEventPageQuery(getPage(), getSize(), eventId, status);
+        return new MarketplaceEventPageQuery(getPage(), getSize(), projectId, eventId, status);
     }
 }

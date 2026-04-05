@@ -38,25 +38,27 @@ class ReleaseManifestIngestIntegrationTests extends PostgresIntegrationTestBase 
                 .contentType(APPLICATION_JSON)
                 .content("""
                     {
-                      "repo": "cvonderheid/mappo-managed-app",
-                      "path": "releases/releases.manifest.json",
-                      "ref": "main"
+                      "projectId": "azure-managed-app-deployment-stack"
                     }
                     """))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.manifestReleaseCount").value(3))
+            .andExpect(jsonPath("$.manifestReleaseCount").value(4))
             .andExpect(jsonPath("$.createdCount").value(2))
-            .andExpect(jsonPath("$.skippedCount").value(0))
+            .andExpect(jsonPath("$.skippedCount").value(1))
             .andExpect(jsonPath("$.ignoredCount").value(1))
             .andExpect(jsonPath("$.createdReleaseIds.length()").value(2));
 
         mockMvc.perform(post("/api/v1/admin/releases/ingest/github")
                 .contentType(APPLICATION_JSON)
-                .content("{}"))
+                .content("""
+                    {
+                      "projectId": "azure-managed-app-deployment-stack"
+                    }
+                    """))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.manifestReleaseCount").value(3))
+            .andExpect(jsonPath("$.manifestReleaseCount").value(4))
             .andExpect(jsonPath("$.createdCount").value(0))
-            .andExpect(jsonPath("$.skippedCount").value(2))
+            .andExpect(jsonPath("$.skippedCount").value(3))
             .andExpect(jsonPath("$.ignoredCount").value(1));
 
         mockMvc.perform(get("/api/v1/releases"))
@@ -77,7 +79,6 @@ class ReleaseManifestIngestIntegrationTests extends PostgresIntegrationTestBase 
                   "releases": [
                     {
                       "publication_status": "published",
-                      "project_id": "azure-managed-app-deployment-stack",
                       "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
                       "source_version": "2026.03.06.1",
                       "source_type": "deployment_stack",
@@ -99,7 +100,19 @@ class ReleaseManifestIngestIntegrationTests extends PostgresIntegrationTestBase 
                     },
                     {
                       "publication_status": "published",
-                      "project_id": "azure-managed-app-deployment-stack",
+                      "template_spec_id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Resources/templateSpecs/demo",
+                      "template_spec_version": "2026.03.06.1",
+                      "template_spec_version_id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Resources/templateSpecs/demo/versions/2026.03.06.1",
+                      "source_type": "template_spec",
+                      "deployment_scope": "resource_group",
+                      "parameter_defaults": {
+                        "softwareVersion": "2026.03.06.1",
+                        "dataModelVersion": "6"
+                      },
+                      "release_notes": "Template spec fallback release"
+                    },
+                    {
+                      "publication_status": "published",
                       "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
                       "source_version": "2026.03.07.1",
                       "source_type": "deployment_stack",
@@ -116,7 +129,6 @@ class ReleaseManifestIngestIntegrationTests extends PostgresIntegrationTestBase 
                     },
                     {
                       "publication_status": "draft",
-                      "project_id": "azure-managed-app-deployment-stack",
                       "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
                       "source_version": "2026.03.08.1",
                       "source_type": "deployment_stack",

@@ -96,12 +96,6 @@ public class ReleaseManifestRowParser {
         );
 
         String projectId = firstNonBlank(stringValue(row.get("project_id")), stringValue(row.get("projectId")));
-        if (projectId.isBlank()) {
-            throw new ApiException(
-                HttpStatus.BAD_REQUEST,
-                "release manifest row #%d missing required field: project_id".formatted(index + 1)
-            );
-        }
 
         return new ReleaseCreateRequest(
             projectId,

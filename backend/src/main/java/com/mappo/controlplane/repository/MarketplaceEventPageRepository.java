@@ -14,13 +14,18 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Field;
 import org.jooq.Record;
 import org.jooq.impl.DSL;
+import org.jooq.impl.SQLDataType;
 import org.springframework.stereotype.Repository;
 
 @Repository
 @RequiredArgsConstructor
 public class MarketplaceEventPageRepository {
+
+    private static final Field<String> PROJECT_ID =
+        DSL.field(DSL.name("project_id"), SQLDataType.VARCHAR(128));
 
     private final DSLContext dsl;
 
@@ -110,9 +115,13 @@ public class MarketplaceEventPageRepository {
         }
 
         Condition condition = DSL.trueCondition();
+        String projectId = normalize(query.projectId());
         String eventId = normalize(query.eventId());
         MappoMarketplaceEventStatus status = query.status();
 
+        if (!projectId.isBlank()) {
+            condition = condition.and(PROJECT_ID.eq(projectId));
+        }
         if (!eventId.isBlank()) {
             condition = condition.and(MARKETPLACE_EVENTS.ID.containsIgnoreCase(eventId));
         }

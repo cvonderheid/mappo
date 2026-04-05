@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { EventsDataTable, RegistrationsDataTable } from "@/components/AdminTables";
 import TargetOnboardingDrawer from "@/components/TargetOnboardingDrawer";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -51,6 +52,12 @@ type RegistryAuthMode =
   | "none"
   | "shared_service_principal_secret"
   | "customer_managed_secret";
+
+const REGISTRY_AUTH_MODE_LABELS: Record<RegistryAuthMode, string> = {
+  none: "None",
+  shared_service_principal_secret: "MAPPO-managed registry secret",
+  customer_managed_secret: "Customer-managed registry secret",
+};
 
 function normalizeTagValue(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() !== "" ? value : fallback;
@@ -274,17 +281,6 @@ export default function TargetsPage({
             ? "Review registration events and how targets were added for this project."
             : "Manage the deploy destinations MAPPO can roll out to for this project."}
         </p>
-        {viewMode === "onboarding" ? (
-          <TargetOnboardingDrawer
-            projects={projects}
-            selectedProjectId={selectedProjectId}
-            isSubmitting={adminIsSubmitting}
-            open={onboardingDrawerOpen}
-            onOpenChange={setOnboardingDrawerOpen}
-            onIngestMarketplaceEvent={onIngestMarketplaceEvent}
-            onRefreshRegistrations={onRefreshRegistrations}
-          />
-        ) : null}
       </div>
       {viewMode === "targets" ? (
         <TargetOnboardingDrawer
@@ -341,7 +337,7 @@ export default function TargetsPage({
               deletingTargetId={deletingTargetId}
             />
           ) : (
-            <EventsDataTable refreshKey={refreshKey} />
+            <EventsDataTable refreshKey={refreshKey} projectId={selectedProjectId} />
           )}
         </CardContent>
       </Card>
@@ -438,15 +434,6 @@ export default function TargetsPage({
                       required
                     />
                   </div>
-                  <div className="space-y-1 lg:col-span-2">
-                    <Label htmlFor="edit-managed-application-id">Managed Application ID</Label>
-                    <Input
-                      id="edit-managed-application-id"
-                      value={editManagedApplicationId}
-                      onChange={(item) => setEditManagedApplicationId(item.target.value)}
-                      placeholder="/subscriptions/.../providers/Microsoft.Solutions/applications/..."
-                    />
-                  </div>
                   <div className="space-y-1">
                     <Label htmlFor="edit-managed-rg-id">Managed RG ID</Label>
                     <Input
@@ -465,58 +452,81 @@ export default function TargetsPage({
                       placeholder="mappo-stack-target-01"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="edit-registry-auth-mode">Registry Auth Mode</Label>
-                    <Select
-                      value={editRegistryAuthMode}
-                      onValueChange={(value) =>
-                        setEditRegistryAuthMode(value as RegistryAuthMode)
-                      }
-                    >
-                      <SelectTrigger id="edit-registry-auth-mode">
-                        <SelectValue placeholder="Select auth mode" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        <SelectItem value="shared_service_principal_secret">
-                          Shared Service Principal
-                        </SelectItem>
-                        <SelectItem value="customer_managed_secret">
-                          Customer Managed Secret
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="edit-registry-server">Registry Server</Label>
-                    <Input
-                      id="edit-registry-server"
-                      value={editRegistryServer}
-                      onChange={(item) => setEditRegistryServer(item.target.value)}
-                      placeholder="acr.example.azurecr.io"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="edit-registry-username">Registry Username</Label>
-                    <Input
-                      id="edit-registry-username"
-                      value={editRegistryUsername}
-                      onChange={(item) => setEditRegistryUsername(item.target.value)}
-                      placeholder="service-principal-client-id"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="edit-registry-password-secret-name">
-                      Registry Password Secret Name
-                    </Label>
-                    <Input
-                      id="edit-registry-password-secret-name"
-                      value={editRegistryPasswordSecretName}
-                      onChange={(item) =>
-                        setEditRegistryPasswordSecretName(item.target.value)
-                      }
-                      placeholder="publisher-acr-pull"
-                    />
+                  <div className="lg:col-span-3">
+                    <Accordion type="single" collapsible className="rounded-md border border-border/60 bg-background/40 px-3">
+                      <AccordionItem value="advanced-target-overrides" className="border-none">
+                        <AccordionTrigger className="py-2 text-sm font-medium text-foreground hover:no-underline">
+                          Advanced target overrides
+                        </AccordionTrigger>
+                        <AccordionContent className="space-y-3 pb-1">
+                          <p className="text-xs text-muted-foreground">
+                            These fields override platform defaults for this single target. Leave them alone unless this target is an exception to the project&apos;s normal Azure setup.
+                          </p>
+                          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                            <div className="space-y-1 lg:col-span-2">
+                              <Label htmlFor="edit-managed-application-id">Managed Application ID</Label>
+                              <Input
+                                id="edit-managed-application-id"
+                                value={editManagedApplicationId}
+                                onChange={(item) => setEditManagedApplicationId(item.target.value)}
+                                placeholder="/subscriptions/.../providers/Microsoft.Solutions/applications/..."
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="edit-registry-auth-mode">Registry Auth Mode</Label>
+                              <Select
+                                value={editRegistryAuthMode}
+                                onValueChange={(value) =>
+                                  setEditRegistryAuthMode(value as RegistryAuthMode)
+                                }
+                              >
+                                <SelectTrigger id="edit-registry-auth-mode">
+                                  <SelectValue placeholder="Select auth mode" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Object.entries(REGISTRY_AUTH_MODE_LABELS).map(([value, label]) => (
+                                    <SelectItem key={value} value={value}>
+                                      {label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="edit-registry-server">Registry Server</Label>
+                              <Input
+                                id="edit-registry-server"
+                                value={editRegistryServer}
+                                onChange={(item) => setEditRegistryServer(item.target.value)}
+                                placeholder="acr.example.azurecr.io"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="edit-registry-username">Registry Username</Label>
+                              <Input
+                                id="edit-registry-username"
+                                value={editRegistryUsername}
+                                onChange={(item) => setEditRegistryUsername(item.target.value)}
+                                placeholder="service-principal-client-id"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="edit-registry-password-secret-name">
+                                Registry Password Secret Name
+                              </Label>
+                              <Input
+                                id="edit-registry-password-secret-name"
+                                value={editRegistryPasswordSecretName}
+                                onChange={(item) =>
+                                  setEditRegistryPasswordSecretName(item.target.value)
+                                }
+                                placeholder="publisher-acr-pull"
+                              />
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
                   </div>
                 </>
               )}

@@ -2,7 +2,6 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
-import DataTablePagination from "@/components/DataTablePagination";
 import FieldHelpTooltip from "@/components/FieldHelpTooltip";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -29,16 +28,12 @@ import type {
   DiscoverProjectAdoRepositoriesRequest,
   DiscoverProjectAdoServiceConnectionsRequest,
   DiscoverProjectAdoPipelinesRequest,
-  ListProjectAuditQuery,
-  PageMetadata,
   ProjectAdoPipeline,
   ProjectAdoPipelineDiscoveryResult,
   ProjectAdoRepository,
   ProjectAdoRepositoryDiscoveryResult,
   ProjectAdoServiceConnection,
   ProjectAdoServiceConnectionDiscoveryResult,
-  ProjectConfigurationAuditAction,
-  ProjectConfigurationAuditPage,
   ProjectConfigurationPatchRequest,
   ProjectCreateRequest,
   ProjectDefinition,
@@ -58,10 +53,6 @@ type ProjectSettingsPageProps = {
   onCreateProject: (request: ProjectCreateRequest) => Promise<ProjectDefinition>;
   onPatchProject: (projectId: string, request: ProjectConfigurationPatchRequest) => Promise<ProjectDefinition>;
   onValidateProject: (projectId: string, request: ProjectValidationRequest) => Promise<ProjectValidationResult>;
-  onListProjectAudit: (
-    projectId: string,
-    query: ListProjectAuditQuery
-  ) => Promise<ProjectConfigurationAuditPage>;
   onDiscoverAdoPipelines: (
     projectId: string,
     request: DiscoverProjectAdoPipelinesRequest
@@ -80,11 +71,7 @@ type ProjectTab =
   | "general"
   | "release-ingest"
   | "deployment-driver"
-  | "access-identity"
-  | "target-contract"
-  | "runtime-health"
-  | "validation"
-  | "audit";
+  | "runtime-health";
 
 type ValidationScope = "credentials" | "webhook" | "target_contract";
 type ReleaseSystem = "github" | "azure_devops";
@@ -123,9 +110,6 @@ type ProjectDraft = {
   };
 };
 
-type AuditItem = NonNullable<ProjectConfigurationAuditPage["items"]>[number];
-type ValidationFinding = NonNullable<ProjectValidationResult["findings"]>[number];
-
 type DraftValidationIssue = {
   id: string;
   tab: ProjectTab;
@@ -137,11 +121,7 @@ const PROJECT_TABS: { key: ProjectTab; label: string }[] = [
   { key: "general", label: "General" },
   { key: "release-ingest", label: "Release Source" },
   { key: "deployment-driver", label: "Deployment Driver" },
-  { key: "access-identity", label: "Authentication" },
-  { key: "target-contract", label: "Onboarding Guide" },
   { key: "runtime-health", label: "Runtime Health" },
-  { key: "validation", label: "Validation" },
-  { key: "audit", label: "Audit" },
 ];
 
 const RELEASE_SYSTEM_ORDER: ReleaseSystem[] = ["github", "azure_devops"];
@@ -462,7 +442,6 @@ export default function ProjectSettingsPage({
   onCreateProject,
   onPatchProject,
   onValidateProject,
-  onListProjectAudit,
   onDiscoverAdoPipelines,
   onDiscoverAdoRepositories,
   onDiscoverAdoServiceConnections,
@@ -472,15 +451,7 @@ export default function ProjectSettingsPage({
   const [activeTab, setActiveTab] = useState<ProjectTab>("general");
   const [draft, setDraft] = useState<ProjectDraft>(() => projectToDraft(project));
   const [isSaving, setIsSaving] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
-  const [validationTargetId, setValidationTargetId] = useState<string>("");
-  const [validationResult, setValidationResult] = useState<ProjectValidationResult | null>(null);
-  const [auditPage, setAuditPage] = useState<ProjectConfigurationAuditPage | null>(null);
-  const [auditPageIndex, setAuditPageIndex] = useState<number>(0);
-  const [auditPageSize, setAuditPageSize] = useState<number>(10);
-  const [auditActionFilter, setAuditActionFilter] = useState<ProjectConfigurationAuditAction | "all">("all");
-  const [auditLoading, setAuditLoading] = useState(false);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [isDiscoveringRepositories, setIsDiscoveringRepositories] = useState(false);
@@ -517,9 +488,6 @@ export default function ProjectSettingsPage({
     setSelectedReleaseSystem(
       nextDraft.deploymentDriver === "pipeline_trigger" ? "azure_devops" : "github"
     );
-    setValidationResult(null);
-    setAuditPage(null);
-    setAuditPageIndex(0);
     setDiscoveredRepositories([]);
     setDiscoveredPipelines([]);
     setDiscoveredServiceConnections([]);
@@ -580,12 +548,6 @@ export default function ProjectSettingsPage({
       { replace: true }
     );
   }, [location.pathname, location.search, navigate]);
-
-  useEffect(() => {
-    if (!validationTargetId && targets.length > 0) {
-      setValidationTargetId(targets[0]?.id ?? "");
-    }
-  }, [targets, validationTargetId]);
 
   useEffect(() => {
     if (draft.deploymentDriver !== "pipeline_trigger") {
@@ -803,12 +765,6 @@ export default function ProjectSettingsPage({
     selectedReleaseIngestEndpoint,
     selectedReleaseIngestEndpointIsAzureDevOps,
   ]);
-  const auditMetadata: PageMetadata = auditPage?.page ?? {
-    page: auditPageIndex,
-    size: auditPageSize,
-    totalItems: 0,
-    totalPages: 0,
-  };
   const selectedDiscoveredPipelineId = useMemo(() => {
     if (draft.driver.pipelineId.trim() === "") {
       return "__none";
@@ -1138,53 +1094,18 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
       ? "azure_devops"
       : "github";
 
-  async function refreshAudit(): Promise<void> {
-    if (!project?.id) {
-      setAuditPage(null);
-      return;
-    }
-    setAuditLoading(true);
-    try {
-      const response = await onListProjectAudit(project.id, {
-        page: auditPageIndex,
-        size: auditPageSize,
-        action: auditActionFilter === "all" ? undefined : auditActionFilter,
-      });
-      setAuditPage(response);
-    } catch (error) {
-      toast.error((error as Error).message);
-    } finally {
-      setAuditLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    if (activeTab !== "audit") {
-      return;
-    }
-    void refreshAudit();
-  }, [activeTab, auditActionFilter, auditPageIndex, auditPageSize, project?.id]);
-
-  async function persistDraft(mode: "save" | "publish"): Promise<void> {
+  async function saveProjectConfig(): Promise<void> {
     if (!project?.id || draftValidationIssues.length > 0) {
       return;
     }
-    if (mode === "save") {
-      setIsSaving(true);
-    } else {
-      setIsPublishing(true);
-    }
+    setIsSaving(true);
     try {
       await onPatchProject(project.id, buildPatchRequest(draft));
-      toast.success(mode === "save" ? "Project draft saved." : "Project configuration published.");
+      toast.success("Project configuration saved.");
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
-      if (mode === "save") {
-        setIsSaving(false);
-      } else {
-        setIsPublishing(false);
-      }
+      setIsSaving(false);
     }
   }
 
@@ -1194,17 +1115,12 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
     }
     setIsValidating(true);
     try {
-      const response = await onValidateProject(project.id, {
-        scopes,
-        targetId: scopes.includes("target_contract") ? validationTargetId || undefined : undefined,
-      });
-      setValidationResult(response);
+      const response = await onValidateProject(project.id, { scopes });
       if (response.valid) {
         toast.success("Validation passed.");
       } else {
         toast.warning("Validation completed with findings.");
       }
-      setActiveTab("validation");
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
@@ -1512,22 +1428,6 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
           <CardTitle className="text-base">Project Setup Checklist</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 pt-0 text-sm">
-          <div className="grid gap-2 md:grid-cols-2">
-            <div className="rounded-md border border-border/70 bg-background/50 p-2">
-              <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Selected project</p>
-              <p className="mt-1 text-sm font-medium">{project?.name ?? "No project selected"}</p>
-              {project?.id ? <p className="font-mono text-[11px] text-muted-foreground">{project.id}</p> : null}
-            </div>
-            <div className="rounded-md border border-border/70 bg-background/50 p-2">
-              <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Current progress</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Targets: <span className="font-medium text-foreground">{targetCount}</span>
-                {" · "}
-                Releases: <span className="font-medium text-foreground">{projectReleaseCount}</span>
-              </p>
-            </div>
-          </div>
-
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
             <div className="rounded-md border border-border/70 bg-background/40 p-2">
               <p className="text-xs font-medium">Project created</p>
@@ -1572,7 +1472,7 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
           <div className="space-y-2">
             <CardTitle>Project Settings</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Configure release sources, deployment driver, identity model, runtime health, validation, and audit history.
+              Configure release sources, deployment behavior, runtime health, and project defaults.
             </p>
           </div>
           <div className="sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-background/80 p-2 backdrop-blur">
@@ -1586,11 +1486,8 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
             >
               {isValidating ? "Validating..." : "Validate"}
             </Button>
-            <Button type="button" variant="outline" onClick={() => void persistDraft("save")} disabled={!canPersist || isSaving}>
-              {isSaving ? "Saving..." : "Save Draft"}
-            </Button>
-            <Button type="button" onClick={() => void persistDraft("publish")} disabled={!canPersist || isPublishing}>
-              {isPublishing ? "Publishing..." : "Publish Config"}
+            <Button type="button" onClick={() => void saveProjectConfig()} disabled={!canPersist || isSaving}>
+              {isSaving ? "Saving..." : "Save"}
             </Button>
           </div>
         </CardHeader>
@@ -2389,95 +2286,6 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
               </div>
             </TabsContent>
 
-            <TabsContent value="access-identity" className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Authentication</h3>
-              <div className="space-y-3">
-                <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                  <p className="text-sm font-semibold text-foreground">Authentication model</p>
-                  <p className="mt-2 text-sm text-foreground">{ACCESS_STRATEGY_LABELS[draft.accessStrategy]}</p>
-                  <p className="mt-2 text-xs text-muted-foreground">{ACCESS_STRATEGY_HELP[draft.accessStrategy]}</p>
-                </div>
-                {draft.accessStrategy === "lighthouse_delegated_access" ? (
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div className="space-y-1">
-                      <Label htmlFor="access-managing-tenant">Managing tenant ID</Label>
-                      <Input id="access-managing-tenant" value={draft.access.managingTenantId} readOnly />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="access-managing-principal">Managing principal client ID</Label>
-                      <Input id="access-managing-principal" value={draft.access.managingPrincipalClientId} readOnly />
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="target-contract" className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Onboarding Guide</h3>
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                  <p className="text-sm font-semibold text-foreground">What a target means</p>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    A target is one deployable environment for this project. Targets tell MAPPO where a rollout should go.
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => navigate("/targets")}>
-                      Open Targets
-                    </Button>
-                  </div>
-                </div>
-                <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                  <p className="text-sm font-semibold text-foreground">How targets are added</p>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Use Registration Events to review onboarding history and add or inspect project targets.
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => navigate("/onboarding")}>
-                      Open Registration Events
-                    </Button>
-                  </div>
-                </div>
-              </div>
-              {targets.length > 0 ? (
-                <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1">
-                        <Label htmlFor="validation-target">Check one target</Label>
-                        <FieldHelpTooltip content="Run MAPPO's target readiness validation against a registered target for this project." />
-                      </div>
-                      <Select value={validationTargetId} onValueChange={setValidationTargetId}>
-                        <SelectTrigger id="validation-target">
-                          <SelectValue placeholder="Select target" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {targets.map((target) => (
-                            <SelectItem key={target.id} value={target.id ?? ""}>
-                              {target.id}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={!project?.id || isValidating}
-                      onClick={() => {
-                        void runValidation(["target_contract"]);
-                      }}
-                    >
-                      Check target
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
-                  Add at least one target before MAPPO can validate this project&apos;s deploy destinations.
-                </div>
-              )}
-            </TabsContent>
-
             <TabsContent value="runtime-health" className="space-y-3">
               <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Runtime Health</h3>
               <div className="rounded-md border border-border/70 bg-background/60 p-3">
@@ -2539,128 +2347,6 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
               </div>
             </TabsContent>
 
-            <TabsContent value="validation" className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Validation</h3>
-              <div className="rounded-md border border-border/70 bg-background/60 p-3 text-xs text-muted-foreground">
-                Run validation from the tab that owns the setting you are working on. Use this tab to review the latest validation results in one place.
-              </div>
-              {validationResult ? (
-                <div className="space-y-2 rounded-md border border-border/70 bg-background/60 p-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={validationResult.valid ? "default" : "destructive"}>
-                      {validationResult.valid ? "VALID" : "ACTION REQUIRED"}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {validationResult.validatedAt ?? "Validation timestamp unavailable"}
-                    </span>
-                  </div>
-                  <table className="w-full text-left text-xs">
-                    <thead className="text-muted-foreground">
-                      <tr>
-                        <th className="py-1">Scope</th>
-                        <th className="py-1">Status</th>
-                        <th className="py-1">Code</th>
-                        <th className="py-1">Message</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(validationResult.findings ?? []).map((finding: ValidationFinding, index) => (
-                        <tr key={`${finding.code}-${index}`} className="border-t border-border/50">
-                          <td className="py-1">{finding.scope}</td>
-                          <td className="py-1">
-                            <Badge variant={finding.status === "fail" ? "destructive" : finding.status === "warning" ? "secondary" : "default"}>
-                              {finding.status}
-                            </Badge>
-                          </td>
-                          <td className="py-1 font-mono">{finding.code}</td>
-                          <td className="py-1">{finding.message}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Run validation to confirm credentials, release-source configuration, and target readiness.
-                </p>
-              )}
-            </TabsContent>
-
-            <TabsContent value="audit" className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Audit</h3>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-muted-foreground">Action filter</span>
-                  <FieldHelpTooltip content="Filter project configuration audit history by mutation type." />
-                </div>
-                <Select
-                  value={auditActionFilter}
-                  onValueChange={(value) => {
-                    setAuditActionFilter(value as ProjectConfigurationAuditAction | "all");
-                    setAuditPageIndex(0);
-                  }}
-                >
-                  <SelectTrigger className="h-9 w-[180px] bg-background/90">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All actions</SelectItem>
-                    <SelectItem value="created">created</SelectItem>
-                    <SelectItem value="updated">updated</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button type="button" variant="outline" onClick={() => void refreshAudit()} disabled={auditLoading}>
-                  {auditLoading ? "Refreshing..." : "Refresh Audit"}
-                </Button>
-              </div>
-              <div className="rounded-md border border-border/70 bg-background/60 p-3">
-                {(auditPage?.items?.length ?? 0) === 0 ? (
-                  <p className="text-xs text-muted-foreground">No audit events found for current filters.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {(auditPage?.items ?? []).map((item: AuditItem) => (
-                      <details key={item.id} className="rounded border border-border/60 bg-background/50 p-2">
-                        <summary className="cursor-pointer text-xs">
-                          <span className="font-mono">{item.id}</span>
-                          <span className="mx-2">·</span>
-                          <Badge variant="secondary">{item.action}</Badge>
-                          <span className="mx-2">·</span>
-                          <span>{item.changeSummary}</span>
-                          <span className="mx-2">·</span>
-                          <span className="text-muted-foreground">{item.createdAt}</span>
-                        </summary>
-                        <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
-                          <div>
-                            <p className="mb-1 text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Before</p>
-                            <pre className="max-h-40 overflow-auto rounded bg-background p-2 text-[11px]">
-                              {JSON.stringify(item.beforeSnapshot ?? {}, null, 2)}
-                            </pre>
-                          </div>
-                          <div>
-                            <p className="mb-1 text-[11px] uppercase tracking-[0.08em] text-muted-foreground">After</p>
-                            <pre className="max-h-40 overflow-auto rounded bg-background p-2 text-[11px]">
-                              {JSON.stringify(item.afterSnapshot ?? {}, null, 2)}
-                            </pre>
-                          </div>
-                        </div>
-                      </details>
-                    ))}
-                    <DataTablePagination
-                      page={auditMetadata.page ?? 0}
-                      pageSize={auditMetadata.size ?? auditPageSize}
-                      totalItems={auditMetadata.totalItems ?? 0}
-                      totalPages={auditMetadata.totalPages ?? 0}
-                      onPageChange={setAuditPageIndex}
-                      onPageSizeChange={(size) => {
-                        setAuditPageSize(size);
-                        setAuditPageIndex(0);
-                      }}
-                      noun="events"
-                    />
-                  </div>
-                )}
-              </div>
-            </TabsContent>
               </Tabs>
             </div>
             <Card className="h-fit border-border/70 bg-background/50 xl:sticky xl:top-4">

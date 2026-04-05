@@ -59,17 +59,21 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
             }
             """;
 
-        mockMvc.perform(post("/api/v1/admin/releases/webhooks/github")
+        mockMvc.perform(post("/api/v1/release-ingest/endpoints/github-managed-app-default/webhooks/github")
                 .contentType(APPLICATION_JSON)
                 .content(payload)
                 .header("x-github-event", "push")
                 .header("x-github-delivery", deliveryId)
                 .header("x-hub-signature-256", githubSignature(payload)))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.manifestReleaseCount").value(3))
-            .andExpect(jsonPath("$.createdCount").value(2))
+            .andExpect(jsonPath("$.manifestReleaseCount").value(4))
+            .andExpect(jsonPath("$.createdCount").value(3))
             .andExpect(jsonPath("$.skippedCount").value(0))
             .andExpect(jsonPath("$.ignoredCount").value(1));
+
+        mockMvc.perform(get("/api/v1/releases"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(3));
 
         mockMvc.perform(get("/api/v1/admin/releases/webhook-deliveries"))
             .andExpect(status().isOk())
@@ -77,7 +81,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
             .andExpect(jsonPath("$.items[0].status").value("applied"))
             .andExpect(jsonPath("$.items[0].repo").value("cvonderheid/mappo-managed-app"))
             .andExpect(jsonPath("$.items[0].ref").value("main"))
-            .andExpect(jsonPath("$.items[0].createdCount").value(2))
+            .andExpect(jsonPath("$.items[0].createdCount").value(3))
             .andExpect(jsonPath("$.items[0].changedPaths[0]").value("releases/releases.manifest.json"));
     }
 
@@ -100,7 +104,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
             }
             """;
 
-        mockMvc.perform(post("/api/v1/admin/releases/webhooks/github")
+        mockMvc.perform(post("/api/v1/release-ingest/endpoints/github-managed-app-default/webhooks/github")
                 .contentType(APPLICATION_JSON)
                 .content(payload)
                 .header("x-github-event", "push")
@@ -132,7 +136,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
             }
             """;
 
-        mockMvc.perform(post("/api/v1/admin/releases/webhooks/github")
+        mockMvc.perform(post("/api/v1/release-ingest/endpoints/github-managed-app-default/webhooks/github")
                 .contentType(APPLICATION_JSON)
                 .content(payload)
                 .header("x-github-event", "push")
@@ -162,7 +166,6 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
                   "releases": [
                     {
                       "publication_status": "published",
-                      "project_id": "azure-managed-app-deployment-stack",
                       "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
                       "source_version": "2026.03.06.1",
                       "source_type": "deployment_stack",
@@ -175,7 +178,18 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
                     },
                     {
                       "publication_status": "published",
-                      "project_id": "azure-managed-app-deployment-stack",
+                      "template_spec_id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Resources/templateSpecs/demo",
+                      "template_spec_version": "2026.03.06.1",
+                      "template_spec_version_id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Resources/templateSpecs/demo/versions/2026.03.06.1",
+                      "source_type": "template_spec",
+                      "deployment_scope": "resource_group",
+                      "parameter_defaults": {
+                        "softwareVersion": "2026.03.06.1",
+                        "dataModelVersion": "6"
+                      }
+                    },
+                    {
+                      "publication_status": "published",
                       "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
                       "source_version": "2026.03.07.1",
                       "source_type": "deployment_stack",
@@ -188,7 +202,6 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
                     },
                     {
                       "publication_status": "draft",
-                      "project_id": "azure-managed-app-deployment-stack",
                       "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
                       "source_version": "2026.03.08.1",
                       "source_type": "deployment_stack",

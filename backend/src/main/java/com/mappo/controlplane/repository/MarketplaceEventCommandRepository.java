@@ -10,11 +10,17 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
+import org.jooq.Field;
+import org.jooq.impl.DSL;
+import org.jooq.impl.SQLDataType;
 import org.springframework.stereotype.Repository;
 
 @Repository
 @RequiredArgsConstructor
 public class MarketplaceEventCommandRepository {
+
+    private static final Field<String> PROJECT_ID =
+        DSL.field(DSL.name("project_id"), SQLDataType.VARCHAR(128));
 
     private final DSLContext dsl;
 
@@ -31,6 +37,7 @@ public class MarketplaceEventCommandRepository {
         MarketplaceEventType eventType,
         MappoMarketplaceEventStatus status,
         String message,
+        String projectId,
         String targetId,
         UUID tenantId,
         UUID subscriptionId,
@@ -60,6 +67,7 @@ public class MarketplaceEventCommandRepository {
             )
             .set(MARKETPLACE_EVENTS.STATUS, AdminCommandSupport.enumOrDefault(status, MappoMarketplaceEventStatus.applied))
             .set(MARKETPLACE_EVENTS.MESSAGE, AdminCommandSupport.normalize(message))
+            .set(PROJECT_ID, AdminCommandSupport.nullableText(projectId))
             .set(MARKETPLACE_EVENTS.TARGET_ID, AdminCommandSupport.nullableText(targetId))
             .set(MARKETPLACE_EVENTS.TENANT_ID, AdminCommandSupport.requiredUuid(tenantId, "tenant_id"))
             .set(MARKETPLACE_EVENTS.SUBSCRIPTION_ID, AdminCommandSupport.requiredUuid(subscriptionId, "subscription_id"))

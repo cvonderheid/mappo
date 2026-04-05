@@ -67,6 +67,7 @@ public class MarketplaceOnboardingCommandService {
             eventType,
             MappoMarketplaceEventStatus.applied,
             message,
+            targetPlan.targetCommand().projectId(),
             targetId,
             tenantId,
             subscriptionId,

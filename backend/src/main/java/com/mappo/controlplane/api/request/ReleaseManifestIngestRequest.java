@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ReleaseManifestIngestRequest(
+    String projectId,
     String repo,
     String path,
     String ref,

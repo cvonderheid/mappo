@@ -1246,6 +1246,7 @@ export interface components {
             webUrl?: string;
         };
         ReleaseManifestIngestRequest: {
+            projectId?: string;
             repo?: string;
             path?: string;
             ref?: string;
@@ -2330,6 +2331,11 @@ export interface operations {
                  * @example evt-20260308-001
                  */
                 eventId?: string;
+                /**
+                 * @description Filter by project identifier.
+                 * @example azure-managed-app-deployment-stack
+                 */
+                projectId?: string;
                 /** @description Filter by onboarding event status. */
                 status?: "applied" | "duplicate" | "rejected";
                 /**

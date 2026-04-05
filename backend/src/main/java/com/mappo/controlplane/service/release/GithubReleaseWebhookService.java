@@ -3,6 +3,7 @@ package com.mappo.controlplane.service.release;
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;
 import com.mappo.controlplane.jooq.enums.MappoReleaseWebhookStatus;
+import com.mappo.controlplane.model.ReleaseIngestLinkedProjectRecord;
 import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
 import com.mappo.controlplane.service.releaseingest.ReleaseIngestEndpointCatalogService;
 import com.mappo.controlplane.service.releaseingest.ReleaseIngestSecretResolver;
@@ -87,7 +88,13 @@ public class GithubReleaseWebhookService {
                 manifestPath,
                 ref,
                 false,
-                parsedManifest
+                parsedManifest,
+                endpoint == null
+                    ? List.of()
+                    : endpoint.linkedProjects().stream()
+                        .map(ReleaseIngestLinkedProjectRecord::projectId)
+                        .filter(projectId -> !normalize(projectId).isBlank())
+                        .toList()
             );
             MappoReleaseWebhookStatus status = result.createdCount() > 0
                 ? MappoReleaseWebhookStatus.applied

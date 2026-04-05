@@ -3,7 +3,12 @@ package com.mappo.controlplane.service.release;
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ReleaseManifestIngestRequest;
 import com.mappo.controlplane.config.MappoProperties;
+import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
+import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
+import com.mappo.controlplane.service.project.ProjectCatalogService;
+import com.mappo.controlplane.service.releaseingest.ReleaseIngestEndpointCatalogService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -17,12 +22,28 @@ public class ReleaseManifestIngestService {
     private final ReleaseManifestApplyService releaseManifestApplyService;
     private final GithubReleaseWebhookService githubReleaseWebhookService;
     private final AzureDevOpsReleaseWebhookService azureDevOpsReleaseWebhookService;
+    private final ProjectCatalogService projectCatalogService;
+    private final ReleaseIngestEndpointCatalogService releaseIngestEndpointCatalogService;
     private final MappoProperties properties;
 
     public ReleaseManifestIngestResultRecord ingestGithubManifest(ReleaseManifestIngestRequest request) {
-        String repo = normalize(firstNonBlank(request == null ? null : request.repo(), properties.getManagedAppRelease().getRepo()));
-        String path = normalize(firstNonBlank(request == null ? null : request.path(), properties.getManagedAppRelease().getPath()));
-        String ref = normalize(firstNonBlank(request == null ? null : request.ref(), properties.getManagedAppRelease().getRef()));
+        String projectId = normalize(request == null ? null : request.projectId());
+        ReleaseIngestEndpointRecord projectEndpoint = resolveGithubProjectEndpoint(projectId);
+        String repo = normalize(firstNonBlank(
+            request == null ? null : request.repo(),
+            projectEndpoint == null ? null : projectEndpoint.repoFilter(),
+            properties.getManagedAppRelease().getRepo()
+        ));
+        String path = normalize(firstNonBlank(
+            request == null ? null : request.path(),
+            projectEndpoint == null ? null : projectEndpoint.manifestPath(),
+            properties.getManagedAppRelease().getPath()
+        ));
+        String ref = normalize(firstNonBlank(
+            request == null ? null : request.ref(),
+            projectEndpoint == null ? null : projectEndpoint.branchFilter(),
+            properties.getManagedAppRelease().getRef()
+        ));
         boolean allowDuplicates = request != null && Boolean.TRUE.equals(request.allowDuplicates());
 
         if (repo.isBlank() || path.isBlank() || ref.isBlank()) {
@@ -31,7 +52,8 @@ public class ReleaseManifestIngestService {
 
         String manifest = sourceClient.fetchGithubManifest(repo, path, ref);
         ParsedReleaseManifest parsedManifest = releaseManifestParser.parse(manifest);
-        return releaseManifestApplyService.apply(repo, path, ref, allowDuplicates, parsedManifest);
+        List<String> fallbackProjectIds = projectId.isBlank() ? List.of() : List.of(projectId);
+        return releaseManifestApplyService.apply(repo, path, ref, allowDuplicates, parsedManifest, fallbackProjectIds);
     }
 
     public ReleaseManifestIngestResultRecord ingestGithubWebhook(
@@ -104,5 +126,25 @@ public class ReleaseManifestIngestService {
 
     private String normalize(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private ReleaseIngestEndpointRecord resolveGithubProjectEndpoint(String projectId) {
+        String normalizedProjectId = normalize(projectId);
+        if (normalizedProjectId.isBlank()) {
+            return null;
+        }
+        ProjectDefinition project = projectCatalogService.getRequired(normalizedProjectId);
+        String endpointId = normalize(project.releaseIngestEndpointId());
+        if (endpointId.isBlank()) {
+            return null;
+        }
+        ReleaseIngestEndpointRecord endpoint = releaseIngestEndpointCatalogService.getRequired(endpointId);
+        if (endpoint.provider() != com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType.github) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "project %s is not linked to a GitHub release source".formatted(normalizedProjectId)
+            );
+        }
+        return endpoint;
     }
 }

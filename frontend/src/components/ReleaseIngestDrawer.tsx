@@ -24,6 +24,7 @@ const DEFAULT_PATH = "releases/releases.manifest.json";
 const DEFAULT_REF = "main";
 
 type ReleaseIngestDrawerProps = {
+  defaultProjectId?: string;
   isSubmitting: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -32,6 +33,7 @@ type ReleaseIngestDrawerProps = {
 };
 
 export default function ReleaseIngestDrawer({
+  defaultProjectId,
   isSubmitting,
   open,
   onOpenChange,
@@ -56,6 +58,7 @@ export default function ReleaseIngestDrawer({
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     await onIngest({
+      projectId: defaultProjectId,
       repo: repo.trim(),
       path: path.trim(),
       ref: ref.trim(),
