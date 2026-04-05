@@ -4,7 +4,6 @@ import { toast } from "sonner";
 
 import { EventsDataTable, RegistrationsDataTable } from "@/components/AdminTables";
 import TargetOnboardingDrawer from "@/components/TargetOnboardingDrawer";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -48,17 +47,6 @@ type TargetsPageProps = {
   viewMode?: "targets" | "onboarding";
 };
 
-type RegistryAuthMode =
-  | "none"
-  | "shared_service_principal_secret"
-  | "customer_managed_secret";
-
-const REGISTRY_AUTH_MODE_LABELS: Record<RegistryAuthMode, string> = {
-  none: "None",
-  shared_service_principal_secret: "MAPPO-managed registry secret",
-  customer_managed_secret: "Customer-managed registry secret",
-};
-
 function normalizeTagValue(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() !== "" ? value : fallback;
 }
@@ -85,16 +73,9 @@ export default function TargetsPage({
   const [editingTargetId, setEditingTargetId] = useState<string>("");
   const [editDisplayName, setEditDisplayName] = useState<string>("");
   const [editCustomerName, setEditCustomerName] = useState<string>("");
-  const [editManagedApplicationId, setEditManagedApplicationId] = useState<string>("");
   const [editManagedResourceGroupId, setEditManagedResourceGroupId] = useState<string>("");
   const [editContainerAppResourceId, setEditContainerAppResourceId] = useState<string>("");
   const [editDeploymentStackName, setEditDeploymentStackName] = useState<string>("");
-  const [editRegistryAuthMode, setEditRegistryAuthMode] =
-    useState<RegistryAuthMode>("none");
-  const [editRegistryServer, setEditRegistryServer] = useState<string>("");
-  const [editRegistryUsername, setEditRegistryUsername] = useState<string>("");
-  const [editRegistryPasswordSecretName, setEditRegistryPasswordSecretName] =
-    useState<string>("");
   const [editPipelineTargetResourceGroup, setEditPipelineTargetResourceGroup] =
     useState<string>("");
   const [editPipelineTargetAppName, setEditPipelineTargetAppName] =
@@ -152,16 +133,9 @@ export default function TargetsPage({
     setEditingTargetId(registration.targetId ?? "");
     setEditDisplayName(registration.displayName ?? "");
     setEditCustomerName(registration.customerName ?? "");
-    setEditManagedApplicationId(registration.managedApplicationId ?? "");
     setEditManagedResourceGroupId(registration.managedResourceGroupId ?? "");
     setEditContainerAppResourceId(registration.containerAppResourceId ?? "");
     setEditDeploymentStackName(registration.metadata?.deploymentStackName ?? "");
-    setEditRegistryAuthMode(registration.metadata?.registryAuthMode ?? "none");
-    setEditRegistryServer(registration.metadata?.registryServer ?? "");
-    setEditRegistryUsername(registration.metadata?.registryUsername ?? "");
-    setEditRegistryPasswordSecretName(
-      registration.metadata?.registryPasswordSecretName ?? ""
-    );
     setEditPipelineTargetResourceGroup(
       `${executionConfig.targetResourceGroup ?? executionConfig.resourceGroup ?? ""}`
     );
@@ -226,12 +200,6 @@ export default function TargetsPage({
           ? {}
           : {
               deploymentStackName: editDeploymentStackName.trim() || undefined,
-              registryAuthMode:
-                editRegistryAuthMode === "none" ? "none" : editRegistryAuthMode,
-              registryServer: editRegistryServer.trim() || undefined,
-              registryUsername: editRegistryUsername.trim() || undefined,
-              registryPasswordSecretName:
-                editRegistryPasswordSecretName.trim() || undefined,
             }),
       },
       tags: {
@@ -243,7 +211,6 @@ export default function TargetsPage({
     };
     if (!isPipelineProject) {
       request.containerAppResourceId = editContainerAppResourceId.trim();
-      request.managedApplicationId = editManagedApplicationId.trim() || undefined;
     }
     if (editManagedResourceGroupId.trim() !== "") {
       request.managedResourceGroupId = editManagedResourceGroupId.trim();
@@ -349,7 +316,7 @@ export default function TargetsPage({
             <DrawerDescription>
               {isPipelineProject
                 ? "Update target metadata and App Service deployment details for this project."
-                : "Update target metadata and managed app references."}
+                : "Update target metadata and direct Azure rollout details for this project."}
             </DrawerDescription>
           </DrawerHeader>
           <div className="max-h-[74vh] overflow-y-auto px-4 pb-2">
@@ -451,82 +418,6 @@ export default function TargetsPage({
                       onChange={(item) => setEditDeploymentStackName(item.target.value)}
                       placeholder="mappo-stack-target-01"
                     />
-                  </div>
-                  <div className="lg:col-span-3">
-                    <Accordion type="single" collapsible className="rounded-md border border-border/60 bg-background/40 px-3">
-                      <AccordionItem value="advanced-target-overrides" className="border-none">
-                        <AccordionTrigger className="py-2 text-sm font-medium text-foreground hover:no-underline">
-                          Advanced target overrides
-                        </AccordionTrigger>
-                        <AccordionContent className="space-y-3 pb-1">
-                          <p className="text-xs text-muted-foreground">
-                            These fields override platform defaults for this single target. Leave them alone unless this target is an exception to the project&apos;s normal Azure setup.
-                          </p>
-                          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                            <div className="space-y-1 lg:col-span-2">
-                              <Label htmlFor="edit-managed-application-id">Managed Application ID</Label>
-                              <Input
-                                id="edit-managed-application-id"
-                                value={editManagedApplicationId}
-                                onChange={(item) => setEditManagedApplicationId(item.target.value)}
-                                placeholder="/subscriptions/.../providers/Microsoft.Solutions/applications/..."
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label htmlFor="edit-registry-auth-mode">Registry Auth Mode</Label>
-                              <Select
-                                value={editRegistryAuthMode}
-                                onValueChange={(value) =>
-                                  setEditRegistryAuthMode(value as RegistryAuthMode)
-                                }
-                              >
-                                <SelectTrigger id="edit-registry-auth-mode">
-                                  <SelectValue placeholder="Select auth mode" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {Object.entries(REGISTRY_AUTH_MODE_LABELS).map(([value, label]) => (
-                                    <SelectItem key={value} value={value}>
-                                      {label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-1">
-                              <Label htmlFor="edit-registry-server">Registry Server</Label>
-                              <Input
-                                id="edit-registry-server"
-                                value={editRegistryServer}
-                                onChange={(item) => setEditRegistryServer(item.target.value)}
-                                placeholder="acr.example.azurecr.io"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label htmlFor="edit-registry-username">Registry Username</Label>
-                              <Input
-                                id="edit-registry-username"
-                                value={editRegistryUsername}
-                                onChange={(item) => setEditRegistryUsername(item.target.value)}
-                                placeholder="service-principal-client-id"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label htmlFor="edit-registry-password-secret-name">
-                                Registry Password Secret Name
-                              </Label>
-                              <Input
-                                id="edit-registry-password-secret-name"
-                                value={editRegistryPasswordSecretName}
-                                onChange={(item) =>
-                                  setEditRegistryPasswordSecretName(item.target.value)
-                                }
-                                placeholder="publisher-acr-pull"
-                              />
-                            </div>
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    </Accordion>
                   </div>
                 </>
               )}

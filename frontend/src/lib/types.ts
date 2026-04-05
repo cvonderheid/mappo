@@ -52,6 +52,14 @@ export type DiscoverProjectAdoPipelinesRequest = {
   providerConnectionId?: string;
   nameContains?: string;
 };
+export type DiscoverProjectAdoBranchesRequest = {
+  organization?: string;
+  project?: string;
+  providerConnectionId?: string;
+  repositoryId?: string;
+  repository?: string;
+  nameContains?: string;
+};
 export type DiscoverProjectAdoRepositoriesRequest = {
   organization?: string;
   project?: string;
@@ -76,6 +84,18 @@ export type ProjectAdoRepositoryDiscoveryResult = {
   organization: string;
   project: string;
   repositories: ProjectAdoRepository[];
+};
+export type ProjectAdoBranch = {
+  name: string;
+  refName: string;
+};
+export type ProjectAdoBranchDiscoveryResult = {
+  projectId: string;
+  organization: string;
+  project: string;
+  repositoryId: string;
+  repository: string;
+  branches: ProjectAdoBranch[];
 };
 export type ProjectAdoPipeline = {
   id: string;

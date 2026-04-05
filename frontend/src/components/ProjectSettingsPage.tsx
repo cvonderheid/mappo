@@ -25,9 +25,12 @@ import {
   listReleaseIngestEndpoints,
 } from "@/lib/api";
 import type {
+  DiscoverProjectAdoBranchesRequest,
   DiscoverProjectAdoRepositoriesRequest,
   DiscoverProjectAdoServiceConnectionsRequest,
   DiscoverProjectAdoPipelinesRequest,
+  ProjectAdoBranch,
+  ProjectAdoBranchDiscoveryResult,
   ProjectAdoPipeline,
   ProjectAdoPipelineDiscoveryResult,
   ProjectAdoRepository,
@@ -52,7 +55,12 @@ type ProjectSettingsPageProps = {
   projectReleaseCount: number;
   onCreateProject: (request: ProjectCreateRequest) => Promise<ProjectDefinition>;
   onPatchProject: (projectId: string, request: ProjectConfigurationPatchRequest) => Promise<ProjectDefinition>;
+  onDeleteProject: (projectId: string) => Promise<void>;
   onValidateProject: (projectId: string, request: ProjectValidationRequest) => Promise<ProjectValidationResult>;
+  onDiscoverAdoBranches: (
+    projectId: string,
+    request: DiscoverProjectAdoBranchesRequest
+  ) => Promise<ProjectAdoBranchDiscoveryResult>;
   onDiscoverAdoPipelines: (
     projectId: string,
     request: DiscoverProjectAdoPipelinesRequest
@@ -441,7 +449,9 @@ export default function ProjectSettingsPage({
   projectReleaseCount,
   onCreateProject,
   onPatchProject,
+  onDeleteProject,
   onValidateProject,
+  onDiscoverAdoBranches,
   onDiscoverAdoPipelines,
   onDiscoverAdoRepositories,
   onDiscoverAdoServiceConnections,
@@ -451,15 +461,19 @@ export default function ProjectSettingsPage({
   const [activeTab, setActiveTab] = useState<ProjectTab>("general");
   const [draft, setDraft] = useState<ProjectDraft>(() => projectToDraft(project));
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [isDiscoveringBranches, setIsDiscoveringBranches] = useState(false);
   const [isDiscoveringRepositories, setIsDiscoveringRepositories] = useState(false);
   const [isDiscoveringPipelines, setIsDiscoveringPipelines] = useState(false);
   const [isDiscoveringServiceConnections, setIsDiscoveringServiceConnections] = useState(false);
+  const [branchDiscoveryError, setBranchDiscoveryError] = useState("");
   const [repositoryDiscoveryError, setRepositoryDiscoveryError] = useState("");
   const [pipelineDiscoveryError, setPipelineDiscoveryError] = useState("");
   const [serviceConnectionDiscoveryError, setServiceConnectionDiscoveryError] = useState("");
+  const [discoveredBranches, setDiscoveredBranches] = useState<ProjectAdoBranch[]>([]);
   const [discoveredRepositories, setDiscoveredRepositories] = useState<ProjectAdoRepository[]>([]);
   const [discoveredPipelines, setDiscoveredPipelines] = useState<ProjectAdoPipeline[]>([]);
   const [discoveredServiceConnections, setDiscoveredServiceConnections] = useState<ProjectAdoServiceConnection[]>([]);
@@ -468,6 +482,7 @@ export default function ProjectSettingsPage({
   const [isLoadingReleaseIngestEndpoints, setIsLoadingReleaseIngestEndpoints] = useState(false);
   const [isLoadingProviderConnections, setIsLoadingProviderConnections] = useState(false);
   const [selectedReleaseSystem, setSelectedReleaseSystem] = useState<ReleaseSystem>("github");
+  const branchDiscoveryKeyRef = useRef("");
   const repositoryDiscoveryKeyRef = useRef("");
   const pipelineDiscoveryKeyRef = useRef("");
   const serviceConnectionDiscoveryKeyRef = useRef("");
@@ -488,12 +503,15 @@ export default function ProjectSettingsPage({
     setSelectedReleaseSystem(
       nextDraft.deploymentDriver === "pipeline_trigger" ? "azure_devops" : "github"
     );
+    setDiscoveredBranches([]);
     setDiscoveredRepositories([]);
     setDiscoveredPipelines([]);
     setDiscoveredServiceConnections([]);
+    setBranchDiscoveryError("");
     setRepositoryDiscoveryError("");
     setPipelineDiscoveryError("");
     setServiceConnectionDiscoveryError("");
+    branchDiscoveryKeyRef.current = "";
     repositoryDiscoveryKeyRef.current = "";
     pipelineDiscoveryKeyRef.current = "";
     serviceConnectionDiscoveryKeyRef.current = "";
@@ -783,6 +801,22 @@ export default function ProjectSettingsPage({
     );
     return matching ? matching.id : "__none";
   }, [discoveredRepositories, draft.driver.repository]);
+  const selectedDiscoveredRepository = useMemo(() => {
+    if (selectedDiscoveredRepositoryId === "__none") {
+      return null;
+    }
+    return discoveredRepositories.find((repository) => repository.id === selectedDiscoveredRepositoryId) ?? null;
+  }, [discoveredRepositories, selectedDiscoveredRepositoryId]);
+  const selectedDiscoveredBranchRef = useMemo(() => {
+    const currentValue = draft.driver.branch.trim();
+    if (currentValue === "") {
+      return "__none";
+    }
+    const matching = discoveredBranches.find(
+      (branch) => branch.name === currentValue || branch.refName === currentValue
+    );
+    return matching ? matching.refName : "__none";
+  }, [discoveredBranches, draft.driver.branch]);
   const selectedDiscoveredServiceConnectionId = useMemo(() => {
     const currentValue = draft.driver.azureServiceConnectionName.trim();
     if (currentValue === "") {
@@ -794,33 +828,46 @@ export default function ProjectSettingsPage({
     return matching ? matching.id : "__none";
   }, [discoveredServiceConnections, draft.driver.azureServiceConnectionName]);
   const hasSingleCachedAdoProject = cachedProviderConnectionProjects.length === 1;
+  const hasSingleDiscoveredBranch = discoveredBranches.length === 1;
   const hasSingleDiscoveredRepository = discoveredRepositories.length === 1;
   const hasSingleDiscoveredPipeline = discoveredPipelines.length === 1;
   const hasSingleDiscoveredServiceConnection = discoveredServiceConnections.length === 1;
 
   useEffect(() => {
+    setDiscoveredBranches([]);
     setDiscoveredRepositories([]);
     setDiscoveredPipelines([]);
     setDiscoveredServiceConnections([]);
+    setBranchDiscoveryError("");
     setRepositoryDiscoveryError("");
     setPipelineDiscoveryError("");
     setServiceConnectionDiscoveryError("");
+    branchDiscoveryKeyRef.current = "";
     repositoryDiscoveryKeyRef.current = "";
     pipelineDiscoveryKeyRef.current = "";
     serviceConnectionDiscoveryKeyRef.current = "";
   }, [cachedProviderConnectionProjects, draft.providerConnectionId]);
 
   useEffect(() => {
+    setDiscoveredBranches([]);
     setDiscoveredRepositories([]);
     setDiscoveredPipelines([]);
     setDiscoveredServiceConnections([]);
+    setBranchDiscoveryError("");
     setRepositoryDiscoveryError("");
     setPipelineDiscoveryError("");
     setServiceConnectionDiscoveryError("");
+    branchDiscoveryKeyRef.current = "";
     repositoryDiscoveryKeyRef.current = "";
     pipelineDiscoveryKeyRef.current = "";
     serviceConnectionDiscoveryKeyRef.current = "";
   }, [draft.driver.organization, draft.driver.project]);
+
+  useEffect(() => {
+    setDiscoveredBranches([]);
+    setBranchDiscoveryError("");
+    branchDiscoveryKeyRef.current = "";
+  }, [draft.driver.repository]);
 
   useEffect(() => {
     if (
@@ -1246,6 +1293,77 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
     }
   }
 
+  async function discoverAdoBranches(options?: { silent?: boolean }): Promise<void> {
+    if (!project?.id) {
+      return;
+    }
+    if (selectedProviderConnectionRequiresVerification) {
+      const message =
+        "Open Admin → Deployment Connections, verify the selected connection, and select an Azure DevOps project before MAPPO can browse branches.";
+      setBranchDiscoveryError(message);
+      if (!options?.silent) {
+        toast.error(message);
+      }
+      return;
+    }
+    const repositoryId = selectedDiscoveredRepositoryId === "__none" ? undefined : selectedDiscoveredRepositoryId;
+    const repository = draft.driver.repository.trim() || undefined;
+    if (!repositoryId && !repository) {
+      const message = "Choose an Azure DevOps repository before MAPPO can load branches.";
+      setBranchDiscoveryError(message);
+      if (!options?.silent) {
+        toast.error(message);
+      }
+      return;
+    }
+    const resolvedOrganization = resolvedAdoOrganization || undefined;
+    const resolvedProject = resolvedAdoProject || undefined;
+    setIsDiscoveringBranches(true);
+    setBranchDiscoveryError("");
+    try {
+      const response = await onDiscoverAdoBranches(project.id, {
+        organization: resolvedOrganization,
+        project: resolvedProject,
+        providerConnectionId: draft.providerConnectionId.trim() || undefined,
+        repositoryId,
+        repository,
+      });
+      const branches = [...(response.branches ?? [])].sort((a, b) =>
+        `${a.name ?? ""}`.localeCompare(`${b.name ?? ""}`, undefined, { sensitivity: "base" })
+      );
+      setDiscoveredBranches(branches);
+      const currentBranch = draft.driver.branch.trim();
+      const hasMatchingSelectedBranch =
+        currentBranch !== "" &&
+        branches.some((branch) => branch.name === currentBranch || branch.refName === currentBranch);
+      if (!hasMatchingSelectedBranch) {
+        const preferredBranch =
+          branches.find((branch) => branch.name === selectedDiscoveredRepository?.defaultBranch?.replace(/^refs\/heads\//, "")) ??
+          (branches.length === 1 ? branches[0] : null);
+        if (preferredBranch && (currentBranch === "" || currentBranch === "main")) {
+          setDraft((current) => ({
+            ...current,
+            driver: { ...current.driver, branch: preferredBranch.name },
+          }));
+        }
+      }
+      if (!options?.silent) {
+        toast.success(
+          `Discovered ${branches.length} branch${branches.length === 1 ? "" : "es"} for ${response.repository || draft.driver.repository.trim()}.`
+        );
+      }
+    } catch (error) {
+      const message = (error as Error).message;
+      const normalizedMessage = normalizeDiscoveryError(message, "Azure DevOps");
+      setBranchDiscoveryError(normalizedMessage);
+      if (!options?.silent) {
+        toast.error(`Unable to load Azure DevOps branches. ${normalizedMessage}`);
+      }
+    } finally {
+      setIsDiscoveringBranches(false);
+    }
+  }
+
   async function discoverAdoServiceConnections(options?: { silent?: boolean }): Promise<void> {
     if (!project?.id) {
       return;
@@ -1328,6 +1446,11 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
     if (repositoryDiscoveryKeyRef.current !== discoveryKey) {
       repositoryDiscoveryKeyRef.current = discoveryKey;
       void discoverAdoRepositories({ silent: true });
+    }
+    const branchDiscoveryKey = `${discoveryKey}|${draft.driver.repository.trim()}`;
+    if (draft.driver.repository.trim() !== "" && branchDiscoveryKeyRef.current !== branchDiscoveryKey) {
+      branchDiscoveryKeyRef.current = branchDiscoveryKey;
+      void discoverAdoBranches({ silent: true });
     }
     if (pipelineDiscoveryKeyRef.current !== discoveryKey) {
       pipelineDiscoveryKeyRef.current = discoveryKey;
@@ -1421,6 +1544,28 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
     }, 50);
   }
 
+  async function deleteCurrentProject(): Promise<void> {
+    if (!project?.id) {
+      return;
+    }
+    const confirmed = window.confirm(
+      `Delete project ${project.name || project.id}? This removes its runs, targets, releases, and registration history.`
+    );
+    if (!confirmed) {
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      await onDeleteProject(project.id);
+      toast.success(`Deleted project ${project.name || project.id}.`);
+      navigate("/projects");
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
   return (
     <section className="space-y-4">
       <Card className="glass-card animate-fade-up [animation-delay:30ms] [animation-fill-mode:forwards]">
@@ -1489,6 +1634,17 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
             <Button type="button" onClick={() => void saveProjectConfig()} disabled={!canPersist || isSaving}>
               {isSaving ? "Saving..." : "Save"}
             </Button>
+            {project?.id ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="border-destructive/60 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => void deleteCurrentProject()}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Deleting..." : "Delete Project"}
+              </Button>
+            ) : null}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -2020,20 +2176,102 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                               )}
                             </div>
                             <div className="space-y-1">
-                              <div className="flex items-center gap-1">
-                                <Label htmlFor="driver-branch">Branch</Label>
-                                <FieldHelpTooltip content="Default Git branch/ref MAPPO passes when it queues the Azure DevOps pipeline run." />
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-1">
+                                  <Label htmlFor="driver-branch-select">Branch</Label>
+                                  <FieldHelpTooltip content="Git branch/ref MAPPO passes when it queues the Azure DevOps pipeline run. MAPPO loads branches from the selected repository automatically and keeps a manual fallback only when Azure DevOps does not return any." />
+                                </div>
+                                <Button
+                                  id="driver-branch-discovery-action"
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={isDiscoveringBranches || draft.driver.repository.trim() === ""}
+                                  onClick={() => {
+                                    void discoverAdoBranches();
+                                  }}
+                                >
+                                  {isDiscoveringBranches
+                                    ? "Loading..."
+                                    : branchDiscoveryError
+                                      ? "Retry"
+                                      : discoveredBranches.length > 0
+                                        ? "Reload branches"
+                                        : "Load branches"}
+                                </Button>
                               </div>
-                              <Input
-                                id="driver-branch"
-                                value={draft.driver.branch}
-                                onChange={(event) =>
-                                  setDraft((current) => ({
-                                    ...current,
-                                    driver: { ...current.driver, branch: event.target.value },
-                                  }))
-                                }
-                              />
+                              {discoveredBranches.length > 0 ? (
+                                <Select
+                                  value={selectedDiscoveredBranchRef}
+                                  onValueChange={(value) => {
+                                    if (value === "__none") {
+                                      setDraft((current) => ({
+                                        ...current,
+                                        driver: { ...current.driver, branch: "" },
+                                      }));
+                                      return;
+                                    }
+                                    const selected = discoveredBranches.find(
+                                      (branch) => branch.refName === value || branch.name === value
+                                    );
+                                    if (!selected) {
+                                      return;
+                                    }
+                                    setDraft((current) => ({
+                                      ...current,
+                                      driver: { ...current.driver, branch: selected.name },
+                                    }));
+                                  }}
+                                >
+                                  <SelectTrigger id="driver-branch-select">
+                                    <SelectValue placeholder="Select discovered branch" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__none">Select discovered branch</SelectItem>
+                                    {discoveredBranches.map((branch) => (
+                                      <SelectItem key={branch.refName} value={branch.refName}>
+                                        {branch.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <>
+                                  <p
+                                    id="driver-branch-select"
+                                    className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground"
+                                  >
+                                    {draft.driver.repository.trim() === ""
+                                      ? "Choose a repository first so MAPPO knows which Azure DevOps branches to load."
+                                      : isDiscoveringBranches
+                                        ? "Loading Azure DevOps branches from the selected repository..."
+                                        : "MAPPO has not loaded any branches from Azure DevOps for this repository yet. Use Load branches above. If Azure DevOps still returns none, use the manual fallback below."}
+                                  </p>
+                                  <Accordion type="single" collapsible className="rounded-md border border-border/60 bg-background/40 px-3">
+                                    <AccordionItem value="manual-branch" className="border-none">
+                                      <AccordionTrigger className="py-2 text-sm font-medium text-foreground hover:no-underline">
+                                        Manual fallback
+                                      </AccordionTrigger>
+                                      <AccordionContent className="space-y-2 pt-1">
+                                        <p className="text-xs text-muted-foreground">
+                                          Use this only if Azure DevOps does not return repository branches to MAPPO. Enter the branch name exactly as the pipeline expects it.
+                                        </p>
+                                        <Input
+                                          id="driver-branch"
+                                          value={draft.driver.branch}
+                                          onChange={(event) =>
+                                            setDraft((current) => ({
+                                              ...current,
+                                              driver: { ...current.driver, branch: event.target.value },
+                                            }))
+                                          }
+                                          placeholder="For example main"
+                                        />
+                                      </AccordionContent>
+                                    </AccordionItem>
+                                  </Accordion>
+                                </>
+                              )}
                               {draft.driver.repository.trim() !== "" ? (
                                 <p className="text-xs text-muted-foreground">
                                   Selected repo: <span className="font-medium text-foreground">{draft.driver.repository}</span>
@@ -2044,11 +2282,21 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                                   MAPPO auto-selected the only repository returned by Azure DevOps.
                                 </p>
                               ) : null}
+                              {hasSingleDiscoveredBranch && draft.driver.branch.trim() !== "" ? (
+                                <p className="text-xs text-emerald-300">
+                                  MAPPO auto-selected the only branch returned by Azure DevOps.
+                                </p>
+                              ) : null}
                             </div>
                           </div>
                           {repositoryDiscoveryError ? (
                             <p className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
                               {repositoryDiscoveryError}
+                            </p>
+                          ) : null}
+                          {branchDiscoveryError ? (
+                            <p className="mt-3 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                              {branchDiscoveryError}
                             </p>
                           ) : null}
                         </div>
@@ -2162,7 +2410,7 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                             </Button>
                           </div>
                           <p className="mt-2 text-xs text-muted-foreground">
-                            MAPPO starts this automatically after you choose an Azure DevOps project. Use <span className="font-medium text-foreground">Reload service connections</span> only if that project changed recently. If Azure DevOps still returns none, use the manual fallback below.
+                            MAPPO starts this automatically after you choose an Azure DevOps project. Use <span className="font-medium text-foreground">Reload service connections</span> only if that project changed recently. If Azure DevOps still returns none, either the project has no service connections yet or the Azure DevOps account behind this deployment connection cannot list them.
                           </p>
                           <div className="mt-3 space-y-1">
                             <div className="flex items-center gap-1">
@@ -2210,7 +2458,7 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                                 <p className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
                                   {isDiscoveringServiceConnections
                                     ? "Loading Azure service connections from the selected project..."
-                                  : "Azure DevOps did not return any service connections for this project. If that is expected in your environment, use the manual fallback below. Otherwise use Reload service connections above."}
+                                    : "Azure DevOps did not return any service connections for this project. Usually that means there are no service connections in Azure DevOps Project Settings → Service connections, or the account behind this deployment connection does not have permission to list them. If the pipeline already uses a service connection that MAPPO cannot discover, use the manual fallback below."}
                                 </p>
                                 {canUseManualServiceConnectionName ? (
                                   <Accordion type="single" collapsible className="rounded-md border border-border/60 bg-background/40 px-3">

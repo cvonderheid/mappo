@@ -1,6 +1,7 @@
 import { apiBaseUrl, apiClient } from "@/lib/api/client";
 import type {
   CreateRunRequest,
+  DiscoverProjectAdoBranchesRequest,
   DiscoverProjectAdoRepositoriesRequest,
   DiscoverProjectAdoPipelinesRequest,
   DiscoverProjectAdoServiceConnectionsRequest,
@@ -14,6 +15,7 @@ import type {
   ListTargetsPageQuery,
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
+  ProjectAdoBranchDiscoveryResult,
   MarketplaceEventPage,
   ListProjectAuditQuery,
   ProjectDefinition,
@@ -128,6 +130,16 @@ export async function patchProjectConfiguration(
   return requireData("Could not update project configuration", { data, error, response });
 }
 
+export async function deleteProject(projectId: string): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/projects/${encodeURIComponent(projectId)}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    throw new Error(httpErrorMessage("Could not delete project", response.status, payload));
+  }
+}
+
 export async function validateProjectConfiguration(
   projectId: string,
   request: ProjectValidationRequest
@@ -181,6 +193,28 @@ export async function discoverProjectAdoRepositories(
     throw new Error(httpErrorMessage("Could not load Azure DevOps repositories", response.status, payload));
   }
   return payload as ProjectAdoRepositoryDiscoveryResult;
+}
+
+export async function discoverProjectAdoBranches(
+  projectId: string,
+  request: DiscoverProjectAdoBranchesRequest
+): Promise<ProjectAdoBranchDiscoveryResult> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/projects/${encodeURIComponent(projectId)}/deployment-driver/ado/branches/discover`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request ?? {}),
+    }
+  );
+
+  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new Error(httpErrorMessage("Could not load Azure DevOps branches", response.status, payload));
+  }
+  return payload as ProjectAdoBranchDiscoveryResult;
 }
 
 export async function discoverProjectAdoServiceConnections(

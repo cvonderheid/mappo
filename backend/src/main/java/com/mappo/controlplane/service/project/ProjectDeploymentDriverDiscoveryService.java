@@ -1,9 +1,11 @@
 package com.mappo.controlplane.service.project;
 
 import com.mappo.controlplane.api.ApiException;
+import com.mappo.controlplane.api.request.ProjectAdoBranchDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoPipelineDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoRepositoryDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoServiceConnectionDiscoveryRequest;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsBranchDefinitionRecord;
 import com.mappo.controlplane.domain.project.PipelineTriggerDriverConfig;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
@@ -12,6 +14,8 @@ import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDef
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDiscoveryService;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsRepositoryDefinitionRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsServiceConnectionDefinitionRecord;
+import com.mappo.controlplane.model.ProjectAdoBranchDiscoveryResultRecord;
+import com.mappo.controlplane.model.ProjectAdoBranchRecord;
 import com.mappo.controlplane.model.ProjectAdoPipelineDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProjectAdoPipelineRecord;
 import com.mappo.controlplane.model.ProjectAdoRepositoryDiscoveryResultRecord;
@@ -184,6 +188,77 @@ public class ProjectDeploymentDriverDiscoveryService {
             throw new ApiException(
                 HttpStatus.BAD_GATEWAY,
                 "Azure DevOps repository discovery failed: " + normalize(exception.responseBody())
+            );
+        }
+    }
+
+    public ProjectAdoBranchDiscoveryResultRecord discoverAdoBranches(
+        String projectId,
+        ProjectAdoBranchDiscoveryRequest request
+    ) {
+        ProjectDefinition definition = projectCatalogService.getRequired(projectId);
+        PipelineTriggerDriverConfig config = requireAdoPipelineTriggerConfig(definition);
+
+        String organization = firstNonBlank(
+            request == null ? null : request.organization(),
+            config.organization()
+        );
+        String adoProject = firstNonBlank(
+            request == null ? null : request.project(),
+            config.project()
+        );
+        String repositoryId = normalize(request == null ? null : request.repositoryId());
+        String repository = firstNonBlank(
+            request == null ? null : request.repository(),
+            config.repository()
+        );
+        String personalAccessToken = resolveAdoPersonalAccessToken(
+            definition,
+            request == null ? null : request.providerConnectionId()
+        );
+        String nameContains = normalize(request == null ? null : request.nameContains());
+
+        if (organization.isBlank() || adoProject.isBlank()) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "Select an Azure DevOps project before MAPPO can discover branches."
+            );
+        }
+        if (repositoryId.isBlank() && repository.isBlank()) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "Select an Azure DevOps repository before MAPPO can discover branches."
+            );
+        }
+
+        try {
+            List<ProjectAdoBranchRecord> branches = pipelineDiscoveryService
+                .discoverBranches(organization, adoProject, repositoryId, repository, personalAccessToken)
+                .stream()
+                .filter(branch -> nameContains.isBlank()
+                    || normalize(branch.name()).toLowerCase(Locale.ROOT).contains(nameContains.toLowerCase(Locale.ROOT)))
+                .sorted(Comparator
+                    .comparing((AzureDevOpsBranchDefinitionRecord branch) -> normalize(branch.name()).toLowerCase(Locale.ROOT))
+                    .thenComparing(branch -> normalize(branch.refName())))
+                .map(branch -> new ProjectAdoBranchRecord(
+                    normalize(branch.name()),
+                    normalize(branch.refName())
+                ))
+                .toList();
+            return new ProjectAdoBranchDiscoveryResultRecord(
+                definition.id(),
+                organization,
+                adoProject,
+                repositoryId,
+                repository,
+                branches
+            );
+        } catch (IllegalArgumentException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, exception.getMessage());
+        } catch (AzureDevOpsClientException exception) {
+            throw new ApiException(
+                HttpStatus.BAD_GATEWAY,
+                "Azure DevOps branch discovery failed: " + normalize(exception.responseBody())
             );
         }
     }

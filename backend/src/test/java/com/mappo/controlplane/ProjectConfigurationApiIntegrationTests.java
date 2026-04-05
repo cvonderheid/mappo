@@ -2,6 +2,7 @@ package com.mappo.controlplane;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -11,6 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineClient;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsBranchDefinitionRecord;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsBranchDiscoveryInputs;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDefinitionRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDiscoveryInputs;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineInputs;
@@ -137,6 +140,84 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
     }
 
     @Test
+    void deleteProjectRemovesProjectScopedTargetsReleasesAndEvents() throws Exception {
+        String projectId = "project-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        String targetId = "target-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+
+        Map<String, Object> createRequest = new LinkedHashMap<>();
+        createRequest.put("id", projectId);
+        createRequest.put("name", "Delete Me");
+        createRequest.put("accessStrategy", "azure_workload_rbac");
+        createRequest.put("deploymentDriver", "azure_deployment_stack");
+        createRequest.put("releaseArtifactSource", "blob_arm_template");
+        createRequest.put("runtimeHealthProvider", "http_endpoint");
+
+        mockMvc.perform(post("/api/v1/projects")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(createRequest)))
+            .andExpect(status().isCreated());
+
+        Map<String, Object> onboardingEvent = new LinkedHashMap<>();
+        onboardingEvent.put("eventId", "evt-" + targetId);
+        onboardingEvent.put("eventType", "subscription_purchased");
+        onboardingEvent.put("projectId", projectId);
+        onboardingEvent.put("tenantId", "11111111-1111-1111-1111-111111111111");
+        onboardingEvent.put("subscriptionId", "22222222-2222-2222-2222-222222222222");
+        onboardingEvent.put("targetId", targetId);
+        onboardingEvent.put("displayName", "Delete Target");
+        onboardingEvent.put(
+            "containerAppResourceId",
+            "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-delete/providers/Microsoft.App/containerApps/ca-delete"
+        );
+        onboardingEvent.put("managedResourceGroupId", "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-delete");
+        onboardingEvent.put("containerAppName", "ca-delete");
+        onboardingEvent.put("customerName", "Delete Customer");
+        onboardingEvent.put("tags", Map.of("ring", "prod", "region", "eastus", "tier", "gold", "environment", "prod"));
+        onboardingEvent.put("metadata", Map.of("source", "marketplace-forwarder", "marketplacePayloadId", "mp-delete-001"));
+
+        mockMvc.perform(post("/api/v1/admin/onboarding/events")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(onboardingEvent)))
+            .andExpect(status().isOk());
+
+        Map<String, Object> releaseCreateRequest = new LinkedHashMap<>();
+        releaseCreateRequest.put("projectId", projectId);
+        releaseCreateRequest.put("sourceRef", "github://example/delete-app/mainTemplate.json");
+        releaseCreateRequest.put("sourceVersion", "2026.04.04.99");
+        releaseCreateRequest.put("sourceType", "deployment_stack");
+        releaseCreateRequest.put("sourceVersionRef", "https://example.invalid/releases/2026.04.04.99/mainTemplate.json");
+        releaseCreateRequest.put("parameterDefaults", Map.of("softwareVersion", "2026.04.04.99"));
+
+        mockMvc.perform(post("/api/v1/releases")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(releaseCreateRequest)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.projectId").value(projectId));
+
+        mockMvc.perform(delete("/api/v1/projects/{projectId}", projectId))
+            .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/projects"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[*].id").value(org.hamcrest.Matchers.not(hasItem(projectId))));
+
+        mockMvc.perform(get("/api/v1/targets/page")
+                .queryParam("projectId", projectId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items.length()").value(0));
+
+        mockMvc.perform(get("/api/v1/releases")
+                .queryParam("projectId", projectId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(0));
+
+        mockMvc.perform(get("/api/v1/admin/onboarding/events")
+                .queryParam("projectId", projectId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items.length()").value(0));
+    }
+
+    @Test
     void discoverAdoPipelinesReturnsConfiguredPipelines() throws Exception {
         mockMvc.perform(post("/api/v1/projects/{projectId}/deployment-driver/ado/pipelines/discover", "azure-appservice-ado-pipeline")
                 .contentType(APPLICATION_JSON)
@@ -172,6 +253,29 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
             .andExpect(jsonPath("$.project").value("demo-app-service"))
             .andExpect(jsonPath("$.repositories[0].id").value("repo-1"))
             .andExpect(jsonPath("$.repositories[0].name").value("demo-app-service"));
+    }
+
+    @Test
+    void discoverAdoBranchesReturnsConfiguredBranches() throws Exception {
+        mockMvc.perform(post("/api/v1/projects/{projectId}/deployment-driver/ado/branches/discover", "azure-appservice-ado-pipeline")
+                .contentType(APPLICATION_JSON)
+                .content("""
+                    {
+                      "organization": "https://dev.azure.com/pg123",
+                      "project": "demo-app-service",
+                      "providerConnectionId": "ado-default",
+                      "repositoryId": "repo-1",
+                      "repository": "demo-app-service"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.projectId").value("azure-appservice-ado-pipeline"))
+            .andExpect(jsonPath("$.organization").value("https://dev.azure.com/pg123"))
+            .andExpect(jsonPath("$.project").value("demo-app-service"))
+            .andExpect(jsonPath("$.repositoryId").value("repo-1"))
+            .andExpect(jsonPath("$.repository").value("demo-app-service"))
+            .andExpect(jsonPath("$.branches[0].name").value("main"))
+            .andExpect(jsonPath("$.branches[0].refName").value("refs/heads/main"));
     }
 
     @Test
@@ -258,6 +362,16 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                 @Override
                 public AzureDevOpsPipelineRunRecord getRun(AzureDevOpsPipelineInputs inputs, String runId) {
                     throw new UnsupportedOperationException("not used");
+                }
+
+                @Override
+                public List<AzureDevOpsBranchDefinitionRecord> listBranches(
+                    AzureDevOpsBranchDiscoveryInputs inputs
+                ) {
+                    return List.of(
+                        new AzureDevOpsBranchDefinitionRecord("main", "refs/heads/main"),
+                        new AzureDevOpsBranchDefinitionRecord("release", "refs/heads/release")
+                    );
                 }
 
                 @Override

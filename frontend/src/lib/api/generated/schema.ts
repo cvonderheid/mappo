@@ -298,6 +298,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{projectId}/deployment-driver/ado/branches/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Discover Azure DevOps branches
+         * @description Discovers Azure DevOps branches for the selected repository using organization/project from request or project config, and Azure DevOps credentials from the linked deployment connection.
+         */
+        post: operations["discoverProjectAdoBranches"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/releases/webhooks/github": {
         parameters: {
             query?: never;
@@ -433,7 +453,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete project
+         * @description Deletes a project and its project-scoped runs, targets, releases, and registration history.
+         */
+        delete: operations["deleteProject"];
         options?: never;
         head?: never;
         /**
@@ -1244,6 +1268,26 @@ export interface components {
             name?: string;
             folder?: string;
             webUrl?: string;
+        };
+        ProjectAdoBranchDiscoveryRequest: {
+            organization?: string;
+            project?: string;
+            providerConnectionId?: string;
+            repositoryId?: string;
+            repository?: string;
+            nameContains?: string;
+        };
+        ProjectAdoBranchDiscoveryResultRecord: {
+            projectId?: string;
+            organization?: string;
+            project?: string;
+            repositoryId?: string;
+            repository?: string;
+            branches?: components["schemas"]["ProjectAdoBranchRecord"][];
+        };
+        ProjectAdoBranchRecord: {
+            name?: string;
+            refName?: string;
         };
         ReleaseManifestIngestRequest: {
             projectId?: string;
@@ -2214,6 +2258,32 @@ export interface operations {
             };
         };
     };
+    discoverProjectAdoBranches: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ProjectAdoBranchDiscoveryRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ProjectAdoBranchDiscoveryResultRecord"];
+                };
+            };
+        };
+    };
     ingestGithubReleaseWebhook: {
         parameters: {
             query?: never;
@@ -2481,6 +2551,26 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["ProviderConnectionRecord"];
                 };
+            };
+        };
+    };
+    deleteProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

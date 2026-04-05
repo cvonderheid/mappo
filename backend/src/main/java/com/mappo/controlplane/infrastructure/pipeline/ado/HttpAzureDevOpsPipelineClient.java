@@ -89,6 +89,18 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
     }
 
     @Override
+    public List<AzureDevOpsBranchDefinitionRecord> listBranches(AzureDevOpsBranchDiscoveryInputs inputs) {
+        String url = branchCollectionApiUrl(inputs);
+        HttpResponse<String> response = sendJson(
+            firstNonBlank(inputs == null ? "" : inputs.personalAccessToken(), properties.getAzureDevOps().getPersonalAccessToken()),
+            url,
+            "GET",
+            null
+        );
+        return toBranchDefinitions(response.body());
+    }
+
+    @Override
     public List<AzureDevOpsPipelineDefinitionRecord> listPipelines(AzureDevOpsPipelineDiscoveryInputs inputs) {
         String url = pipelineCollectionApiUrl(inputs);
         HttpResponse<String> response = sendJson(inputs, url, "GET", null);
@@ -316,6 +328,31 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
         }
     }
 
+    private List<AzureDevOpsBranchDefinitionRecord> toBranchDefinitions(String responseBody) {
+        try {
+            JsonNode root = objectMapper.readTree(responseBody);
+            List<AzureDevOpsBranchDefinitionRecord> branches = new ArrayList<>();
+            JsonNode values = root.path("value");
+            if (values.isArray()) {
+                for (JsonNode node : values) {
+                    String refName = normalize(text(node.path("name")));
+                    String name = normalizeBranchName(refName);
+                    if (name.isBlank()) {
+                        continue;
+                    }
+                    branches.add(new AzureDevOpsBranchDefinitionRecord(name, refName));
+                }
+            }
+            return branches;
+        } catch (Exception exception) {
+            throw new AzureDevOpsClientException(
+                "Azure DevOps branch list response parsing failed: " + exception.getMessage(),
+                0,
+                responseBody
+            );
+        }
+    }
+
     private AzureDevOpsPipelineRunRecord toRunRecord(AzureDevOpsPipelineInputs inputs, String responseBody) {
         try {
             JsonNode root = objectMapper.readTree(responseBody);
@@ -397,6 +434,13 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
             + "/_apis/git/repositories?api-version=7.1-preview.1";
     }
 
+    private String branchCollectionApiUrl(AzureDevOpsBranchDiscoveryInputs inputs) {
+        return organizationUrl(inputs.organization())
+            + "/" + encodePath(inputs.project())
+            + "/_apis/git/repositories/" + encodePath(firstNonBlank(inputs.repositoryId(), inputs.repository()))
+            + "/refs?filter=heads/&api-version=7.1-preview.1&$top=200";
+    }
+
     private String serviceConnectionCollectionApiUrl(AzureDevOpsPipelineDiscoveryInputs inputs) {
         return organizationUrl(inputs.organization())
             + "/" + encodePath(inputs.project())
@@ -476,5 +520,13 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
 
     private String normalize(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private String normalizeBranchName(String refName) {
+        String normalized = normalize(refName);
+        if (normalized.startsWith("refs/heads/")) {
+            return normalized.substring("refs/heads/".length());
+        }
+        return "";
     }
 }

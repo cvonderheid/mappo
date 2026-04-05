@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.mappo.controlplane.domain.project.BuiltinProjects;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsBranchDefinitionRecord;
+import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsBranchDiscoveryInputs;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineClient;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDefinitionRecord;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDiscoveryInputs;
@@ -262,6 +264,14 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
                 "https://dev.azure.com/pg123/demo-app-service/_build/results?buildId=" + runId + "&view=results",
                 "https://dev.azure.com/pg123/demo-app-service/_build/results?buildId=" + runId + "&view=logs",
                 "https://dev.azure.com/pg123/demo-app-service/_apis/pipelines/1/runs/" + runId
+            );
+        }
+
+        @Override
+        public List<AzureDevOpsBranchDefinitionRecord> listBranches(AzureDevOpsBranchDiscoveryInputs inputs) {
+            return List.of(
+                new AzureDevOpsBranchDefinitionRecord("main", "refs/heads/main"),
+                new AzureDevOpsBranchDefinitionRecord("release", "refs/heads/release")
             );
         }
 

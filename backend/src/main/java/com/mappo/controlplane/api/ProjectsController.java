@@ -1,6 +1,7 @@
 package com.mappo.controlplane.api;
 
 import com.mappo.controlplane.api.query.ProjectAuditPageParameters;
+import com.mappo.controlplane.api.request.ProjectAdoBranchDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoPipelineDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoRepositoryDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoServiceConnectionDiscoveryRequest;
@@ -9,6 +10,7 @@ import com.mappo.controlplane.api.request.ProjectCreateRequest;
 import com.mappo.controlplane.model.ProjectAdoRepositoryDiscoveryResultRecord;
 import com.mappo.controlplane.api.request.ProjectValidationRequest;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
+import com.mappo.controlplane.model.ProjectAdoBranchDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProjectAdoPipelineDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProjectAdoServiceConnectionDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProjectConfigurationAuditPageRecord;
@@ -29,6 +31,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -67,6 +70,13 @@ public class ProjectsController {
         @RequestBody(required = false) ProjectConfigurationPatchRequest patchRequest
     ) {
         return projectConfigurationCommandService.patchProjectConfiguration(projectId, patchRequest);
+    }
+
+    @DeleteMapping("/{projectId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Delete project", description = "Deletes a project and its project-scoped runs, targets, releases, and registration history.")
+    public void deleteProject(@PathVariable("projectId") String projectId) {
+        projectConfigurationCommandService.deleteProject(projectId);
     }
 
     @PostMapping("/{projectId}/validate")
@@ -109,6 +119,18 @@ public class ProjectsController {
         @RequestBody(required = false) ProjectAdoRepositoryDiscoveryRequest request
     ) {
         return projectDeploymentDriverDiscoveryService.discoverAdoRepositories(projectId, request);
+    }
+
+    @PostMapping("/{projectId}/deployment-driver/ado/branches/discover")
+    @Operation(
+        summary = "Discover Azure DevOps branches",
+        description = "Discovers Azure DevOps branches for the selected repository using organization/project from request or project config, and Azure DevOps credentials from the linked deployment connection."
+    )
+    public ProjectAdoBranchDiscoveryResultRecord discoverProjectAdoBranches(
+        @PathVariable("projectId") String projectId,
+        @RequestBody(required = false) ProjectAdoBranchDiscoveryRequest request
+    ) {
+        return projectDeploymentDriverDiscoveryService.discoverAdoBranches(projectId, request);
     }
 
     @PostMapping("/{projectId}/deployment-driver/ado/service-connections/discover")

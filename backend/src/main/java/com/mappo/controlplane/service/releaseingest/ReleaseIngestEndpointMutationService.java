@@ -49,7 +49,13 @@ public class ReleaseIngestEndpointMutationService {
         if (name.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "release source name must not be blank");
         }
-        ReleaseIngestProviderType provider = patch.provider() == null ? current.provider() : patch.provider();
+        if (patch.provider() != null && patch.provider() != current.provider()) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "release source provider cannot change after creation; create a new release source instead."
+            );
+        }
+        ReleaseIngestProviderType provider = current.provider();
         boolean enabled = patch.enabled() == null ? current.enabled() : patch.enabled();
         String secretRef = patch.secretRef() == null
             ? normalizeSecretRef(current.secretRef(), provider)

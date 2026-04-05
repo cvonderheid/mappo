@@ -39,6 +39,25 @@ public class AzureDevOpsPipelineDiscoveryService {
         return pipelineClient.listPipelines(new AzureDevOpsPipelineDiscoveryInputs(organization, project, token));
     }
 
+    public List<AzureDevOpsBranchDefinitionRecord> discoverBranches(
+        String organization,
+        String project,
+        String repositoryId,
+        String repository,
+        String personalAccessToken
+    ) {
+        String token = normalize(personalAccessToken);
+        if (token.isBlank()) {
+            throw new IllegalArgumentException("Azure DevOps PAT could not be resolved for the selected deployment connection.");
+        }
+        if (normalize(repositoryId).isBlank() && normalize(repository).isBlank()) {
+            throw new IllegalArgumentException("Select an Azure DevOps repository before MAPPO can discover branches.");
+        }
+        return pipelineClient.listBranches(
+            new AzureDevOpsBranchDiscoveryInputs(organization, project, repositoryId, repository, token)
+        );
+    }
+
     public List<AzureDevOpsRepositoryDefinitionRecord> discoverRepositories(
         String organization,
         String project,

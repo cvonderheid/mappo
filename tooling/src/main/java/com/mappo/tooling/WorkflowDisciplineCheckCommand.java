@@ -11,8 +11,14 @@ final class WorkflowDisciplineCheckCommand {
     private static final Map<String, List<String>> REQUIRED = new LinkedHashMap<>();
 
     static {
-        REQUIRED.put("tasks/todo.md", List.of("## Scope", "## Plan", "## Verification Commands"));
-        REQUIRED.put("tasks/lessons.md", List.of("## Template", "## Entries"));
+        REQUIRED.put(
+            "tasks/todo.md",
+            List.of("## Next demo / operator UX", "## Data and configuration cleanup", "## Pre-production work")
+        );
+        REQUIRED.put(
+            "tasks/lessons.md",
+            List.of("## Operator UX", "## Product boundaries", "## Repo hygiene")
+        );
     }
 
     int run(List<String> rawArgs) {

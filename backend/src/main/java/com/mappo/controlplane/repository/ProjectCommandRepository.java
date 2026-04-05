@@ -1,6 +1,10 @@
 package com.mappo.controlplane.repository;
 
+import static com.mappo.controlplane.jooq.Tables.MARKETPLACE_EVENTS;
 import static com.mappo.controlplane.jooq.Tables.PROJECTS;
+import static com.mappo.controlplane.jooq.Tables.RELEASES;
+import static com.mappo.controlplane.jooq.Tables.RUNS;
+import static com.mappo.controlplane.jooq.Tables.TARGETS;
 
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.jooq.enums.MappoProjectAccessStrategy;
@@ -14,13 +18,19 @@ import java.time.ZoneOffset;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
+import org.jooq.Field;
 import org.jooq.JSONB;
+import org.jooq.impl.DSL;
+import org.jooq.impl.SQLDataType;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Repository;
 
 @Repository
 @RequiredArgsConstructor
 public class ProjectCommandRepository {
+
+    private static final Field<String> MARKETPLACE_EVENT_PROJECT_ID =
+        DSL.field(DSL.name("project_id"), SQLDataType.VARCHAR(128));
 
     private final DSLContext dsl;
     private final JsonUtil jsonUtil;
@@ -63,6 +73,28 @@ public class ProjectCommandRepository {
             .execute();
         if (updated <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "project not found: " + normalize(mutation.id()));
+        }
+    }
+
+    public void deleteProjectCascade(String projectId) {
+        String normalizedProjectId = normalize(projectId);
+        dsl.deleteFrom(MARKETPLACE_EVENTS)
+            .where(MARKETPLACE_EVENT_PROJECT_ID.eq(normalizedProjectId))
+            .execute();
+        dsl.deleteFrom(RUNS)
+            .where(RUNS.PROJECT_ID.eq(normalizedProjectId))
+            .execute();
+        dsl.deleteFrom(TARGETS)
+            .where(TARGETS.PROJECT_ID.eq(normalizedProjectId))
+            .execute();
+        dsl.deleteFrom(RELEASES)
+            .where(RELEASES.PROJECT_ID.eq(normalizedProjectId))
+            .execute();
+        int deleted = dsl.deleteFrom(PROJECTS)
+            .where(PROJECTS.ID.eq(normalizedProjectId))
+            .execute();
+        if (deleted <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "project not found: " + normalizedProjectId);
         }
     }
 

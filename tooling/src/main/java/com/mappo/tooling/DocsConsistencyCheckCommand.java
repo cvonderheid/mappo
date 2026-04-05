@@ -10,29 +10,22 @@ final class DocsConsistencyCheckCommand {
 
     private static final List<String> REQUIRED_FILES = List.of(
         "README.md",
-        "plans.md",
-        "plans-next.md",
+        "docs/README.md",
         "docs/architecture.md",
-        "docs/documentation.md",
-        "docs/engineering-playbook.md",
-        "docs/golden-principles.md",
-        "docs/implement.md",
-        "docs/plans.md",
-        "docs/demo-azure-topology.md"
+        "docs/operator-guide.md",
+        "docs/deployment-runbook.md",
+        "docs/demo-topology.md",
+        "docs/developer-guide.md"
     );
 
     private static final List<String> NO_MAKE_REFERENCE_FILES = List.of(
         "README.md",
-        "plans.md",
-        "plans-next.md",
+        "docs/README.md",
         "docs/architecture.md",
-        "docs/documentation.md",
-        "docs/engineering-playbook.md",
-        "docs/golden-principles.md",
-        "docs/implement.md",
-        "docs/live-demo-checklist.md",
-        "docs/marketplace-forwarder-runbook.md",
-        "docs/runtime-aca-runbook.md"
+        "docs/operator-guide.md",
+        "docs/deployment-runbook.md",
+        "docs/demo-topology.md",
+        "docs/developer-guide.md"
     );
 
     private static final List<String> FORBIDDEN_ACTIVE_DOC_MARKERS = List.of(
@@ -45,9 +38,12 @@ final class DocsConsistencyCheckCommand {
     private static final Map<String, List<String>> CONTENT_RULES = new LinkedHashMap<>();
 
     static {
-        CONTENT_RULES.put("plans.md", List.of("## Status", "## Milestone Plan", "## Review Checklist Before Coding"));
-        CONTENT_RULES.put("plans-next.md", List.of("## Verification Checklist", "## Status Snapshot", "## Phase"));
-        CONTENT_RULES.put("docs/documentation.md", List.of("## Engineering workflow discipline (before implementation)"));
+        CONTENT_RULES.put("docs/README.md", List.of("## Current docs", "## What does not belong here"));
+        CONTENT_RULES.put("docs/architecture.md", List.of("## Overview", "## Core objects", "## Deployment modes"));
+        CONTENT_RULES.put("docs/operator-guide.md", List.of("## Mental model", "## Global admin screens", "## Project screens"));
+        CONTENT_RULES.put("docs/deployment-runbook.md", List.of("## Local build and test", "## Publish and roll out to Azure"));
+        CONTENT_RULES.put("docs/demo-topology.md", List.of("## Current truth", "## Current project shapes"));
+        CONTENT_RULES.put("docs/developer-guide.md", List.of("## Repo layout", "## Development rules"));
         CONTENT_RULES.put("pom.xml", List.of("<module>backend</module>", "<module>frontend</module>"));
         CONTENT_RULES.put(
             "README.md",

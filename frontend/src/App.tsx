@@ -1,4 +1,5 @@
 import { FormEvent, Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ComponentType } from "react";
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Toaster } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,8 @@ import {
   createProject,
   adminUpdateTargetRegistration,
   createRun,
+  deleteProject,
+  discoverProjectAdoBranches,
   discoverProjectAdoPipelines,
   discoverProjectAdoRepositories,
   discoverProjectAdoServiceConnections,
@@ -53,6 +56,7 @@ import type {
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
   PageMetadata,
+  ProjectAdoBranchDiscoveryResult,
   ProjectAdoRepositoryDiscoveryResult,
   ProjectConfigurationPatchRequest,
   ProjectCreateRequest,
@@ -80,19 +84,65 @@ const ROUTER_FUTURE_FLAGS = {
   v7_startTransition: true,
 } as const;
 
-const DemoPanel = lazy(() => import("@/components/DemoPanel"));
-const DeploymentsPage = lazy(() => import("@/components/DeploymentsPage"));
-const FleetTable = lazy(() => import("@/components/FleetTable"));
-const ManagedAppPage = lazy(() => import("@/components/ManagedAppPage"));
-const ProviderConnectionsConfigPage = lazy(() => import("@/components/ProviderConnectionsConfigPage"));
-const ProjectSwitcherMenu = lazy(() => import("@/components/ProjectSwitcherMenu"));
-const ProjectSettingsPage = lazy(() => import("@/components/ProjectSettingsPage"));
-const ReleaseIngestConfigPage = lazy(() => import("@/components/ReleaseIngestConfigPage"));
-const ReleasesPage = lazy(() => import("@/components/ReleasesPage"));
-const RunDetailPanel = lazy(() =>
+const LAZY_ROUTE_RETRY_STORAGE_KEY = "mappo.lazy-route-reload";
+
+function isStaleLazyImportError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("failed to fetch dynamically imported module") ||
+    message.includes("importing a module script failed") ||
+    message.includes("dynamically imported module") ||
+    message.includes("unable to preload css")
+  );
+}
+
+function lazyWithRouteReload<T extends ComponentType<any>>(loader: () => Promise<{ default: T }>) {
+  return lazy(async () => {
+    const retryKey =
+      typeof window === "undefined"
+        ? LAZY_ROUTE_RETRY_STORAGE_KEY
+        : `${LAZY_ROUTE_RETRY_STORAGE_KEY}:${window.location.pathname}`;
+
+    try {
+      const module = await loader();
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(retryKey);
+      }
+      return module;
+    } catch (error) {
+      if (
+        typeof window !== "undefined" &&
+        isStaleLazyImportError(error) &&
+        window.sessionStorage.getItem(retryKey) !== "1"
+      ) {
+        window.sessionStorage.setItem(retryKey, "1");
+        window.location.reload();
+        return new Promise<never>(() => {});
+      }
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(retryKey);
+      }
+      throw error;
+    }
+  });
+}
+
+const DemoPanel = lazyWithRouteReload(() => import("@/components/DemoPanel"));
+const DeploymentsPage = lazyWithRouteReload(() => import("@/components/DeploymentsPage"));
+const FleetTable = lazyWithRouteReload(() => import("@/components/FleetTable"));
+const ManagedAppPage = lazyWithRouteReload(() => import("@/components/ManagedAppPage"));
+const ProviderConnectionsConfigPage = lazyWithRouteReload(() => import("@/components/ProviderConnectionsConfigPage"));
+const ProjectSwitcherMenu = lazyWithRouteReload(() => import("@/components/ProjectSwitcherMenu"));
+const ProjectSettingsPage = lazyWithRouteReload(() => import("@/components/ProjectSettingsPage"));
+const ReleaseIngestConfigPage = lazyWithRouteReload(() => import("@/components/ReleaseIngestConfigPage"));
+const ReleasesPage = lazyWithRouteReload(() => import("@/components/ReleasesPage"));
+const RunDetailPanel = lazyWithRouteReload(() =>
   import("@/components/RunPanels").then((module) => ({ default: module.RunDetailPanel }))
 );
-const TargetsPage = lazy(() => import("@/components/TargetsPage"));
+const TargetsPage = lazyWithRouteReload(() => import("@/components/TargetsPage"));
 
 type SidebarNavigationItem = {
   label: string;
@@ -1234,6 +1284,12 @@ function AppShell() {
     return updated;
   }
 
+  async function handleDeleteProject(projectId: string): Promise<void> {
+    await deleteProject(projectId);
+    await refreshProjects();
+    navigate("/projects");
+  }
+
   async function handleValidateProject(
     projectId: string,
     request: ProjectValidationRequest
@@ -1263,6 +1319,20 @@ function AppShell() {
     }
   ): Promise<ProjectAdoRepositoryDiscoveryResult> {
     return discoverProjectAdoRepositories(projectId, request);
+  }
+
+  async function handleDiscoverProjectAdoBranches(
+    projectId: string,
+    request: {
+      organization?: string;
+      project?: string;
+      providerConnectionId?: string;
+      repositoryId?: string;
+      repository?: string;
+      nameContains?: string;
+    }
+  ): Promise<ProjectAdoBranchDiscoveryResult> {
+    return discoverProjectAdoBranches(projectId, request);
   }
 
   async function handleDiscoverProjectAdoServiceConnections(
@@ -1434,7 +1504,9 @@ function AppShell() {
                     projectReleaseCount={projectReleases.length}
                     onCreateProject={handleCreateProject}
                     onPatchProject={handlePatchProject}
+                    onDeleteProject={handleDeleteProject}
                     onValidateProject={handleValidateProject}
+                    onDiscoverAdoBranches={handleDiscoverProjectAdoBranches}
                     onDiscoverAdoRepositories={handleDiscoverProjectAdoRepositories}
                     onDiscoverAdoPipelines={handleDiscoverProjectAdoPipelines}
                     onDiscoverAdoServiceConnections={handleDiscoverProjectAdoServiceConnections}
@@ -1478,35 +1550,35 @@ function AppShell() {
                     targets={deploymentTargets}
                     controlsOpen={deploymentControlsOpen}
                     onFormStateChange={setFormState}
-                    onOpenRun={(runId) => {
+                    onOpenRun={(runId: string) => {
                       setSelectedRunId(runId);
                       navigate(`/deployments/${encodeURIComponent(runId)}`);
                     }}
                     onReleaseChange={setSelectedReleaseId}
-                    onCloneRun={(runId) => {
+                    onCloneRun={(runId: string) => {
                       void handleCloneRun(runId);
                     }}
-                    onRetryFailed={(runId) => {
+                    onRetryFailed={(runId: string) => {
                       void handleRetryFailed(runId);
                     }}
-                    onRunIdFilterChange={(value) => {
+                    onRunIdFilterChange={(value: string) => {
                       setRunIdFilter(value);
                       setRunPage(0);
                     }}
-                    onRunReleaseFilterChange={(value) => {
+                    onRunReleaseFilterChange={(value: string) => {
                       setRunReleaseFilter(value);
                       setRunPage(0);
                     }}
-                    onRunStatusFilterChange={(value) => {
+                    onRunStatusFilterChange={(value: string) => {
                       setRunStatusFilter(value as RunStatus | "");
                       setRunPage(0);
                     }}
                     onRunsPageChange={setRunPage}
-                    onRunsPageSizeChange={(size) => {
+                    onRunsPageSizeChange={(size: number) => {
                       setRunPageSize(size);
                       setRunPage(0);
                     }}
-                    onResumeRun={(runId) => {
+                    onResumeRun={(runId: string) => {
                       void handleResumeRun(runId);
                     }}
                     onSelectedTargetIdsChange={setSelectedTargetIds}

@@ -82,6 +82,12 @@ public class ProjectConfigurationCommandService {
         return updated;
     }
 
+    @Transactional
+    public void deleteProject(String projectId) {
+        ProjectDefinition current = projectCatalogService.getRequired(projectId);
+        projectCommandRepository.deleteProjectCascade(current.id());
+    }
+
     public Map<String, Object> snapshot(String projectId) {
         ProjectDefinition project = projectCatalogService.getRequired(projectId);
         return projectConfigurationMutationService.snapshot(project);

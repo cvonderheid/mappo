@@ -1,132 +1,92 @@
-s# MAPPO Architecture
+# MAPPO Architecture
 
 ## Overview
-MAPPO is a provider-tenant control plane that orchestrates release rollouts across customer subscriptions in multiple tenants.
+MAPPO is a provider-hosted control plane for rolling releases across registered Azure targets.
 
-Production intent:
-- Marketplace lifecycle events register customer targets.
-- Publisher management access authorizes MAPPO to mutate customer resources.
+Current hosted demo truth:
+- MAPPO itself runs in Azure Container Apps.
+- Releases are sourced from external systems such as GitHub.
+- The primary proven rollout path is direct Azure rollout using Deployment Stacks.
+- The Azure DevOps pipeline path exists as a second deployment mode, but it depends on a real Azure DevOps service connection in the target Azure DevOps project.
+- The current demo does not use live `Microsoft.Solutions/applications` instances and does not use Template Specs.
 
-Current hosted demo:
-- uses simulated Marketplace lifecycle events,
-- uses Deployment Stacks,
-- does not use live `Microsoft.Solutions/applications`,
-- does not use Template Specs.
+## Core objects
+- **Project**: one deployable product/application in MAPPO.
+- **Release Source**: how MAPPO learns that new releases exist.
+- **Release**: one concrete versioned deployment definition.
+- **Deployment Connection**: outbound authenticated connection MAPPO uses to talk to external deployment systems.
+- **Target**: one deployable environment for a project.
+- **Deployment Run**: rollout of one release across one or more selected targets.
 
-## Core Model
-- Target: a customer-tenant subscription + workload deployment context.
-- Release: a versioned deployment artifact reference and rollout metadata.
-- Deployment Run: execution of one release across selected targets.
+## Operator model
+MAPPO is easiest to understand as four questions:
+1. Where do releases come from?
+   - Admin -> Release Sources
+2. How does MAPPO talk to external deployment systems?
+   - Admin -> Deployment Connections
+3. Where can this project deploy?
+   - Project -> Targets / Registration Events
+4. What happened when we rolled out?
+   - Project -> Fleet / Releases / Deployments
 
-## Control Plane Components
-1. API service
-- Owns Targets/Releases/Runs APIs.
-- Owns marketplace onboarding APIs (`/admin/onboarding`, `/admin/onboarding/events`) used by event-forwarders.
-- Owns onboarding registration maintenance APIs (`PATCH/DELETE /admin/onboarding/registrations/{target_id}`) for operator CRUD fixes.
-- Exposes UI-facing status/query surfaces.
+## Inbound vs outbound boundaries
+### Inbound
+Release Sources receive or refresh release information from external systems.
+Examples:
+- GitHub webhook or manifest refresh
+- Azure DevOps service hook or pipeline event
 
-2. Orchestrator service
-- Expands target sets by tags/groups.
-- Applies rollout strategy (all-at-once or waves).
-- Enforces stop thresholds and concurrency caps.
-- Applies Azure guardrails before run start:
-  - run-level concurrency cap,
-  - per-subscription concurrency cap,
-  - quota preflight checks (ACA usage per subscription/region).
+### Outbound
+Deployment Connections hold MAPPO's authenticated access to external deployment systems.
+Examples:
+- Azure DevOps PAT-backed connection
+- future GitHub or Pulumi provider connection
 
-3. Per-target executor
-- Executes state machine per target:
-  - `QUEUED` -> `VALIDATING` -> `DEPLOYING` -> `VERIFYING` -> (`SUCCEEDED` | `FAILED`)
-- Captures stage timestamps, errors, and correlation IDs.
-- Normalizes Azure API failure payloads into operator-facing run logs (error code/message, HTTP status, request/correlation IDs, detail entries) so troubleshooting does not require portal navigation.
-- Adapter boundary supports execution modes (`demo` and `azure`) so orchestration and persistence stay unchanged across runtimes.
+This separation is intentional:
+- Release Sources answer **how MAPPO hears about versions**.
+- Deployment Connections answer **how MAPPO talks back out to deployment systems**.
 
-4. Persistence
-- Stores fleet state, run history, per-target stage records, and logs.
-- Stores onboarding registry records and event-ingest history for idempotent target registration.
-- Retains run/deployment history for 3 months.
-- Cloud runtime path uses Azure Database for PostgreSQL Flexible Server (local dev keeps Docker Postgres).
+## Deployment modes
+### Direct Azure rollout
+MAPPO updates each selected target directly in Azure using that target's Deployment Stack.
 
-5. Marketplace webhook forwarder (Azure Function App)
-- Receives marketplace technical-config webhook calls.
-- Normalizes payloads to MAPPO onboarding contract and forwards to `/api/v1/admin/onboarding/events`.
-- Runs as independent ingress boundary so MAPPO API can stay token-gated and internal behind stricter controls.
+Characteristics:
+- target-by-target execution is owned by MAPPO
+- rollout ordering, retries, stop policies, and health decisions stay in MAPPO
+- Azure is the execution target, not the rollout orchestrator
 
-## Control / Data / Verification Boundaries
-- Control flow: run/wave scheduling and per-target stage transitions.
-- Data flow: release parameters and target-scoped overrides.
-- Verification flow: post-deploy health checks and rollout halt decisions.
+### Pipeline-driven rollout
+MAPPO triggers an external pipeline per selected target instead of mutating Azure directly.
 
-## Azure Rate-Limit + Quota Guardrails
-- API retries use exponential backoff + jitter for transient Azure failures (`408`, `409`, `429`, `5xx`) and honor `Retry-After` when present.
-- Scheduler batches target execution by subscription to avoid write bursts against ARM.
-- Optional quota preflight queries ACA usage for each target subscription/region and can reduce concurrency when quota headroom is low.
-- Guardrail decisions are persisted with the deployment run (`concurrency`, `subscription_concurrency`, `guardrail_warnings`) for operator visibility.
+Current implementation:
+- Azure DevOps pipeline trigger
+- repo/pipeline/service-connection discovery through the selected Deployment Connection
 
-## Deployment Direction
-- App services hosted on Azure Container Apps.
-- Frontend sign-in is protected with Azure EasyAuth (Microsoft Entra ID) on the frontend Container App.
-- Azure APIs are accessed through the MAPPO runtime principal, including cross-tenant customer-side RBAC where needed.
-- Runtime Azure credentials are resolved per subscription tenant authority (via target tenant ID and/or `MAPPO_AZURE_TENANT_BY_SUBSCRIPTION`) to support cross-tenant deployments.
-- Target discovery is registration-driven (marketplace lifecycle events), not runtime subscription scanning.
-- UI and API are separate deployable containers.
-- Demo automation boundary:
-  - Pulumi IaC provisions Postgres plus the demo-fleet target resource groups, shared ACA environments, and exports target inventory.
-  - Runtime ACA deployment is scripted outside Pulumi (`./scripts/runtime_aca_deploy.sh`) into a dedicated runtime resource group to keep Pulumi destroy deterministic.
-  - Runtime deploy also manages an ACA Job for Flyway migrations and runs it before app revision rollout (`./scripts/runtime_db_migrate_job_run.sh` for on-demand reruns).
-  - EasyAuth app registration + frontend auth wiring is handled by script (`./scripts/runtime_easyauth_configure.sh`) for deterministic post-deploy callback URL binding.
-  - CLI scripts provision/deploy the Function App webhook forwarder and replay inventory events through the webhook path.
-  - Partner Center offer lifecycle is still an external prerequisite and is not part of the current hosted demo workflow.
-  - Current topology is documented in `/Users/cvonderheid/workspace/mappo/docs/demo-azure-topology.md`.
+## Runtime components
+- **Backend API**: Spring Boot API, orchestration, persistence, Azure integrations
+- **Frontend UI**: React UI protected by EasyAuth
+- **Postgres**: control-plane database
+- **Marketplace forwarder**: Azure Function that forwards registration events into MAPPO
 
-## Production Auth Model (Marketplace)
-MAPPO production auth is based on managed-application publisher authorization, not ad-hoc customer-side RBAC scripts.
+## Current hosting shape
+- Control-plane data services are provisioned by Pulumi.
+- Runtime app deployment is driven by Maven + Azure CLI/Container Apps scripts under the `delivery` lifecycle.
+- Target fleets are provisioned separately from the MAPPO runtime.
+- The workload release catalog lives outside this repo in `/Users/cvonderheid/workspace/mappo-managed-app`.
 
-1. Publisher identity
-- MAPPO uses a publisher Entra application/service principal (multi-tenant) with client credentials.
-- This identity is configured once in the managed application plan (publisher management access).
+## Contracts that matter
+- Backend OpenAPI is authoritative: `/Users/cvonderheid/workspace/mappo/backend/target/openapi/openapi.json`
+- Frontend generated types come from that OpenAPI artifact.
+- Publisher release manifests should describe release artifacts, not MAPPO-internal project routing.
 
-2. Offer authorization contract
-- Managed application definition/plan authorizations specify publisher principal + role scope expectations.
-- When a customer deploys the managed application, Azure grants that publisher principal access to the managed resource group for that instance.
+## Extensibility direction
+MAPPO should stay organized around:
+- inbound release sources
+- outbound deployment connections
+- project-scoped deployment modes
+- target-scoped deployment destinations
 
-3. Runtime execution
-- MAPPO authenticates with the publisher identity and resolves tenant authority per subscription.
-- MAPPO updates only targets already registered through onboarding events.
-- Managed identity inside the deployed managed app is a separate concern for workload-to-resource access and is not MAPPO control-plane auth.
-
-4. Automation vs manual boundary
-- Automatable:
-  - Publisher app/SP bootstrap.
-  - Offer plan definition updates via API/CLI.
-  - Runtime deployment and webhook handling.
-  - Target registration from lifecycle/onboarding events.
-- Manual/approval driven:
-  - Partner Center onboarding/compliance/certification workflows.
-  - Final publish and go-live confirmation steps.
-
-## Deployment Scope
-Azure execution is modeled around release source types:
-- `template_spec`: legacy ARM deployment path from a Template Spec version per target.
-- `bicep`: direct Bicep-based deployment source.
-- `deployment_stack`: deployment stack-driven rollout source.
-
-Behavior:
-- Current implementation:
-  - `deployment_stack` + `resource_group`: current live demo path; executed for real through the Azure Java SDK.
-  - `template_spec` + `resource_group`: legacy execution path kept in code, but not used in the current hosted demo.
-  - `template_spec` + `subscription`: not implemented yet; MAPPO falls back to simulator mode and records a guardrail warning.
-  - `bicep`: not implemented yet; MAPPO falls back to simulator mode and records a guardrail warning.
-- Run orchestration, waves, retries/resume, and stop policies are unchanged.
-- `DeploymentRun.execution_source_type` snapshots the selected release source type for immutable history.
-- Execution settings remain release-scoped (`deployment_scope`, ARM mode, what-if on canary, verify-after-deploy).
-- Deployment-stack execution records stack metadata and surfaces normalized operation/error details in target logs.
-
-## Determinism + Legibility Contract
-- Stage transitions are append-only and timestamped.
-- Every failed target has a structured error and correlation IDs.
-- Run-level summaries derive from per-target stage truth.
-
-## Related Design Docs
-- Current Azure demo topology: `/Users/cvonderheid/workspace/mappo/docs/demo-azure-topology.md`
-- Modular execution architecture: `/Users/cvonderheid/workspace/mappo/docs/modular-execution-architecture.md`
+That keeps the control plane reusable across:
+- direct Azure rollouts
+- Azure DevOps pipeline rollouts
+- future Lighthouse/Pulumi or other external deployment drivers

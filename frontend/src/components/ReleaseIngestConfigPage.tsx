@@ -153,6 +153,7 @@ export default function ReleaseIngestConfigPage({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [editingId, setEditingId] = useState<string>("");
   const [draft, setDraft] = useState<EndpointDraft>(emptyDraft);
+  const [editingProvider, setEditingProvider] = useState<ReleaseIngestProvider | null>(null);
 
   const loadEndpoints = useCallback(async (refresh = false) => {
     if (refresh) {
@@ -197,12 +198,15 @@ export default function ReleaseIngestConfigPage({
   function openCreateDrawer(): void {
     setEditingId("");
     setDraft(emptyDraft());
+    setEditingProvider(null);
     setDrawerOpen(true);
   }
 
   function openEditDrawer(endpoint: ReleaseIngestEndpoint): void {
     setEditingId(endpoint.id ?? "");
-    setDraft(toDraft(endpoint));
+    const nextDraft = toDraft(endpoint);
+    setDraft(nextDraft);
+    setEditingProvider(nextDraft.provider);
     setDrawerOpen(true);
   }
 
@@ -481,6 +485,9 @@ export default function ReleaseIngestConfigPage({
                   disabled={Boolean(editingId)}
                   placeholder="github-managed-app-default"
                 />
+                <p className="text-xs text-muted-foreground">
+                  This ID becomes part of the webhook URL MAPPO exposes for this release source.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
@@ -516,6 +523,7 @@ export default function ReleaseIngestConfigPage({
                       };
                     })
                   }
+                  disabled={Boolean(editingId)}
                 >
                   <SelectTrigger id="endpoint-provider" className="h-10 w-full bg-background/90 text-sm">
                     <SelectValue />
@@ -525,6 +533,11 @@ export default function ReleaseIngestConfigPage({
                     <SelectItem value="azure_devops">Azure DevOps</SelectItem>
                   </SelectContent>
                 </Select>
+                {editingId ? (
+                  <p className="text-xs text-muted-foreground">
+                    Provider is fixed after creation so the source ID, webhook URL, and linked project behavior stay stable. Create a new release source if you need a different provider.
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
@@ -586,9 +599,13 @@ export default function ReleaseIngestConfigPage({
                     {draft.provider === "azure_devops" ? "Azure DevOps" : "GitHub"}
                   </span>.
                 </p>
-                {editingId ? (
+                {editingId && editingProvider && editingProvider !== draft.provider ? (
                   <p className="mt-2">
-                    The <span className="font-medium text-foreground">Source ID</span> stays in the webhook path. If you change provider on an existing source, the path keeps the same ID segment.
+                    This source was originally created for{" "}
+                    <span className="font-medium text-foreground">
+                      {editingProvider === "azure_devops" ? "Azure DevOps" : "GitHub"}
+                    </span>
+                    . Save will fail because release source provider cannot change after creation.
                   </p>
                 ) : null}
               </div>
