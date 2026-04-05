@@ -285,6 +285,7 @@ if [[ -n "${SUBSCRIPTION_ID}" ]]; then
 else
   SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
 fi
+sub_token="$(printf "%s" "${SUBSCRIPTION_ID}" | tr -d '-' | cut -c1-8)"
 
 normalize_stack() {
   printf "%s" "$1" \
@@ -316,8 +317,15 @@ fi
 if [[ -z "${REDIS_CLUSTER_NAME}" ]]; then
   REDIS_CLUSTER_NAME="$(printf "redis-mappo-%s" "${stack_token}" | cut -c1-60 | sed -E 's/-+$//')"
 fi
+if [[ -z "${MAPPO_AZURE_KEY_VAULT_NAME:-}" && -z "${MAPPO_AZURE_KEY_VAULT_URL:-}" ]]; then
+  MAPPO_AZURE_KEY_VAULT_NAME="$(printf "kvmappo%s%s" "${stack_token//-/}" "${sub_token}" | cut -c1-24)"
+fi
+if [[ -z "${MAPPO_AZURE_KEY_VAULT_NAME:-}" && -n "${MAPPO_AZURE_KEY_VAULT_URL:-}" ]]; then
+  MAPPO_AZURE_KEY_VAULT_NAME="$(printf "%s" "${MAPPO_AZURE_KEY_VAULT_URL}" | sed -E 's#^https://([^./]+).*#\1#')"
+fi
 MIGRATION_JOB_NAME="$(printf "%s" "${MIGRATION_JOB_NAME}" | tr "[:upper:]" "[:lower:]")"
 REDIS_CLUSTER_NAME="$(printf "%s" "${REDIS_CLUSTER_NAME}" | tr "[:upper:]" "[:lower:]")"
+MAPPO_AZURE_KEY_VAULT_NAME="$(printf "%s" "${MAPPO_AZURE_KEY_VAULT_NAME:-}" | tr "[:upper:]" "[:lower:]")"
 if ! [[ "${MIGRATION_TIMEOUT_SECONDS}" =~ ^[0-9]+$ ]] || (( MIGRATION_TIMEOUT_SECONDS < 60 )); then
   echo "runtime-aca-deploy: --migration-timeout must be an integer >= 60." >&2
   exit 2
@@ -329,6 +337,64 @@ fi
 if [[ -n "${ACR_NAME}" ]]; then
   ACR_NAME="$(printf "%s" "${ACR_NAME}" | tr "[:upper:]" "[:lower:]")"
 fi
+
+prefer_access_policy_key_vault() {
+  local requested_name="$1"
+  local preferred_name="${requested_name}"
+  local enable_rbac=""
+  local suffix=""
+  local candidate_name=""
+  local candidate_rbac=""
+
+  if [[ -z "${requested_name}" ]]; then
+    printf '%s\n' ""
+    return 0
+  fi
+
+  if az keyvault show --name "${requested_name}" --resource-group "${RESOURCE_GROUP}" --only-show-errors >/dev/null 2>&1; then
+    enable_rbac="$(
+      az keyvault show \
+        --name "${requested_name}" \
+        --resource-group "${RESOURCE_GROUP}" \
+        --query properties.enableRbacAuthorization \
+        -o tsv \
+        --only-show-errors
+    )"
+    if [[ "${enable_rbac}" == "true" ]]; then
+      for suffix in a b c d e; do
+        candidate_name="${requested_name}${suffix}"
+        if az keyvault show --name "${candidate_name}" --resource-group "${RESOURCE_GROUP}" --only-show-errors >/dev/null 2>&1; then
+          candidate_rbac="$(
+            az keyvault show \
+              --name "${candidate_name}" \
+              --resource-group "${RESOURCE_GROUP}" \
+              --query properties.enableRbacAuthorization \
+              -o tsv \
+              --only-show-errors
+          )"
+          if [[ "${candidate_rbac}" != "true" ]]; then
+            echo "runtime-aca-deploy: preferring Azure Key Vault ${candidate_name} because ${requested_name} uses RBAC authorization." >&2
+            preferred_name="${candidate_name}"
+            break
+          fi
+        fi
+      done
+    fi
+  else
+    for suffix in a b c d e; do
+      candidate_name="${requested_name}${suffix}"
+      if az keyvault show --name "${candidate_name}" --resource-group "${RESOURCE_GROUP}" --only-show-errors >/dev/null 2>&1; then
+        echo "runtime-aca-deploy: preferring existing Azure Key Vault ${candidate_name} because ${requested_name} is unavailable." >&2
+        preferred_name="${candidate_name}"
+        break
+      fi
+    done
+  fi
+
+  printf '%s\n' "${preferred_name}"
+}
+
+MAPPO_AZURE_KEY_VAULT_NAME="$(prefer_access_policy_key_vault "${MAPPO_AZURE_KEY_VAULT_NAME:-}")"
 
 echo "runtime-aca-deploy: subscription=${SUBSCRIPTION_ID}"
 echo "runtime-aca-deploy: resource_group=${RESOURCE_GROUP}"
@@ -346,6 +412,7 @@ echo "runtime-aca-deploy: image_tag=${IMAGE_TAG}"
 echo "runtime-aca-deploy: redis_cluster=${REDIS_CLUSTER_NAME}"
 echo "runtime-aca-deploy: redis_sku=${REDIS_SKU}"
 echo "runtime-aca-deploy: redis_provision=${REDIS_PROVISION}"
+echo "runtime-aca-deploy: key_vault=${MAPPO_AZURE_KEY_VAULT_NAME:-<disabled>}"
 echo "runtime-aca-deploy: skip_build=${SKIP_BUILD}"
 echo "runtime-aca-deploy: skip_app_deploy=${SKIP_APP_DEPLOY}"
 echo "runtime-aca-deploy: run_migrations=${RUN_MIGRATIONS}"
@@ -354,6 +421,7 @@ az provider register --namespace Microsoft.App --wait --only-show-errors >/dev/n
 az provider register --namespace Microsoft.ContainerRegistry --wait --only-show-errors >/dev/null
 az provider register --namespace Microsoft.OperationalInsights --wait --only-show-errors >/dev/null
 az provider register --namespace Microsoft.Cache --wait --only-show-errors >/dev/null
+az provider register --namespace Microsoft.KeyVault --wait --only-show-errors >/dev/null
 
 existing_rg_location="$(az group show --name "${RESOURCE_GROUP}" --query location -o tsv --only-show-errors 2>/dev/null || true)"
 if [[ -n "${existing_rg_location}" ]]; then
@@ -367,6 +435,35 @@ else
     --location "${LOCATION}" \
     --only-show-errors \
     >/dev/null
+fi
+
+if [[ -n "${MAPPO_AZURE_KEY_VAULT_NAME:-}" ]]; then
+  if ! az keyvault show --name "${MAPPO_AZURE_KEY_VAULT_NAME}" --resource-group "${RESOURCE_GROUP}" --only-show-errors >/dev/null 2>&1; then
+    echo "runtime-aca-deploy: creating Azure Key Vault ${MAPPO_AZURE_KEY_VAULT_NAME}"
+    az keyvault create \
+      --name "${MAPPO_AZURE_KEY_VAULT_NAME}" \
+      --resource-group "${RESOURCE_GROUP}" \
+      --location "${LOCATION}" \
+      --enable-rbac-authorization false \
+      --only-show-errors \
+      >/dev/null
+  else
+    echo "runtime-aca-deploy: reusing Azure Key Vault ${MAPPO_AZURE_KEY_VAULT_NAME}"
+  fi
+  MAPPO_AZURE_KEY_VAULT_URL="$(az keyvault show --name "${MAPPO_AZURE_KEY_VAULT_NAME}" --resource-group "${RESOURCE_GROUP}" --query properties.vaultUri -o tsv --only-show-errors)"
+  if [[ "$(az keyvault show --name "${MAPPO_AZURE_KEY_VAULT_NAME}" --resource-group "${RESOURCE_GROUP}" --query properties.enableRbacAuthorization -o tsv --only-show-errors)" == "true" ]]; then
+    echo "runtime-aca-deploy: existing Key Vault ${MAPPO_AZURE_KEY_VAULT_NAME} uses RBAC authorization. Recreate it with access policies or grant the MAPPO principal secret-read access manually." >&2
+    exit 1
+  fi
+  if az ad sp show --id "${MAPPO_AZURE_CLIENT_ID}" --only-show-errors >/dev/null 2>&1; then
+    az keyvault set-policy \
+      --name "${MAPPO_AZURE_KEY_VAULT_NAME}" \
+      --resource-group "${RESOURCE_GROUP}" \
+      --spn "${MAPPO_AZURE_CLIENT_ID}" \
+      --secret-permissions get list \
+      --only-show-errors \
+      >/dev/null
+  fi
 fi
 
 if ! az extension show --name containerapp >/dev/null 2>&1; then
@@ -536,6 +633,15 @@ else
   fi
 fi
 
+ensure_backend_artifact() {
+  if [[ ! -f "${ROOT_DIR}/backend/target/backend-1.0.0-SNAPSHOT.jar" ]]; then
+    echo "runtime-aca-deploy: backend jar missing; packaging backend first." >&2
+  else
+    echo "runtime-aca-deploy: packaging backend to refresh target/backend-1.0.0-SNAPSHOT.jar before image build." >&2
+  fi
+  (cd "${ROOT_DIR}" && ./mvnw -pl backend -am package -DskipTests --quiet)
+}
+
 build_image() {
   local image_repo="$1"
   local dockerfile_path="$2"
@@ -590,6 +696,8 @@ build_image() {
 }
 
 if is_falsey "${SKIP_BUILD}"; then
+  ensure_backend_artifact
+
   echo "runtime-aca-deploy: building backend image ${backend_image}"
   build_image "mappo-backend" "${ROOT_DIR}/backend/Dockerfile" "${ROOT_DIR}/backend"
 
@@ -756,6 +864,9 @@ fi
 
 if [[ -n "${MAPPO_PUBLISHER_ACR_SERVER:-}" ]]; then
   backend_env_vars+=("MAPPO_PUBLISHER_ACR_SERVER=${MAPPO_PUBLISHER_ACR_SERVER}")
+fi
+if [[ -n "${MAPPO_AZURE_KEY_VAULT_URL:-}" ]]; then
+  backend_env_vars+=("MAPPO_AZURE_KEY_VAULT_URL=${MAPPO_AZURE_KEY_VAULT_URL}")
 fi
 if [[ -n "${MAPPO_PUBLISHER_ACR_PULL_CLIENT_ID:-}" ]]; then
   backend_env_vars+=("MAPPO_PUBLISHER_ACR_PULL_CLIENT_ID=${MAPPO_PUBLISHER_ACR_PULL_CLIENT_ID}")
@@ -964,6 +1075,8 @@ export MAPPO_RUNTIME_REDIS_SSL_ENABLED='${redis_ssl_enabled}'
 export MAPPO_RUNTIME_BACKEND_APP='${BACKEND_APP_NAME}'
 export MAPPO_RUNTIME_FRONTEND_APP='${FRONTEND_APP_NAME}'
 export MAPPO_RUNTIME_MIGRATION_JOB='${MIGRATION_JOB_NAME}'
+export MAPPO_RUNTIME_KEY_VAULT_NAME='${MAPPO_AZURE_KEY_VAULT_NAME:-}'
+export MAPPO_RUNTIME_KEY_VAULT_URL='${MAPPO_AZURE_KEY_VAULT_URL:-}'
 export MAPPO_RUNTIME_BACKEND_URL='${backend_base_url}'
 export MAPPO_RUNTIME_FRONTEND_URL='${frontend_base_url}'
 export MAPPO_API_BASE_URL='${backend_base_url}'

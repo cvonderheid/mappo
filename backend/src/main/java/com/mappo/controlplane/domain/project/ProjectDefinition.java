@@ -3,6 +3,7 @@ package com.mappo.controlplane.domain.project;
 public record ProjectDefinition(
     String id,
     String name,
+    String themeKey,
     String releaseIngestEndpointId,
     String providerConnectionId,
     ProjectAccessStrategyType accessStrategy,

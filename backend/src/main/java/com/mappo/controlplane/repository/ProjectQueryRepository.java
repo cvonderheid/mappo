@@ -26,13 +26,19 @@ import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.jooq.DSLContext;
+import org.jooq.Field;
 import org.jooq.Record;
+import org.jooq.impl.DSL;
+import org.jooq.impl.SQLDataType;
 import org.springframework.stereotype.Repository;
 import com.mappo.controlplane.util.JsonUtil;
 
 @Repository
 @RequiredArgsConstructor
 public class ProjectQueryRepository {
+
+    private static final Field<String> PROJECT_THEME_KEY =
+        DSL.field(DSL.name("theme_key"), SQLDataType.VARCHAR(64));
 
     private final DSLContext dsl;
     private final JsonUtil jsonUtil;
@@ -41,6 +47,7 @@ public class ProjectQueryRepository {
         Record row = dsl.select(
                 PROJECTS.ID,
                 PROJECTS.NAME,
+                PROJECT_THEME_KEY,
                 PROJECTS.RELEASE_INGEST_ENDPOINT_ID,
                 PROJECTS.PROVIDER_CONNECTION_ID,
                 PROJECTS.ACCESS_STRATEGY,
@@ -66,6 +73,7 @@ public class ProjectQueryRepository {
         return dsl.select(
                 PROJECTS.ID,
                 PROJECTS.NAME,
+                PROJECT_THEME_KEY,
                 PROJECTS.RELEASE_INGEST_ENDPOINT_ID,
                 PROJECTS.PROVIDER_CONNECTION_ID,
                 PROJECTS.ACCESS_STRATEGY,
@@ -96,6 +104,7 @@ public class ProjectQueryRepository {
         return new ProjectDefinition(
             row.get(PROJECTS.ID),
             row.get(PROJECTS.NAME),
+            row.get(PROJECT_THEME_KEY),
             row.get(PROJECTS.RELEASE_INGEST_ENDPOINT_ID),
             row.get(PROJECTS.PROVIDER_CONNECTION_ID),
             accessStrategyType,

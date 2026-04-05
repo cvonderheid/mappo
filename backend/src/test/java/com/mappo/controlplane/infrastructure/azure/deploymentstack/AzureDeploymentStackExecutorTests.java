@@ -143,6 +143,7 @@ class AzureDeploymentStackExecutorTests {
         ProjectDefinition project = new ProjectDefinition(
             "azure-managed-app-deployment-stack",
             "Azure Managed App Deployment Stack",
+            "harbor-teal",
             null,
             null,
             ProjectAccessStrategyType.azure_workload_rbac,

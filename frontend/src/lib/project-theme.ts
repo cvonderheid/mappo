@@ -6,7 +6,7 @@ export type ProjectTheme = {
   description: string;
 };
 
-const THEMES: Record<ProjectThemeKey, ProjectTheme> = {
+export const PROJECT_THEMES: Record<ProjectThemeKey, ProjectTheme> = {
   "harbor-teal": {
     key: "harbor-teal",
     name: "Harbor Teal",
@@ -30,10 +30,17 @@ const THEME_BY_PROJECT_ID: Record<string, ProjectThemeKey> = {
   "azure-appservice-ado-pipeline": "scalr-slate",
 };
 
-const DEFAULT_THEME_KEY: ProjectThemeKey = "harbor-teal";
+export const DEFAULT_THEME_KEY: ProjectThemeKey = "harbor-teal";
 
-export function projectThemeForProject(projectId: string | null | undefined): ProjectTheme {
+export function projectThemeForProject(
+  projectId: string | null | undefined,
+  explicitThemeKey?: string | null | undefined
+): ProjectTheme {
+  const normalizedThemeKey = (explicitThemeKey ?? "").trim() as ProjectThemeKey;
   const normalizedProjectId = (projectId ?? "").trim();
-  const key = THEME_BY_PROJECT_ID[normalizedProjectId] ?? DEFAULT_THEME_KEY;
-  return THEMES[key];
+  const key =
+    (normalizedThemeKey && PROJECT_THEMES[normalizedThemeKey] ? normalizedThemeKey : undefined) ??
+    THEME_BY_PROJECT_ID[normalizedProjectId] ??
+    DEFAULT_THEME_KEY;
+  return PROJECT_THEMES[key];
 }

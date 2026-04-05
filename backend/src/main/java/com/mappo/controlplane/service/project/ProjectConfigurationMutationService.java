@@ -22,6 +22,7 @@ import com.mappo.controlplane.domain.project.TemplateSpecResourceArtifactSourceC
 import com.mappo.controlplane.util.JsonUtil;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -33,6 +34,7 @@ import tools.jackson.databind.ObjectMapper;
 public class ProjectConfigurationMutationService {
 
     private static final Pattern PROJECT_ID_PATTERN = Pattern.compile("^[a-z0-9](?:[a-z0-9-]{1,126}[a-z0-9])?$");
+    private static final Set<String> ALLOWED_THEME_KEYS = Set.of("harbor-teal", "vectr-signal", "scalr-slate");
 
     private final JsonUtil jsonUtil;
     private final ObjectMapper objectMapper;
@@ -40,6 +42,7 @@ public class ProjectConfigurationMutationService {
     public ProjectConfigurationMutationRecord fromCreate(ProjectCreateRequest request) {
         String id = requiredProjectId(request.id());
         String name = requiredName(request.name());
+        String themeKey = optionalThemeKey(request.themeKey());
         String releaseIngestEndpointId = optionalIdentifier(request.releaseIngestEndpointId());
         String providerConnectionId = optionalIdentifier(request.providerConnectionId());
         ProjectAccessStrategyType accessStrategy = required(request.accessStrategy(), "accessStrategy");
@@ -61,6 +64,7 @@ public class ProjectConfigurationMutationService {
         return new ProjectConfigurationMutationRecord(
             id,
             name,
+            themeKey,
             releaseIngestEndpointId,
             providerConnectionId,
             accessStrategy,
@@ -84,6 +88,9 @@ public class ProjectConfigurationMutationService {
         if (name.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "project name must not be blank");
         }
+        String themeKey = patchRequest.themeKey() == null
+            ? optionalThemeKey(current.themeKey())
+            : optionalThemeKey(patchRequest.themeKey());
         String releaseIngestEndpointId = patchRequest.releaseIngestEndpointId() == null
             ? optionalIdentifier(current.releaseIngestEndpointId())
             : optionalIdentifier(patchRequest.releaseIngestEndpointId());
@@ -138,6 +145,7 @@ public class ProjectConfigurationMutationService {
         return new ProjectConfigurationMutationRecord(
             id,
             name,
+            themeKey,
             releaseIngestEndpointId,
             providerConnectionId,
             accessStrategy,
@@ -159,6 +167,7 @@ public class ProjectConfigurationMutationService {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("id", normalize(mutation.id()));
         snapshot.put("name", normalize(mutation.name()));
+        snapshot.put("themeKey", optionalThemeKey(mutation.themeKey()));
         snapshot.put("releaseIngestEndpointId", optionalIdentifier(mutation.releaseIngestEndpointId()));
         snapshot.put("providerConnectionId", optionalIdentifier(mutation.providerConnectionId()));
         snapshot.put("accessStrategy", mutation.accessStrategy());
@@ -176,6 +185,7 @@ public class ProjectConfigurationMutationService {
         return new ProjectConfigurationMutationRecord(
             requiredProjectId(project.id()),
             requiredName(project.name()),
+            optionalThemeKey(project.themeKey()),
             optionalIdentifier(project.releaseIngestEndpointId()),
             optionalIdentifier(project.providerConnectionId()),
             project.accessStrategy(),
@@ -326,6 +336,17 @@ public class ProjectConfigurationMutationService {
     private String optionalIdentifier(String value) {
         String normalized = normalize(value);
         return normalized.isBlank() ? null : normalized;
+    }
+
+    private String optionalThemeKey(String value) {
+        String normalized = normalize(value);
+        if (normalized.isBlank()) {
+            return null;
+        }
+        if (!ALLOWED_THEME_KEYS.contains(normalized)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "invalid themeKey");
+        }
+        return normalized;
     }
 
     private <T> T required(T value, String fieldName) {

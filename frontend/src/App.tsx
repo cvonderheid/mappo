@@ -882,8 +882,8 @@ function AppShell() {
     [projects, selectedProjectId]
   );
   const selectedProjectTheme = useMemo(
-    () => projectThemeForProject(selectedProjectId),
-    [selectedProjectId]
+    () => projectThemeForProject(selectedProjectId, selectedProject?.themeKey),
+    [selectedProjectId, selectedProject?.themeKey]
   );
 
   useEffect(() => {

@@ -9,6 +9,7 @@ import java.util.Map;
 public record ProjectConfigurationMutationRecord(
     String id,
     String name,
+    String themeKey,
     String releaseIngestEndpointId,
     String providerConnectionId,
     ProjectAccessStrategyType accessStrategy,

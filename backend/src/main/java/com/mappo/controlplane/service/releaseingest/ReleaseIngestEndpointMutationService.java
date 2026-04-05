@@ -4,6 +4,7 @@ import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ReleaseIngestEndpointCreateRequest;
 import com.mappo.controlplane.api.request.ReleaseIngestEndpointPatchRequest;
 import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;
+import com.mappo.controlplane.infrastructure.azure.auth.AzureKeyVaultSecretResolver;
 import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
@@ -140,7 +141,7 @@ public class ReleaseIngestEndpointMutationService {
         if (normalized.startsWith("literal:")) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "literal webhook secrets are not supported; use the provider default or env:VAR_NAME."
+                "literal webhook secrets are not supported; use the provider default, env:VAR_NAME, or kv:secret-name."
             );
         }
         if (defaultReference.equals(normalized)) {
@@ -149,9 +150,15 @@ public class ReleaseIngestEndpointMutationService {
         if (normalized.startsWith("env:") && normalize(normalized.substring("env:".length())).length() > 0) {
             return normalized;
         }
+        if (
+            normalized.startsWith(AzureKeyVaultSecretResolver.KEY_VAULT_PREFIX)
+            && normalize(normalized.substring(AzureKeyVaultSecretResolver.KEY_VAULT_PREFIX.length())).length() > 0
+        ) {
+            return normalized;
+        }
         throw new ApiException(
             HttpStatus.BAD_REQUEST,
-            "secretRef must be " + defaultReference + " or env:VAR_NAME."
+            "secretRef must be " + defaultReference + ", env:VAR_NAME, or kv:secret-name."
         );
     }
 

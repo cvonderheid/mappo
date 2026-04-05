@@ -56,6 +56,7 @@ mappo:
     tenant-id: ${MAPPO_AZURE_TENANT_ID:}
     client-id: ${MAPPO_AZURE_CLIENT_ID:}
     client-secret: ${MAPPO_AZURE_CLIENT_SECRET:}
+    key-vault-url: ${MAPPO_AZURE_KEY_VAULT_URL:}
     deployment-stack-attach-timeout-ms: ${MAPPO_AZURE_DEPLOYMENT_STACK_ATTACH_TIMEOUT_MS:120000}
     deployment-stack-attach-poll-interval-ms: ${MAPPO_AZURE_DEPLOYMENT_STACK_ATTACH_POLL_INTERVAL_MS:2000}
   managed-app-release:

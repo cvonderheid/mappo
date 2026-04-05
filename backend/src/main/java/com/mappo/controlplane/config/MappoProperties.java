@@ -30,6 +30,7 @@ public class MappoProperties {
         private String tenantId = "";
         private String clientId = "";
         private String clientSecret = "";
+        private String keyVaultUrl = "";
         private long deploymentStackAttachTimeoutMs = 120_000L;
         private long deploymentStackAttachPollIntervalMs = 2_000L;
     }

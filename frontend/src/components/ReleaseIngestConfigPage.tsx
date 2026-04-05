@@ -31,7 +31,7 @@ import type {
 } from "@/lib/types";
 
 type ReleaseIngestProvider = "github" | "azure_devops";
-type WebhookSecretMode = "provider_default" | "environment_variable";
+type WebhookSecretMode = "provider_default" | "environment_variable" | "key_vault_secret";
 
 type ReleaseIngestConfigPageProps = {
   selectedProjectId: string;
@@ -44,6 +44,7 @@ type EndpointDraft = {
   enabled: boolean;
   webhookSecretMode: WebhookSecretMode;
   webhookSecretEnvVar: string;
+  webhookSecretKeyVaultSecret: string;
   repoFilter: string;
   branchFilter: string;
   pipelineIdFilter: string;
@@ -58,6 +59,7 @@ function emptyDraft(): EndpointDraft {
     enabled: true,
     webhookSecretMode: "provider_default",
     webhookSecretEnvVar: "",
+    webhookSecretKeyVaultSecret: "",
     repoFilter: "",
     branchFilter: "",
     pipelineIdFilter: "",
@@ -73,17 +75,26 @@ function providerDefaultSecretRef(provider: ReleaseIngestProvider): string {
 
 function parseWebhookSecretRef(
   value: string | undefined
-): Pick<EndpointDraft, "webhookSecretMode" | "webhookSecretEnvVar"> {
+): Pick<EndpointDraft, "webhookSecretMode" | "webhookSecretEnvVar" | "webhookSecretKeyVaultSecret"> {
   const normalized = (value ?? "").trim();
   if (normalized.startsWith("env:")) {
     return {
       webhookSecretMode: "environment_variable",
       webhookSecretEnvVar: normalized.slice("env:".length).trim(),
+      webhookSecretKeyVaultSecret: "",
+    };
+  }
+  if (normalized.startsWith("kv:")) {
+    return {
+      webhookSecretMode: "key_vault_secret",
+      webhookSecretEnvVar: "",
+      webhookSecretKeyVaultSecret: normalized.slice("kv:".length).trim(),
     };
   }
   return {
     webhookSecretMode: "provider_default",
     webhookSecretEnvVar: "",
+    webhookSecretKeyVaultSecret: "",
   };
 }
 
@@ -91,6 +102,10 @@ function buildWebhookSecretRef(draft: EndpointDraft): string {
   if (draft.webhookSecretMode === "environment_variable") {
     const envVarName = draft.webhookSecretEnvVar.trim();
     return envVarName === "" ? "" : `env:${envVarName}`;
+  }
+  if (draft.webhookSecretMode === "key_vault_secret") {
+    const secretName = draft.webhookSecretKeyVaultSecret.trim();
+    return secretName === "" ? "" : `kv:${secretName}`;
   }
   return providerDefaultSecretRef(draft.provider);
 }
@@ -103,6 +118,9 @@ function describeWebhookSecretSource(endpoint: ReleaseIngestEndpoint): string {
   }
   if (normalized.startsWith("env:")) {
     return `Environment variable (${normalized.slice("env:".length).trim()})`;
+  }
+  if (normalized.startsWith("kv:")) {
+    return `Azure Key Vault secret (${normalized.slice("kv:".length).trim()})`;
   }
   return "Named runtime secret";
 }
@@ -218,6 +236,10 @@ export default function ReleaseIngestConfigPage({
     }
     if (draft.webhookSecretMode === "environment_variable" && webhookSecretRef === "") {
       toast.error("Environment variable name is required when Webhook verification secret is Environment variable.");
+      return;
+    }
+    if (draft.webhookSecretMode === "key_vault_secret" && webhookSecretRef === "") {
+      toast.error("Azure Key Vault secret name is required when Webhook verification secret is Azure Key Vault secret.");
       return;
     }
 
@@ -569,7 +591,9 @@ export default function ReleaseIngestConfigPage({
                       ...current,
                       webhookSecretMode: value as WebhookSecretMode,
                       webhookSecretEnvVar:
-                        value === "provider_default" ? "" : current.webhookSecretEnvVar,
+                        value === "environment_variable" ? current.webhookSecretEnvVar : "",
+                      webhookSecretKeyVaultSecret:
+                        value === "key_vault_secret" ? current.webhookSecretKeyVaultSecret : "",
                     }))
                   }
                 >
@@ -579,6 +603,7 @@ export default function ReleaseIngestConfigPage({
                   <SelectContent>
                     <SelectItem value="provider_default">Use MAPPO backend secret</SelectItem>
                     <SelectItem value="environment_variable">Use backend environment variable</SelectItem>
+                    <SelectItem value="key_vault_secret">Use Azure Key Vault secret</SelectItem>
                   </SelectContent>
                 </Select>
                 {draft.webhookSecretMode === "provider_default" ? (
@@ -589,39 +614,45 @@ export default function ReleaseIngestConfigPage({
               </div>
             </div>
 
-            {webhookUrlPreview ? (
-              <div className="rounded-md border border-border/60 bg-background/40 p-3 text-xs text-muted-foreground">
-                <p className="font-medium text-foreground">Webhook URL preview</p>
-                <p className="mt-1 break-all font-mono text-foreground">{webhookUrlPreview}</p>
-                <p className="mt-2">
-                  Use this URL when creating the webhook or service hook in{" "}
-                  <span className="font-medium text-foreground">
-                    {draft.provider === "azure_devops" ? "Azure DevOps" : "GitHub"}
-                  </span>.
-                </p>
-                {editingId && editingProvider && editingProvider !== draft.provider ? (
+            <div className="rounded-md border border-border/60 bg-background/40 p-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">Webhook URL preview</p>
+              {webhookUrlPreview ? (
+                <>
+                  <p className="mt-1 break-all font-mono text-foreground">{webhookUrlPreview}</p>
                   <p className="mt-2">
-                    This source was originally created for{" "}
+                    Use this URL when creating the webhook or service hook in{" "}
                     <span className="font-medium text-foreground">
-                      {editingProvider === "azure_devops" ? "Azure DevOps" : "GitHub"}
-                    </span>
-                    . Save will fail because release source provider cannot change after creation.
+                      {draft.provider === "azure_devops" ? "Azure DevOps" : "GitHub"}
+                    </span>.
                   </p>
-                ) : null}
-              </div>
-            ) : null}
+                </>
+              ) : (
+                <p className="mt-1">
+                  Enter a <span className="font-medium text-foreground">Source ID</span> above and MAPPO will generate the webhook URL here.
+                </p>
+              )}
+              {editingId && editingProvider && editingProvider !== draft.provider ? (
+                <p className="mt-2">
+                  This source was originally created for{" "}
+                  <span className="font-medium text-foreground">
+                    {editingProvider === "azure_devops" ? "Azure DevOps" : "GitHub"}
+                  </span>
+                  . Save will fail because release source provider cannot change after creation.
+                </p>
+              ) : null}
+            </div>
 
             <div className="rounded-md border border-border/60 bg-background/40 p-3 text-xs text-muted-foreground">
               <p className="font-medium text-foreground">How operators wire this up</p>
               {draft.provider === "azure_devops" ? (
                 <ul className="mt-2 list-disc space-y-1 pl-4">
-                  <li>Create an Azure DevOps service hook or webhook subscription that posts to the URL above.</li>
+                  <li>Create an Azure DevOps service hook or webhook subscription that posts to the webhook URL preview above.</li>
                   <li>Configure the same shared secret MAPPO verifies here.</li>
                   <li>Leave routing filters empty unless one endpoint accepts events from multiple pipelines.</li>
                 </ul>
               ) : (
                 <ul className="mt-2 list-disc space-y-1 pl-4">
-                  <li>Create a GitHub webhook that posts JSON to the URL above.</li>
+                  <li>Create a GitHub webhook that posts JSON to the webhook URL preview above.</li>
                   <li>Configure the same shared secret MAPPO verifies here.</li>
                   <li>Leave routing filters empty unless one endpoint accepts events from multiple repositories.</li>
                 </ul>
@@ -645,6 +676,28 @@ export default function ReleaseIngestConfigPage({
                   }
                   placeholder={draft.provider === "azure_devops" ? "MAPPO_AZURE_DEVOPS_WEBHOOK_SECRET" : "MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET"}
                 />
+              </div>
+            ) : null}
+            {draft.webhookSecretMode === "key_vault_secret" ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="endpoint-webhook-secret-key-vault-secret">Azure Key Vault secret name</Label>
+                  <FieldHelpTooltip content="Name of the secret in MAPPO's Azure Key Vault that stores the webhook signing secret. Enter only the secret name, not the secret value." />
+                </div>
+                <Input
+                  id="endpoint-webhook-secret-key-vault-secret"
+                  value={draft.webhookSecretKeyVaultSecret}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      webhookSecretKeyVaultSecret: event.target.value,
+                    }))
+                  }
+                  placeholder={draft.provider === "azure_devops" ? "mappo-ado-webhook-secret" : "mappo-github-webhook-secret"}
+                />
+                <p className="text-xs text-muted-foreground">
+                  MAPPO will resolve this as <span className="font-mono text-foreground">kv:{draft.webhookSecretKeyVaultSecret.trim() || "secret-name"}</span> using the Azure Key Vault configured on the backend runtime.
+                </p>
               </div>
             ) : null}
 

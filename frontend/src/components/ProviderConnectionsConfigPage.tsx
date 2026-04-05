@@ -44,8 +44,9 @@ type ProviderConnectionDraft = {
   provider: ProviderConnectionProvider;
   enabled: boolean;
   organizationUrl: string;
-  personalAccessTokenMode: "backend_default" | "environment_variable";
+  personalAccessTokenMode: "backend_default" | "environment_variable" | "key_vault_secret";
   personalAccessTokenEnvVar: string;
+  personalAccessTokenKeyVaultSecret: string;
 };
 
 const DEFAULT_AZURE_DEVOPS_PAT_REF = "mappo.azure-devops.personal-access-token";
@@ -70,7 +71,7 @@ function normalizeDeploymentConnectionError(message: string): string {
     return AZURE_DEVOPS_SCOPE_REQUIRED_MESSAGE;
   }
   if (normalized.includes("pat could not be resolved")) {
-    return "MAPPO could not resolve the Azure DevOps API credential for this deployment connection. Use the MAPPO backend secret or choose a backend environment variable that actually exists, then verify the connection again.";
+    return "MAPPO could not resolve the Azure DevOps API credential for this deployment connection. Use the MAPPO backend secret, a backend environment variable, or an Azure Key Vault secret that actually exists, then verify the connection again.";
   }
   if (normalized.includes("no accessible azure devops projects were returned")) {
     return "MAPPO authenticated to Azure DevOps, but that access token could not see any Azure DevOps projects in the selected account. Confirm the URL is correct and that the token can read at least one project.";
@@ -122,22 +123,32 @@ function emptyDraft(): ProviderConnectionDraft {
     organizationUrl: "",
     personalAccessTokenMode: "backend_default",
     personalAccessTokenEnvVar: "",
+    personalAccessTokenKeyVaultSecret: "",
   };
 }
 
 function parsePersonalAccessTokenRef(
   value: string | undefined
-): Pick<ProviderConnectionDraft, "personalAccessTokenMode" | "personalAccessTokenEnvVar"> {
+): Pick<ProviderConnectionDraft, "personalAccessTokenMode" | "personalAccessTokenEnvVar" | "personalAccessTokenKeyVaultSecret"> {
   const normalized = normalize(value ?? "");
   if (normalized.startsWith("env:")) {
     return {
       personalAccessTokenMode: "environment_variable",
       personalAccessTokenEnvVar: normalize(normalized.slice("env:".length)),
+      personalAccessTokenKeyVaultSecret: "",
+    };
+  }
+  if (normalized.startsWith("kv:")) {
+    return {
+      personalAccessTokenMode: "key_vault_secret",
+      personalAccessTokenEnvVar: "",
+      personalAccessTokenKeyVaultSecret: normalize(normalized.slice("kv:".length)),
     };
   }
   return {
     personalAccessTokenMode: "backend_default",
     personalAccessTokenEnvVar: "",
+    personalAccessTokenKeyVaultSecret: "",
   };
 }
 
@@ -179,6 +190,10 @@ function buildPersonalAccessTokenRef(draft: ProviderConnectionDraft): string {
     const envVarName = normalize(draft.personalAccessTokenEnvVar);
     return envVarName === "" ? "" : `env:${envVarName}`;
   }
+  if (draft.personalAccessTokenMode === "key_vault_secret") {
+    const secretName = normalize(draft.personalAccessTokenKeyVaultSecret);
+    return secretName === "" ? "" : `kv:${secretName}`;
+  }
   return DEFAULT_AZURE_DEVOPS_PAT_REF;
 }
 
@@ -206,6 +221,9 @@ function describePersonalAccessTokenSource(connection: ProviderConnection): stri
   }
   if (normalized.startsWith("env:")) {
     return `Environment variable (${normalize(normalized.slice("env:".length))})`;
+  }
+  if (normalized.startsWith("kv:")) {
+    return `Azure Key Vault secret (${normalize(normalized.slice("kv:".length))})`;
   }
   return maskedSecretRef(normalized);
 }
@@ -307,8 +325,14 @@ export default function ProviderConnectionsConfigPage({
     && normalize(draft.name) !== ""
     && (!isAzureDevOpsScopeMissing(draft))
     && (
-      draft.personalAccessTokenMode !== "environment_variable"
-      || normalize(draft.personalAccessTokenEnvVar) !== ""
+      (
+        draft.personalAccessTokenMode !== "environment_variable"
+        || normalize(draft.personalAccessTokenEnvVar) !== ""
+      )
+      && (
+        draft.personalAccessTokenMode !== "key_vault_secret"
+        || normalize(draft.personalAccessTokenKeyVaultSecret) !== ""
+      )
     );
   const canSaveDraft = canVerifyDraft;
 
@@ -437,6 +461,10 @@ export default function ProviderConnectionsConfigPage({
     const personalAccessTokenRef = normalize(buildPersonalAccessTokenRef(draft));
     if (draft.personalAccessTokenMode === "environment_variable" && personalAccessTokenRef === "") {
       toast.error("Environment variable name is required when API credential source is Environment variable.");
+      return;
+    }
+    if (draft.personalAccessTokenMode === "key_vault_secret" && personalAccessTokenRef === "") {
+      toast.error("Azure Key Vault secret name is required when API credential source is Azure Key Vault secret.");
       return;
     }
     if (isAzureDevOpsScopeMissing(draft)) {
@@ -794,6 +822,7 @@ export default function ProviderConnectionsConfigPage({
                       provider: value as ProviderConnectionProvider,
                       personalAccessTokenMode: "backend_default",
                       personalAccessTokenEnvVar: "",
+                      personalAccessTokenKeyVaultSecret: "",
                     }))
                   }
                 >
@@ -872,7 +901,9 @@ export default function ProviderConnectionsConfigPage({
                         ...current,
                         personalAccessTokenMode: value as ProviderConnectionDraft["personalAccessTokenMode"],
                         personalAccessTokenEnvVar:
-                          value === "backend_default" ? "" : current.personalAccessTokenEnvVar,
+                          value === "environment_variable" ? current.personalAccessTokenEnvVar : "",
+                        personalAccessTokenKeyVaultSecret:
+                          value === "key_vault_secret" ? current.personalAccessTokenKeyVaultSecret : "",
                       }))
                     }
                   >
@@ -882,6 +913,7 @@ export default function ProviderConnectionsConfigPage({
                     <SelectContent>
                       <SelectItem value="backend_default">Use MAPPO backend secret</SelectItem>
                       <SelectItem value="environment_variable">Use backend environment variable</SelectItem>
+                      <SelectItem value="key_vault_secret">Use Azure Key Vault secret</SelectItem>
                     </SelectContent>
                   </Select>
                   {draft.personalAccessTokenMode === "backend_default" ? (
@@ -905,6 +937,25 @@ export default function ProviderConnectionsConfigPage({
                       }
                       placeholder="MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN"
                     />
+                  </div>
+                ) : null}
+                {draft.personalAccessTokenMode === "key_vault_secret" ? (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1">
+                      <Label htmlFor="provider-connection-pat-key-vault-secret">Azure Key Vault secret name</Label>
+                      <FieldHelpTooltip content="Name of the secret in MAPPO's Azure Key Vault that stores the Azure DevOps access token. Enter only the secret name, not the secret value." />
+                    </div>
+                    <Input
+                      id="provider-connection-pat-key-vault-secret"
+                      value={draft.personalAccessTokenKeyVaultSecret}
+                      onChange={(event) =>
+                        setDraft((current) => ({ ...current, personalAccessTokenKeyVaultSecret: event.target.value }))
+                      }
+                      placeholder="mappo-ado-pg123-pat"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      MAPPO will resolve this as <span className="font-mono text-foreground">kv:{normalize(draft.personalAccessTokenKeyVaultSecret) || "secret-name"}</span> using the Azure Key Vault configured on the backend runtime.
+                    </p>
                   </div>
                 ) : null}
               </div>

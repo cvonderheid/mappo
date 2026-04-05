@@ -63,6 +63,24 @@ The `azure` profile performs:
 - frontend/backend update
 - marketplace forwarder deployment
 
+## External system secrets
+For the hosted Azure runtime, external system secrets should live in MAPPO's Azure Key Vault.
+
+Current runtime behavior:
+- `scripts/runtime_aca_deploy.sh` provisions or reuses a Key Vault in the runtime resource group
+- it grants the MAPPO Azure service principal `Key Vault Secrets User`
+- it injects `MAPPO_AZURE_KEY_VAULT_URL` into the backend container app
+
+Recommended usage:
+1. create a secret in the MAPPO Key Vault
+2. in MAPPO Admin, choose `Use Azure Key Vault secret`
+3. enter the secret name only
+
+Current supported secret reference forms:
+- `kv:secret-name`
+- `env:VAR_NAME`
+- provider default backend secret refs (legacy/default path)
+
 ## OpenAPI and frontend client contract
 Backend OpenAPI export:
 ```bash

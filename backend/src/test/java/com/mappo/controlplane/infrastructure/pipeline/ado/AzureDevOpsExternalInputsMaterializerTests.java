@@ -33,6 +33,7 @@ class AzureDevOpsExternalInputsMaterializerTests {
         ProjectDefinition project = new ProjectDefinition(
             "azure-appservice-ado-pipeline",
             "Azure App Service ADO Pipeline",
+            "scalr-slate",
             null,
             null,
             ProjectAccessStrategyType.azure_workload_rbac,

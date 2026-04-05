@@ -23,6 +23,17 @@ This page should answer:
 - can MAPPO authenticate?
 - what external projects/resources can MAPPO discover?
 
+Secrets for external deployment systems should live in MAPPO's Azure Key Vault when the hosted runtime is used.
+
+Operator rule:
+- create the secret in MAPPO's Azure Key Vault
+- in MAPPO, choose `Use Azure Key Vault secret`
+- enter only the Key Vault secret name, not the secret value
+
+Fallbacks still supported:
+- `Use MAPPO backend secret` for the single built-in provider default
+- `Use backend environment variable` for legacy/demo environments
+
 ### Release Sources
 Use this page to configure inbound release notifications and refresh wiring.
 
@@ -34,6 +45,10 @@ This page should answer:
 - where do release notifications come from?
 - what webhook URL should the external system call?
 - what secret verifies the event?
+
+Release webhook secrets follow the same model as Deployment Connections:
+- prefer Azure Key Vault secret references
+- use backend env vars only when you intentionally run without Key Vault
 
 ## Project screens
 ### Config

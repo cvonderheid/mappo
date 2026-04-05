@@ -31,6 +31,8 @@ public class ProjectCommandRepository {
 
     private static final Field<String> MARKETPLACE_EVENT_PROJECT_ID =
         DSL.field(DSL.name("project_id"), SQLDataType.VARCHAR(128));
+    private static final Field<String> PROJECT_THEME_KEY =
+        DSL.field(DSL.name("theme_key"), SQLDataType.VARCHAR(64));
 
     private final DSLContext dsl;
     private final JsonUtil jsonUtil;
@@ -39,6 +41,7 @@ public class ProjectCommandRepository {
         dsl.insertInto(PROJECTS)
             .set(PROJECTS.ID, normalize(mutation.id()))
             .set(PROJECTS.NAME, normalize(mutation.name()))
+            .set(PROJECT_THEME_KEY, optionalThemeKey(mutation.themeKey()))
             .set(PROJECTS.RELEASE_INGEST_ENDPOINT_ID, optionalIdentifier(mutation.releaseIngestEndpointId()))
             .set(PROJECTS.PROVIDER_CONNECTION_ID, optionalIdentifier(mutation.providerConnectionId()))
             .set(PROJECTS.ACCESS_STRATEGY, requiredAccessStrategy(mutation))
@@ -58,6 +61,7 @@ public class ProjectCommandRepository {
     ) {
         int updated = dsl.update(PROJECTS)
             .set(PROJECTS.NAME, normalize(mutation.name()))
+            .set(PROJECT_THEME_KEY, optionalThemeKey(mutation.themeKey()))
             .set(PROJECTS.RELEASE_INGEST_ENDPOINT_ID, optionalIdentifier(mutation.releaseIngestEndpointId()))
             .set(PROJECTS.PROVIDER_CONNECTION_ID, optionalIdentifier(mutation.providerConnectionId()))
             .set(PROJECTS.ACCESS_STRATEGY, requiredAccessStrategy(mutation))
@@ -107,6 +111,11 @@ public class ProjectCommandRepository {
     }
 
     private String optionalIdentifier(String value) {
+        String normalized = normalize(value);
+        return normalized.isBlank() ? null : normalized;
+    }
+
+    private String optionalThemeKey(String value) {
         String normalized = normalize(value);
         return normalized.isBlank() ? null : normalized;
     }

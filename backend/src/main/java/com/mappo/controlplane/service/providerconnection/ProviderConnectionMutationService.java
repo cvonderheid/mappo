@@ -5,6 +5,7 @@ import com.mappo.controlplane.api.request.ProviderConnectionCreateRequest;
 import com.mappo.controlplane.api.request.ProviderConnectionPatchRequest;
 import com.mappo.controlplane.api.request.ProviderConnectionVerifyRequest;
 import com.mappo.controlplane.domain.providerconnection.ProviderConnectionProviderType;
+import com.mappo.controlplane.infrastructure.azure.auth.AzureKeyVaultSecretResolver;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsUrlNormalizer;
 import com.mappo.controlplane.model.ProviderConnectionRecord;
 import java.util.regex.Pattern;
@@ -136,7 +137,7 @@ public class ProviderConnectionMutationService {
         if (normalized.startsWith("literal:")) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "literal PAT values are not supported; use a secret reference key or env:VAR_NAME."
+                "literal PAT values are not supported; use the MAPPO backend secret, env:VAR_NAME, or kv:secret-name."
             );
         }
         if (ProviderConnectionSecretResolver.AZURE_DEVOPS_PAT_SECRET_REF.equals(normalized)) {
@@ -145,11 +146,17 @@ public class ProviderConnectionMutationService {
         if (normalized.startsWith("env:") && normalize(normalized.substring("env:".length())).length() > 0) {
             return normalized;
         }
+        if (
+            normalized.startsWith(AzureKeyVaultSecretResolver.KEY_VAULT_PREFIX)
+            && normalize(normalized.substring(AzureKeyVaultSecretResolver.KEY_VAULT_PREFIX.length())).length() > 0
+        ) {
+            return normalized;
+        }
         throw new ApiException(
             HttpStatus.BAD_REQUEST,
             "personalAccessTokenRef must be "
                 + ProviderConnectionSecretResolver.AZURE_DEVOPS_PAT_SECRET_REF
-                + " or env:VAR_NAME for Azure DevOps deployment connections."
+                + ", env:VAR_NAME, or kv:secret-name for Azure DevOps deployment connections."
         );
     }
 

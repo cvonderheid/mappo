@@ -104,7 +104,7 @@ public class ProviderConnectionDiscoveryService {
                 HttpStatus.BAD_REQUEST,
                 "Azure DevOps PAT could not be resolved for this deployment connection. Configure "
                     + ProviderConnectionSecretResolver.AZURE_DEVOPS_PAT_SECRET_REF
-                    + " on the backend runtime or use env:VAR_NAME."
+                    + " on the backend runtime, use env:VAR_NAME, or use kv:secret-name backed by MAPPO's Azure Key Vault."
             );
         }
 

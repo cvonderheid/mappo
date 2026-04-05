@@ -28,7 +28,7 @@ import org.springframework.stereotype.Component;
 @Component
 @Order(20)
 @RequiredArgsConstructor
-class AzureDevOpsPipelineTriggerExecutor implements DeploymentDriver {
+class dAzureDevOpsPipelineTriggerExecutor implements DeploymentDriver {
 
     private static final String PROVIDER = "azure_devops_pipeline";
 

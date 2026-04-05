@@ -24,6 +24,7 @@ import {
   listProviderConnections,
   listReleaseIngestEndpoints,
 } from "@/lib/api";
+import { DEFAULT_THEME_KEY, PROJECT_THEMES, type ProjectThemeKey } from "@/lib/project-theme";
 import type {
   DiscoverProjectAdoBranchesRequest,
   DiscoverProjectAdoRepositoriesRequest,
@@ -88,6 +89,7 @@ type DeploymentSystem = "azure" | "azure_devops";
 type ProjectDraft = {
   id: string;
   name: string;
+  themeKey: ProjectThemeKey;
   releaseIngestEndpointId: string;
   providerConnectionId: string;
   accessStrategy: "simulator" | "azure_workload_rbac" | "lighthouse_delegated_access";
@@ -131,6 +133,8 @@ const PROJECT_TABS: { key: ProjectTab; label: string }[] = [
   { key: "deployment-driver", label: "Deployment Driver" },
   { key: "runtime-health", label: "Runtime Health" },
 ];
+
+const PROJECT_THEME_OPTIONS = Object.values(PROJECT_THEMES);
 
 const RELEASE_SYSTEM_ORDER: ReleaseSystem[] = ["github", "azure_devops"];
 const DEPLOYMENT_SYSTEM_ORDER: DeploymentSystem[] = ["azure", "azure_devops"];
@@ -292,6 +296,7 @@ function projectToDraft(project: ProjectDefinition | null): ProjectDraft {
   return {
     id: asString(project?.id),
     name: asString(project?.name),
+    themeKey: ((project?.themeKey as ProjectThemeKey | undefined) ?? DEFAULT_THEME_KEY),
     releaseIngestEndpointId: asString(project?.releaseIngestEndpointId),
     providerConnectionId: asString(project?.providerConnectionId),
     accessStrategy: (project?.accessStrategy ?? "azure_workload_rbac") as ProjectDraft["accessStrategy"],
@@ -407,6 +412,7 @@ function buildPatchRequest(draft: ProjectDraft): ProjectConfigurationPatchReques
 
   return {
     name: draft.name.trim(),
+    themeKey: draft.themeKey,
     releaseIngestEndpointId: draft.releaseIngestEndpointId.trim() || undefined,
     providerConnectionId:
       draft.deploymentDriver === "pipeline_trigger"
@@ -428,6 +434,7 @@ function buildCreateRequest(draft: ProjectDraft): ProjectCreateRequest {
   return {
     id: draft.id.trim(),
     name: draft.name.trim(),
+    themeKey: patchPayload.themeKey,
     releaseIngestEndpointId: patchPayload.releaseIngestEndpointId,
     providerConnectionId: patchPayload.providerConnectionId,
     accessStrategy: patchPayload.accessStrategy ?? "azure_workload_rbac",
@@ -1485,6 +1492,7 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
         projectToDraft({
           id: "",
           name: "",
+          themeKey: DEFAULT_THEME_KEY,
           accessStrategy: "azure_workload_rbac",
           deploymentDriver: "azure_deployment_stack",
           releaseArtifactSource: "blob_arm_template",
@@ -1703,6 +1711,30 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                     onChange={(event) => updateDraft("name", event.target.value)}
                     placeholder="Customer Managed App Orchestrator"
                   />
+                </div>
+                <div className="space-y-1 md:col-span-2">
+                  <div className="flex items-center gap-1">
+                    <Label htmlFor="project-theme">Project theme</Label>
+                    <FieldHelpTooltip content="Visual theme used for this project in the control plane shell and project pages." />
+                  </div>
+                  <Select
+                    value={draft.themeKey}
+                    onValueChange={(value) => updateDraft("themeKey", value as ProjectThemeKey)}
+                  >
+                    <SelectTrigger id="project-theme">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROJECT_THEME_OPTIONS.map((theme) => (
+                        <SelectItem key={theme.key} value={theme.key}>
+                          {theme.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {PROJECT_THEMES[draft.themeKey]?.description ?? PROJECT_THEMES[DEFAULT_THEME_KEY].description}
+                  </p>
                 </div>
               </div>
             </TabsContent>
@@ -2736,6 +2768,27 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                   onChange={(event) => updateCreateDraft("name", event.target.value)}
                   placeholder="Azure App Service ADO Pipeline"
                 />
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <Label htmlFor="create-project-theme">Project theme</Label>
+                <Select
+                  value={createDraft.themeKey}
+                  onValueChange={(value) => updateCreateDraft("themeKey", value as ProjectThemeKey)}
+                >
+                  <SelectTrigger id="create-project-theme">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROJECT_THEME_OPTIONS.map((theme) => (
+                      <SelectItem key={theme.key} value={theme.key}>
+                        {theme.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {PROJECT_THEMES[createDraft.themeKey]?.description ?? PROJECT_THEMES[DEFAULT_THEME_KEY].description}
+                </p>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="create-access-strategy">Access strategy</Label>

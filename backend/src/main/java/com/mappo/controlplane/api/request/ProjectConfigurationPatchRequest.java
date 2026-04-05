@@ -10,6 +10,7 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ProjectConfigurationPatchRequest(
     String name,
+    String themeKey,
     String releaseIngestEndpointId,
     String providerConnectionId,
     ProjectAccessStrategyType accessStrategy,

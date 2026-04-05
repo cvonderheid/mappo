@@ -52,7 +52,7 @@ public class ReleaseIngestEndpointCommandService {
         if (resolvedSecret.isBlank()) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "Webhook secret could not be resolved. Configure the provider default secret on the backend runtime or use env:VAR_NAME."
+                "Webhook secret could not be resolved. Configure the provider default secret on the backend runtime, use env:VAR_NAME, or use kv:secret-name backed by MAPPO's Azure Key Vault."
             );
         }
     }

@@ -60,6 +60,7 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
         Map<String, Object> createRequest = new LinkedHashMap<>();
         createRequest.put("id", projectId);
         createRequest.put("name", "Custom ADO Project");
+        createRequest.put("themeKey", "scalr-slate");
         createRequest.put("accessStrategy", "azure_workload_rbac");
         createRequest.put("deploymentDriver", "pipeline_trigger");
         createRequest.put("releaseArtifactSource", "external_deployment_inputs");
@@ -70,10 +71,12 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                 .content(objectMapper.writeValueAsBytes(createRequest)))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id").value(projectId))
-            .andExpect(jsonPath("$.deploymentDriver").value("pipeline_trigger"));
+            .andExpect(jsonPath("$.deploymentDriver").value("pipeline_trigger"))
+            .andExpect(jsonPath("$.themeKey").value("scalr-slate"));
 
         Map<String, Object> patchRequest = new LinkedHashMap<>();
         patchRequest.put("name", "Custom ADO Project Updated");
+        patchRequest.put("themeKey", "vectr-signal");
         patchRequest.put("deploymentDriverConfig", Map.of(
             "organization", "https://dev.azure.com/contoso",
             "project", "demo-app-service",
@@ -86,6 +89,7 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                 .content(objectMapper.writeValueAsBytes(patchRequest)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.name").value("Custom ADO Project Updated"))
+            .andExpect(jsonPath("$.themeKey").value("vectr-signal"))
             .andExpect(jsonPath("$.deploymentDriverConfig.pipelineId").value("123"));
 
         mockMvc.perform(get("/api/v1/projects/{projectId}/audit", projectId)
