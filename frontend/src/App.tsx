@@ -11,13 +11,11 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupLabel,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -138,6 +136,7 @@ const ProviderConnectionsConfigPage = lazyWithRouteReload(() => import("@/compon
 const ProjectSwitcherMenu = lazyWithRouteReload(() => import("@/components/ProjectSwitcherMenu"));
 const ProjectSettingsPage = lazyWithRouteReload(() => import("@/components/ProjectSettingsPage"));
 const ReleaseIngestConfigPage = lazyWithRouteReload(() => import("@/components/ReleaseIngestConfigPage"));
+const SecretReferencesConfigPage = lazyWithRouteReload(() => import("@/components/SecretReferencesConfigPage"));
 const ReleasesPage = lazyWithRouteReload(() => import("@/components/ReleasesPage"));
 const RunDetailPanel = lazyWithRouteReload(() =>
   import("@/components/RunPanels").then((module) => ({ default: module.RunDetailPanel }))
@@ -174,6 +173,7 @@ const SIDEBAR_NAVIGATION: SidebarNavigationGroup[] = [
   {
     label: "Admin",
     items: [
+      { label: "Secret References", to: "/secret-references" },
       { label: "Deployment Connections", to: "/deployment-connections" },
       { label: "Release Sources", to: "/release-sources" },
       { label: "Managed App", to: "/managed-app" },
@@ -260,6 +260,7 @@ function AppShell() {
       location.pathname === "/demo" ||
       location.pathname === "/onboarding" ||
       location.pathname === "/targets" ||
+      location.pathname === "/secret-references" ||
       location.pathname === "/deployment-connections" ||
       location.pathname === "/release-sources" ||
       location.pathname === "/managed-app",
@@ -268,6 +269,7 @@ function AppShell() {
   const isGlobalScopeRoute = useMemo(
     () =>
       location.pathname === "/release-sources" ||
+      location.pathname === "/secret-references" ||
       location.pathname === "/deployment-connections" ||
       location.pathname === "/managed-app" ||
       location.pathname === "/demo",
@@ -915,15 +917,10 @@ function AppShell() {
     [latestRelease, targets]
   );
   const breadcrumbEntries = useMemo<BreadcrumbEntry[]>(() => {
-    const projectLabel = selectedProject?.name ?? selectedProject?.id ?? "No Project";
-    const projectLink = projects.length > 0 ? "/projects" : undefined;
     const path = location.pathname;
-
-    const items: BreadcrumbEntry[] = isGlobalScopeRoute
-      ? [{ label: "Global" }]
-      : [{ label: projectLabel, to: projectLink }];
+    const items: BreadcrumbEntry[] = [];
     if (path.startsWith("/fleet")) {
-      items.push({ label: "Project", to: "/fleet" }, { label: "Fleet" });
+      items.push({ label: "Project", to: "/projects" }, { label: "Fleet" });
       return items;
     }
     if (path.startsWith("/deployments/")) {
@@ -944,35 +941,39 @@ function AppShell() {
       return items;
     }
     if (path.startsWith("/projects")) {
-      items.push({ label: "Project", to: "/projects" }, { label: "Config" });
+      items.push({ label: "Project" }, { label: "Config" });
       return items;
     }
     if (path.startsWith("/release-sources")) {
-      items.push({ label: "Admin", to: "/release-sources" }, { label: "Release Sources" });
+      items.push({ label: "Admin" }, { label: "Release Sources" });
+      return items;
+    }
+    if (path.startsWith("/secret-references")) {
+      items.push({ label: "Admin" }, { label: "Secret References" });
       return items;
     }
     if (path.startsWith("/deployment-connections")) {
-      items.push({ label: "Admin", to: "/deployment-connections" }, { label: "Deployment Connections" });
+      items.push({ label: "Admin" }, { label: "Deployment Connections" });
       return items;
     }
     if (path.startsWith("/targets")) {
-      items.push({ label: "Project", to: "/targets" }, { label: "Targets" });
+      items.push({ label: "Project", to: "/projects" }, { label: "Targets" });
       return items;
     }
     if (path.startsWith("/onboarding")) {
-      items.push({ label: "Project", to: "/onboarding" }, { label: "Registration Events" });
+      items.push({ label: "Project", to: "/projects" }, { label: "Registration Events" });
       return items;
     }
     if (path.startsWith("/managed-app")) {
-      items.push({ label: "Admin", to: "/managed-app" }, { label: "Managed App" });
+      items.push({ label: "Admin" }, { label: "Managed App" });
       return items;
     }
     if (path.startsWith("/demo")) {
-      items.push({ label: "Demo", to: "/demo" }, { label: "Demo" });
+      items.push({ label: "Demo" });
       return items;
     }
     return items;
-  }, [isGlobalScopeRoute, location.pathname, projects.length, selectedProject?.id, selectedProject?.name]);
+  }, [location.pathname]);
 
   useEffect(() => {
     setSelectedReleaseId((current) => {
@@ -1354,22 +1355,47 @@ function AppShell() {
     >
       <Toaster richColors position="top-right" />
       <div className="glass-card animate-fade-up [animation-fill-mode:forwards]">
-        <div className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="w-full min-w-0 lg:max-w-2xl">
-            <Suspense fallback={<RouteLoadingFallback />}>
-              <ProjectSwitcherMenu
-                projects={projects}
-                selectedProjectId={selectedProjectId}
-                onSelectProject={setSelectedProjectId}
-                onOpenProjectSettings={() => navigate("/projects")}
-                onOpenCreateProject={() => navigate("/projects?new=1")}
-              />
-            </Suspense>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Theme: <span className="font-medium text-foreground">{selectedProjectTheme.name}</span>
-            </p>
+        <div className="grid gap-4 p-3 xl:grid-cols-[340px_minmax(0,1fr)_480px] xl:items-center">
+          <div className="min-w-0 max-w-[340px]">
+            <h1 className="text-lg font-semibold uppercase tracking-[0.08em] md:text-xl">
+              MAPPO Control Plane
+            </h1>
+            <div className="mt-2">
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <ProjectSwitcherMenu
+                  projects={projects}
+                  selectedProjectId={selectedProjectId}
+                  onSelectProject={setSelectedProjectId}
+                  onOpenProjectSettings={() => navigate("/projects")}
+                  onOpenCreateProject={() => navigate("/projects?new=1")}
+                />
+              </Suspense>
+            </div>
           </div>
-          <div className="grid grid-cols-3 gap-2 lg:w-[480px]">
+          <div className="min-w-0 xl:px-2">
+            <Breadcrumb>
+              <BreadcrumbList>
+                {breadcrumbEntries.map((entry, index) => {
+                  const isLast = index === breadcrumbEntries.length - 1;
+                  return (
+                    <Fragment key={`${entry.label}-${index}`}>
+                      {index > 0 ? <BreadcrumbSeparator /> : null}
+                      <BreadcrumbItem>
+                        {isLast || !entry.to ? (
+                          <BreadcrumbPage>{entry.label}</BreadcrumbPage>
+                        ) : (
+                          <BreadcrumbLink asChild>
+                            <NavLink to={entry.to}>{entry.label}</NavLink>
+                          </BreadcrumbLink>
+                        )}
+                      </BreadcrumbItem>
+                    </Fragment>
+                  );
+                })}
+              </BreadcrumbList>
+            </Breadcrumb>
+          </div>
+          <div className="grid grid-cols-3 gap-2 xl:w-[480px]">
             <Kpi label="Total Targets" value={String(targets.length)} />
             <Kpi label="Active Runs" value={String(runStats.running)} />
             <Kpi label="Releases" value={String(projectReleases.length)} />
@@ -1421,12 +1447,6 @@ function AppShell() {
 
       <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
         <Sidebar className="h-fit">
-          <SidebarHeader>
-            <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-primary">
-              MAPPO Control Plane
-            </p>
-            <p className="text-lg font-semibold uppercase">Navigation</p>
-          </SidebarHeader>
           <SidebarContent>
             {SIDEBAR_NAVIGATION.map((group) => (
               <SidebarGroup key={group.label}>
@@ -1446,40 +1466,6 @@ function AppShell() {
         </Sidebar>
 
         <section className="min-w-0 space-y-4">
-          <Card className="glass-card hero-gradient animate-fade-up [animation-delay:30ms] [animation-fill-mode:forwards]">
-            <CardHeader className="space-y-2 py-4">
-              <div className="space-y-1">
-                <CardTitle className="text-lg uppercase tracking-[0.08em] md:text-xl">
-                  MAPPO Control Plane
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Scope: <span className="font-medium text-foreground">{isGlobalScopeRoute ? "Global" : "Project"}</span>
-                </p>
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    {breadcrumbEntries.map((entry, index) => {
-                      const isLast = index === breadcrumbEntries.length - 1;
-                      return (
-                        <Fragment key={`${entry.label}-${index}`}>
-                          {index > 0 ? <BreadcrumbSeparator /> : null}
-                          <BreadcrumbItem>
-                            {isLast || !entry.to ? (
-                              <BreadcrumbPage>{entry.label}</BreadcrumbPage>
-                            ) : (
-                              <BreadcrumbLink asChild>
-                                <NavLink to={entry.to}>{entry.label}</NavLink>
-                              </BreadcrumbLink>
-                            )}
-                          </BreadcrumbItem>
-                        </Fragment>
-                      );
-                    })}
-                  </BreadcrumbList>
-                </Breadcrumb>
-              </div>
-            </CardHeader>
-          </Card>
-
           <Suspense fallback={<RouteLoadingFallback />}>
             <Routes>
               <Route path="/" element={<Navigate to="/fleet" replace />} />
@@ -1512,6 +1498,10 @@ function AppShell() {
                     onDiscoverAdoServiceConnections={handleDiscoverProjectAdoServiceConnections}
                   />
                 }
+              />
+              <Route
+                path="/secret-references"
+                element={<SecretReferencesConfigPage selectedProjectId={selectedProjectId} />}
               />
               <Route
                 path="/deployment-connections"

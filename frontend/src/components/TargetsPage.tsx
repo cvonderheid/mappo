@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { EventsDataTable, RegistrationsDataTable } from "@/components/AdminTables";
 import TargetOnboardingDrawer from "@/components/TargetOnboardingDrawer";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Drawer,
   DrawerClose,
@@ -242,13 +241,6 @@ export default function TargetsPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex animate-fade-up items-center justify-between [animation-delay:60ms] [animation-fill-mode:forwards]">
-        <p className="text-xs text-muted-foreground">
-          {viewMode === "onboarding"
-            ? "Review registration events and how targets were added for this project."
-            : "Manage the deploy destinations MAPPO can roll out to for this project."}
-        </p>
-      </div>
       {viewMode === "targets" ? (
         <TargetOnboardingDrawer
           projects={projects}
@@ -267,47 +259,50 @@ export default function TargetsPage({
         </div>
       ) : null}
 
-      <Card className="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]">
-        <CardHeader>
-          <CardTitle>{viewMode === "onboarding" ? "Registration Events" : "Registered Targets"}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {viewMode === "targets" ? (
-            <RegistrationsDataTable
-              refreshKey={refreshKey}
-              projectId={selectedProjectId}
-              headerActions={
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setOnboardingDrawerOpen(true)}
-                  >
-                    Add Targets
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isRefreshingSnapshot}
-                    onClick={() => void handleRefreshRegistrations()}
-                  >
-                    {isRefreshingSnapshot ? "Refreshing..." : "Refresh Targets"}
-                  </Button>
-                </div>
-              }
-              onEditRegistration={openEditDrawer}
-              onDeleteRegistration={(registration) => {
-                void handleDeleteRegistration(registration);
-              }}
-              deletingTargetId={deletingTargetId}
-            />
-          ) : (
-            <EventsDataTable refreshKey={refreshKey} projectId={selectedProjectId} />
-          )}
-        </CardContent>
-      </Card>
+      {viewMode === "targets" ? (
+        <RegistrationsDataTable
+          refreshKey={refreshKey}
+          projectId={selectedProjectId}
+          title="Registered Targets"
+          description="Manage the deploy destinations MAPPO can roll out to for this project."
+          cardAction={
+            <>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setOnboardingDrawerOpen(true);
+                }}
+              >
+                Add Targets
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isRefreshingSnapshot}
+                onClick={() => void handleRefreshRegistrations()}
+              >
+                {isRefreshingSnapshot ? "Refreshing..." : "Refresh Targets"}
+              </Button>
+            </>
+          }
+          cardClassName="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]"
+          onEditRegistration={openEditDrawer}
+          onDeleteRegistration={(registration) => {
+            void handleDeleteRegistration(registration);
+          }}
+          deletingTargetId={deletingTargetId}
+        />
+      ) : (
+        <EventsDataTable
+          refreshKey={refreshKey}
+          projectId={selectedProjectId}
+          title="Registration Events"
+          description="Review registration events and how targets were added for this project."
+          cardClassName="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]"
+        />
+      )}
 
       <Drawer direction="top" open={editDrawerOpen} onOpenChange={setEditDrawerOpen}>
         <DrawerContent className="glass-card">

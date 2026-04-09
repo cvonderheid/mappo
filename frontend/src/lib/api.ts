@@ -32,6 +32,9 @@ import type {
   ProviderConnectionCreateRequest,
   ProviderConnectionPatchRequest,
   ProviderConnectionVerifyRequest,
+  SecretReference,
+  SecretReferenceCreateRequest,
+  SecretReferencePatchRequest,
   Release,
   ReleaseIngestEndpoint,
   ReleaseIngestEndpointCreateRequest,
@@ -251,6 +254,68 @@ export async function listProviderConnections(): Promise<ProviderConnection[]> {
     throw new Error(httpErrorMessage("Could not load deployment connections", response.status, payload));
   }
   return Array.isArray(payload) ? (payload as ProviderConnection[]) : [];
+}
+
+export async function listSecretReferences(): Promise<SecretReference[]> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/secret-references`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  const payload = (await response.json().catch(() => ([]))) as unknown;
+  if (!response.ok) {
+    throw new Error(httpErrorMessage("Could not load secret references", response.status, payload));
+  }
+  return Array.isArray(payload) ? (payload as SecretReference[]) : [];
+}
+
+export async function createSecretReference(
+  request: SecretReferenceCreateRequest
+): Promise<SecretReference> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/secret-references`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new Error(httpErrorMessage("Could not create secret reference", response.status, payload));
+  }
+  return payload as SecretReference;
+}
+
+export async function patchSecretReference(
+  secretReferenceId: string,
+  request: SecretReferencePatchRequest
+): Promise<SecretReference> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/secret-references/${encodeURIComponent(secretReferenceId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+    }
+  );
+  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new Error(httpErrorMessage("Could not update secret reference", response.status, payload));
+  }
+  return payload as SecretReference;
+}
+
+export async function deleteSecretReference(secretReferenceId: string): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/secret-references/${encodeURIComponent(secretReferenceId)}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    throw new Error(httpErrorMessage("Could not delete secret reference", response.status, payload));
+  }
 }
 
 export async function createProviderConnection(

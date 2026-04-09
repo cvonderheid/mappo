@@ -4,6 +4,7 @@ import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.domain.providerconnection.ProviderConnectionProviderType;
 import com.mappo.controlplane.infrastructure.azure.auth.AzureKeyVaultSecretResolver;
 import com.mappo.controlplane.model.ProviderConnectionRecord;
+import com.mappo.controlplane.service.secretreference.SecretReferenceResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +16,7 @@ public class ProviderConnectionSecretResolver {
 
     private final MappoProperties properties;
     private final AzureKeyVaultSecretResolver keyVaultSecretResolver;
+    private final SecretReferenceResolver secretReferenceResolver;
 
     public String defaultPersonalAccessTokenRef(ProviderConnectionProviderType provider) {
         if (provider == ProviderConnectionProviderType.azure_devops) {
@@ -43,6 +45,7 @@ public class ProviderConnectionSecretResolver {
         if (reference.isBlank()) {
             reference = AZURE_DEVOPS_PAT_SECRET_REF;
         }
+        reference = secretReferenceResolver.resolveBackendReference(reference);
         if (AZURE_DEVOPS_PAT_SECRET_REF.equals(reference)) {
             return normalize(properties.getAzureDevOps().getPersonalAccessToken());
         }

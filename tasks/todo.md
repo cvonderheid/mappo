@@ -6,8 +6,8 @@
   - Deployment Driver should choose deployment provider/system first, then show only provider-relevant deployment methods.
 - Remove remaining Azure DevOps-only controls from the direct Azure rollout path.
 - Make `Check for new releases` a direct action instead of opening a configuration drawer.
-- Add project deletion from the UI.
 - Add a manual `Check health` action on Fleet.
+- Make primary `New` / `Add` actions use one consistent color and button treatment across the app.
 - Add a visual project flow diagram using factual provider/deployment icons only.
 - Rename or restructure the current `Managed App` page so project registration history and global integration plumbing are not mixed.
 

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import FieldHelpTooltip from "@/components/FieldHelpTooltip";
+import ProjectFlowDiagram from "@/components/ProjectFlowDiagram";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
@@ -149,14 +150,6 @@ const DEPLOYMENT_SYSTEM_LABELS: Record<DeploymentSystem, string> = {
   azure_devops: "Azure DevOps",
 };
 
-const RELEASE_SOURCE_OPTIONS: Array<{
-  value: ProjectDraft["releaseArtifactSource"];
-  label: string;
-}> = [
-  { value: "blob_arm_template", label: "Blob-hosted ARM Template" },
-  { value: "external_deployment_inputs", label: "Release Event" },
-];
-
 const RELEASE_SOURCE_TYPE_LABELS: Record<ProjectDraft["releaseArtifactSource"], string> = {
   blob_arm_template: "Managed app release manifest",
   external_deployment_inputs: "Webhook / Pipeline Event",
@@ -221,14 +214,15 @@ function deriveDeploymentSystem(driver: ProjectDraft["deploymentDriver"]): Deplo
   return driver === "pipeline_trigger" ? "azure_devops" : "azure";
 }
 
-function driverForDeploymentSystem(system: DeploymentSystem): ProjectDraft["deploymentDriver"] {
-  return system === "azure_devops" ? "pipeline_trigger" : "azure_deployment_stack";
-}
-
 const DEPLOYMENT_DRIVER_LABELS: Record<ProjectDraft["deploymentDriver"], string> = {
   azure_deployment_stack: "Direct Azure rollout",
   azure_template_spec: "Direct Azure rollout (template spec)",
   pipeline_trigger: "Pipeline-driven rollout",
+};
+
+const DEPLOYMENT_METHODS_BY_SYSTEM: Record<DeploymentSystem, ProjectDraft["deploymentDriver"][]> = {
+  azure: ["azure_deployment_stack", "azure_template_spec"],
+  azure_devops: ["pipeline_trigger"],
 };
 
 const ACCESS_STRATEGY_LABELS: Record<ProjectDraft["accessStrategy"], string> = {
@@ -259,6 +253,52 @@ const ACCESS_STRATEGY_HELP: Record<ProjectDraft["accessStrategy"], string> = {
   simulator:
     "MAPPO records and validates runs without making live Azure changes.",
 };
+
+function releaseArtifactSourceForDriver(
+  driver: ProjectDraft["deploymentDriver"]
+): ProjectDraft["releaseArtifactSource"] {
+  switch (driver) {
+    case "azure_deployment_stack":
+      return "blob_arm_template";
+    case "azure_template_spec":
+      return "template_spec_resource";
+    case "pipeline_trigger":
+      return "external_deployment_inputs";
+  }
+}
+
+function defaultReleaseSystemForDriver(driver: ProjectDraft["deploymentDriver"]): ReleaseSystem {
+  return driver === "pipeline_trigger" ? "azure_devops" : "github";
+}
+
+function firstDriverForDeploymentSystem(
+  system: DeploymentSystem
+): ProjectDraft["deploymentDriver"] {
+  return DEPLOYMENT_METHODS_BY_SYSTEM[system][0];
+}
+
+function applyDeploymentDriverSelection(
+  current: ProjectDraft,
+  nextDriver: ProjectDraft["deploymentDriver"]
+): ProjectDraft {
+  const pipelineDriver = nextDriver === "pipeline_trigger";
+  return {
+    ...current,
+    deploymentDriver: nextDriver,
+    releaseArtifactSource: releaseArtifactSourceForDriver(nextDriver),
+    providerConnectionId: pipelineDriver ? current.providerConnectionId : "",
+    driver: {
+      ...current.driver,
+      pipelineSystem: "azure_devops",
+      organization: pipelineDriver ? current.driver.organization : "",
+      project: pipelineDriver ? current.driver.project : "",
+      repository: pipelineDriver ? current.driver.repository : "",
+      pipelineId: pipelineDriver ? current.driver.pipelineId : "",
+      azureServiceConnectionName: pipelineDriver ? current.driver.azureServiceConnectionName : "",
+      branch: pipelineDriver ? current.driver.branch : "main",
+    },
+  };
+}
 
 function asRecord(value: unknown): Record<string, unknown> {
   if (value !== null && typeof value === "object" && !Array.isArray(value)) {
@@ -337,10 +377,7 @@ function parseOptionalNumber(value: string): number | undefined {
 }
 
 function buildPatchRequest(draft: ProjectDraft): ProjectConfigurationPatchRequest {
-  const effectiveReleaseArtifactSource: ProjectDraft["releaseArtifactSource"] =
-    draft.deploymentDriver === "pipeline_trigger"
-      ? "external_deployment_inputs"
-      : draft.releaseArtifactSource;
+  const effectiveReleaseArtifactSource = releaseArtifactSourceForDriver(draft.deploymentDriver);
 
   let authModel = "rbac";
   let requiresAzureCredential = true;
@@ -507,9 +544,7 @@ export default function ProjectSettingsPage({
   useEffect(() => {
     const nextDraft = projectToDraft(project);
     setDraft(nextDraft);
-    setSelectedReleaseSystem(
-      nextDraft.deploymentDriver === "pipeline_trigger" ? "azure_devops" : "github"
-    );
+    setSelectedReleaseSystem(defaultReleaseSystemForDriver(nextDraft.deploymentDriver));
     setDiscoveredBranches([]);
     setDiscoveredRepositories([]);
     setDiscoveredPipelines([]);
@@ -575,20 +610,15 @@ export default function ProjectSettingsPage({
   }, [location.pathname, location.search, navigate]);
 
   useEffect(() => {
-    if (draft.deploymentDriver !== "pipeline_trigger") {
-      return;
-    }
-    if (draft.releaseArtifactSource === "external_deployment_inputs") {
+    const requiredReleaseArtifactSource = releaseArtifactSourceForDriver(draft.deploymentDriver);
+    if (draft.releaseArtifactSource === requiredReleaseArtifactSource) {
       return;
     }
     setDraft((current) => ({
       ...current,
-      releaseArtifactSource: "external_deployment_inputs",
+      releaseArtifactSource: requiredReleaseArtifactSource,
     }));
-  }, [
-    draft.deploymentDriver,
-    draft.releaseArtifactSource,
-  ]);
+  }, [draft.deploymentDriver, draft.releaseArtifactSource]);
 
   useEffect(() => {
     if (draft.deploymentDriver !== "pipeline_trigger") {
@@ -1142,11 +1172,16 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
   const canPersist = project !== null && draftValidationIssues.length === 0;
   const canCreateProject = createDraft.id.trim() !== "" && createDraft.name.trim() !== "";
   const releaseSourceLabel = releaseSourceTypeLabel;
+  const selectedPipelineName = useMemo(() => {
+    const currentValue = draft.driver.pipelineId.trim();
+    if (currentValue === "") {
+      return "";
+    }
+    return discoveredPipelines.find((pipeline) => pipeline.id === currentValue)?.name ?? currentValue;
+  }, [discoveredPipelines, draft.driver.pipelineId]);
   const createSelectedDeploymentSystem = deriveDeploymentSystem(createDraft.deploymentDriver);
-  const createSelectedReleaseSystem: ReleaseSystem =
-    createDraft.deploymentDriver === "pipeline_trigger" || createDraft.releaseArtifactSource === "external_deployment_inputs"
-      ? "azure_devops"
-      : "github";
+  const deploymentMethodOptions = DEPLOYMENT_METHODS_BY_SYSTEM[selectedDeploymentSystem];
+  const createDeploymentMethodOptions = DEPLOYMENT_METHODS_BY_SYSTEM[createSelectedDeploymentSystem];
 
   async function saveProjectConfig(): Promise<void> {
     if (!project?.id || draftValidationIssues.length > 0) {
@@ -1515,27 +1550,19 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
   }
 
   function updateCreateDeploymentSystem(system: DeploymentSystem): void {
-    setCreateDraft((current) => {
-      const nextDriver = driverForDeploymentSystem(system);
-      return {
-        ...current,
-        deploymentDriver: nextDriver,
-        releaseArtifactSource:
-          nextDriver === "pipeline_trigger"
-            ? "external_deployment_inputs"
-            : current.releaseArtifactSource === "external_deployment_inputs"
-              ? "blob_arm_template"
-              : current.releaseArtifactSource,
-      };
-    });
+    setCreateDraft((current) => applyDeploymentDriverSelection(current, firstDriverForDeploymentSystem(system)));
   }
 
-  function updateCreateReleaseSystem(system: ReleaseSystem): void {
-    setCreateDraft((current) => ({
-      ...current,
-      releaseArtifactSource:
-        system === "azure_devops" ? "external_deployment_inputs" : "blob_arm_template",
-    }));
+  function updateDeploymentSystem(system: DeploymentSystem): void {
+    setDraft((current) => applyDeploymentDriverSelection(current, firstDriverForDeploymentSystem(system)));
+  }
+
+  function updateDeploymentMethod(method: ProjectDraft["deploymentDriver"]): void {
+    setDraft((current) => applyDeploymentDriverSelection(current, method));
+  }
+
+  function updateCreateDeploymentMethod(method: ProjectDraft["deploymentDriver"]): void {
+    setCreateDraft((current) => applyDeploymentDriverSelection(current, method));
   }
 
   function focusValidationIssue(issue: DraftValidationIssue): void {
@@ -1677,6 +1704,24 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
               </ul>
             </div>
           ) : null}
+
+          <ProjectFlowDiagram
+            projectName={draft.name.trim() || project?.name || "Project"}
+            releaseSourceProvider={effectiveReleaseSystem}
+            releaseSourceName={selectedReleaseIngestEndpoint?.name || selectedReleaseIngestEndpoint?.id || "No linked release source"}
+            releaseSourceTypeLabel={releaseSourceTypeLabel}
+            releaseSourceRecord={selectedReleaseIngestEndpoint}
+            deploymentSystem={selectedDeploymentSystem}
+            deploymentMethodLabel={DEPLOYMENT_DRIVER_LABELS[draft.deploymentDriver]}
+            deploymentConnectionName={selectedProviderConnection?.name || selectedProviderConnection?.id || ""}
+            azureDevOpsProjectName={selectedDiscoveredAdoProject?.name || resolvedAdoProject}
+            repositoryName={draft.driver.repository.trim()}
+            pipelineName={selectedPipelineName}
+            branchName={draft.driver.branch.trim()}
+            targetCount={targetCount}
+            projectReleaseCount={projectReleaseCount}
+            targets={targets}
+          />
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <div className="min-w-0">
@@ -1859,31 +1904,7 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                     </div>
                     <Select
                       value={selectedDeploymentSystem}
-                      onValueChange={(value) => {
-                        const nextSystem = value as DeploymentSystem;
-                        const nextDriver = driverForDeploymentSystem(nextSystem);
-                        setDraft((current) => ({
-                          ...current,
-                          deploymentDriver: nextDriver,
-                          releaseArtifactSource:
-                            nextDriver === "pipeline_trigger"
-                              ? "external_deployment_inputs"
-                              : current.releaseArtifactSource === "external_deployment_inputs"
-                                ? "blob_arm_template"
-                                : current.releaseArtifactSource,
-                          providerConnectionId: nextDriver === "pipeline_trigger" ? current.providerConnectionId : "",
-                          driver: {
-                            ...current.driver,
-                            organization: nextDriver === "pipeline_trigger" ? current.driver.organization : "",
-                            project: nextDriver === "pipeline_trigger" ? current.driver.project : "",
-                            repository: nextDriver === "pipeline_trigger" ? current.driver.repository : "",
-                            pipelineId: nextDriver === "pipeline_trigger" ? current.driver.pipelineId : "",
-                            azureServiceConnectionName:
-                              nextDriver === "pipeline_trigger" ? current.driver.azureServiceConnectionName : "",
-                            branch: nextDriver === "pipeline_trigger" ? current.driver.branch : "main",
-                          },
-                        }));
-                      }}
+                      onValueChange={(value) => updateDeploymentSystem(value as DeploymentSystem)}
                     >
                       <SelectTrigger id="deployment-system">
                         <SelectValue />
@@ -1908,9 +1929,28 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                       <Label htmlFor="deployment-method">Deployment method</Label>
                       <FieldHelpTooltip content={DEPLOYMENT_DRIVER_HELP[draft.deploymentDriver]} />
                     </div>
-                    <Input id="deployment-method" value={DEPLOYMENT_DRIVER_LABELS[draft.deploymentDriver]} disabled />
+                    <Select
+                      value={draft.deploymentDriver}
+                      onValueChange={(value) =>
+                        updateDeploymentMethod(value as ProjectDraft["deploymentDriver"])
+                      }
+                      disabled={deploymentMethodOptions.length <= 1}
+                    >
+                      <SelectTrigger id="deployment-method">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {deploymentMethodOptions.map((method) => (
+                          <SelectItem key={method} value={method}>
+                            {DEPLOYMENT_DRIVER_LABELS[method]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <p className="text-xs text-muted-foreground">
-                      {DEPLOYMENT_DRIVER_HELP[draft.deploymentDriver]}
+                      {deploymentMethodOptions.length <= 1
+                        ? `${DEPLOYMENT_SYSTEM_LABELS[selectedDeploymentSystem]} currently supports one deployment method in MAPPO.`
+                        : "Choose how MAPPO should deploy through the selected deployment system."}
                     </p>
                   </div>
                   {isPipelineDriver ? (
@@ -2820,45 +2860,63 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
               </div>
               <div className="space-y-1">
                 <Label htmlFor="create-deployment-method">Deployment method</Label>
-                <Input
-                  id="create-deployment-method"
-                  value={DEPLOYMENT_DRIVER_LABELS[createDraft.deploymentDriver]}
-                  disabled
-                />
+                <Select
+                  value={createDraft.deploymentDriver}
+                  onValueChange={(value) =>
+                    updateCreateDeploymentMethod(value as ProjectDraft["deploymentDriver"])
+                  }
+                  disabled={createDeploymentMethodOptions.length <= 1}
+                >
+                  <SelectTrigger id="create-deployment-method">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {createDeploymentMethodOptions.map((method) => (
+                      <SelectItem key={method} value={method}>
+                        {DEPLOYMENT_DRIVER_LABELS[method]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <p className="text-xs text-muted-foreground">
-                  {DEPLOYMENT_DRIVER_HELP[createDraft.deploymentDriver]}
+                  {createDeploymentMethodOptions.length <= 1
+                    ? `${DEPLOYMENT_SYSTEM_LABELS[createSelectedDeploymentSystem]} currently supports one deployment method in MAPPO.`
+                    : "Choose how MAPPO should deploy through the selected deployment system."}
                 </p>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="create-release-provider">Release provider</Label>
-                <Select
-                  value={createSelectedReleaseSystem}
-                  onValueChange={(value) =>
-                    updateCreateReleaseSystem(value as ReleaseSystem)
+                <Input
+                  id="create-release-provider"
+                  value={
+                    createDraft.deploymentDriver === "pipeline_trigger"
+                      ? RELEASE_SYSTEM_LABELS.azure_devops
+                      : "Choose after project creation"
                   }
-                  disabled={createDraft.deploymentDriver === "pipeline_trigger"}
-                >
-                  <SelectTrigger id="create-release-provider">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="github">{RELEASE_SYSTEM_LABELS.github}</SelectItem>
-                    <SelectItem value="azure_devops">{RELEASE_SYSTEM_LABELS.azure_devops}</SelectItem>
-                  </SelectContent>
-                </Select>
+                  disabled
+                />
                 <p className="text-xs text-muted-foreground">
                   {createDraft.deploymentDriver === "pipeline_trigger"
                     ? "Pipeline-driven rollout always expects Azure DevOps release events."
-                    : "Choose which provider MAPPO should check for new versions for this project."}
+                    : "Link the provider-specific release source after you create the project in Project → Config."}
                 </p>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="create-release-type">Release source type</Label>
                 <Input
                   id="create-release-type"
-                  value={RELEASE_SOURCE_TYPE_LABELS[createDraft.releaseArtifactSource]}
+                  value={
+                    createDraft.deploymentDriver === "pipeline_trigger"
+                      ? RELEASE_SOURCE_TYPE_LABELS[createDraft.releaseArtifactSource]
+                      : "Set after project creation"
+                  }
                   disabled
                 />
+                <p className="text-xs text-muted-foreground">
+                  {createDraft.deploymentDriver === "pipeline_trigger"
+                    ? "MAPPO will expect inbound webhook or pipeline events for this project."
+                    : "MAPPO derives the exact release source type after you link a release source in Project → Config."}
+                </p>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="create-runtime-provider">Runtime health check</Label>

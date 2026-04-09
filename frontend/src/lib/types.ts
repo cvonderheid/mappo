@@ -129,6 +129,44 @@ export type ReleaseIngestEndpoint = Schemas["ReleaseIngestEndpointRecord"];
 export type ReleaseIngestEndpointCreateRequest = Schemas["ReleaseIngestEndpointCreateRequest"];
 export type ReleaseIngestEndpointPatchRequest = Schemas["ReleaseIngestEndpointPatchRequest"];
 export type ProviderConnectionProvider = "azure_devops";
+export type SecretReferenceProvider = "azure_devops" | "github";
+export type SecretReferenceUsage = "deployment_api_credential" | "webhook_verification";
+export type SecretReferenceMode = "mappo_default" | "environment_variable" | "key_vault_secret";
+export type SecretReferenceLinkedDeploymentConnection = {
+  id?: string;
+  name?: string;
+};
+export type SecretReferenceLinkedReleaseSource = {
+  id?: string;
+  name?: string;
+};
+export type SecretReference = {
+  id?: string;
+  name?: string;
+  provider?: SecretReferenceProvider;
+  usage?: SecretReferenceUsage;
+  mode?: SecretReferenceMode;
+  backendRef?: string;
+  linkedDeploymentConnections?: SecretReferenceLinkedDeploymentConnection[];
+  linkedReleaseSources?: SecretReferenceLinkedReleaseSource[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+export type SecretReferenceCreateRequest = {
+  id: string;
+  name: string;
+  provider: SecretReferenceProvider;
+  usage: SecretReferenceUsage;
+  mode: SecretReferenceMode;
+  backendRef?: string;
+};
+export type SecretReferencePatchRequest = {
+  name?: string;
+  provider?: SecretReferenceProvider;
+  usage?: SecretReferenceUsage;
+  mode?: SecretReferenceMode;
+  backendRef?: string;
+};
 export type ProviderConnectionLinkedProject = {
   projectId?: string;
   projectName?: string;

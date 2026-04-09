@@ -29,11 +29,11 @@ export default function ProjectSwitcherMenu({
     projects.find((project) => project.id === selectedProjectId) ?? null;
 
   return (
-    <Menubar className="h-11 w-full justify-between bg-background/80 px-1">
+    <Menubar className="h-auto w-auto justify-start border-0 bg-transparent p-0 shadow-none">
       <MenubarMenu>
         <MenubarTrigger
           data-testid="project-switcher-trigger"
-          className="h-9 min-w-[260px] justify-between gap-3 rounded-md border border-input bg-background px-3 text-left"
+          className="h-10 min-w-[280px] max-w-[340px] justify-between gap-3 rounded-md border border-input bg-background/90 px-3 text-left shadow-none"
         >
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">

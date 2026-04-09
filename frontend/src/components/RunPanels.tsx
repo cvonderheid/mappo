@@ -13,7 +13,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import ColumnVisibilityMenu from "@/components/ColumnVisibilityMenu";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +37,8 @@ type ProgressCounts = {
 };
 
 type RunListProps = {
+  description?: string;
+  headerAction?: ReactNode;
   runs: RunSummary[];
   releases: Release[];
   page: number;
@@ -230,6 +232,8 @@ function StackedProgressBar({
 }
 
 export function RunList({
+  description,
+  headerAction,
   runs,
   releases,
   page,
@@ -507,9 +511,13 @@ export function RunList({
 
   return (
     <Card className="glass-card animate-fade-up [animation-delay:200ms] [animation-fill-mode:forwards]">
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <CardTitle>Deployment Runs</CardTitle>
-        <div className="flex items-center gap-2">
+      <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <CardTitle>Deployment Runs</CardTitle>
+          {description ? <CardDescription>{description}</CardDescription> : null}
+        </div>
+        <CardAction className="flex-wrap justify-end">
+          {headerAction}
           <ColumnVisibilityMenu table={table} />
           <Button
             type="button"
@@ -524,7 +532,7 @@ export function RunList({
           >
             Clear filters
           </Button>
-        </div>
+        </CardAction>
       </CardHeader>
       <CardContent className="space-y-2">
         <Table>

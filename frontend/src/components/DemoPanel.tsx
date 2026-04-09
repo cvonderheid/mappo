@@ -1,7 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Drawer,
   DrawerClose,
@@ -192,33 +192,40 @@ export default function DemoPanel({
 
   return (
     <div className="space-y-4">
-      <div className="flex animate-fade-up items-center justify-between [animation-delay:60ms] [animation-fill-mode:forwards]">
-        <p className="text-xs text-muted-foreground">
-          Simulate marketplace lifecycle events without Partner Center.
-        </p>
-        <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" onClick={() => void onRefreshRegistrations()}>
-            Refresh Registered Targets
-          </Button>
-          <Drawer direction="top" open={drawerOpen} onOpenChange={setDrawerOpen}>
-            <DrawerTrigger asChild>
-              <Button data-testid="open-demo-marketplace-drawer" variant="outline">
-                Simulate Marketplace Event
+      <Drawer direction="top" open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <Card className="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]">
+          <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle>Demo Event Simulator</CardTitle>
+              <CardDescription>
+                Simulate marketplace lifecycle events without Partner Center.
+              </CardDescription>
+            </div>
+            <CardAction className="flex-wrap justify-end">
+              <Button type="button" variant="outline" onClick={() => void onRefreshRegistrations()}>
+                Refresh Registered Targets
               </Button>
-            </DrawerTrigger>
-            <DrawerContent className="glass-card">
-              <DrawerHeader>
-                <DrawerTitle>Simulate Marketplace Event</DrawerTitle>
-                <DrawerDescription>
-                  Submit simulated marketplace lifecycle events through MAPPO registration handling to mirror marketplace behavior.
-                </DrawerDescription>
-              </DrawerHeader>
-              <div className="max-h-[74vh] overflow-y-auto px-4 pb-2">
-                <form
-                  id="demo-marketplace-event-form"
-                  className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
-                  onSubmit={handleSubmit}
-                >
+              <DrawerTrigger asChild>
+                <Button data-testid="open-demo-marketplace-drawer" variant="outline">
+                  Simulate Marketplace Event
+                </Button>
+              </DrawerTrigger>
+            </CardAction>
+          </CardHeader>
+        </Card>
+        <DrawerContent className="glass-card">
+          <DrawerHeader>
+            <DrawerTitle>Simulate Marketplace Event</DrawerTitle>
+            <DrawerDescription>
+              Submit simulated marketplace lifecycle events through MAPPO registration handling to mirror marketplace behavior.
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className="max-h-[74vh] overflow-y-auto px-4 pb-2">
+            <form
+              id="demo-marketplace-event-form"
+              className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+              onSubmit={handleSubmit}
+            >
                   <div className="space-y-1">
                     <Label htmlFor="demo-event-type">Event type</Label>
                     <Select value={eventType} onValueChange={(value) => setEventType(value as DemoEventType)}>
@@ -391,30 +398,28 @@ export default function DemoPanel({
                       placeholder="x-mappo-ingest-token"
                     />
                   </div>
-                </form>
-                <div className="mt-3 rounded-md border border-border/70 bg-muted/20 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Expected outcome</p>
-                  <p className="mt-1 text-sm">{expectedOutcome}</p>
-                </div>
-              </div>
-              <DrawerFooter className="border-t border-border/70">
-                <DrawerClose asChild>
-                  <Button type="button" variant="outline">
-                    Close
-                  </Button>
-                </DrawerClose>
-                <Button
-                  type="submit"
-                  form="demo-marketplace-event-form"
-                  disabled={adminIsSubmitting || !canSubmit}
-                >
-                  {adminIsSubmitting ? "Submitting..." : "Send Simulated Event"}
-                </Button>
-              </DrawerFooter>
-            </DrawerContent>
-          </Drawer>
-        </div>
-      </div>
+            </form>
+            <div className="mt-3 rounded-md border border-border/70 bg-muted/20 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Expected outcome</p>
+              <p className="mt-1 text-sm">{expectedOutcome}</p>
+            </div>
+          </div>
+          <DrawerFooter className="border-t border-border/70">
+            <DrawerClose asChild>
+              <Button type="button" variant="outline">
+                Close
+              </Button>
+            </DrawerClose>
+            <Button
+              type="submit"
+              form="demo-marketplace-event-form"
+              disabled={adminIsSubmitting || !canSubmit}
+            >
+              {adminIsSubmitting ? "Submitting..." : "Send Simulated Event"}
+            </Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
 
       {adminErrorMessage ? (
         <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive-foreground">
@@ -434,17 +439,6 @@ export default function DemoPanel({
         </div>
       ) : null}
 
-      <Card className="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]">
-        <CardHeader>
-          <CardTitle>Demo Event Simulator</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Use this panel to test marketplace lifecycle paths without Partner Center:
-          <code className="ml-1">subscription_purchased</code>,
-          <code className="ml-1">subscription_suspended</code>, and
-          <code className="ml-1">subscription_deleted</code>.
-        </CardContent>
-      </Card>
     </div>
   );
 }

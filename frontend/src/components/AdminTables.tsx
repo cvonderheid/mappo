@@ -13,6 +13,7 @@ import ColumnVisibilityMenu from "@/components/ColumnVisibilityMenu";
 import DataTablePagination from "@/components/DataTablePagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -164,6 +165,10 @@ function formatTimestamp(value: string): string {
 }
 
 type TableFrameProps = {
+  title: string;
+  description?: ReactNode;
+  cardAction?: ReactNode;
+  cardClassName?: string;
   table: ReturnType<typeof useReactTable<any>>;
   page: PageMetadata;
   noun: string;
@@ -174,11 +179,14 @@ type TableFrameProps = {
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
   onClearFilters: () => void;
-  headerActions?: ReactNode;
   renderFilterCell: (columnId: string) => ReactNode;
 };
 
 function TableFrame({
+  title,
+  description,
+  cardAction,
+  cardClassName,
   table,
   page,
   noun,
@@ -189,95 +197,112 @@ function TableFrame({
   onPageChange,
   onPageSizeChange,
   onClearFilters,
-  headerActions,
   renderFilterCell,
 }: TableFrameProps) {
   const visibleColumnCount = table.getVisibleLeafColumns().length;
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-end gap-2">
-        {refreshing ? <span className="text-xs text-muted-foreground">Syncing…</span> : null}
-        {headerActions}
-        <ColumnVisibilityMenu table={table} />
-        <Button type="button" variant="outline" size="sm" onClick={onClearFilters}>
-          Clear filters
-        </Button>
-      </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {table.getFlatHeaders().map((header) => (
-              <TableHead key={header.id}>
-                {header.column.getCanSort() ? (
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 text-left"
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                    {header.column.getIsSorted() === "asc" ? "▲" : null}
-                    {header.column.getIsSorted() === "desc" ? "▼" : null}
-                  </button>
-                ) : (
-                  flexRender(header.column.columnDef.header, header.getContext())
-                )}
-              </TableHead>
-            ))}
-          </TableRow>
-          <TableRow>
-            {table.getVisibleLeafColumns().map((column) => (
-              <TableHead key={`filter-${column.id}`}>{renderFilterCell(column.id)}</TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {loading ? (
+    <Card className={cardClassName}>
+      <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <CardTitle>{title}</CardTitle>
+          {description ? <CardDescription>{description}</CardDescription> : null}
+        </div>
+        <CardAction className="flex-wrap justify-end">
+          {refreshing ? <span className="text-xs text-muted-foreground">Syncing…</span> : null}
+          {cardAction}
+          <ColumnVisibilityMenu table={table} />
+          <Button type="button" variant="outline" size="sm" onClick={onClearFilters}>
+            Clear filters
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableCell colSpan={visibleColumnCount} className="text-sm text-muted-foreground">
-                Loading...
-              </TableCell>
+              {table.getFlatHeaders().map((header) => (
+                <TableHead key={header.id}>
+                  {header.column.getCanSort() ? (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-left"
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                      {header.column.getIsSorted() === "asc" ? "▲" : null}
+                      {header.column.getIsSorted() === "desc" ? "▼" : null}
+                    </button>
+                  ) : (
+                    flexRender(header.column.columnDef.header, header.getContext())
+                  )}
+                </TableHead>
+              ))}
             </TableRow>
-          ) : errorMessage ? (
             <TableRow>
-              <TableCell colSpan={visibleColumnCount} className="text-sm text-destructive">
-                {errorMessage}
-              </TableCell>
+              {table.getVisibleLeafColumns().map((column) => (
+                <TableHead key={`filter-${column.id}`}>{renderFilterCell(column.id)}</TableHead>
+              ))}
             </TableRow>
-          ) : table.getRowModel().rows.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={visibleColumnCount} className="text-sm text-muted-foreground">
-                {emptyMessage}
-              </TableCell>
-            </TableRow>
-          ) : (
-            table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                ))}
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={visibleColumnCount} className="text-sm text-muted-foreground">
+                  Loading...
+                </TableCell>
               </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-      <DataTablePagination
-        page={page.page ?? 0}
-        pageSize={page.size ?? 10}
-        totalItems={page.totalItems ?? 0}
-        totalPages={page.totalPages ?? 0}
-        onPageChange={onPageChange}
-        onPageSizeChange={onPageSizeChange}
-        noun={noun}
-      />
-    </div>
+            ) : errorMessage ? (
+              <TableRow>
+                <TableCell colSpan={visibleColumnCount} className="text-sm text-destructive">
+                  {errorMessage}
+                </TableCell>
+              </TableRow>
+            ) : table.getRowModel().rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={visibleColumnCount} className="text-sm text-muted-foreground">
+                  {emptyMessage}
+                </TableCell>
+              </TableRow>
+            ) : (
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                  ))}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+        <DataTablePagination
+          page={page.page ?? 0}
+          pageSize={page.size ?? 10}
+          totalItems={page.totalItems ?? 0}
+          totalPages={page.totalPages ?? 0}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+          noun={noun}
+        />
+      </CardContent>
+    </Card>
   );
 }
+
+type DataTableCardProps = {
+  title: string;
+  description?: ReactNode;
+  cardAction?: ReactNode;
+  cardClassName?: string;
+};
 
 type RegistrationsDataTableProps = {
   refreshKey: number;
   projectId?: string;
-  headerActions?: ReactNode;
+  title: string;
+  description?: ReactNode;
+  cardAction?: ReactNode;
+  cardClassName?: string;
   onEditRegistration: (registration: TargetRegistrationRecord) => void;
   onDeleteRegistration: (registration: TargetRegistrationRecord) => void;
   deletingTargetId: string | null;
@@ -286,7 +311,10 @@ type RegistrationsDataTableProps = {
 export function RegistrationsDataTable({
   refreshKey,
   projectId,
-  headerActions,
+  title,
+  description,
+  cardAction,
+  cardClassName,
   onEditRegistration,
   onDeleteRegistration,
   deletingTargetId,
@@ -432,6 +460,10 @@ export function RegistrationsDataTable({
 
   return (
     <TableFrame
+      title={title}
+      description={description}
+      cardAction={cardAction}
+      cardClassName={cardClassName}
       table={table}
       page={pageData.page ?? EMPTY_PAGE}
       noun="registrations"
@@ -451,7 +483,6 @@ export function RegistrationsDataTable({
         setTierFilter("all");
         setPage(0);
       }}
-      headerActions={headerActions}
       renderFilterCell={(columnId) => {
         if (columnId === "targetId") {
           return (
@@ -508,9 +539,16 @@ export function RegistrationsDataTable({
 type EventsDataTableProps = {
   refreshKey: number;
   projectId?: string;
-};
+} & DataTableCardProps;
 
-export function EventsDataTable({ refreshKey, projectId }: EventsDataTableProps) {
+export function EventsDataTable({
+  refreshKey,
+  projectId,
+  title,
+  description,
+  cardAction,
+  cardClassName,
+}: EventsDataTableProps) {
   const [pageData, setPageData] = useState<MarketplaceEventPage>({ items: [], page: EMPTY_PAGE });
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -620,6 +658,10 @@ export function EventsDataTable({ refreshKey, projectId }: EventsDataTableProps)
 
   return (
     <TableFrame
+      title={title}
+      description={description}
+      cardAction={cardAction}
+      cardClassName={cardClassName}
       table={table}
       page={pageData.page ?? EMPTY_PAGE}
       noun="events"
@@ -676,9 +718,15 @@ export function EventsDataTable({ refreshKey, projectId }: EventsDataTableProps)
 
 type ForwarderLogsDataTableProps = {
   refreshKey: number;
-};
+} & DataTableCardProps;
 
-export function ForwarderLogsDataTable({ refreshKey }: ForwarderLogsDataTableProps) {
+export function ForwarderLogsDataTable({
+  refreshKey,
+  title,
+  description,
+  cardAction,
+  cardClassName,
+}: ForwarderLogsDataTableProps) {
   const [pageData, setPageData] = useState<ForwarderLogPage>({ items: [], page: EMPTY_PAGE });
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -790,6 +838,10 @@ export function ForwarderLogsDataTable({ refreshKey }: ForwarderLogsDataTablePro
 
   return (
     <TableFrame
+      title={title}
+      description={description}
+      cardAction={cardAction}
+      cardClassName={cardClassName}
       table={table}
       page={pageData.page ?? EMPTY_PAGE}
       noun="logs"
@@ -846,9 +898,15 @@ export function ForwarderLogsDataTable({ refreshKey }: ForwarderLogsDataTablePro
 
 type ReleaseWebhookDeliveriesDataTableProps = {
   refreshKey: number;
-};
+} & DataTableCardProps;
 
-export function ReleaseWebhookDeliveriesDataTable({ refreshKey }: ReleaseWebhookDeliveriesDataTableProps) {
+export function ReleaseWebhookDeliveriesDataTable({
+  refreshKey,
+  title,
+  description,
+  cardAction,
+  cardClassName,
+}: ReleaseWebhookDeliveriesDataTableProps) {
   const [pageData, setPageData] = useState<ReleaseWebhookDeliveryPage>({ items: [], page: EMPTY_PAGE });
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -958,6 +1016,10 @@ export function ReleaseWebhookDeliveriesDataTable({ refreshKey }: ReleaseWebhook
 
   return (
     <TableFrame
+      title={title}
+      description={description}
+      cardAction={cardAction}
+      cardClassName={cardClassName}
       table={table}
       page={pageData.page ?? EMPTY_PAGE}
       noun="deliveries"

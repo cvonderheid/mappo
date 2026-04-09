@@ -110,25 +110,47 @@ export default function DeploymentsPage({
 }: DeploymentsPageProps) {
   return (
     <>
-      <div className="flex animate-fade-up items-center justify-between [animation-delay:60ms] [animation-fill-mode:forwards]">
-        <p className="text-xs text-muted-foreground">
-          Historical deployment runs and actions.
-        </p>
-        <Drawer direction="top" open={controlsOpen} onOpenChange={onControlsOpenChange}>
-          <DrawerTrigger asChild>
-            <Button data-testid="open-deployment-controls" variant="outline">
-              New Deployment
-            </Button>
-          </DrawerTrigger>
-          <DrawerContent className="glass-card">
-            <DrawerHeader>
-              <DrawerTitle>Deployment Controls</DrawerTitle>
-              <DrawerDescription>
-                Choose target group, optional specific targets, release version, and stop
-                policies before starting a run.
-              </DrawerDescription>
-            </DrawerHeader>
-            <div className="max-h-[74vh] overflow-y-auto px-4 pb-2">
+      <Drawer direction="top" open={controlsOpen} onOpenChange={onControlsOpenChange}>
+        <div className="grid gap-4 lg:grid-cols-1">
+          <RunList
+            description="Historical deployment runs and actions."
+            headerAction={
+              <DrawerTrigger asChild>
+                <Button data-testid="open-deployment-controls" variant="outline">
+                  New Deployment
+                </Button>
+              </DrawerTrigger>
+            }
+            runs={runs}
+            releases={releases}
+            page={runPage}
+            pageSize={runPageSize}
+            totalItems={runTotalItems}
+            totalPages={runTotalPages}
+            runIdFilter={runIdFilter}
+            releaseFilter={runReleaseFilter}
+            statusFilter={runStatusFilter}
+            onOpenRun={onOpenRun}
+            onCloneRun={onCloneRun}
+            onResumeRun={onResumeRun}
+            onRetryFailed={onRetryFailed}
+            onRunIdFilterChange={onRunIdFilterChange}
+            onReleaseFilterChange={onRunReleaseFilterChange}
+            onStatusFilterChange={onRunStatusFilterChange}
+            onPageChange={onRunsPageChange}
+            onPageSizeChange={onRunsPageSizeChange}
+            onActionsMenuOpenChange={onRunActionsMenuOpenChange}
+          />
+        </div>
+        <DrawerContent className="glass-card">
+          <DrawerHeader>
+            <DrawerTitle>Deployment Controls</DrawerTitle>
+            <DrawerDescription>
+              Choose target group, optional specific targets, release version, and stop
+              policies before starting a run.
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className="max-h-[74vh] overflow-y-auto px-4 pb-2">
               <div className="mb-3 rounded-md border border-border/70 bg-muted/20 p-3">
                 <div className="flex items-center gap-2">
                   <Label htmlFor="target-group-filter">Target group</Label>
@@ -338,32 +360,7 @@ export default function DeploymentsPage({
               </DrawerClose>
             </DrawerFooter>
           </DrawerContent>
-        </Drawer>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-1">
-        <RunList
-          runs={runs}
-          releases={releases}
-          page={runPage}
-          pageSize={runPageSize}
-          totalItems={runTotalItems}
-          totalPages={runTotalPages}
-          runIdFilter={runIdFilter}
-          releaseFilter={runReleaseFilter}
-          statusFilter={runStatusFilter}
-          onOpenRun={onOpenRun}
-          onCloneRun={onCloneRun}
-          onResumeRun={onResumeRun}
-          onRetryFailed={onRetryFailed}
-          onRunIdFilterChange={onRunIdFilterChange}
-          onReleaseFilterChange={onRunReleaseFilterChange}
-          onStatusFilterChange={onRunStatusFilterChange}
-          onPageChange={onRunsPageChange}
-          onPageSizeChange={onRunsPageSizeChange}
-          onActionsMenuOpenChange={onRunActionsMenuOpenChange}
-        />
-      </div>
+      </Drawer>
     </>
   );
 }

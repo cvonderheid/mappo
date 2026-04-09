@@ -1071,6 +1071,7 @@ export interface components {
         ProjectCreateRequest: {
             id: string;
             name: string;
+            themeKey?: string;
             releaseIngestEndpointId?: string;
             providerConnectionId?: string;
             /** @enum {string} */
@@ -1152,6 +1153,7 @@ export interface components {
         ProjectDefinition: {
             id?: string;
             name?: string;
+            themeKey?: string;
             releaseIngestEndpointId?: string;
             providerConnectionId?: string;
             /** @enum {string} */
@@ -1390,6 +1392,7 @@ export interface components {
         };
         ProjectConfigurationPatchRequest: {
             name?: string;
+            themeKey?: string;
             releaseIngestEndpointId?: string;
             providerConnectionId?: string;
             /** @enum {string} */

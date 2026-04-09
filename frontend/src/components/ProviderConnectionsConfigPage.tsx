@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import FieldHelpTooltip from "@/components/FieldHelpTooltip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Drawer,
   DrawerClose,
@@ -21,6 +21,7 @@ import {
   createProviderConnection,
   deleteProviderConnection,
   discoverProviderConnectionAdoProjects,
+  listSecretReferences,
   listProviderConnections,
   patchProviderConnection,
   verifyProviderConnectionAdoProjects,
@@ -32,6 +33,7 @@ import type {
   ProviderConnectionPatchRequest,
   ProviderConnectionProvider,
   ProviderConnectionVerifyRequest,
+  SecretReference,
 } from "@/lib/types";
 
 type ProviderConnectionsConfigPageProps = {
@@ -44,9 +46,10 @@ type ProviderConnectionDraft = {
   provider: ProviderConnectionProvider;
   enabled: boolean;
   organizationUrl: string;
-  personalAccessTokenMode: "backend_default" | "environment_variable" | "key_vault_secret";
+  personalAccessTokenMode: "backend_default" | "environment_variable" | "key_vault_secret" | "secret_reference";
   personalAccessTokenEnvVar: string;
   personalAccessTokenKeyVaultSecret: string;
+  personalAccessTokenSecretReferenceId: string;
 };
 
 const DEFAULT_AZURE_DEVOPS_PAT_REF = "mappo.azure-devops.personal-access-token";
@@ -71,7 +74,7 @@ function normalizeDeploymentConnectionError(message: string): string {
     return AZURE_DEVOPS_SCOPE_REQUIRED_MESSAGE;
   }
   if (normalized.includes("pat could not be resolved")) {
-    return "MAPPO could not resolve the Azure DevOps API credential for this deployment connection. Use the MAPPO backend secret, a backend environment variable, or an Azure Key Vault secret that actually exists, then verify the connection again.";
+    return "MAPPO could not resolve the Azure DevOps API credential for this deployment connection. Use the MAPPO backend secret, a named secret reference, a backend environment variable, or an Azure Key Vault secret that actually exists, then verify the connection again.";
   }
   if (normalized.includes("no accessible azure devops projects were returned")) {
     return "MAPPO authenticated to Azure DevOps, but that access token could not see any Azure DevOps projects in the selected account. Confirm the URL is correct and that the token can read at least one project.";
@@ -124,18 +127,31 @@ function emptyDraft(): ProviderConnectionDraft {
     personalAccessTokenMode: "backend_default",
     personalAccessTokenEnvVar: "",
     personalAccessTokenKeyVaultSecret: "",
+    personalAccessTokenSecretReferenceId: "",
   };
 }
 
 function parsePersonalAccessTokenRef(
   value: string | undefined
-): Pick<ProviderConnectionDraft, "personalAccessTokenMode" | "personalAccessTokenEnvVar" | "personalAccessTokenKeyVaultSecret"> {
+): Pick<
+  ProviderConnectionDraft,
+  "personalAccessTokenMode" | "personalAccessTokenEnvVar" | "personalAccessTokenKeyVaultSecret" | "personalAccessTokenSecretReferenceId"
+> {
   const normalized = normalize(value ?? "");
+  if (normalized.startsWith("secret:")) {
+    return {
+      personalAccessTokenMode: "secret_reference",
+      personalAccessTokenEnvVar: "",
+      personalAccessTokenKeyVaultSecret: "",
+      personalAccessTokenSecretReferenceId: normalize(normalized.slice("secret:".length)),
+    };
+  }
   if (normalized.startsWith("env:")) {
     return {
       personalAccessTokenMode: "environment_variable",
       personalAccessTokenEnvVar: normalize(normalized.slice("env:".length)),
       personalAccessTokenKeyVaultSecret: "",
+      personalAccessTokenSecretReferenceId: "",
     };
   }
   if (normalized.startsWith("kv:")) {
@@ -143,12 +159,14 @@ function parsePersonalAccessTokenRef(
       personalAccessTokenMode: "key_vault_secret",
       personalAccessTokenEnvVar: "",
       personalAccessTokenKeyVaultSecret: normalize(normalized.slice("kv:".length)),
+      personalAccessTokenSecretReferenceId: "",
     };
   }
   return {
     personalAccessTokenMode: "backend_default",
     personalAccessTokenEnvVar: "",
     personalAccessTokenKeyVaultSecret: "",
+    personalAccessTokenSecretReferenceId: "",
   };
 }
 
@@ -186,6 +204,10 @@ function isUsableAzureDevOpsConnection(connection: ProviderConnection | null | u
 }
 
 function buildPersonalAccessTokenRef(draft: ProviderConnectionDraft): string {
+  if (draft.personalAccessTokenMode === "secret_reference") {
+    const secretReferenceId = normalize(draft.personalAccessTokenSecretReferenceId);
+    return secretReferenceId === "" ? "" : `secret:${secretReferenceId}`;
+  }
   if (draft.personalAccessTokenMode === "environment_variable") {
     const envVarName = normalize(draft.personalAccessTokenEnvVar);
     return envVarName === "" ? "" : `env:${envVarName}`;
@@ -214,10 +236,17 @@ function deriveDraftAccountUrl(draft: ProviderConnectionDraft): string {
   return deriveAzureDevOpsAccountUrl(normalize(draft.organizationUrl));
 }
 
-function describePersonalAccessTokenSource(connection: ProviderConnection): string {
+function describePersonalAccessTokenSource(
+  connection: ProviderConnection,
+  secretReferenceLookup: Record<string, SecretReference>
+): string {
   const normalized = normalize(connection.personalAccessTokenRef ?? DEFAULT_AZURE_DEVOPS_PAT_REF);
   if (normalized === DEFAULT_AZURE_DEVOPS_PAT_REF) {
     return "MAPPO runtime secret";
+  }
+  if (normalized.startsWith("secret:")) {
+    const secretReferenceId = normalize(normalized.slice("secret:".length));
+    return `Secret reference (${secretReferenceLookup[secretReferenceId]?.name || secretReferenceId})`;
   }
   if (normalized.startsWith("env:")) {
     return `Environment variable (${normalize(normalized.slice("env:".length))})`;
@@ -246,6 +275,7 @@ export default function ProviderConnectionsConfigPage({
   selectedProjectId,
 }: ProviderConnectionsConfigPageProps) {
   const [connections, setConnections] = useState<ProviderConnection[]>([]);
+  const [secretReferences, setSecretReferences] = useState<SecretReference[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -272,8 +302,12 @@ export default function ProviderConnectionsConfigPage({
       setIsLoading(true);
     }
     try {
-      const payload = await listProviderConnections();
+      const [payload, loadedSecretReferences] = await Promise.all([
+        listProviderConnections(),
+        listSecretReferences(),
+      ]);
       setConnections(payload);
+      setSecretReferences(loadedSecretReferences);
       setDiscoveredProjectsByConnectionId(() => {
         const next: Record<string, ProviderConnectionAdoProject[]> = {};
         for (const connection of payload) {
@@ -320,6 +354,33 @@ export default function ProviderConnectionsConfigPage({
     });
   }, [connections]);
 
+  const secretReferenceLookup = useMemo(() => {
+    const lookup: Record<string, SecretReference> = {};
+    for (const secretReference of secretReferences) {
+      const secretReferenceId = normalize(secretReference.id ?? "");
+      if (secretReferenceId !== "") {
+        lookup[secretReferenceId] = secretReference;
+      }
+    }
+    return lookup;
+  }, [secretReferences]);
+
+  const deploymentApiSecretReferences = useMemo(
+    () =>
+      secretReferences
+        .filter(
+          (secretReference) =>
+            normalize(secretReference.provider ?? "") === "azure_devops"
+            && normalize(secretReference.usage ?? "") === "deployment_api_credential"
+        )
+        .sort((left, right) =>
+          `${left.name ?? left.id ?? ""}`.localeCompare(`${right.name ?? right.id ?? ""}`, undefined, {
+            sensitivity: "base",
+          })
+        ),
+    [secretReferences]
+  );
+
   const canVerifyDraft =
     normalize(draft.id) !== ""
     && normalize(draft.name) !== ""
@@ -332,6 +393,10 @@ export default function ProviderConnectionsConfigPage({
       && (
         draft.personalAccessTokenMode !== "key_vault_secret"
         || normalize(draft.personalAccessTokenKeyVaultSecret) !== ""
+      )
+      && (
+        draft.personalAccessTokenMode !== "secret_reference"
+        || normalize(draft.personalAccessTokenSecretReferenceId) !== ""
       )
     );
   const canSaveDraft = canVerifyDraft;
@@ -467,6 +532,10 @@ export default function ProviderConnectionsConfigPage({
       toast.error("Azure Key Vault secret name is required when API credential source is Azure Key Vault secret.");
       return;
     }
+    if (draft.personalAccessTokenMode === "secret_reference" && personalAccessTokenRef === "") {
+      toast.error("Secret reference is required when API credential source is Secret reference.");
+      return;
+    }
     if (isAzureDevOpsScopeMissing(draft)) {
       setDraftVerificationError(AZURE_DEVOPS_SCOPE_REQUIRED_MESSAGE);
       toast.error(AZURE_DEVOPS_SCOPE_REQUIRED_MESSAGE);
@@ -595,20 +664,6 @@ export default function ProviderConnectionsConfigPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex animate-fade-up items-center justify-between [animation-delay:60ms] [animation-fill-mode:forwards]">
-        <p className="text-xs text-muted-foreground">
-          Configure how MAPPO authenticates to external deployment systems. For Azure DevOps, MAPPO verifies the access token, confirms which Azure DevOps account it can browse, and loads the Azure DevOps projects operators can choose later in Project → Config.
-        </p>
-        <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" onClick={() => void loadConnections(true)}>
-            {isRefreshing ? "Refreshing..." : "Refresh connections"}
-          </Button>
-          <Button type="button" onClick={openCreateDrawer}>
-            New Deployment Connection
-          </Button>
-        </div>
-      </div>
-
       {errorMessage ? (
         <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive-foreground">
           {errorMessage}
@@ -616,8 +671,21 @@ export default function ProviderConnectionsConfigPage({
       ) : null}
 
       <Card className="glass-card animate-fade-up [animation-delay:100ms] [animation-fill-mode:forwards]">
-        <CardHeader>
-          <CardTitle>Deployment Connections</CardTitle>
+        <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <CardTitle>Deployment Connections</CardTitle>
+            <CardDescription>
+              Configure how MAPPO authenticates to external deployment systems. For Azure DevOps, MAPPO verifies the access token, confirms which Azure DevOps account it can browse, and loads the Azure DevOps projects operators can choose later in Project → Config.
+            </CardDescription>
+          </div>
+          <CardAction className="flex-wrap justify-end">
+            <Button type="button" variant="outline" onClick={() => void loadConnections(true)}>
+              {isRefreshing ? "Refreshing..." : "Refresh connections"}
+            </Button>
+            <Button type="button" onClick={openCreateDrawer}>
+              New Deployment Connection
+            </Button>
+          </CardAction>
         </CardHeader>
         <CardContent className="space-y-3">
           {isLoading ? (
@@ -674,7 +742,7 @@ export default function ProviderConnectionsConfigPage({
                     </span>
                   </p>
                   <p>
-                    API credential source: <span className="font-medium text-foreground">{describePersonalAccessTokenSource(connection)}</span>
+                    API credential source: <span className="font-medium text-foreground">{describePersonalAccessTokenSource(connection, secretReferenceLookup)}</span>
                   </p>
                 </div>
                 {resolvedAccountUrl === "" ? (
@@ -823,6 +891,7 @@ export default function ProviderConnectionsConfigPage({
                       personalAccessTokenMode: "backend_default",
                       personalAccessTokenEnvVar: "",
                       personalAccessTokenKeyVaultSecret: "",
+                      personalAccessTokenSecretReferenceId: "",
                     }))
                   }
                 >
@@ -896,15 +965,17 @@ export default function ProviderConnectionsConfigPage({
                   </div>
                   <Select
                     value={draft.personalAccessTokenMode}
-                    onValueChange={(value) =>
-                      setDraft((current) => ({
-                        ...current,
-                        personalAccessTokenMode: value as ProviderConnectionDraft["personalAccessTokenMode"],
-                        personalAccessTokenEnvVar:
-                          value === "environment_variable" ? current.personalAccessTokenEnvVar : "",
-                        personalAccessTokenKeyVaultSecret:
-                          value === "key_vault_secret" ? current.personalAccessTokenKeyVaultSecret : "",
-                      }))
+                  onValueChange={(value) =>
+                    setDraft((current) => ({
+                      ...current,
+                      personalAccessTokenMode: value as ProviderConnectionDraft["personalAccessTokenMode"],
+                      personalAccessTokenSecretReferenceId:
+                        value === "secret_reference" ? current.personalAccessTokenSecretReferenceId : "",
+                      personalAccessTokenEnvVar:
+                        value === "environment_variable" ? current.personalAccessTokenEnvVar : "",
+                      personalAccessTokenKeyVaultSecret:
+                        value === "key_vault_secret" ? current.personalAccessTokenKeyVaultSecret : "",
+                    }))
                     }
                   >
                     <SelectTrigger id="provider-connection-pat-mode">
@@ -912,6 +983,7 @@ export default function ProviderConnectionsConfigPage({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="backend_default">Use MAPPO backend secret</SelectItem>
+                      <SelectItem value="secret_reference">Use secret reference</SelectItem>
                       <SelectItem value="environment_variable">Use backend environment variable</SelectItem>
                       <SelectItem value="key_vault_secret">Use Azure Key Vault secret</SelectItem>
                     </SelectContent>
@@ -922,7 +994,49 @@ export default function ProviderConnectionsConfigPage({
                       <span className="font-mono text-foreground">{DEFAULT_AZURE_DEVOPS_PAT_REF}</span>.
                     </p>
                   ) : null}
+                  {draft.personalAccessTokenMode === "secret_reference" ? (
+                    <p className="text-xs text-muted-foreground">
+                      Use a named secret from <span className="font-medium text-foreground">Admin → Secret References</span> so operators do not have to type raw Key Vault secret names here.
+                    </p>
+                  ) : null}
                 </div>
+                {draft.personalAccessTokenMode === "secret_reference" ? (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1">
+                      <Label htmlFor="provider-connection-pat-secret-reference">Secret reference</Label>
+                      <FieldHelpTooltip content="Named Azure DevOps deployment API credential from Admin → Secret References. MAPPO still resolves the real secret value server-side." />
+                    </div>
+                    <Select
+                      value={normalize(draft.personalAccessTokenSecretReferenceId) === "" ? "__none" : draft.personalAccessTokenSecretReferenceId}
+                      onValueChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          personalAccessTokenSecretReferenceId: value === "__none" ? "" : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger id="provider-connection-pat-secret-reference">
+                        <SelectValue placeholder="Select secret reference" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none">Select secret reference</SelectItem>
+                        {deploymentApiSecretReferences.map((secretReference) => (
+                          <SelectItem key={secretReference.id ?? secretReference.name} value={secretReference.id ?? ""}>
+                            {secretReference.name || secretReference.id}
+                            {" ("}
+                            {secretReference.id}
+                            {")"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {deploymentApiSecretReferences.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        No Azure DevOps API secret references exist yet. Create one in <span className="font-medium text-foreground">Admin → Secret References</span>.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
                 {draft.personalAccessTokenMode === "environment_variable" ? (
                   <div className="space-y-1">
                     <div className="flex items-center gap-1">

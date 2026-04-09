@@ -4,16 +4,24 @@ import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ReleaseIngestEndpointCreateRequest;
 import com.mappo.controlplane.api.request.ReleaseIngestEndpointPatchRequest;
 import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;
+import com.mappo.controlplane.domain.secretreference.SecretReferenceProviderType;
+import com.mappo.controlplane.domain.secretreference.SecretReferenceUsageType;
 import com.mappo.controlplane.infrastructure.azure.auth.AzureKeyVaultSecretResolver;
 import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
+import com.mappo.controlplane.model.SecretReferenceRecord;
+import com.mappo.controlplane.service.secretreference.SecretReferenceCatalogService;
+import com.mappo.controlplane.service.secretreference.SecretReferenceResolver;
 import java.util.regex.Pattern;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class ReleaseIngestEndpointMutationService {
 
     private static final Pattern ID_PATTERN = Pattern.compile("^[a-z0-9](?:[a-z0-9-]{1,126}[a-z0-9])?$");
+    private final SecretReferenceCatalogService secretReferenceCatalogService;
 
     public ReleaseIngestEndpointMutationRecord fromCreate(ReleaseIngestEndpointCreateRequest request) {
         String id = requiredId(request.id());
@@ -147,6 +155,23 @@ public class ReleaseIngestEndpointMutationService {
         if (defaultReference.equals(normalized)) {
             return normalized;
         }
+        if (normalized.startsWith(SecretReferenceResolver.SECRET_REFERENCE_PREFIX)) {
+            String secretReferenceId = normalize(normalized.substring(SecretReferenceResolver.SECRET_REFERENCE_PREFIX.length()));
+            SecretReferenceRecord secretReference = secretReferenceCatalogService.getRequired(secretReferenceId);
+            SecretReferenceProviderType expectedProvider = provider == ReleaseIngestProviderType.azure_devops
+                ? SecretReferenceProviderType.azure_devops
+                : SecretReferenceProviderType.github;
+            if (
+                secretReference.provider() != expectedProvider
+                || secretReference.usage() != SecretReferenceUsageType.webhook_verification
+            ) {
+                throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "secret reference " + secretReferenceId + " is not a " + provider.name() + " webhook verification secret."
+                );
+            }
+            return SecretReferenceResolver.SECRET_REFERENCE_PREFIX + secretReferenceId;
+        }
         if (normalized.startsWith("env:") && normalize(normalized.substring("env:".length())).length() > 0) {
             return normalized;
         }
@@ -158,7 +183,7 @@ public class ReleaseIngestEndpointMutationService {
         }
         throw new ApiException(
             HttpStatus.BAD_REQUEST,
-            "secretRef must be " + defaultReference + ", env:VAR_NAME, or kv:secret-name."
+            "secretRef must be " + defaultReference + ", secret:reference-id, env:VAR_NAME, or kv:secret-name."
         );
     }
 

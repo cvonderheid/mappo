@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import FieldHelpTooltip from "@/components/FieldHelpTooltip";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Drawer,
   DrawerClose,
@@ -21,6 +21,7 @@ import { apiBaseUrl } from "@/lib/api/client";
 import {
   createReleaseIngestEndpoint,
   deleteReleaseIngestEndpoint,
+  listSecretReferences,
   listReleaseIngestEndpoints,
   patchReleaseIngestEndpoint,
 } from "@/lib/api";
@@ -28,10 +29,11 @@ import type {
   ReleaseIngestEndpoint,
   ReleaseIngestEndpointCreateRequest,
   ReleaseIngestEndpointPatchRequest,
+  SecretReference,
 } from "@/lib/types";
 
 type ReleaseIngestProvider = "github" | "azure_devops";
-type WebhookSecretMode = "provider_default" | "environment_variable" | "key_vault_secret";
+type WebhookSecretMode = "provider_default" | "environment_variable" | "key_vault_secret" | "secret_reference";
 
 type ReleaseIngestConfigPageProps = {
   selectedProjectId: string;
@@ -45,6 +47,7 @@ type EndpointDraft = {
   webhookSecretMode: WebhookSecretMode;
   webhookSecretEnvVar: string;
   webhookSecretKeyVaultSecret: string;
+  webhookSecretReferenceId: string;
   repoFilter: string;
   branchFilter: string;
   pipelineIdFilter: string;
@@ -60,6 +63,7 @@ function emptyDraft(): EndpointDraft {
     webhookSecretMode: "provider_default",
     webhookSecretEnvVar: "",
     webhookSecretKeyVaultSecret: "",
+    webhookSecretReferenceId: "",
     repoFilter: "",
     branchFilter: "",
     pipelineIdFilter: "",
@@ -75,13 +79,22 @@ function providerDefaultSecretRef(provider: ReleaseIngestProvider): string {
 
 function parseWebhookSecretRef(
   value: string | undefined
-): Pick<EndpointDraft, "webhookSecretMode" | "webhookSecretEnvVar" | "webhookSecretKeyVaultSecret"> {
+): Pick<EndpointDraft, "webhookSecretMode" | "webhookSecretEnvVar" | "webhookSecretKeyVaultSecret" | "webhookSecretReferenceId"> {
   const normalized = (value ?? "").trim();
+  if (normalized.startsWith("secret:")) {
+    return {
+      webhookSecretMode: "secret_reference",
+      webhookSecretEnvVar: "",
+      webhookSecretKeyVaultSecret: "",
+      webhookSecretReferenceId: normalized.slice("secret:".length).trim(),
+    };
+  }
   if (normalized.startsWith("env:")) {
     return {
       webhookSecretMode: "environment_variable",
       webhookSecretEnvVar: normalized.slice("env:".length).trim(),
       webhookSecretKeyVaultSecret: "",
+      webhookSecretReferenceId: "",
     };
   }
   if (normalized.startsWith("kv:")) {
@@ -89,16 +102,22 @@ function parseWebhookSecretRef(
       webhookSecretMode: "key_vault_secret",
       webhookSecretEnvVar: "",
       webhookSecretKeyVaultSecret: normalized.slice("kv:".length).trim(),
+      webhookSecretReferenceId: "",
     };
   }
   return {
     webhookSecretMode: "provider_default",
     webhookSecretEnvVar: "",
     webhookSecretKeyVaultSecret: "",
+    webhookSecretReferenceId: "",
   };
 }
 
 function buildWebhookSecretRef(draft: EndpointDraft): string {
+  if (draft.webhookSecretMode === "secret_reference") {
+    const secretReferenceId = draft.webhookSecretReferenceId.trim();
+    return secretReferenceId === "" ? "" : `secret:${secretReferenceId}`;
+  }
   if (draft.webhookSecretMode === "environment_variable") {
     const envVarName = draft.webhookSecretEnvVar.trim();
     return envVarName === "" ? "" : `env:${envVarName}`;
@@ -110,11 +129,18 @@ function buildWebhookSecretRef(draft: EndpointDraft): string {
   return providerDefaultSecretRef(draft.provider);
 }
 
-function describeWebhookSecretSource(endpoint: ReleaseIngestEndpoint): string {
+function describeWebhookSecretSource(
+  endpoint: ReleaseIngestEndpoint,
+  secretReferenceLookup: Record<string, SecretReference>
+): string {
   const provider = (endpoint.provider ?? "github") as ReleaseIngestProvider;
   const normalized = (endpoint.secretRef ?? "").trim() || providerDefaultSecretRef(provider);
   if (normalized === providerDefaultSecretRef(provider)) {
     return "MAPPO runtime secret";
+  }
+  if (normalized.startsWith("secret:")) {
+    const secretReferenceId = normalized.slice("secret:".length).trim();
+    return `Secret reference (${secretReferenceLookup[secretReferenceId]?.name || secretReferenceId})`;
   }
   if (normalized.startsWith("env:")) {
     return `Environment variable (${normalized.slice("env:".length).trim()})`;
@@ -164,6 +190,7 @@ export default function ReleaseIngestConfigPage({
   selectedProjectId,
 }: ReleaseIngestConfigPageProps) {
   const [endpoints, setEndpoints] = useState<ReleaseIngestEndpoint[]>([]);
+  const [secretReferences, setSecretReferences] = useState<SecretReference[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -180,8 +207,12 @@ export default function ReleaseIngestConfigPage({
       setIsLoading(true);
     }
     try {
-      const result = await listReleaseIngestEndpoints();
+      const [result, loadedSecretReferences] = await Promise.all([
+        listReleaseIngestEndpoints(),
+        listSecretReferences(),
+      ]);
       setEndpoints(result);
+      setSecretReferences(loadedSecretReferences);
       setErrorMessage("");
     } catch (error) {
       setErrorMessage((error as Error).message);
@@ -213,6 +244,33 @@ export default function ReleaseIngestConfigPage({
     });
   }, [endpoints]);
 
+  const secretReferenceLookup = useMemo(() => {
+    const lookup: Record<string, SecretReference> = {};
+    for (const secretReference of secretReferences) {
+      const secretReferenceId = (secretReference.id ?? "").trim();
+      if (secretReferenceId !== "") {
+        lookup[secretReferenceId] = secretReference;
+      }
+    }
+    return lookup;
+  }, [secretReferences]);
+
+  const webhookSecretReferences = useMemo(
+    () =>
+      secretReferences
+        .filter(
+          (secretReference) =>
+            (secretReference.provider ?? "").trim() === draft.provider
+            && (secretReference.usage ?? "").trim() === "webhook_verification"
+        )
+        .sort((left, right) =>
+          `${left.name ?? left.id ?? ""}`.localeCompare(`${right.name ?? right.id ?? ""}`, undefined, {
+            sensitivity: "base",
+          })
+        ),
+    [draft.provider, secretReferences]
+  );
+
   function openCreateDrawer(): void {
     setEditingId("");
     setDraft(emptyDraft());
@@ -240,6 +298,10 @@ export default function ReleaseIngestConfigPage({
     }
     if (draft.webhookSecretMode === "key_vault_secret" && webhookSecretRef === "") {
       toast.error("Azure Key Vault secret name is required when Webhook verification secret is Azure Key Vault secret.");
+      return;
+    }
+    if (draft.webhookSecretMode === "secret_reference" && webhookSecretRef === "") {
+      toast.error("Secret reference is required when Webhook verification is Secret reference.");
       return;
     }
 
@@ -319,20 +381,6 @@ export default function ReleaseIngestConfigPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex animate-fade-up items-center justify-between [animation-delay:60ms] [animation-fill-mode:forwards]">
-        <p className="text-xs text-muted-foreground">
-          Configure the webhook URLs external release systems call when new versions are available. Release Sources are inbound notifications; Deployment Connections are configured separately and let MAPPO call external deployment systems.
-        </p>
-        <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" onClick={() => void loadEndpoints(true)}>
-            {isRefreshing ? "Refreshing..." : "Refresh"}
-          </Button>
-          <Button type="button" onClick={openCreateDrawer}>
-            New Release Source
-          </Button>
-        </div>
-      </div>
-
       {errorMessage ? (
         <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive-foreground">
           {errorMessage}
@@ -340,8 +388,21 @@ export default function ReleaseIngestConfigPage({
       ) : null}
 
       <Card className="glass-card animate-fade-up [animation-delay:100ms] [animation-fill-mode:forwards]">
-        <CardHeader>
-          <CardTitle>Release Sources</CardTitle>
+        <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <CardTitle>Release Sources</CardTitle>
+            <CardDescription>
+              Configure the webhook URLs external release systems call when new versions are available. Release Sources are inbound notifications; Deployment Connections are configured separately and let MAPPO call external deployment systems.
+            </CardDescription>
+          </div>
+          <CardAction className="flex-wrap justify-end">
+            <Button type="button" variant="outline" onClick={() => void loadEndpoints(true)}>
+              {isRefreshing ? "Refreshing..." : "Refresh"}
+            </Button>
+            <Button type="button" onClick={openCreateDrawer}>
+              New Release Source
+            </Button>
+          </CardAction>
         </CardHeader>
         <CardContent className="space-y-3">
           {isLoading ? (
@@ -384,7 +445,7 @@ export default function ReleaseIngestConfigPage({
                 <div className="mt-3 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
                   <p>
                     Verification secret:{" "}
-                    <span className="font-medium text-foreground">{describeWebhookSecretSource(endpoint)}</span>
+                    <span className="font-medium text-foreground">{describeWebhookSecretSource(endpoint, secretReferenceLookup)}</span>
                   </p>
                   <p>
                     Updated: <span className="text-foreground">{formatTimestamp(endpoint.updatedAt)}</span>
@@ -539,6 +600,8 @@ export default function ReleaseIngestConfigPage({
                       return {
                         ...current,
                         provider: nextProvider,
+                        webhookSecretReferenceId:
+                          current.webhookSecretMode === "secret_reference" ? "" : current.webhookSecretReferenceId,
                         repoFilter: nextProvider === "github" ? current.repoFilter : "",
                         pipelineIdFilter: nextProvider === "azure_devops" ? current.pipelineIdFilter : "",
                         manifestPath: nextProvider === "github" ? current.manifestPath : "",
@@ -590,6 +653,8 @@ export default function ReleaseIngestConfigPage({
                     setDraft((current) => ({
                       ...current,
                       webhookSecretMode: value as WebhookSecretMode,
+                      webhookSecretReferenceId:
+                        value === "secret_reference" ? current.webhookSecretReferenceId : "",
                       webhookSecretEnvVar:
                         value === "environment_variable" ? current.webhookSecretEnvVar : "",
                       webhookSecretKeyVaultSecret:
@@ -602,6 +667,7 @@ export default function ReleaseIngestConfigPage({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="provider_default">Use MAPPO backend secret</SelectItem>
+                    <SelectItem value="secret_reference">Use secret reference</SelectItem>
                     <SelectItem value="environment_variable">Use backend environment variable</SelectItem>
                     <SelectItem value="key_vault_secret">Use Azure Key Vault secret</SelectItem>
                   </SelectContent>
@@ -609,6 +675,11 @@ export default function ReleaseIngestConfigPage({
                 {draft.webhookSecretMode === "provider_default" ? (
                   <p className="text-xs text-muted-foreground">
                     MAPPO will resolve <span className="font-mono text-foreground">{providerDefaultSecretRef(draft.provider)}</span> from the backend runtime.
+                  </p>
+                ) : null}
+                {draft.webhookSecretMode === "secret_reference" ? (
+                  <p className="text-xs text-muted-foreground">
+                    Use a named secret from <span className="font-medium text-foreground">Admin → Secret References</span> so webhook verification is reusable and easier to explain.
                   </p>
                 ) : null}
               </div>
@@ -676,6 +747,43 @@ export default function ReleaseIngestConfigPage({
                   }
                   placeholder={draft.provider === "azure_devops" ? "MAPPO_AZURE_DEVOPS_WEBHOOK_SECRET" : "MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET"}
                 />
+              </div>
+            ) : null}
+            {draft.webhookSecretMode === "secret_reference" ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="endpoint-webhook-secret-reference">Secret reference</Label>
+                  <FieldHelpTooltip content="Named webhook-verification secret from Admin → Secret References. MAPPO still resolves the real secret value server-side." />
+                </div>
+                <Select
+                  value={draft.webhookSecretReferenceId.trim() === "" ? "__none" : draft.webhookSecretReferenceId}
+                  onValueChange={(value) =>
+                    setDraft((current) => ({
+                      ...current,
+                      webhookSecretReferenceId: value === "__none" ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger id="endpoint-webhook-secret-reference">
+                    <SelectValue placeholder="Select secret reference" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">Select secret reference</SelectItem>
+                    {webhookSecretReferences.map((secretReference) => (
+                      <SelectItem key={secretReference.id ?? secretReference.name} value={secretReference.id ?? ""}>
+                        {secretReference.name || secretReference.id}
+                        {" ("}
+                        {secretReference.id}
+                        {")"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {webhookSecretReferences.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No {draft.provider === "azure_devops" ? "Azure DevOps" : "GitHub"} webhook secret references exist yet. Create one in <span className="font-medium text-foreground">Admin → Secret References</span>.
+                  </p>
+                ) : null}
               </div>
             ) : null}
             {draft.webhookSecretMode === "key_vault_secret" ? (

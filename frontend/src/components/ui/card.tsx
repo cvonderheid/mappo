@@ -28,9 +28,16 @@ const CardDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttribu
 );
 CardDescription.displayName = "CardDescription";
 
+const CardAction = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div ref={ref} className={cn("flex items-center gap-2 sm:ml-auto", className)} {...props} />
+  )
+);
+CardAction.displayName = "CardAction";
+
 const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => <div ref={ref} className={cn("p-5 pt-0", className)} {...props} />
 );
 CardContent.displayName = "CardContent";
 
-export { Card, CardContent, CardDescription, CardHeader, CardTitle };
+export { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle };

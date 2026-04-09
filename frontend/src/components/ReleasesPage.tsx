@@ -6,7 +6,7 @@ import { ReleaseWebhookDeliveriesDataTable } from "@/components/AdminTables";
 import ReleaseIngestDrawer from "@/components/ReleaseIngestDrawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type {
   Release,
   ReleaseManifestIngestRequest,
@@ -107,42 +107,34 @@ export default function ReleasesPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex animate-fade-up items-center justify-between [animation-delay:60ms] [animation-fill-mode:forwards]">
-        <p className="text-xs text-muted-foreground">
-          Review available releases, inspect inbound release events, and check linked release sources for new versions.
-        </p>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              void handleCheckForNewReleases();
-            }}
-            disabled={releaseIngestIsSubmitting || isCheckingReleases}
-          >
-            {releaseIngestIsSubmitting || isCheckingReleases ? "Checking..." : "Check for new releases"}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setReleaseIngestDrawerOpen(true)}
-          >
-            Advanced
-          </Button>
-          <ReleaseIngestDrawer
-            defaultProjectId={selectedProjectId}
-            isSubmitting={releaseIngestIsSubmitting}
-            open={releaseIngestDrawerOpen}
-            onOpenChange={setReleaseIngestDrawerOpen}
-            onIngest={handleIngestManagedAppReleases}
-            showTrigger={false}
-          />
-        </div>
-      </div>
-
       <Card className="glass-card animate-fade-up [animation-delay:100ms] [animation-fill-mode:forwards]">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle>Release Catalog</CardTitle>
+        <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <CardTitle>Release Catalog</CardTitle>
+            <CardDescription>
+              Review available releases, inspect inbound release events, and check linked release
+              sources for new versions.
+            </CardDescription>
+          </div>
+          <CardAction className="flex-wrap justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                void handleCheckForNewReleases();
+              }}
+              disabled={releaseIngestIsSubmitting || isCheckingReleases}
+            >
+              {releaseIngestIsSubmitting || isCheckingReleases ? "Checking..." : "Check for new releases"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setReleaseIngestDrawerOpen(true)}
+            >
+              Advanced
+            </Button>
+          </CardAction>
         </CardHeader>
         <CardContent className="space-y-2">
           {latestRelease ? (
@@ -182,14 +174,20 @@ export default function ReleasesPage({
         </CardContent>
       </Card>
 
-      <Card className="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]">
-        <CardHeader>
-          <CardTitle>Release Webhook Events</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ReleaseWebhookDeliveriesDataTable refreshKey={refreshKey} />
-        </CardContent>
-      </Card>
+      <ReleaseIngestDrawer
+        defaultProjectId={selectedProjectId}
+        isSubmitting={releaseIngestIsSubmitting}
+        open={releaseIngestDrawerOpen}
+        onOpenChange={setReleaseIngestDrawerOpen}
+        onIngest={handleIngestManagedAppReleases}
+        showTrigger={false}
+      />
+
+      <ReleaseWebhookDeliveriesDataTable
+        refreshKey={refreshKey}
+        title="Release Webhook Events"
+        cardClassName="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]"
+      />
     </div>
   );
 }

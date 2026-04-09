@@ -5,17 +5,25 @@ import com.mappo.controlplane.api.request.ProviderConnectionCreateRequest;
 import com.mappo.controlplane.api.request.ProviderConnectionPatchRequest;
 import com.mappo.controlplane.api.request.ProviderConnectionVerifyRequest;
 import com.mappo.controlplane.domain.providerconnection.ProviderConnectionProviderType;
+import com.mappo.controlplane.domain.secretreference.SecretReferenceProviderType;
+import com.mappo.controlplane.domain.secretreference.SecretReferenceUsageType;
 import com.mappo.controlplane.infrastructure.azure.auth.AzureKeyVaultSecretResolver;
 import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsUrlNormalizer;
 import com.mappo.controlplane.model.ProviderConnectionRecord;
+import com.mappo.controlplane.model.SecretReferenceRecord;
+import com.mappo.controlplane.service.secretreference.SecretReferenceCatalogService;
+import com.mappo.controlplane.service.secretreference.SecretReferenceResolver;
 import java.util.regex.Pattern;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class ProviderConnectionMutationService {
 
     private static final Pattern ID_PATTERN = Pattern.compile("^[a-z0-9](?:[a-z0-9-]{1,126}[a-z0-9])?$");
+    private final SecretReferenceCatalogService secretReferenceCatalogService;
 
     public ProviderConnectionMutationRecord fromCreate(ProviderConnectionCreateRequest request) {
         String id = requiredId(request.id());
@@ -143,6 +151,20 @@ public class ProviderConnectionMutationService {
         if (ProviderConnectionSecretResolver.AZURE_DEVOPS_PAT_SECRET_REF.equals(normalized)) {
             return normalized;
         }
+        if (normalized.startsWith(SecretReferenceResolver.SECRET_REFERENCE_PREFIX)) {
+            String secretReferenceId = normalize(normalized.substring(SecretReferenceResolver.SECRET_REFERENCE_PREFIX.length()));
+            SecretReferenceRecord secretReference = secretReferenceCatalogService.getRequired(secretReferenceId);
+            if (
+                secretReference.provider() != SecretReferenceProviderType.azure_devops
+                || secretReference.usage() != SecretReferenceUsageType.deployment_api_credential
+            ) {
+                throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "secret reference " + secretReferenceId + " is not an Azure DevOps deployment API credential."
+                );
+            }
+            return SecretReferenceResolver.SECRET_REFERENCE_PREFIX + secretReferenceId;
+        }
         if (normalized.startsWith("env:") && normalize(normalized.substring("env:".length())).length() > 0) {
             return normalized;
         }
@@ -156,7 +178,7 @@ public class ProviderConnectionMutationService {
             HttpStatus.BAD_REQUEST,
             "personalAccessTokenRef must be "
                 + ProviderConnectionSecretResolver.AZURE_DEVOPS_PAT_SECRET_REF
-                + ", env:VAR_NAME, or kv:secret-name for Azure DevOps deployment connections."
+                + ", secret:reference-id, env:VAR_NAME, or kv:secret-name for Azure DevOps deployment connections."
         );
     }
 

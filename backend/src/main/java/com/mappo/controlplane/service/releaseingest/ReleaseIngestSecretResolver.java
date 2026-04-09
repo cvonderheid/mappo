@@ -4,6 +4,7 @@ import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;
 import com.mappo.controlplane.infrastructure.azure.auth.AzureKeyVaultSecretResolver;
 import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
+import com.mappo.controlplane.service.secretreference.SecretReferenceResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +17,7 @@ public class ReleaseIngestSecretResolver {
 
     private final MappoProperties properties;
     private final AzureKeyVaultSecretResolver keyVaultSecretResolver;
+    private final SecretReferenceResolver secretReferenceResolver;
 
     public String resolveConfiguredSecret(ReleaseIngestEndpointRecord endpoint) {
         if (endpoint == null || endpoint.provider() == null) {
@@ -30,6 +32,7 @@ public class ReleaseIngestSecretResolver {
         if (reference.isBlank()) {
             reference = defaultSecretReference(normalizedProvider);
         }
+        reference = secretReferenceResolver.resolveBackendReference(reference);
         if (GITHUB_SECRET_REF.equals(reference)) {
             return normalize(properties.getManagedAppRelease().getWebhookSecret());
         }
