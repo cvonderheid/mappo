@@ -1,4 +1,4 @@
-package com.mappo.controlplane.infrastructure.pipeline.ado;
+package com.mappo.controlplane.integrations.azuredevops.common;
 
 import java.net.URI;
 import java.util.Locale;

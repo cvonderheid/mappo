@@ -1,4 +1,4 @@
-package com.mappo.controlplane.repository;
+package com.mappo.controlplane.persistence.project;
 
 import static com.mappo.controlplane.jooq.Tables.MARKETPLACE_EVENTS;
 import static com.mappo.controlplane.jooq.Tables.PROJECTS;

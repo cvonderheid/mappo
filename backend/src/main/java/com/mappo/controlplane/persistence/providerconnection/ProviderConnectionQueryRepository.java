@@ -1,11 +1,11 @@
-package com.mappo.controlplane.repository;
+package com.mappo.controlplane.persistence.providerconnection;
 
 import static com.mappo.controlplane.jooq.Tables.PROJECTS;
 import static com.mappo.controlplane.jooq.Tables.PROVIDER_CONNECTION_ADO_PROJECTS;
 import static com.mappo.controlplane.jooq.Tables.PROVIDER_CONNECTIONS;
 
 import com.mappo.controlplane.domain.providerconnection.ProviderConnectionProviderType;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsUrlNormalizer;
+import com.mappo.controlplane.integrations.azuredevops.common.AzureDevOpsUrlNormalizer;
 import com.mappo.controlplane.jooq.enums.MappoReleaseIngestProvider;
 import com.mappo.controlplane.model.ProviderConnectionAdoProjectRecord;
 import com.mappo.controlplane.model.ProviderConnectionLinkedProjectRecord;

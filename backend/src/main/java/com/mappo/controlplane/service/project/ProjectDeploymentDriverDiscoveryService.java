@@ -5,29 +5,18 @@ import com.mappo.controlplane.api.request.ProjectAdoBranchDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoPipelineDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoRepositoryDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoServiceConnectionDiscoveryRequest;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsBranchDefinitionRecord;
 import com.mappo.controlplane.domain.project.PipelineTriggerDriverConfig;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsClientException;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDefinitionRecord;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDiscoveryService;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsRepositoryDefinitionRecord;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsServiceConnectionDefinitionRecord;
+import com.mappo.controlplane.integrations.azuredevops.discovery.AzureDevOpsDiscoveryException;
+import com.mappo.controlplane.integrations.azuredevops.discovery.AzureDevOpsDiscoveryGateway;
 import com.mappo.controlplane.model.ProjectAdoBranchDiscoveryResultRecord;
-import com.mappo.controlplane.model.ProjectAdoBranchRecord;
 import com.mappo.controlplane.model.ProjectAdoPipelineDiscoveryResultRecord;
-import com.mappo.controlplane.model.ProjectAdoPipelineRecord;
 import com.mappo.controlplane.model.ProjectAdoRepositoryDiscoveryResultRecord;
-import com.mappo.controlplane.model.ProjectAdoRepositoryRecord;
 import com.mappo.controlplane.model.ProjectAdoServiceConnectionDiscoveryResultRecord;
-import com.mappo.controlplane.model.ProjectAdoServiceConnectionRecord;
 import com.mappo.controlplane.model.ProviderConnectionRecord;
 import com.mappo.controlplane.service.providerconnection.ProviderConnectionCatalogService;
 import com.mappo.controlplane.service.providerconnection.ProviderConnectionSecretResolver;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -35,18 +24,18 @@ import org.springframework.stereotype.Service;
 public class ProjectDeploymentDriverDiscoveryService {
 
     private final ProjectCatalogService projectCatalogService;
-    private final AzureDevOpsPipelineDiscoveryService pipelineDiscoveryService;
+    private final AzureDevOpsDiscoveryGateway azureDevOpsDiscoveryGateway;
     private final ProviderConnectionCatalogService providerConnectionCatalogService;
     private final ProviderConnectionSecretResolver providerConnectionSecretResolver;
 
     public ProjectDeploymentDriverDiscoveryService(
         ProjectCatalogService projectCatalogService,
-        AzureDevOpsPipelineDiscoveryService pipelineDiscoveryService,
+        AzureDevOpsDiscoveryGateway azureDevOpsDiscoveryGateway,
         ProviderConnectionCatalogService providerConnectionCatalogService,
         ProviderConnectionSecretResolver providerConnectionSecretResolver
     ) {
         this.projectCatalogService = projectCatalogService;
-        this.pipelineDiscoveryService = pipelineDiscoveryService;
+        this.azureDevOpsDiscoveryGateway = azureDevOpsDiscoveryGateway;
         this.providerConnectionCatalogService = providerConnectionCatalogService;
         this.providerConnectionSecretResolver = providerConnectionSecretResolver;
     }
@@ -100,34 +89,21 @@ public class ProjectDeploymentDriverDiscoveryService {
         }
 
         try {
-            List<ProjectAdoPipelineRecord> pipelines = pipelineDiscoveryService
-                .discoverPipelines(organization, adoProject, personalAccessToken)
-                .stream()
-                .filter(pipeline -> nameContains.isBlank()
-                    || normalize(pipeline.name()).toLowerCase(Locale.ROOT).contains(nameContains.toLowerCase(Locale.ROOT)))
-                .sorted(Comparator
-                    .comparing((AzureDevOpsPipelineDefinitionRecord pipeline) -> normalize(pipeline.name()).toLowerCase(Locale.ROOT))
-                    .thenComparing(pipeline -> normalize(pipeline.id())))
-                .map(pipeline -> new ProjectAdoPipelineRecord(
-                    normalize(pipeline.id()),
-                    normalize(pipeline.name()),
-                    normalize(pipeline.folder()),
-                    normalize(pipeline.webUrl())
-                ))
-                .toList();
             return new ProjectAdoPipelineDiscoveryResultRecord(
                 definition.id(),
                 organization,
                 adoProject,
-                pipelines
+                azureDevOpsDiscoveryGateway.discoverPipelines(
+                    organization,
+                    adoProject,
+                    personalAccessToken,
+                    nameContains
+                )
             );
         } catch (IllegalArgumentException exception) {
             throw new ApiException(HttpStatus.BAD_REQUEST, exception.getMessage());
-        } catch (AzureDevOpsClientException exception) {
-            throw new ApiException(
-                HttpStatus.BAD_GATEWAY,
-                "Azure DevOps pipeline discovery failed: " + normalize(exception.responseBody())
-            );
+        } catch (AzureDevOpsDiscoveryException exception) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, normalize(exception.getMessage()));
         }
     }
 
@@ -160,35 +136,21 @@ public class ProjectDeploymentDriverDiscoveryService {
         }
 
         try {
-            List<ProjectAdoRepositoryRecord> repositories = pipelineDiscoveryService
-                .discoverRepositories(organization, adoProject, personalAccessToken)
-                .stream()
-                .filter(repository -> nameContains.isBlank()
-                    || normalize(repository.name()).toLowerCase(Locale.ROOT).contains(nameContains.toLowerCase(Locale.ROOT)))
-                .sorted(Comparator
-                    .comparing((AzureDevOpsRepositoryDefinitionRecord repository) -> normalize(repository.name()).toLowerCase(Locale.ROOT))
-                    .thenComparing(repository -> normalize(repository.id())))
-                .map(repository -> new ProjectAdoRepositoryRecord(
-                    normalize(repository.id()),
-                    normalize(repository.name()),
-                    normalize(repository.defaultBranch()),
-                    normalize(repository.webUrl()),
-                    normalize(repository.remoteUrl())
-                ))
-                .toList();
             return new ProjectAdoRepositoryDiscoveryResultRecord(
                 definition.id(),
                 organization,
                 adoProject,
-                repositories
+                azureDevOpsDiscoveryGateway.discoverRepositories(
+                    organization,
+                    adoProject,
+                    personalAccessToken,
+                    nameContains
+                )
             );
         } catch (IllegalArgumentException exception) {
             throw new ApiException(HttpStatus.BAD_REQUEST, exception.getMessage());
-        } catch (AzureDevOpsClientException exception) {
-            throw new ApiException(
-                HttpStatus.BAD_GATEWAY,
-                "Azure DevOps repository discovery failed: " + normalize(exception.responseBody())
-            );
+        } catch (AzureDevOpsDiscoveryException exception) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, normalize(exception.getMessage()));
         }
     }
 
@@ -232,34 +194,25 @@ public class ProjectDeploymentDriverDiscoveryService {
         }
 
         try {
-            List<ProjectAdoBranchRecord> branches = pipelineDiscoveryService
-                .discoverBranches(organization, adoProject, repositoryId, repository, personalAccessToken)
-                .stream()
-                .filter(branch -> nameContains.isBlank()
-                    || normalize(branch.name()).toLowerCase(Locale.ROOT).contains(nameContains.toLowerCase(Locale.ROOT)))
-                .sorted(Comparator
-                    .comparing((AzureDevOpsBranchDefinitionRecord branch) -> normalize(branch.name()).toLowerCase(Locale.ROOT))
-                    .thenComparing(branch -> normalize(branch.refName())))
-                .map(branch -> new ProjectAdoBranchRecord(
-                    normalize(branch.name()),
-                    normalize(branch.refName())
-                ))
-                .toList();
             return new ProjectAdoBranchDiscoveryResultRecord(
                 definition.id(),
                 organization,
                 adoProject,
                 repositoryId,
                 repository,
-                branches
+                azureDevOpsDiscoveryGateway.discoverBranches(
+                    organization,
+                    adoProject,
+                    repositoryId,
+                    repository,
+                    personalAccessToken,
+                    nameContains
+                )
             );
         } catch (IllegalArgumentException exception) {
             throw new ApiException(HttpStatus.BAD_REQUEST, exception.getMessage());
-        } catch (AzureDevOpsClientException exception) {
-            throw new ApiException(
-                HttpStatus.BAD_GATEWAY,
-                "Azure DevOps branch discovery failed: " + normalize(exception.responseBody())
-            );
+        } catch (AzureDevOpsDiscoveryException exception) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, normalize(exception.getMessage()));
         }
     }
 
@@ -292,34 +245,21 @@ public class ProjectDeploymentDriverDiscoveryService {
         }
 
         try {
-            List<ProjectAdoServiceConnectionRecord> serviceConnections = pipelineDiscoveryService
-                .discoverServiceConnections(organization, adoProject, personalAccessToken)
-                .stream()
-                .filter(connection -> nameContains.isBlank()
-                    || normalize(connection.name()).toLowerCase(Locale.ROOT).contains(nameContains.toLowerCase(Locale.ROOT)))
-                .sorted(Comparator
-                    .comparing((AzureDevOpsServiceConnectionDefinitionRecord connection) -> normalize(connection.name()).toLowerCase(Locale.ROOT))
-                    .thenComparing(connection -> normalize(connection.id())))
-                .map(connection -> new ProjectAdoServiceConnectionRecord(
-                    normalize(connection.id()),
-                    normalize(connection.name()),
-                    normalize(connection.type()),
-                    normalize(connection.webUrl())
-                ))
-                .toList();
             return new ProjectAdoServiceConnectionDiscoveryResultRecord(
                 definition.id(),
                 organization,
                 adoProject,
-                serviceConnections
+                azureDevOpsDiscoveryGateway.discoverServiceConnections(
+                    organization,
+                    adoProject,
+                    personalAccessToken,
+                    nameContains
+                )
             );
         } catch (IllegalArgumentException exception) {
             throw new ApiException(HttpStatus.BAD_REQUEST, exception.getMessage());
-        } catch (AzureDevOpsClientException exception) {
-            throw new ApiException(
-                HttpStatus.BAD_GATEWAY,
-                "Azure DevOps service connection discovery failed: " + normalize(exception.responseBody())
-            );
+        } catch (AzureDevOpsDiscoveryException exception) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, normalize(exception.getMessage()));
         }
     }
 

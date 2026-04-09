@@ -4,13 +4,12 @@ import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ProviderConnectionVerifyRequest;
 import com.mappo.controlplane.domain.project.PipelineTriggerDriverConfig;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsClientException;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDiscoveryService;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsProjectDefinitionRecord;
+import com.mappo.controlplane.integrations.azuredevops.discovery.AzureDevOpsDiscoveryException;
+import com.mappo.controlplane.integrations.azuredevops.discovery.AzureDevOpsDiscoveryGateway;
 import com.mappo.controlplane.model.ProviderConnectionAdoProjectDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProviderConnectionAdoProjectRecord;
 import com.mappo.controlplane.model.ProviderConnectionRecord;
-import com.mappo.controlplane.repository.ProviderConnectionCommandRepository;
+import com.mappo.controlplane.persistence.providerconnection.ProviderConnectionCommandRepository;
 import com.mappo.controlplane.service.project.ProjectCatalogService;
 import java.util.Comparator;
 import java.util.List;
@@ -26,7 +25,7 @@ public class ProviderConnectionDiscoveryService {
     private final ProviderConnectionCatalogService providerConnectionCatalogService;
     private final ProviderConnectionMutationService providerConnectionMutationService;
     private final ProviderConnectionSecretResolver providerConnectionSecretResolver;
-    private final AzureDevOpsPipelineDiscoveryService pipelineDiscoveryService;
+    private final AzureDevOpsDiscoveryGateway azureDevOpsDiscoveryGateway;
     private final ProviderConnectionCommandRepository providerConnectionCommandRepository;
     private final ProjectCatalogService projectCatalogService;
 
@@ -110,20 +109,11 @@ public class ProviderConnectionDiscoveryService {
 
         String filter = normalize(nameContains).toLowerCase(Locale.ROOT);
         try {
-            List<ProviderConnectionAdoProjectRecord> projects = pipelineDiscoveryService
-                .discoverProjects(organizationUrl, personalAccessToken)
-                .stream()
-                .filter(project -> filter.isBlank()
-                    || normalize(project.name()).toLowerCase(Locale.ROOT).contains(filter))
-                .sorted(Comparator
-                    .comparing((AzureDevOpsProjectDefinitionRecord project) -> normalize(project.name()).toLowerCase(Locale.ROOT))
-                    .thenComparing(project -> normalize(project.id())))
-                .map(project -> new ProviderConnectionAdoProjectRecord(
-                    normalize(project.id()),
-                    normalize(project.name()),
-                    normalize(project.webUrl())
-                ))
-                .toList();
+            List<ProviderConnectionAdoProjectRecord> projects = azureDevOpsDiscoveryGateway.discoverProjects(
+                organizationUrl,
+                personalAccessToken,
+                filter
+            );
             return new ProviderConnectionAdoProjectDiscoveryResultRecord(
                 normalize(mutation.id()),
                 organizationUrl,
@@ -131,11 +121,8 @@ public class ProviderConnectionDiscoveryService {
             );
         } catch (IllegalArgumentException exception) {
             throw new ApiException(HttpStatus.BAD_REQUEST, exception.getMessage());
-        } catch (AzureDevOpsClientException exception) {
-            throw new ApiException(
-                HttpStatus.BAD_GATEWAY,
-                "Azure DevOps project discovery failed: " + normalize(exception.responseBody())
-            );
+        } catch (AzureDevOpsDiscoveryException exception) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, normalize(exception.getMessage()));
         }
     }
 

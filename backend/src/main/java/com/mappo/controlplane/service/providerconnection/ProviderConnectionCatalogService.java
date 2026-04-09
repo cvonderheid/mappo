@@ -2,7 +2,7 @@ package com.mappo.controlplane.service.providerconnection;
 
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.model.ProviderConnectionRecord;
-import com.mappo.controlplane.repository.ProviderConnectionQueryRepository;
+import com.mappo.controlplane.persistence.providerconnection.ProviderConnectionQueryRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

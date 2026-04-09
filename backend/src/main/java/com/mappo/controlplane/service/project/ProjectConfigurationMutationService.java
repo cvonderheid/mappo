@@ -3,22 +3,15 @@ package com.mappo.controlplane.service.project;
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ProjectConfigurationPatchRequest;
 import com.mappo.controlplane.api.request.ProjectCreateRequest;
-import com.mappo.controlplane.domain.project.AzureContainerAppHttpRuntimeHealthProviderConfig;
-import com.mappo.controlplane.domain.project.AzureDeploymentStackDriverConfig;
-import com.mappo.controlplane.domain.project.AzureTemplateSpecDriverConfig;
-import com.mappo.controlplane.domain.project.AzureWorkloadRbacAccessStrategyConfig;
-import com.mappo.controlplane.domain.project.BlobArmTemplateArtifactSourceConfig;
-import com.mappo.controlplane.domain.project.ExternalDeploymentInputsArtifactSourceConfig;
-import com.mappo.controlplane.domain.project.HttpEndpointRuntimeHealthProviderConfig;
-import com.mappo.controlplane.domain.project.LighthouseDelegatedAccessStrategyConfig;
-import com.mappo.controlplane.domain.project.PipelineTriggerDriverConfig;
+import com.mappo.controlplane.application.project.config.ProjectAccessStrategyConfigRegistry;
+import com.mappo.controlplane.application.project.config.ProjectDeploymentDriverConfigRegistry;
+import com.mappo.controlplane.application.project.config.ProjectReleaseArtifactSourceConfigRegistry;
+import com.mappo.controlplane.application.project.config.ProjectRuntimeHealthProviderConfigRegistry;
 import com.mappo.controlplane.domain.project.ProjectAccessStrategyType;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
 import com.mappo.controlplane.domain.project.ProjectReleaseArtifactSourceType;
 import com.mappo.controlplane.domain.project.ProjectRuntimeHealthProviderType;
-import com.mappo.controlplane.domain.project.SimulatorAccessStrategyConfig;
-import com.mappo.controlplane.domain.project.TemplateSpecResourceArtifactSourceConfig;
 import com.mappo.controlplane.util.JsonUtil;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -27,7 +20,6 @@ import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import tools.jackson.databind.ObjectMapper;
 
 @Service
 @RequiredArgsConstructor
@@ -37,7 +29,10 @@ public class ProjectConfigurationMutationService {
     private static final Set<String> ALLOWED_THEME_KEYS = Set.of("harbor-teal", "vectr-signal", "scalr-slate");
 
     private final JsonUtil jsonUtil;
-    private final ObjectMapper objectMapper;
+    private final ProjectAccessStrategyConfigRegistry accessStrategyConfigRegistry;
+    private final ProjectDeploymentDriverConfigRegistry deploymentDriverConfigRegistry;
+    private final ProjectReleaseArtifactSourceConfigRegistry releaseArtifactSourceConfigRegistry;
+    private final ProjectRuntimeHealthProviderConfigRegistry runtimeHealthProviderConfigRegistry;
 
     public ProjectConfigurationMutationRecord fromCreate(ProjectCreateRequest request) {
         String id = requiredProjectId(request.id());
@@ -200,37 +195,19 @@ public class ProjectConfigurationMutationService {
     }
 
     private void validateTypedConfig(ProjectAccessStrategyType type, Map<String, Object> config) {
-        switch (type) {
-            case simulator -> convert(config, SimulatorAccessStrategyConfig.class, "accessStrategyConfig");
-            case azure_workload_rbac -> convert(config, AzureWorkloadRbacAccessStrategyConfig.class, "accessStrategyConfig");
-            case lighthouse_delegated_access -> convert(config, LighthouseDelegatedAccessStrategyConfig.class, "accessStrategyConfig");
-        }
+        accessStrategyConfigRegistry.validate(type, config, "accessStrategyConfig");
     }
 
     private void validateTypedConfig(ProjectDeploymentDriverType type, Map<String, Object> config) {
-        switch (type) {
-            case azure_deployment_stack -> convert(config, AzureDeploymentStackDriverConfig.class, "deploymentDriverConfig");
-            case azure_template_spec -> convert(config, AzureTemplateSpecDriverConfig.class, "deploymentDriverConfig");
-            case pipeline_trigger -> convert(config, PipelineTriggerDriverConfig.class, "deploymentDriverConfig");
-        }
+        deploymentDriverConfigRegistry.validate(type, config, "deploymentDriverConfig");
     }
 
     private void validateTypedConfig(ProjectReleaseArtifactSourceType type, Map<String, Object> config) {
-        switch (type) {
-            case blob_arm_template -> convert(config, BlobArmTemplateArtifactSourceConfig.class, "releaseArtifactSourceConfig");
-            case template_spec_resource ->
-                convert(config, TemplateSpecResourceArtifactSourceConfig.class, "releaseArtifactSourceConfig");
-            case external_deployment_inputs ->
-                convert(config, ExternalDeploymentInputsArtifactSourceConfig.class, "releaseArtifactSourceConfig");
-        }
+        releaseArtifactSourceConfigRegistry.validate(type, config, "releaseArtifactSourceConfig");
     }
 
     private void validateTypedConfig(ProjectRuntimeHealthProviderType type, Map<String, Object> config) {
-        switch (type) {
-            case azure_container_app_http ->
-                convert(config, AzureContainerAppHttpRuntimeHealthProviderConfig.class, "runtimeHealthProviderConfig");
-            case http_endpoint -> convert(config, HttpEndpointRuntimeHealthProviderConfig.class, "runtimeHealthProviderConfig");
-        }
+        runtimeHealthProviderConfigRegistry.validate(type, config, "runtimeHealthProviderConfig");
     }
 
     private void validateDriverSourceCompatibility(
@@ -246,17 +223,6 @@ public class ProjectConfigurationMutationService {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
                 "deploymentDriver " + deploymentDriver + " is not compatible with releaseArtifactSource " + releaseArtifactSource
-            );
-        }
-    }
-
-    private <T> T convert(Map<String, Object> config, Class<T> type, String fieldName) {
-        try {
-            return objectMapper.convertValue(config == null ? Map.of() : config, type);
-        } catch (IllegalArgumentException exception) {
-            throw new ApiException(
-                HttpStatus.BAD_REQUEST,
-                "invalid " + fieldName + " for " + type.getSimpleName() + ": " + normalize(exception.getMessage())
             );
         }
     }
@@ -281,34 +247,19 @@ public class ProjectConfigurationMutationService {
     }
 
     private Map<String, Object> defaultAccessConfig(ProjectAccessStrategyType type) {
-        return switch (type) {
-            case simulator -> jsonUtil.toMap(SimulatorAccessStrategyConfig.defaults());
-            case azure_workload_rbac -> jsonUtil.toMap(AzureWorkloadRbacAccessStrategyConfig.defaults());
-            case lighthouse_delegated_access -> jsonUtil.toMap(LighthouseDelegatedAccessStrategyConfig.defaults());
-        };
+        return accessStrategyConfigRegistry.defaultsAsMap(type);
     }
 
     private Map<String, Object> defaultDriverConfig(ProjectDeploymentDriverType type) {
-        return switch (type) {
-            case azure_deployment_stack -> jsonUtil.toMap(AzureDeploymentStackDriverConfig.defaults());
-            case azure_template_spec -> jsonUtil.toMap(AzureTemplateSpecDriverConfig.defaults());
-            case pipeline_trigger -> jsonUtil.toMap(PipelineTriggerDriverConfig.defaults());
-        };
+        return deploymentDriverConfigRegistry.defaultsAsMap(type);
     }
 
     private Map<String, Object> defaultReleaseSourceConfig(ProjectReleaseArtifactSourceType type) {
-        return switch (type) {
-            case blob_arm_template -> jsonUtil.toMap(BlobArmTemplateArtifactSourceConfig.defaults());
-            case template_spec_resource -> jsonUtil.toMap(TemplateSpecResourceArtifactSourceConfig.defaults());
-            case external_deployment_inputs -> jsonUtil.toMap(ExternalDeploymentInputsArtifactSourceConfig.defaults());
-        };
+        return releaseArtifactSourceConfigRegistry.defaultsAsMap(type);
     }
 
     private Map<String, Object> defaultRuntimeHealthConfig(ProjectRuntimeHealthProviderType type) {
-        return switch (type) {
-            case azure_container_app_http -> jsonUtil.toMap(AzureContainerAppHttpRuntimeHealthProviderConfig.defaults());
-            case http_endpoint -> jsonUtil.toMap(HttpEndpointRuntimeHealthProviderConfig.defaults());
-        };
+        return runtimeHealthProviderConfigRegistry.defaultsAsMap(type);
     }
 
     private String requiredProjectId(String value) {

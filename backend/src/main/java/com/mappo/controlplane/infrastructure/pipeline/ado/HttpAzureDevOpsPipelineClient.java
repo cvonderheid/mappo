@@ -1,6 +1,7 @@
 package com.mappo.controlplane.infrastructure.pipeline.ado;
 
 import com.mappo.controlplane.config.MappoProperties;
+import com.mappo.controlplane.integrations.azuredevops.common.AzureDevOpsUrlNormalizer;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;

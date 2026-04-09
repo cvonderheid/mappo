@@ -1,9 +1,7 @@
 package com.mappo.controlplane.service.project;
 
+import com.mappo.controlplane.application.project.config.ProjectDeploymentDriverConfigRegistry;
 import com.mappo.controlplane.domain.execution.DeploymentDriverCapabilities;
-import com.mappo.controlplane.domain.project.AzureDeploymentStackDriverConfig;
-import com.mappo.controlplane.domain.project.AzureTemplateSpecDriverConfig;
-import com.mappo.controlplane.domain.project.PipelineTriggerDriverConfig;
 import com.mappo.controlplane.model.RunPreviewMode;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.service.run.DeploymentDriverRegistry;
@@ -18,6 +16,7 @@ public class ProjectExecutionCapabilityResolver {
     private final ProjectDefinitionResolver projectDefinitionResolver;
     private final TargetAccessResolverRegistry targetAccessResolverRegistry;
     private final DeploymentDriverRegistry deploymentDriverRegistry;
+    private final ProjectDeploymentDriverConfigRegistry deploymentDriverConfigRegistry;
 
     public ProjectExecutionCapabilities resolve(ReleaseRecord release, boolean azureConfigured) {
         var project = projectDefinitionResolver.resolve(release);
@@ -37,28 +36,11 @@ public class ProjectExecutionCapabilityResolver {
         boolean hasDeploymentDriver,
         RunPreviewMode previewMode
     ) {
-        return switch (project.deploymentDriverConfig()) {
-            case AzureDeploymentStackDriverConfig config -> new DeploymentDriverCapabilities(
-                hasDeploymentDriver && config.supportsPreview(),
-                config.supportsPreview() ? previewMode : RunPreviewMode.UNSUPPORTED,
-                config.supportsExternalExecutionHandle(),
-                false,
-                false
-            );
-            case AzureTemplateSpecDriverConfig config -> new DeploymentDriverCapabilities(
-                hasDeploymentDriver && config.supportsPreview(),
-                config.supportsPreview() ? previewMode : RunPreviewMode.UNSUPPORTED,
-                config.supportsExternalExecutionHandle(),
-                false,
-                false
-            );
-            case PipelineTriggerDriverConfig config -> new DeploymentDriverCapabilities(
-                false,
-                RunPreviewMode.UNSUPPORTED,
-                config.supportsExternalExecutionHandle(),
-                config.supportsExternalLogs(),
-                false
-            );
-        };
+        return deploymentDriverConfigRegistry.capabilities(
+            project.deploymentDriver(),
+            project.deploymentDriverConfig(),
+            hasDeploymentDriver,
+            previewMode
+        );
     }
 }

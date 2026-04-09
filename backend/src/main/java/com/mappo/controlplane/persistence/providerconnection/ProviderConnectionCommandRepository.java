@@ -1,4 +1,4 @@
-package com.mappo.controlplane.repository;
+package com.mappo.controlplane.persistence.providerconnection;
 
 import static com.mappo.controlplane.jooq.Tables.PROVIDER_CONNECTIONS;
 import static com.mappo.controlplane.jooq.Tables.PROVIDER_CONNECTION_ADO_PROJECTS;

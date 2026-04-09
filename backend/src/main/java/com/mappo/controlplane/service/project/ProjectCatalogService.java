@@ -2,7 +2,7 @@ package com.mappo.controlplane.service.project;
 
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
-import com.mappo.controlplane.repository.ProjectQueryRepository;
+import com.mappo.controlplane.persistence.project.ProjectQueryRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

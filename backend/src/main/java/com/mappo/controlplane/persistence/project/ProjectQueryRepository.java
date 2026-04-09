@@ -1,17 +1,13 @@
-package com.mappo.controlplane.repository;
+package com.mappo.controlplane.persistence.project;
 
 import static com.mappo.controlplane.jooq.Tables.PROJECTS;
 
-import com.mappo.controlplane.domain.project.AzureContainerAppHttpRuntimeHealthProviderConfig;
-import com.mappo.controlplane.domain.project.AzureDeploymentStackDriverConfig;
-import com.mappo.controlplane.domain.project.AzureTemplateSpecDriverConfig;
-import com.mappo.controlplane.domain.project.AzureWorkloadRbacAccessStrategyConfig;
-import com.mappo.controlplane.domain.project.BlobArmTemplateArtifactSourceConfig;
-import com.mappo.controlplane.domain.project.ExternalDeploymentInputsArtifactSourceConfig;
-import com.mappo.controlplane.domain.project.HttpEndpointRuntimeHealthProviderConfig;
-import com.mappo.controlplane.domain.project.LighthouseDelegatedAccessStrategyConfig;
-import com.mappo.controlplane.domain.project.ProjectAccessStrategyType;
+import com.mappo.controlplane.application.project.config.ProjectAccessStrategyConfigRegistry;
+import com.mappo.controlplane.application.project.config.ProjectDeploymentDriverConfigRegistry;
+import com.mappo.controlplane.application.project.config.ProjectReleaseArtifactSourceConfigRegistry;
+import com.mappo.controlplane.application.project.config.ProjectRuntimeHealthProviderConfigRegistry;
 import com.mappo.controlplane.domain.project.ProjectAccessStrategyConfig;
+import com.mappo.controlplane.domain.project.ProjectAccessStrategyType;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverConfig;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
@@ -19,9 +15,7 @@ import com.mappo.controlplane.domain.project.ProjectReleaseArtifactSourceConfig;
 import com.mappo.controlplane.domain.project.ProjectReleaseArtifactSourceType;
 import com.mappo.controlplane.domain.project.ProjectRuntimeHealthProviderConfig;
 import com.mappo.controlplane.domain.project.ProjectRuntimeHealthProviderType;
-import com.mappo.controlplane.domain.project.SimulatorAccessStrategyConfig;
-import com.mappo.controlplane.domain.project.TemplateSpecResourceArtifactSourceConfig;
-import com.mappo.controlplane.domain.project.PipelineTriggerDriverConfig;
+import com.mappo.controlplane.util.JsonUtil;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +25,6 @@ import org.jooq.Record;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 import org.springframework.stereotype.Repository;
-import com.mappo.controlplane.util.JsonUtil;
 
 @Repository
 @RequiredArgsConstructor
@@ -41,7 +34,10 @@ public class ProjectQueryRepository {
         DSL.field(DSL.name("theme_key"), SQLDataType.VARCHAR(64));
 
     private final DSLContext dsl;
-    private final JsonUtil jsonUtil;
+    private final ProjectAccessStrategyConfigRegistry accessStrategyConfigRegistry;
+    private final ProjectDeploymentDriverConfigRegistry deploymentDriverConfigRegistry;
+    private final ProjectReleaseArtifactSourceConfigRegistry releaseArtifactSourceConfigRegistry;
+    private final ProjectRuntimeHealthProviderConfigRegistry runtimeHealthProviderConfigRegistry;
 
     public Optional<ProjectDefinition> getProject(String projectId) {
         Record row = dsl.select(
@@ -119,65 +115,24 @@ public class ProjectQueryRepository {
     }
 
     private ProjectAccessStrategyConfig parseAccessStrategyConfig(ProjectAccessStrategyType type, String value) {
-        return switch (type) {
-            case simulator -> jsonUtil.read(value, SimulatorAccessStrategyConfig.class, SimulatorAccessStrategyConfig.defaults());
-            case azure_workload_rbac ->
-                jsonUtil.read(value, AzureWorkloadRbacAccessStrategyConfig.class, AzureWorkloadRbacAccessStrategyConfig.defaults());
-            case lighthouse_delegated_access ->
-                jsonUtil.read(
-                    value,
-                    LighthouseDelegatedAccessStrategyConfig.class,
-                    LighthouseDelegatedAccessStrategyConfig.defaults()
-                );
-        };
+        return accessStrategyConfigRegistry.parse(type, value);
     }
 
     private ProjectDeploymentDriverConfig parseDeploymentDriverConfig(ProjectDeploymentDriverType type, String value) {
-        return switch (type) {
-            case azure_deployment_stack ->
-                jsonUtil.read(value, AzureDeploymentStackDriverConfig.class, AzureDeploymentStackDriverConfig.defaults());
-            case azure_template_spec ->
-                jsonUtil.read(value, AzureTemplateSpecDriverConfig.class, AzureTemplateSpecDriverConfig.defaults());
-            case pipeline_trigger ->
-                jsonUtil.read(value, PipelineTriggerDriverConfig.class, PipelineTriggerDriverConfig.defaults());
-        };
+        return deploymentDriverConfigRegistry.parse(type, value);
     }
 
     private ProjectReleaseArtifactSourceConfig parseReleaseArtifactSourceConfig(
         ProjectReleaseArtifactSourceType type,
         String value
     ) {
-        return switch (type) {
-            case blob_arm_template ->
-                jsonUtil.read(value, BlobArmTemplateArtifactSourceConfig.class, BlobArmTemplateArtifactSourceConfig.defaults());
-            case template_spec_resource ->
-                jsonUtil.read(
-                    value,
-                    TemplateSpecResourceArtifactSourceConfig.class,
-                    TemplateSpecResourceArtifactSourceConfig.defaults()
-                );
-            case external_deployment_inputs ->
-                jsonUtil.read(
-                    value,
-                    ExternalDeploymentInputsArtifactSourceConfig.class,
-                    ExternalDeploymentInputsArtifactSourceConfig.defaults()
-                );
-        };
+        return releaseArtifactSourceConfigRegistry.parse(type, value);
     }
 
     private ProjectRuntimeHealthProviderConfig parseRuntimeHealthProviderConfig(
         ProjectRuntimeHealthProviderType type,
         String value
     ) {
-        return switch (type) {
-            case azure_container_app_http ->
-                jsonUtil.read(
-                    value,
-                    AzureContainerAppHttpRuntimeHealthProviderConfig.class,
-                    AzureContainerAppHttpRuntimeHealthProviderConfig.defaults()
-                );
-            case http_endpoint ->
-                jsonUtil.read(value, HttpEndpointRuntimeHealthProviderConfig.class, HttpEndpointRuntimeHealthProviderConfig.defaults());
-        };
+        return runtimeHealthProviderConfigRegistry.parse(type, value);
     }
 }

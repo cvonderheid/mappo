@@ -4,7 +4,7 @@ import com.mappo.controlplane.api.request.ProviderConnectionCreateRequest;
 import com.mappo.controlplane.api.request.ProviderConnectionPatchRequest;
 import com.mappo.controlplane.model.ProviderConnectionAdoProjectDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProviderConnectionRecord;
-import com.mappo.controlplane.repository.ProviderConnectionCommandRepository;
+import com.mappo.controlplane.persistence.providerconnection.ProviderConnectionCommandRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

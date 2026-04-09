@@ -8,7 +8,7 @@ import com.mappo.controlplane.domain.providerconnection.ProviderConnectionProvid
 import com.mappo.controlplane.domain.secretreference.SecretReferenceProviderType;
 import com.mappo.controlplane.domain.secretreference.SecretReferenceUsageType;
 import com.mappo.controlplane.infrastructure.azure.auth.AzureKeyVaultSecretResolver;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsUrlNormalizer;
+import com.mappo.controlplane.integrations.azuredevops.common.AzureDevOpsUrlNormalizer;
 import com.mappo.controlplane.model.ProviderConnectionRecord;
 import com.mappo.controlplane.model.SecretReferenceRecord;
 import com.mappo.controlplane.service.secretreference.SecretReferenceCatalogService;
