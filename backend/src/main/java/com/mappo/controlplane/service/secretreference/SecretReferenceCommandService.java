@@ -4,7 +4,7 @@ import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.SecretReferenceCreateRequest;
 import com.mappo.controlplane.api.request.SecretReferencePatchRequest;
 import com.mappo.controlplane.model.SecretReferenceRecord;
-import com.mappo.controlplane.repository.SecretReferenceCommandRepository;
+import com.mappo.controlplane.persistence.secretreference.SecretReferenceCommandRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;

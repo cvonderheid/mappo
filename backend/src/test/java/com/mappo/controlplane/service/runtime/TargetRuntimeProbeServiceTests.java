@@ -10,7 +10,7 @@ import com.mappo.controlplane.domain.project.ProjectRuntimeHealthProviderType;
 import com.mappo.controlplane.jooq.enums.MappoRuntimeProbeStatus;
 import com.mappo.controlplane.model.TargetRuntimeProbeContextRecord;
 import com.mappo.controlplane.model.TargetRuntimeProbeRecord;
-import com.mappo.controlplane.repository.TargetRuntimeProbeContextRepository;
+import com.mappo.controlplane.persistence.target.TargetRuntimeProbeContextRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
 import java.util.List;

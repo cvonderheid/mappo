@@ -3,7 +3,7 @@ package com.mappo.controlplane.infrastructure.pipeline.ado;
 import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.domain.access.ResolvedTargetAccessContext;
 import com.mappo.controlplane.domain.execution.DeploymentDriver;
-import com.mappo.controlplane.domain.project.PipelineTriggerDriverConfig;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.config.PipelineTriggerDriverConfig;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
 import com.mappo.controlplane.domain.project.ProjectReleaseArtifactSourceType;

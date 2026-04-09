@@ -2,7 +2,7 @@ package com.mappo.controlplane.service.project;
 
 import com.mappo.controlplane.model.ProjectConfigurationAuditPageRecord;
 import com.mappo.controlplane.model.query.ProjectConfigurationAuditPageQuery;
-import com.mappo.controlplane.repository.ProjectConfigurationAuditRepository;
+import com.mappo.controlplane.persistence.project.ProjectConfigurationAuditRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

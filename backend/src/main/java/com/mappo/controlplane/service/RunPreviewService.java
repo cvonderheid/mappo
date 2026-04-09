@@ -12,7 +12,7 @@ import com.mappo.controlplane.model.StageErrorDetailsRecord;
 import com.mappo.controlplane.model.StageErrorRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import com.mappo.controlplane.model.TargetRecord;
-import com.mappo.controlplane.repository.TargetExecutionContextRepository;
+import com.mappo.controlplane.persistence.target.TargetExecutionContextRepository;
 import com.mappo.controlplane.service.run.DeploymentDriverRegistry;
 import com.mappo.controlplane.service.run.RunRequestContext;
 import com.mappo.controlplane.service.run.RunRequestResolverService;

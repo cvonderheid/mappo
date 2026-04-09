@@ -3,7 +3,7 @@ package com.mappo.controlplane.infrastructure.azure.templatespec;
 import com.mappo.controlplane.domain.access.AzureWorkloadRbacTargetAccessContext;
 import com.mappo.controlplane.domain.access.TargetAccessResolver;
 import com.mappo.controlplane.domain.access.TargetAccessValidation;
-import com.mappo.controlplane.domain.project.AzureWorkloadRbacAccessStrategyConfig;
+import com.mappo.controlplane.integrations.azure.access.config.AzureWorkloadRbacAccessStrategyConfig;
 import com.mappo.controlplane.domain.project.ProjectAccessStrategyType;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;

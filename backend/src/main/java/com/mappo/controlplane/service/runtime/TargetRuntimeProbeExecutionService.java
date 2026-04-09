@@ -4,7 +4,7 @@ import com.mappo.controlplane.domain.health.RuntimeHealthProvider;
 import com.mappo.controlplane.jooq.enums.MappoRuntimeProbeStatus;
 import com.mappo.controlplane.model.TargetRuntimeProbeContextRecord;
 import com.mappo.controlplane.model.TargetRuntimeProbeRecord;
-import com.mappo.controlplane.repository.TargetCommandRepository;
+import com.mappo.controlplane.persistence.target.TargetCommandRepository;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;

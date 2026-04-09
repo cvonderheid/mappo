@@ -2,7 +2,7 @@ package com.mappo.controlplane.service.secretreference;
 
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.model.SecretReferenceRecord;
-import com.mappo.controlplane.repository.SecretReferenceQueryRepository;
+import com.mappo.controlplane.persistence.secretreference.SecretReferenceQueryRepository;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;

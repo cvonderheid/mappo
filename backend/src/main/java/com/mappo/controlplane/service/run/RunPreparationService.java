@@ -1,7 +1,7 @@
 package com.mappo.controlplane.service.run;
 
 import com.mappo.controlplane.model.TargetRecord;
-import com.mappo.controlplane.repository.RunLifecycleCommandRepository;
+import com.mappo.controlplane.persistence.run.RunLifecycleCommandRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

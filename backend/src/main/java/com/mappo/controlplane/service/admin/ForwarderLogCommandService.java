@@ -4,7 +4,7 @@ import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ForwarderLogIngestRequest;
 import com.mappo.controlplane.jooq.enums.MappoMarketplaceEventStatus;
 import com.mappo.controlplane.model.ForwarderLogIngestResultRecord;
-import com.mappo.controlplane.repository.ForwarderLogCommandRepository;
+import com.mappo.controlplane.persistence.admin.ForwarderLogCommandRepository;
 import com.mappo.controlplane.service.TransactionHookService;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import lombok.RequiredArgsConstructor;

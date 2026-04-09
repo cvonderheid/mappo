@@ -8,10 +8,10 @@ import com.mappo.controlplane.model.query.ForwarderLogPageQuery;
 import com.mappo.controlplane.model.query.MarketplaceEventPageQuery;
 import com.mappo.controlplane.model.query.ReleaseWebhookDeliveryPageQuery;
 import com.mappo.controlplane.model.query.TargetRegistrationPageQuery;
-import com.mappo.controlplane.repository.ForwarderLogPageRepository;
-import com.mappo.controlplane.repository.MarketplaceEventPageRepository;
-import com.mappo.controlplane.repository.ReleaseWebhookRepository;
-import com.mappo.controlplane.repository.TargetRegistrationPageRepository;
+import com.mappo.controlplane.persistence.admin.ForwarderLogPageRepository;
+import com.mappo.controlplane.persistence.admin.MarketplaceEventPageRepository;
+import com.mappo.controlplane.persistence.release.ReleaseWebhookRepository;
+import com.mappo.controlplane.persistence.target.TargetRegistrationPageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

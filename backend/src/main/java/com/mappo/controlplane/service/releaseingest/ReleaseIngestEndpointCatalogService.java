@@ -2,7 +2,7 @@ package com.mappo.controlplane.service.releaseingest;
 
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
-import com.mappo.controlplane.repository.ReleaseIngestEndpointQueryRepository;
+import com.mappo.controlplane.persistence.releaseingest.ReleaseIngestEndpointQueryRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

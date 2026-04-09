@@ -2,8 +2,8 @@ package com.mappo.controlplane.service.run;
 
 import com.mappo.controlplane.jooq.enums.MappoRunStatus;
 import com.mappo.controlplane.model.RunExecutionCountsRecord;
-import com.mappo.controlplane.repository.RunExecutionStateRepository;
-import com.mappo.controlplane.repository.RunLifecycleCommandRepository;
+import com.mappo.controlplane.persistence.run.RunExecutionStateRepository;
+import com.mappo.controlplane.persistence.run.RunLifecycleCommandRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

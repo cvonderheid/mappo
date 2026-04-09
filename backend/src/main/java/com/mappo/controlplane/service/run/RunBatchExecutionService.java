@@ -3,7 +3,7 @@ package com.mappo.controlplane.service.run;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import com.mappo.controlplane.model.TargetRecord;
-import com.mappo.controlplane.repository.TargetCommandRepository;
+import com.mappo.controlplane.persistence.target.TargetCommandRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import com.mappo.controlplane.service.project.ProjectExecutionCapabilities;
 import java.util.ArrayList;

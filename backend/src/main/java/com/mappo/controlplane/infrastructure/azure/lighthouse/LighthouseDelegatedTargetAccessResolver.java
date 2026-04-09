@@ -3,7 +3,7 @@ package com.mappo.controlplane.infrastructure.azure.lighthouse;
 import com.mappo.controlplane.domain.access.LighthouseDelegatedTargetAccessContext;
 import com.mappo.controlplane.domain.access.TargetAccessResolver;
 import com.mappo.controlplane.domain.access.TargetAccessValidation;
-import com.mappo.controlplane.domain.project.LighthouseDelegatedAccessStrategyConfig;
+import com.mappo.controlplane.integrations.azure.access.config.LighthouseDelegatedAccessStrategyConfig;
 import com.mappo.controlplane.domain.project.ProjectAccessStrategyType;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.model.ReleaseRecord;

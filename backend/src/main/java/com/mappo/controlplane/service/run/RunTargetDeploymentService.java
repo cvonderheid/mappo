@@ -10,7 +10,7 @@ import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.StageErrorDetailsRecord;
 import com.mappo.controlplane.model.StageErrorRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
-import com.mappo.controlplane.repository.RunTargetCommandRepository;
+import com.mappo.controlplane.persistence.run.RunTargetCommandRepository;
 import java.util.Optional;
 import com.mappo.controlplane.service.project.ProjectExecutionCapabilities;
 import org.springframework.stereotype.Service;

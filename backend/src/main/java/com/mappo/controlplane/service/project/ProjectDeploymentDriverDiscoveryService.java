@@ -5,7 +5,7 @@ import com.mappo.controlplane.api.request.ProjectAdoBranchDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoPipelineDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoRepositoryDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoServiceConnectionDiscoveryRequest;
-import com.mappo.controlplane.domain.project.PipelineTriggerDriverConfig;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.config.PipelineTriggerDriverConfig;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
 import com.mappo.controlplane.integrations.azuredevops.discovery.AzureDevOpsDiscoveryException;

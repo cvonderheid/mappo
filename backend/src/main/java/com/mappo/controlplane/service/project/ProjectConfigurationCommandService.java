@@ -6,7 +6,7 @@ import com.mappo.controlplane.api.request.ProjectCreateRequest;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.model.ProjectConfigurationAuditAction;
 import com.mappo.controlplane.model.command.ProjectConfigurationAuditCommand;
-import com.mappo.controlplane.repository.ProjectConfigurationAuditRepository;
+import com.mappo.controlplane.persistence.project.ProjectConfigurationAuditRepository;
 import com.mappo.controlplane.persistence.project.ProjectCommandRepository;
 import com.mappo.controlplane.service.providerconnection.ProviderConnectionCatalogService;
 import com.mappo.controlplane.service.releaseingest.ReleaseIngestEndpointCatalogService;

@@ -2,7 +2,7 @@ package com.mappo.controlplane.service.runtime;
 
 import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.model.TargetRuntimeProbeContextRecord;
-import com.mappo.controlplane.repository.TargetRuntimeProbeContextRepository;
+import com.mappo.controlplane.persistence.target.TargetRuntimeProbeContextRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.util.List;
 import java.util.LinkedHashSet;

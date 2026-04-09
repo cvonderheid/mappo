@@ -4,7 +4,7 @@ import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.jooq.enums.MappoReleaseWebhookStatus;
 import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
 import com.mappo.controlplane.model.command.ReleaseWebhookDeliveryCommand;
-import com.mappo.controlplane.repository.ReleaseWebhookRepository;
+import com.mappo.controlplane.persistence.release.ReleaseWebhookRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

@@ -1,7 +1,7 @@
 package com.mappo.controlplane.infrastructure.azure.runtime;
 
 import com.mappo.controlplane.domain.health.TargetVerificationProvider;
-import com.mappo.controlplane.domain.project.AzureContainerAppHttpRuntimeHealthProviderConfig;
+import com.mappo.controlplane.integrations.azure.runtime.config.AzureContainerAppHttpRuntimeHealthProviderConfig;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectRuntimeHealthProviderType;
 import com.mappo.controlplane.config.MappoProperties;

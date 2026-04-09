@@ -2,7 +2,7 @@ package com.mappo.controlplane.service.providerconnection;
 
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ProviderConnectionVerifyRequest;
-import com.mappo.controlplane.domain.project.PipelineTriggerDriverConfig;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.config.PipelineTriggerDriverConfig;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.integrations.azuredevops.discovery.AzureDevOpsDiscoveryException;
 import com.mappo.controlplane.integrations.azuredevops.discovery.AzureDevOpsDiscoveryGateway;

@@ -5,7 +5,7 @@ import com.mappo.controlplane.model.RunDetailRecord;
 import com.mappo.controlplane.model.RunExecutionCountsRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import com.mappo.controlplane.model.TargetRecord;
-import com.mappo.controlplane.repository.RunExecutionStateRepository;
+import com.mappo.controlplane.persistence.run.RunExecutionStateRepository;
 import com.mappo.controlplane.service.project.ProjectExecutionCapabilities;
 import java.util.List;
 import java.util.Map;

@@ -5,7 +5,7 @@ import com.mappo.controlplane.api.request.ReleaseCreateRequest;
 import com.mappo.controlplane.api.request.ReleaseExecutionSettingsRequest;
 import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.domain.project.BuiltinProjects;
-import com.mappo.controlplane.domain.project.PipelineTriggerDriverConfig;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.config.PipelineTriggerDriverConfig;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
 import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;

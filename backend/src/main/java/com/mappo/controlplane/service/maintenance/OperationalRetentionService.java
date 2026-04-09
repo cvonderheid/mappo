@@ -1,7 +1,7 @@
 package com.mappo.controlplane.service.maintenance;
 
 import com.mappo.controlplane.config.MappoProperties;
-import com.mappo.controlplane.repository.OperationalRetentionRepository;
+import com.mappo.controlplane.persistence.maintenance.OperationalRetentionRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;

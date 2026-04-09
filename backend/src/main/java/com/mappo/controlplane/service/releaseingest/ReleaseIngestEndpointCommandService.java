@@ -4,7 +4,7 @@ import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ReleaseIngestEndpointCreateRequest;
 import com.mappo.controlplane.api.request.ReleaseIngestEndpointPatchRequest;
 import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
-import com.mappo.controlplane.repository.ReleaseIngestEndpointCommandRepository;
+import com.mappo.controlplane.persistence.releaseingest.ReleaseIngestEndpointCommandRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;

@@ -2,9 +2,9 @@ package com.mappo.controlplane.infrastructure.pipeline.ado;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.mappo.controlplane.domain.project.AzureWorkloadRbacAccessStrategyConfig;
-import com.mappo.controlplane.domain.project.ExternalDeploymentInputsArtifactSourceConfig;
-import com.mappo.controlplane.domain.project.PipelineTriggerDriverConfig;
+import com.mappo.controlplane.integrations.azure.access.config.AzureWorkloadRbacAccessStrategyConfig;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.config.ExternalDeploymentInputsArtifactSourceConfig;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.config.PipelineTriggerDriverConfig;
 import com.mappo.controlplane.domain.project.ProjectAccessStrategyType;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;

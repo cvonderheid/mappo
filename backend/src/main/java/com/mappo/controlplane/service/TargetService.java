@@ -2,7 +2,7 @@ package com.mappo.controlplane.service;
 
 import com.mappo.controlplane.model.TargetPageRecord;
 import com.mappo.controlplane.model.query.TargetPageQuery;
-import com.mappo.controlplane.repository.TargetPageQueryRepository;
+import com.mappo.controlplane.persistence.target.TargetPageQueryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

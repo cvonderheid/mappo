@@ -3,7 +3,7 @@ package com.mappo.controlplane.service.run;
 import com.mappo.controlplane.jooq.enums.MappoForwarderLogLevel;
 import com.mappo.controlplane.jooq.enums.MappoTargetStage;
 import com.mappo.controlplane.model.StageErrorRecord;
-import com.mappo.controlplane.repository.RunTargetCommandRepository;
+import com.mappo.controlplane.persistence.run.RunTargetCommandRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
