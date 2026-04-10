@@ -1,4 +1,4 @@
-package com.mappo.controlplane.service.release;
+package com.mappo.controlplane.integrations.github.release;
 
 import java.util.List;
 

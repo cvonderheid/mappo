@@ -1,4 +1,4 @@
-package com.mappo.controlplane.service.release;
+package com.mappo.controlplane.integrations.azuredevops.release;
 
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ReleaseCreateRequest;
@@ -15,6 +15,9 @@ import com.mappo.controlplane.jooq.enums.MappoReleaseWebhookStatus;
 import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
 import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
 import com.mappo.controlplane.service.project.ProjectCatalogService;
+import com.mappo.controlplane.service.release.ParsedReleaseManifest;
+import com.mappo.controlplane.service.release.ReleaseWebhookAuditService;
+import com.mappo.controlplane.service.release.ReleaseManifestApplyService;
 import com.mappo.controlplane.service.releaseingest.ReleaseIngestEndpointCatalogService;
 import com.mappo.controlplane.service.releaseingest.ReleaseIngestSecretResolver;
 import java.nio.charset.StandardCharsets;
@@ -29,12 +32,12 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class AzureDevOpsReleaseWebhookService {
+public class AzureDevOpsReleaseWebhookHandlerImpl implements com.mappo.controlplane.application.release.AzureDevOpsReleaseWebhookHandler {
 
     private final AzureDevOpsReleaseWebhookPayloadService payloadService;
     private final ProjectCatalogService projectCatalogService;
-    private final ReleaseWebhookAuditService releaseWebhookAuditService;
-    private final ReleaseManifestApplyService releaseManifestApplyService;
+    private final com.mappo.controlplane.service.release.ReleaseWebhookAuditService releaseWebhookAuditService;
+    private final com.mappo.controlplane.service.release.ReleaseManifestApplyService releaseManifestApplyService;
     private final ReleaseIngestEndpointCatalogService releaseIngestEndpointCatalogService;
     private final ReleaseIngestSecretResolver releaseIngestSecretResolver;
     private final MappoProperties properties;

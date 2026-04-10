@@ -1,6 +1,7 @@
-package com.mappo.controlplane.service.release;
+package com.mappo.controlplane.integrations.github.release;
 
 import com.mappo.controlplane.api.ApiException;
+import com.mappo.controlplane.service.release.ReleaseManifestDocumentReader;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;

@@ -1,13 +1,19 @@
-package com.mappo.controlplane.service.release;
+package com.mappo.controlplane.integrations.github.release;
 
 import com.mappo.controlplane.api.ApiException;
+import com.mappo.controlplane.application.release.GithubReleaseWebhookHandler;
 import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;
 import com.mappo.controlplane.jooq.enums.MappoReleaseWebhookStatus;
 import com.mappo.controlplane.model.ReleaseIngestLinkedProjectRecord;
 import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
+import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
+import com.mappo.controlplane.service.release.ParsedReleaseManifest;
+import com.mappo.controlplane.service.release.ReleaseManifestApplyService;
+import com.mappo.controlplane.service.release.ReleaseManifestParser;
+import com.mappo.controlplane.service.release.ReleaseManifestSourceClient;
+import com.mappo.controlplane.service.release.ReleaseWebhookAuditService;
 import com.mappo.controlplane.service.releaseingest.ReleaseIngestEndpointCatalogService;
 import com.mappo.controlplane.service.releaseingest.ReleaseIngestSecretResolver;
-import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -17,7 +23,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class GithubReleaseWebhookService {
+public class GithubReleaseWebhookHandlerImpl implements GithubReleaseWebhookHandler {
 
     private final GithubWebhookDecisionService githubWebhookDecisionService;
     private final GithubWebhookSignatureService githubWebhookSignatureService;

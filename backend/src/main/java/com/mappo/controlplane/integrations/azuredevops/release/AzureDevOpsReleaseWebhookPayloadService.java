@@ -1,5 +1,6 @@
-package com.mappo.controlplane.service.release;
+package com.mappo.controlplane.integrations.azuredevops.release;
 
+import com.mappo.controlplane.service.release.ReleaseManifestDocumentReader;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 
