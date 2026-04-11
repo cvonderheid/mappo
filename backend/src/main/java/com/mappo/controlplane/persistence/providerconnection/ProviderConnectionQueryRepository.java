@@ -5,7 +5,6 @@ import static com.mappo.controlplane.jooq.Tables.PROVIDER_CONNECTION_ADO_PROJECT
 import static com.mappo.controlplane.jooq.Tables.PROVIDER_CONNECTIONS;
 
 import com.mappo.controlplane.domain.providerconnection.ProviderConnectionProviderType;
-import com.mappo.controlplane.integrations.azuredevops.common.AzureDevOpsUrlNormalizer;
 import com.mappo.controlplane.jooq.enums.MappoReleaseIngestProvider;
 import com.mappo.controlplane.model.ProviderConnectionAdoProjectRecord;
 import com.mappo.controlplane.model.ProviderConnectionLinkedProjectRecord;
@@ -200,9 +199,7 @@ public class ProviderConnectionQueryRepository {
             row.get(PROVIDER_CONNECTIONS.NAME),
             providerType,
             Boolean.TRUE.equals(row.get(PROVIDER_CONNECTIONS.ENABLED)),
-            providerType == ProviderConnectionProviderType.azure_devops
-                ? AzureDevOpsUrlNormalizer.normalizeOrganizationUrl(row.get(PROVIDER_CONNECTIONS.ORGANIZATION_FILTER), "https://dev.azure.com")
-                : "",
+            normalize(row.get(PROVIDER_CONNECTIONS.ORGANIZATION_FILTER)),
             row.get(PROVIDER_CONNECTIONS.PERSONAL_ACCESS_TOKEN_REF),
             discoveredProjects,
             linkedProjects,

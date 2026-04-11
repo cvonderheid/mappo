@@ -1,8 +1,8 @@
 package com.mappo.controlplane.service.providerconnection;
 
+import com.mappo.controlplane.application.providerconnection.ProviderConnectionDefaultSecretReferences;
 import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.domain.providerconnection.ProviderConnectionProviderType;
-import com.mappo.controlplane.infrastructure.azure.auth.AzureKeyVaultSecretResolver;
 import com.mappo.controlplane.model.ProviderConnectionRecord;
 import com.mappo.controlplane.service.secretreference.SecretReferenceResolver;
 import lombok.RequiredArgsConstructor;
@@ -12,10 +12,10 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ProviderConnectionSecretResolver {
 
-    public static final String AZURE_DEVOPS_PAT_SECRET_REF = "mappo.azure-devops.personal-access-token";
+    public static final String AZURE_DEVOPS_PAT_SECRET_REF =
+        ProviderConnectionDefaultSecretReferences.AZURE_DEVOPS_PAT_SECRET_REF;
 
     private final MappoProperties properties;
-    private final AzureKeyVaultSecretResolver keyVaultSecretResolver;
     private final SecretReferenceResolver secretReferenceResolver;
 
     public String defaultPersonalAccessTokenRef(ProviderConnectionProviderType provider) {
@@ -49,17 +49,7 @@ public class ProviderConnectionSecretResolver {
         if (AZURE_DEVOPS_PAT_SECRET_REF.equals(reference)) {
             return normalize(properties.getAzureDevOps().getPersonalAccessToken());
         }
-        if (reference.startsWith("env:")) {
-            String envVarName = normalize(reference.substring("env:".length()));
-            if (envVarName.isBlank()) {
-                return "";
-            }
-            return normalize(System.getenv(envVarName));
-        }
-        if (reference.startsWith(AzureKeyVaultSecretResolver.KEY_VAULT_PREFIX)) {
-            return keyVaultSecretResolver.resolve(reference);
-        }
-        return "";
+        return secretReferenceResolver.resolveDynamicSecretValue(reference);
     }
 
     private String normalize(Object value) {

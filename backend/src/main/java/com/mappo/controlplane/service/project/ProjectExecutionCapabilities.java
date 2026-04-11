@@ -9,6 +9,7 @@ import java.util.Optional;
 
 public record ProjectExecutionCapabilities(
     ProjectDefinition project,
+    boolean runtimeConfigured,
     DeploymentDriverCapabilities deploymentDriverCapabilities,
     TargetAccessResolver targetAccessResolver,
     Optional<DeploymentDriver> deploymentDriver,

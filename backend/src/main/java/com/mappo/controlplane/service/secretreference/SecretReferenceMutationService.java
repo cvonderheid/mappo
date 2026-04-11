@@ -3,13 +3,12 @@ package com.mappo.controlplane.service.secretreference;
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.SecretReferenceCreateRequest;
 import com.mappo.controlplane.api.request.SecretReferencePatchRequest;
+import com.mappo.controlplane.application.releaseingest.ReleaseIngestDefaultSecretReferences;
 import com.mappo.controlplane.domain.secretreference.SecretReferenceModeType;
 import com.mappo.controlplane.domain.secretreference.SecretReferenceProviderType;
 import com.mappo.controlplane.domain.secretreference.SecretReferenceUsageType;
-import com.mappo.controlplane.infrastructure.azure.auth.AzureKeyVaultSecretResolver;
 import com.mappo.controlplane.model.SecretReferenceRecord;
 import com.mappo.controlplane.service.providerconnection.ProviderConnectionSecretResolver;
-import com.mappo.controlplane.service.releaseingest.ReleaseIngestSecretResolver;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -84,13 +83,13 @@ public class SecretReferenceMutationService {
                 if (normalized.isBlank()) {
                     throw new ApiException(HttpStatus.BAD_REQUEST, "Azure Key Vault secret name is required");
                 }
-                String secretName = normalized.startsWith(AzureKeyVaultSecretResolver.KEY_VAULT_PREFIX)
-                    ? normalize(normalized.substring(AzureKeyVaultSecretResolver.KEY_VAULT_PREFIX.length()))
+                String secretName = normalized.startsWith(SecretReferenceResolver.KEY_VAULT_REFERENCE_PREFIX)
+                    ? normalize(normalized.substring(SecretReferenceResolver.KEY_VAULT_REFERENCE_PREFIX.length()))
                     : normalized;
                 if (secretName.isBlank()) {
                     throw new ApiException(HttpStatus.BAD_REQUEST, "Azure Key Vault secret name is required");
                 }
-                yield AzureKeyVaultSecretResolver.KEY_VAULT_PREFIX + secretName;
+                yield SecretReferenceResolver.KEY_VAULT_REFERENCE_PREFIX + secretName;
             }
         };
     }
@@ -100,10 +99,10 @@ public class SecretReferenceMutationService {
             return ProviderConnectionSecretResolver.AZURE_DEVOPS_PAT_SECRET_REF;
         }
         if (usage == SecretReferenceUsageType.webhook_verification && provider == SecretReferenceProviderType.azure_devops) {
-            return ReleaseIngestSecretResolver.AZURE_DEVOPS_SECRET_REF;
+            return ReleaseIngestDefaultSecretReferences.AZURE_DEVOPS_WEBHOOK_SECRET_REF;
         }
         if (usage == SecretReferenceUsageType.webhook_verification && provider == SecretReferenceProviderType.github) {
-            return ReleaseIngestSecretResolver.GITHUB_SECRET_REF;
+            return ReleaseIngestDefaultSecretReferences.GITHUB_WEBHOOK_SECRET_REF;
         }
         throw new ApiException(
             HttpStatus.BAD_REQUEST,

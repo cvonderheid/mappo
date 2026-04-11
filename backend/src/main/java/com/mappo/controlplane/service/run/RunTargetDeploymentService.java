@@ -2,17 +2,19 @@ package com.mappo.controlplane.service.run;
 
 import com.mappo.controlplane.domain.access.ResolvedTargetAccessContext;
 import com.mappo.controlplane.domain.execution.DeploymentDriver;
+import com.mappo.controlplane.domain.execution.TargetDeploymentException;
+import com.mappo.controlplane.domain.execution.TargetDeploymentOutcome;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
-import com.mappo.controlplane.model.ExternalExecutionHandleRecord;
 import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
 import com.mappo.controlplane.jooq.enums.MappoTargetStage;
+import com.mappo.controlplane.model.ExternalExecutionHandleRecord;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.StageErrorDetailsRecord;
 import com.mappo.controlplane.model.StageErrorRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import com.mappo.controlplane.persistence.run.RunTargetCommandRepository;
-import java.util.Optional;
 import com.mappo.controlplane.service.project.ProjectExecutionCapabilities;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -38,7 +40,7 @@ public class RunTargetDeploymentService {
         ReleaseRecord release,
         TargetExecutionContextRecord context,
         ResolvedTargetAccessContext accessContext,
-        boolean azureConfigured
+        boolean runtimeConfigured
     ) {
         var start = runTargetStageService.beginStage(
             runId,
@@ -49,7 +51,7 @@ public class RunTargetDeploymentService {
         );
 
         try {
-            TargetDeploymentOutcome outcome = deployOutcome(runId, capabilities, release, context, accessContext, azureConfigured);
+            TargetDeploymentOutcome outcome = deployOutcome(runId, capabilities, release, context, accessContext, runtimeConfigured);
             persistExternalExecutionHandle(runId, context.targetId(), outcome.externalExecutionHandle());
             var completion = new RunTargetStageService.StageStart(outcome.correlationId(), start.startedAt());
             runTargetStageService.completeStage(
@@ -113,7 +115,7 @@ public class RunTargetDeploymentService {
         ReleaseRecord release,
         TargetExecutionContextRecord context,
         ResolvedTargetAccessContext accessContext,
-        boolean azureConfigured
+        boolean runtimeConfigured
     ) {
         Optional<DeploymentDriver> driver = capabilities.deploymentDriver();
         if (driver.isPresent()) {

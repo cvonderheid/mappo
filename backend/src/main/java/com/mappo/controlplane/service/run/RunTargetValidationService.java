@@ -35,7 +35,7 @@ public class RunTargetValidationService {
         ReleaseRecord release,
         TargetRecord target,
         TargetExecutionContextRecord context,
-        boolean azureConfigured
+        boolean runtimeConfigured
     ) {
         var start = runTargetStageService.beginStage(
             runId,
@@ -45,7 +45,7 @@ public class RunTargetValidationService {
             "Validating started."
         );
 
-        if (runExecutionPolicyService.isSimulatorMode(capabilities.project(), release, azureConfigured)
+        if (runExecutionPolicyService.isSimulatorMode(capabilities.project(), release, runtimeConfigured)
             && context.simulatedFailureMode() == MappoSimulatedFailureMode.validate_once) {
             runTargetStageService.failStage(
                 runId,
@@ -79,7 +79,7 @@ public class RunTargetValidationService {
         }
 
         TargetAccessValidation validation = capabilities.targetAccessResolver()
-            .validate(capabilities.project(), release, target, context, azureConfigured);
+            .validate(capabilities.project(), release, target, context, runtimeConfigured);
         if (!validation.valid()) {
             runTargetStageService.failStage(
                 runId,

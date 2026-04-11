@@ -17,15 +17,18 @@ public class ProjectExecutionCapabilityResolver {
     private final TargetAccessResolverRegistry targetAccessResolverRegistry;
     private final DeploymentDriverRegistry deploymentDriverRegistry;
     private final ProjectDeploymentDriverConfigRegistry deploymentDriverConfigRegistry;
+    private final ProjectRuntimeReadinessResolver projectRuntimeReadinessResolver;
 
-    public ProjectExecutionCapabilities resolve(ReleaseRecord release, boolean azureConfigured) {
+    public ProjectExecutionCapabilities resolve(ReleaseRecord release) {
         var project = projectDefinitionResolver.resolve(release);
-        var deploymentDriver = deploymentDriverRegistry.findDriver(project, release, azureConfigured);
-        var previewDriver = deploymentDriverRegistry.findPreviewDriver(project, release, azureConfigured);
+        boolean runtimeConfigured = projectRuntimeReadinessResolver.isRuntimeConfigured(project);
+        var deploymentDriver = deploymentDriverRegistry.findDriver(project, release, runtimeConfigured);
+        var previewDriver = deploymentDriverRegistry.findPreviewDriver(project, release, runtimeConfigured);
         return new ProjectExecutionCapabilities(
             project,
+            runtimeConfigured,
             resolveDriverCapabilities(project, deploymentDriver.isPresent(), previewDriver.map(driver -> driver.mode()).orElse(RunPreviewMode.UNSUPPORTED)),
-            targetAccessResolverRegistry.getResolver(project, release, azureConfigured),
+            targetAccessResolverRegistry.getResolver(project, release, runtimeConfigured),
             deploymentDriver,
             previewDriver
         );

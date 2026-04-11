@@ -20,17 +20,17 @@ public class DeploymentDriverRegistry {
     private final Map<String, DeploymentPreviewDriver> previewDrivers;
     private final ConfigurableListableBeanFactory beanFactory;
 
-    public Optional<DeploymentDriver> findDriver(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
+    public Optional<DeploymentDriver> findDriver(ProjectDefinition project, ReleaseRecord release, boolean runtimeConfigured) {
         return deploymentDrivers.entrySet().stream()
-            .filter(entry -> entry.getValue().supports(project, release, azureConfigured))
+            .filter(entry -> entry.getValue().supports(project, release, runtimeConfigured))
             .sorted(driverComparator())
             .map(Map.Entry::getValue)
             .findFirst();
     }
 
-    public Optional<DeploymentPreviewDriver> findPreviewDriver(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
+    public Optional<DeploymentPreviewDriver> findPreviewDriver(ProjectDefinition project, ReleaseRecord release, boolean runtimeConfigured) {
         return previewDrivers.entrySet().stream()
-            .filter(entry -> entry.getValue().supports(project, release, azureConfigured))
+            .filter(entry -> entry.getValue().supports(project, release, runtimeConfigured))
             .sorted(driverComparator())
             .map(Map.Entry::getValue)
             .findFirst();

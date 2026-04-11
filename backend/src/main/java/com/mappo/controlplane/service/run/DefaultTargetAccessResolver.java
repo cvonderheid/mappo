@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 public class DefaultTargetAccessResolver implements TargetAccessResolver {
 
     @Override
-    public boolean supports(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
+    public boolean supports(ProjectDefinition project, ReleaseRecord release, boolean runtimeConfigured) {
         return true;
     }
 
@@ -27,7 +27,7 @@ public class DefaultTargetAccessResolver implements TargetAccessResolver {
         ReleaseRecord release,
         TargetRecord target,
         TargetExecutionContextRecord context,
-        boolean azureConfigured
+        boolean runtimeConfigured
     ) {
         if (context == null) {
             return TargetAccessValidation.failure(

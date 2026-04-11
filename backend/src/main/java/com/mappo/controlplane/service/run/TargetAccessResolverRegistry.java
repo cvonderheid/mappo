@@ -23,10 +23,10 @@ public class TargetAccessResolverRegistry {
     public TargetAccessResolver getResolver(
         ProjectDefinition project,
         ReleaseRecord release,
-        boolean azureConfigured
+        boolean runtimeConfigured
     ) {
         return resolvers.entrySet().stream()
-            .filter(entry -> entry.getValue().supports(project, release, azureConfigured))
+            .filter(entry -> entry.getValue().supports(project, release, runtimeConfigured))
             .sorted(resolverComparator())
             .map(Map.Entry::getValue)
             .findFirst()
@@ -38,10 +38,10 @@ public class TargetAccessResolverRegistry {
         ReleaseRecord release,
         TargetRecord target,
         TargetExecutionContextRecord context,
-        boolean azureConfigured
+        boolean runtimeConfigured
     ) {
-        return getResolver(project, release, azureConfigured)
-            .validate(project, release, target, context, azureConfigured);
+        return getResolver(project, release, runtimeConfigured)
+            .validate(project, release, target, context, runtimeConfigured);
     }
 
     private Comparator<Map.Entry<String, TargetAccessResolver>> resolverComparator() {

@@ -13,7 +13,7 @@ public interface TargetVerificationProvider {
         ReleaseRecord release,
         TargetRecord target,
         TargetExecutionContextRecord context,
-        boolean azureConfigured
+        boolean runtimeConfigured
     );
 
     TargetVerificationResultRecord verify(
@@ -21,6 +21,6 @@ public interface TargetVerificationProvider {
         ReleaseRecord release,
         TargetRecord target,
         TargetExecutionContextRecord context,
-        boolean azureConfigured
+        boolean runtimeConfigured
     );
 }

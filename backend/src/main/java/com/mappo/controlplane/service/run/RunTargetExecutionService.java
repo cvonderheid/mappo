@@ -38,7 +38,7 @@ public class RunTargetExecutionService {
         ReleaseRecord release,
         TargetRecord target,
         TargetExecutionContextRecord context,
-        boolean azureConfigured
+        boolean runtimeConfigured
     ) {
         if (context == null) {
             return runTargetValidationService.failMissingContext(
@@ -55,7 +55,7 @@ public class RunTargetExecutionService {
             release,
             target,
             context,
-            azureConfigured
+            runtimeConfigured
         );
         if (!validation.valid()) {
             return false;
@@ -67,13 +67,13 @@ public class RunTargetExecutionService {
             release,
             context,
             validation.accessContext(),
-            azureConfigured
+            runtimeConfigured
         );
         if (!deployment.succeeded()) {
             return false;
         }
 
-        if (!runTargetVerificationService.verify(runId, capabilities, release, target, context, azureConfigured)) {
+        if (!runTargetVerificationService.verify(runId, capabilities, release, target, context, runtimeConfigured)) {
             return false;
         }
 

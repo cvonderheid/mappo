@@ -1,8 +1,7 @@
 package com.mappo.controlplane.service.releaseingest;
 
-import com.mappo.controlplane.config.MappoProperties;
+import com.mappo.controlplane.application.releaseingest.ReleaseIngestProviderDescriptor;
 import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;
-import com.mappo.controlplane.infrastructure.azure.auth.AzureKeyVaultSecretResolver;
 import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
 import com.mappo.controlplane.service.secretreference.SecretReferenceResolver;
 import lombok.RequiredArgsConstructor;
@@ -12,11 +11,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ReleaseIngestSecretResolver {
 
-    public static final String GITHUB_SECRET_REF = "mappo.managed-app-release.webhook-secret";
-    public static final String AZURE_DEVOPS_SECRET_REF = "mappo.azure-devops.webhook-secret";
-
-    private final MappoProperties properties;
-    private final AzureKeyVaultSecretResolver keyVaultSecretResolver;
+    private final ReleaseIngestProviderDescriptorRegistry releaseIngestProviderDescriptorRegistry;
     private final SecretReferenceResolver secretReferenceResolver;
 
     public String resolveConfiguredSecret(ReleaseIngestEndpointRecord endpoint) {
@@ -28,35 +23,22 @@ public class ReleaseIngestSecretResolver {
 
     public String resolveConfiguredSecret(ReleaseIngestProviderType provider, String secretRef) {
         ReleaseIngestProviderType normalizedProvider = provider == null ? ReleaseIngestProviderType.github : provider;
+        ReleaseIngestProviderDescriptor descriptor = releaseIngestProviderDescriptorRegistry.getRequired(normalizedProvider);
         String reference = normalize(secretRef);
         if (reference.isBlank()) {
-            reference = defaultSecretReference(normalizedProvider);
+            reference = descriptor.defaultSecretReference();
         }
         reference = secretReferenceResolver.resolveBackendReference(reference);
-        if (GITHUB_SECRET_REF.equals(reference)) {
-            return normalize(properties.getManagedAppRelease().getWebhookSecret());
+        String runtimeSecret = descriptor.resolveRuntimeSecret(reference);
+        if (!runtimeSecret.isBlank()) {
+            return runtimeSecret;
         }
-        if (AZURE_DEVOPS_SECRET_REF.equals(reference)) {
-            return normalize(properties.getAzureDevOps().getWebhookSecret());
-        }
-        if (reference.startsWith("env:")) {
-            String envVarName = normalize(reference.substring("env:".length()));
-            if (envVarName.isBlank()) {
-                return "";
-            }
-            return normalize(System.getenv(envVarName));
-        }
-        if (reference.startsWith(AzureKeyVaultSecretResolver.KEY_VAULT_PREFIX)) {
-            return keyVaultSecretResolver.resolve(reference);
-        }
-        return "";
+        return secretReferenceResolver.resolveDynamicSecretValue(reference);
     }
 
     public String defaultSecretReference(ReleaseIngestProviderType provider) {
-        if (provider == ReleaseIngestProviderType.azure_devops) {
-            return AZURE_DEVOPS_SECRET_REF;
-        }
-        return GITHUB_SECRET_REF;
+        ReleaseIngestProviderType normalizedProvider = provider == null ? ReleaseIngestProviderType.github : provider;
+        return releaseIngestProviderDescriptorRegistry.getRequired(normalizedProvider).defaultSecretReference();
     }
 
     private String normalize(Object value) {

@@ -11,16 +11,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineClient;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsBranchDefinitionRecord;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsBranchDiscoveryInputs;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDefinitionRecord;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDiscoveryInputs;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineInputs;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsProjectDefinitionRecord;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineRunRecord;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsRepositoryDefinitionRecord;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsServiceConnectionDefinitionRecord;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsPipelineClient;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsBranchDefinitionRecord;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsBranchDiscoveryInputs;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsPipelineDefinitionRecord;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsPipelineDiscoveryInputs;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsPipelineInputs;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsProjectDefinitionRecord;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsPipelineRunRecord;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsRepositoryDefinitionRecord;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsServiceConnectionDefinitionRecord;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;

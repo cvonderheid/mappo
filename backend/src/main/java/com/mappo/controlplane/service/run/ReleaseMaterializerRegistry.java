@@ -22,11 +22,11 @@ public class ReleaseMaterializerRegistry {
         ProjectDefinition project,
         ReleaseRecord release,
         TargetExecutionContextRecord target,
-        boolean azureConfigured,
+        boolean runtimeConfigured,
         Class<T> expectedType
     ) {
         ReleaseMaterializer<?> materializer = materializers.entrySet().stream()
-            .filter(entry -> entry.getValue().supports(project, release, azureConfigured))
+            .filter(entry -> entry.getValue().supports(project, release, runtimeConfigured))
             .filter(entry -> expectedType.isAssignableFrom(entry.getValue().materializedType()))
             .sorted(materializerComparator())
             .map(Map.Entry::getValue)

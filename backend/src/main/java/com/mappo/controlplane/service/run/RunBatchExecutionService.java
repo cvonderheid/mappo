@@ -30,7 +30,7 @@ public class RunBatchExecutionService {
         ReleaseRecord release,
         List<TargetRecord> batch,
         Map<String, TargetExecutionContextRecord> contextsByTarget,
-        boolean azureConfigured
+        boolean runtimeConfigured
     ) {
         List<Future<TargetRunResult>> futures = new ArrayList<>(batch.size());
         for (TargetRecord target : batch) {
@@ -40,7 +40,7 @@ public class RunBatchExecutionService {
                 release,
                 target,
                 contextsByTarget.get(target.id()),
-                azureConfigured
+                runtimeConfigured
             )));
         }
 
@@ -66,7 +66,7 @@ public class RunBatchExecutionService {
         ReleaseRecord release,
         TargetRecord target,
         TargetExecutionContextRecord context,
-        boolean azureConfigured
+        boolean runtimeConfigured
     ) {
         boolean succeeded = runTargetExecutionService.executeTarget(
             runId,
@@ -74,7 +74,7 @@ public class RunBatchExecutionService {
             release,
             target,
             context,
-            azureConfigured
+            runtimeConfigured
         );
         return new TargetRunResult(target.id(), succeeded);
     }

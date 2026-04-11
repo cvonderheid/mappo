@@ -30,14 +30,14 @@ public class RunExecutionContextResolver {
     private final TargetExecutionContextRepository targetExecutionContextRepository;
     private final ProjectExecutionCapabilityResolver projectExecutionCapabilityResolver;
 
-    public RunExecutionContext resolve(String runId, boolean azureConfigured) {
+    public RunExecutionContext resolve(String runId) {
         RunDetailRecord run = runDetailQueryRepository.getRunDetail(runId)
             .orElseThrow(() -> new IllegalStateException("run not found: " + runId));
 
         ReleaseRecord release = releaseQueryRepository.getRelease(run.releaseId())
             .orElseThrow(() -> new IllegalStateException("release not found: " + run.releaseId()));
 
-        ProjectExecutionCapabilities capabilities = projectExecutionCapabilityResolver.resolve(release, azureConfigured);
+        ProjectExecutionCapabilities capabilities = projectExecutionCapabilityResolver.resolve(release);
         List<String> queuedTargetIds = runExecutionStateRepository.listTargetIdsByStatuses(
             runId,
             List.of(MappoTargetStage.QUEUED)

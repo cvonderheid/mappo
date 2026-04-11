@@ -24,8 +24,9 @@ public class RunExecutionService {
     private final RunBatchExecutionService runBatchExecutionService;
     private final RunCompletionService runCompletionService;
 
-    public void executeRun(String runId, boolean azureConfigured) {
-        RunExecutionContext context = runExecutionContextResolver.resolve(runId, azureConfigured);
+    public void executeRun(String runId) {
+        RunExecutionContext context = runExecutionContextResolver.resolve(runId);
+        boolean runtimeConfigured = context.capabilities().runtimeConfigured();
         RunDetailRecord run = context.run();
         String projectId = context.release().projectId();
         if (run.status() != com.mappo.controlplane.jooq.enums.MappoRunStatus.running) {
@@ -34,7 +35,7 @@ public class RunExecutionService {
         }
 
         runPreparationService.failMissingTargets(context);
-        runPreparationService.persistWarnings(context, azureConfigured);
+        runPreparationService.persistWarnings(context, runtimeConfigured);
         runCompletionService.publishRunChange(projectId, runId);
 
         String haltReason = null;
@@ -53,7 +54,7 @@ public class RunExecutionService {
                     context.release(),
                     batch,
                     context.executionContextsByTarget(),
-                    azureConfigured
+                    runtimeConfigured
                 );
                 RunExecutionCountsRecord counts = runExecutionStateRepository.getExecutionCounts(runId);
                 haltReason = runExecutionPolicyService.haltReasonFor(

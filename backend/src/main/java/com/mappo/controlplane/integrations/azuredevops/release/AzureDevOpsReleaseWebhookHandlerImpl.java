@@ -3,12 +3,14 @@ package com.mappo.controlplane.integrations.azuredevops.release;
 import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ReleaseCreateRequest;
 import com.mappo.controlplane.api.request.ReleaseExecutionSettingsRequest;
+import com.mappo.controlplane.application.release.ReleaseWebhookHandler;
+import com.mappo.controlplane.application.release.ReleaseWebhookRequest;
 import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.domain.project.BuiltinProjects;
-import com.mappo.controlplane.integrations.azuredevops.pipeline.config.PipelineTriggerDriverConfig;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
 import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.config.PipelineTriggerDriverConfig;
 import com.mappo.controlplane.jooq.enums.MappoDeploymentScope;
 import com.mappo.controlplane.jooq.enums.MappoReleaseSourceType;
 import com.mappo.controlplane.jooq.enums.MappoReleaseWebhookStatus;
@@ -16,8 +18,8 @@ import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
 import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
 import com.mappo.controlplane.service.project.ProjectCatalogService;
 import com.mappo.controlplane.service.release.ParsedReleaseManifest;
-import com.mappo.controlplane.service.release.ReleaseWebhookAuditService;
 import com.mappo.controlplane.service.release.ReleaseManifestApplyService;
+import com.mappo.controlplane.service.release.ReleaseWebhookAuditService;
 import com.mappo.controlplane.service.releaseingest.ReleaseIngestEndpointCatalogService;
 import com.mappo.controlplane.service.releaseingest.ReleaseIngestSecretResolver;
 import java.nio.charset.StandardCharsets;
@@ -32,44 +34,30 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class AzureDevOpsReleaseWebhookHandlerImpl implements com.mappo.controlplane.application.release.AzureDevOpsReleaseWebhookHandler {
+public class AzureDevOpsReleaseWebhookHandlerImpl implements ReleaseWebhookHandler {
 
     private final AzureDevOpsReleaseWebhookPayloadService payloadService;
     private final ProjectCatalogService projectCatalogService;
-    private final com.mappo.controlplane.service.release.ReleaseWebhookAuditService releaseWebhookAuditService;
-    private final com.mappo.controlplane.service.release.ReleaseManifestApplyService releaseManifestApplyService;
+    private final ReleaseWebhookAuditService releaseWebhookAuditService;
+    private final ReleaseManifestApplyService releaseManifestApplyService;
     private final ReleaseIngestEndpointCatalogService releaseIngestEndpointCatalogService;
     private final ReleaseIngestSecretResolver releaseIngestSecretResolver;
     private final MappoProperties properties;
 
-    public ReleaseManifestIngestResultRecord handle(
-        String rawPayload,
-        String eventTypeHeader,
-        String deliveryIdHeader,
-        String authorizationHeader,
-        String queryToken,
-        String projectId
-    ) {
-        return handle(
-            null,
-            rawPayload,
-            eventTypeHeader,
-            deliveryIdHeader,
-            authorizationHeader,
-            queryToken,
-            projectId
-        );
+    @Override
+    public ReleaseIngestProviderType provider() {
+        return ReleaseIngestProviderType.azure_devops;
     }
 
-    public ReleaseManifestIngestResultRecord handle(
-        String endpointId,
-        String rawPayload,
-        String eventTypeHeader,
-        String deliveryIdHeader,
-        String authorizationHeader,
-        String queryToken,
-        String projectId
-    ) {
+    @Override
+    public ReleaseManifestIngestResultRecord handle(ReleaseWebhookRequest request) {
+        String endpointId = request == null ? null : request.endpointId();
+        String rawPayload = request == null ? null : request.rawPayload();
+        String eventTypeHeader = request == null ? null : request.eventTypeHeader();
+        String deliveryIdHeader = request == null ? null : request.deliveryIdHeader();
+        String authorizationHeader = request == null ? null : request.authorizationHeader();
+        String queryToken = request == null ? null : request.queryToken();
+        String projectId = request == null ? null : request.projectId();
         OffsetDateTime receivedAt = OffsetDateTime.now(ZoneOffset.UTC);
         AzureDevOpsReleaseWebhookPayloadRecord payload = payloadService.parse(rawPayload, eventTypeHeader, deliveryIdHeader);
         String normalizedEvent = normalize(payload.eventType()).toLowerCase();
@@ -239,10 +227,6 @@ public class AzureDevOpsReleaseWebhookHandlerImpl implements com.mappo.controlpl
             );
             throw exception;
         }
-    }
-
-    private void validateAuthentication(String authorizationHeader, String queryToken) {
-        validateAuthentication(null, authorizationHeader, queryToken);
     }
 
     private void validateAuthentication(

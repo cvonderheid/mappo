@@ -28,7 +28,7 @@ public class DefaultTargetVerificationProvider implements TargetVerificationProv
         ReleaseRecord release,
         TargetRecord target,
         TargetExecutionContextRecord context,
-        boolean azureConfigured
+        boolean runtimeConfigured
     ) {
         return true;
     }
@@ -39,9 +39,9 @@ public class DefaultTargetVerificationProvider implements TargetVerificationProv
         ReleaseRecord release,
         TargetRecord target,
         TargetExecutionContextRecord context,
-        boolean azureConfigured
+        boolean runtimeConfigured
     ) {
-        if (runExecutionPolicyService.isSimulatorMode(project, release, azureConfigured)
+        if (runExecutionPolicyService.isSimulatorMode(project, release, runtimeConfigured)
             && target.simulatedFailureMode() == MappoSimulatedFailureMode.verify_once) {
             String message = "Simulated verification failure. Retry the run after clearing the target failure mode.";
             return TargetVerificationResultRecord.failure(
@@ -71,7 +71,7 @@ public class DefaultTargetVerificationProvider implements TargetVerificationProv
         }
 
         return TargetVerificationResultRecord.success(
-            runExecutionPolicyService.verificationMessage(project, release, azureConfigured)
+            runExecutionPolicyService.verificationMessage(project, release, runtimeConfigured)
         );
     }
 }

@@ -24,10 +24,10 @@ public class TargetVerificationProviderRegistry {
         ReleaseRecord release,
         TargetRecord target,
         TargetExecutionContextRecord context,
-        boolean azureConfigured
+        boolean runtimeConfigured
     ) {
         return providers.entrySet().stream()
-            .filter(entry -> entry.getValue().supports(project, release, target, context, azureConfigured))
+            .filter(entry -> entry.getValue().supports(project, release, target, context, runtimeConfigured))
             .sorted(providerComparator())
             .map(Map.Entry::getValue)
             .findFirst()

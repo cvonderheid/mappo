@@ -4,6 +4,24 @@
  */
 
 export interface paths {
+    "/api/v1/secret-references": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List secret references */
+        get: operations["listSecretReferences"];
+        put?: never;
+        /** Create secret reference */
+        post: operations["createSecretReference"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs": {
         parameters: {
             query?: never;
@@ -407,6 +425,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/secret-references/{secretReferenceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete secret reference */
+        delete: operations["deleteSecretReference"];
+        options?: never;
+        head?: never;
+        /** Patch secret reference */
+        patch: operations["patchSecretReference"];
+        trace?: never;
+    };
     "/api/v1/release-ingest/endpoints/{endpointId}": {
         parameters: {
             query?: never;
@@ -693,6 +729,75 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        SecretReferenceCreateRequest: {
+            id: string;
+            name: string;
+            /** @enum {string} */
+            provider: "azure_devops" | "github";
+            /** @enum {string} */
+            usage: "deployment_api_credential" | "webhook_verification";
+            /** @enum {string} */
+            mode: "mappo_default" | "environment_variable" | "key_vault_secret";
+            backendRef?: string;
+        };
+        SecretReferenceLinkedDeploymentConnectionRecord: {
+            /** @description Deployment connection id. */
+            id?: string;
+            /** @description Deployment connection display name. */
+            name?: string;
+        };
+        SecretReferenceLinkedReleaseSourceRecord: {
+            /** @description Release source id. */
+            id?: string;
+            /** @description Release source display name. */
+            name?: string;
+        };
+        SecretReferenceRecord: {
+            /**
+             * @description Secret reference id.
+             * @example ado-runtime-pat
+             */
+            id?: string;
+            /**
+             * @description Secret reference display name.
+             * @example Azure DevOps Runtime PAT
+             */
+            name?: string;
+            /**
+             * @description External provider this secret is intended for.
+             * @enum {string}
+             */
+            provider?: "azure_devops" | "github";
+            /**
+             * @description How this secret is used by MAPPO.
+             * @enum {string}
+             */
+            usage?: "deployment_api_credential" | "webhook_verification";
+            /**
+             * @description Where MAPPO resolves this secret from.
+             * @enum {string}
+             */
+            mode?: "mappo_default" | "environment_variable" | "key_vault_secret";
+            /**
+             * @description Normalized backend secret reference MAPPO resolves at runtime.
+             * @example kv:mappo-ado-pg123-pat
+             */
+            backendRef?: string;
+            /** @description Deployment connections currently using this secret reference. */
+            linkedDeploymentConnections?: components["schemas"]["SecretReferenceLinkedDeploymentConnectionRecord"][];
+            /** @description Release sources currently using this secret reference. */
+            linkedReleaseSources?: components["schemas"]["SecretReferenceLinkedReleaseSourceRecord"][];
+            /**
+             * Format: date-time
+             * @description Created timestamp (UTC).
+             */
+            createdAt?: string;
+            /**
+             * Format: date-time
+             * @description Last updated timestamp (UTC).
+             */
+            updatedAt?: string;
+        };
         RunCreateRequest: {
             releaseId: string;
             targetIds?: string[];
@@ -1095,60 +1200,6 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        AzureContainerAppHttpRuntimeHealthProviderConfig: components["schemas"]["ProjectRuntimeHealthProviderConfig"] & {
-            path?: string;
-            /** Format: int32 */
-            expectedStatus?: number;
-            /** Format: int64 */
-            timeoutMs?: number;
-        };
-        AzureDeploymentStackDriverConfig: components["schemas"]["ProjectDeploymentDriverConfig"] & {
-            supportsPreview?: boolean;
-            previewMode?: string;
-            supportsExternalExecutionHandle?: boolean;
-        };
-        AzureTemplateSpecDriverConfig: components["schemas"]["ProjectDeploymentDriverConfig"] & {
-            supportsPreview?: boolean;
-            supportsExternalExecutionHandle?: boolean;
-        };
-        AzureWorkloadRbacAccessStrategyConfig: components["schemas"]["ProjectAccessStrategyConfig"] & {
-            authModel?: string;
-            requiresAzureCredential?: boolean;
-            requiresTargetExecutionMetadata?: boolean;
-        };
-        BlobArmTemplateArtifactSourceConfig: components["schemas"]["ProjectReleaseArtifactSourceConfig"] & {
-            descriptor?: string;
-            templateUriField?: string;
-        };
-        ExternalDeploymentInputsArtifactSourceConfig: components["schemas"]["ProjectReleaseArtifactSourceConfig"] & {
-            sourceSystem?: string;
-            descriptorPath?: string;
-            versionField?: string;
-        };
-        HttpEndpointRuntimeHealthProviderConfig: components["schemas"]["ProjectRuntimeHealthProviderConfig"] & {
-            path?: string;
-            /** Format: int32 */
-            expectedStatus?: number;
-            /** Format: int64 */
-            timeoutMs?: number;
-        };
-        LighthouseDelegatedAccessStrategyConfig: components["schemas"]["ProjectAccessStrategyConfig"] & {
-            azureServiceConnectionName?: string;
-            managingTenantId?: string;
-            managingPrincipalClientId?: string;
-            requiresDelegation?: boolean;
-        };
-        PipelineTriggerDriverConfig: components["schemas"]["ProjectDeploymentDriverConfig"] & {
-            pipelineSystem?: string;
-            organization?: string;
-            project?: string;
-            repository?: string;
-            pipelineId?: string;
-            branch?: string;
-            azureServiceConnectionName?: string;
-            supportsExternalExecutionHandle?: boolean;
-            supportsExternalLogs?: boolean;
-        };
         ProjectAccessStrategyConfig: unknown;
         ProjectDefinition: {
             id?: string;
@@ -1158,25 +1209,20 @@ export interface components {
             providerConnectionId?: string;
             /** @enum {string} */
             accessStrategy?: "simulator" | "azure_workload_rbac" | "lighthouse_delegated_access";
-            accessStrategyConfig?: components["schemas"]["AzureWorkloadRbacAccessStrategyConfig"] | components["schemas"]["LighthouseDelegatedAccessStrategyConfig"] | components["schemas"]["SimulatorAccessStrategyConfig"];
+            accessStrategyConfig?: components["schemas"]["ProjectAccessStrategyConfig"];
             /** @enum {string} */
             deploymentDriver?: "azure_deployment_stack" | "azure_template_spec" | "pipeline_trigger";
-            deploymentDriverConfig?: components["schemas"]["AzureDeploymentStackDriverConfig"] | components["schemas"]["AzureTemplateSpecDriverConfig"] | components["schemas"]["PipelineTriggerDriverConfig"];
+            deploymentDriverConfig?: components["schemas"]["ProjectDeploymentDriverConfig"];
             /** @enum {string} */
             releaseArtifactSource?: "blob_arm_template" | "template_spec_resource" | "external_deployment_inputs";
-            releaseArtifactSourceConfig?: components["schemas"]["BlobArmTemplateArtifactSourceConfig"] | components["schemas"]["ExternalDeploymentInputsArtifactSourceConfig"] | components["schemas"]["TemplateSpecResourceArtifactSourceConfig"];
+            releaseArtifactSourceConfig?: components["schemas"]["ProjectReleaseArtifactSourceConfig"];
             /** @enum {string} */
             runtimeHealthProvider?: "azure_container_app_http" | "http_endpoint";
-            runtimeHealthProviderConfig?: components["schemas"]["AzureContainerAppHttpRuntimeHealthProviderConfig"] | components["schemas"]["HttpEndpointRuntimeHealthProviderConfig"];
+            runtimeHealthProviderConfig?: components["schemas"]["ProjectRuntimeHealthProviderConfig"];
         };
         ProjectDeploymentDriverConfig: unknown;
         ProjectReleaseArtifactSourceConfig: unknown;
         ProjectRuntimeHealthProviderConfig: unknown;
-        SimulatorAccessStrategyConfig: components["schemas"]["ProjectAccessStrategyConfig"];
-        TemplateSpecResourceArtifactSourceConfig: components["schemas"]["ProjectReleaseArtifactSourceConfig"] & {
-            descriptor?: string;
-            versionRefField?: string;
-        };
         ProjectValidationRequest: {
             scopes?: ("credentials" | "webhook" | "target_contract")[];
             targetId?: string;
@@ -1370,6 +1416,16 @@ export interface components {
             status?: "applied" | "duplicate" | "rejected";
             message?: string;
             targetId?: string;
+        };
+        SecretReferencePatchRequest: {
+            name?: string;
+            /** @enum {string} */
+            provider?: "azure_devops" | "github";
+            /** @enum {string} */
+            usage?: "deployment_api_credential" | "webhook_verification";
+            /** @enum {string} */
+            mode?: "mappo_default" | "environment_variable" | "key_vault_secret";
+            backendRef?: string;
         };
         ReleaseIngestEndpointPatchRequest: {
             name?: string;
@@ -1750,6 +1806,50 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listSecretReferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SecretReferenceRecord"][];
+                };
+            };
+        };
+    };
+    createSecretReference: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SecretReferenceCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SecretReferenceRecord"];
+                };
+            };
+        };
+    };
     listRuns: {
         parameters: {
             query?: {
@@ -2461,6 +2561,52 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["EventIngestResultRecord"];
+                };
+            };
+        };
+    };
+    deleteSecretReference: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                secretReferenceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchSecretReference: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                secretReferenceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SecretReferencePatchRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SecretReferenceRecord"];
                 };
             };
         };

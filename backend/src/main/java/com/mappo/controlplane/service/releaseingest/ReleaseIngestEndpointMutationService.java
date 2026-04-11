@@ -4,9 +4,6 @@ import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ReleaseIngestEndpointCreateRequest;
 import com.mappo.controlplane.api.request.ReleaseIngestEndpointPatchRequest;
 import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;
-import com.mappo.controlplane.domain.secretreference.SecretReferenceProviderType;
-import com.mappo.controlplane.domain.secretreference.SecretReferenceUsageType;
-import com.mappo.controlplane.infrastructure.azure.auth.AzureKeyVaultSecretResolver;
 import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
 import com.mappo.controlplane.model.SecretReferenceRecord;
 import com.mappo.controlplane.service.secretreference.SecretReferenceCatalogService;
@@ -22,6 +19,8 @@ public class ReleaseIngestEndpointMutationService {
 
     private static final Pattern ID_PATTERN = Pattern.compile("^[a-z0-9](?:[a-z0-9-]{1,126}[a-z0-9])?$");
     private final SecretReferenceCatalogService secretReferenceCatalogService;
+    private final SecretReferenceResolver secretReferenceResolver;
+    private final ReleaseIngestProviderDescriptorRegistry releaseIngestProviderDescriptorRegistry;
 
     public ReleaseIngestEndpointMutationRecord fromCreate(ReleaseIngestEndpointCreateRequest request) {
         String id = requiredId(request.id());
@@ -132,17 +131,17 @@ public class ReleaseIngestEndpointMutationService {
 
     private String normalizeManifestPath(String value, ReleaseIngestProviderType provider) {
         String normalized = normalize(value).replaceFirst("^/+", "");
-        if (normalized.isBlank() && provider == ReleaseIngestProviderType.github) {
-            return "releases/releases.manifest.json";
+        if (normalized.isBlank()) {
+            return normalize(releaseIngestProviderDescriptorRegistry.getRequired(provider).defaultManifestPath())
+                .replaceFirst("^/+", "");
         }
         return normalized;
     }
 
     private String normalizeSecretRef(String value, ReleaseIngestProviderType provider) {
         String normalized = normalize(value);
-        String defaultReference = provider == ReleaseIngestProviderType.azure_devops
-            ? ReleaseIngestSecretResolver.AZURE_DEVOPS_SECRET_REF
-            : ReleaseIngestSecretResolver.GITHUB_SECRET_REF;
+        var descriptor = releaseIngestProviderDescriptorRegistry.getRequired(provider);
+        String defaultReference = descriptor.defaultSecretReference();
         if (normalized.isBlank()) {
             return defaultReference;
         }
@@ -158,12 +157,9 @@ public class ReleaseIngestEndpointMutationService {
         if (normalized.startsWith(SecretReferenceResolver.SECRET_REFERENCE_PREFIX)) {
             String secretReferenceId = normalize(normalized.substring(SecretReferenceResolver.SECRET_REFERENCE_PREFIX.length()));
             SecretReferenceRecord secretReference = secretReferenceCatalogService.getRequired(secretReferenceId);
-            SecretReferenceProviderType expectedProvider = provider == ReleaseIngestProviderType.azure_devops
-                ? SecretReferenceProviderType.azure_devops
-                : SecretReferenceProviderType.github;
             if (
-                secretReference.provider() != expectedProvider
-                || secretReference.usage() != SecretReferenceUsageType.webhook_verification
+                secretReference.provider() != descriptor.secretReferenceProvider()
+                || secretReference.usage() != descriptor.webhookSecretUsage()
             ) {
                 throw new ApiException(
                     HttpStatus.BAD_REQUEST,
@@ -172,13 +168,7 @@ public class ReleaseIngestEndpointMutationService {
             }
             return SecretReferenceResolver.SECRET_REFERENCE_PREFIX + secretReferenceId;
         }
-        if (normalized.startsWith("env:") && normalize(normalized.substring("env:".length())).length() > 0) {
-            return normalized;
-        }
-        if (
-            normalized.startsWith(AzureKeyVaultSecretResolver.KEY_VAULT_PREFIX)
-            && normalize(normalized.substring(AzureKeyVaultSecretResolver.KEY_VAULT_PREFIX.length())).length() > 0
-        ) {
+        if (secretReferenceResolver.isDynamicSecretReference(normalized)) {
             return normalized;
         }
         throw new ApiException(

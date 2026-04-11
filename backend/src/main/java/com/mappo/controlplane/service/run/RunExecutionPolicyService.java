@@ -1,7 +1,6 @@
 package com.mappo.controlplane.service.run;
 
 import com.mappo.controlplane.domain.project.ProjectDefinition;
-import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
 import com.mappo.controlplane.jooq.enums.MappoRunStatus;
 import com.mappo.controlplane.jooq.enums.MappoStrategyMode;
 import com.mappo.controlplane.model.RunExecutionCountsRecord;
@@ -11,10 +10,14 @@ import com.mappo.controlplane.model.RunStopPolicyRecord;
 import com.mappo.controlplane.model.TargetRecord;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class RunExecutionPolicyService {
+
+    private final DeploymentDriverRegistry deploymentDriverRegistry;
 
     public List<List<TargetRecord>> planBatches(RunDetailRecord run, List<TargetRecord> targets) {
         int concurrency = normalizeConcurrency(run.concurrency());
@@ -24,73 +27,35 @@ public class RunExecutionPolicyService {
         return chunkTargets(targets, concurrency);
     }
 
-    public List<String> buildWarnings(ProjectDefinition project, ReleaseRecord release, List<TargetRecord> targets, boolean azureConfigured) {
+    public List<String> buildWarnings(ProjectDefinition project, ReleaseRecord release, List<TargetRecord> targets, boolean runtimeConfigured) {
         List<String> warnings = new ArrayList<>();
-        if (useRealExecution(project, release, azureConfigured) && release.executionSettings().whatIfOnCanary()) {
-            warnings.add("whatIfOnCanary is configured but not implemented yet; live deployment will proceed directly.");
-        }
-        if (useRealExecution(project, release, azureConfigured)) {
+        if (hasDeploymentDriver(project, release, runtimeConfigured)) {
+            if (release.executionSettings().whatIfOnCanary()) {
+                warnings.add("whatIfOnCanary is configured but not enforced during deployment yet; deployment will proceed directly.");
+            }
             return warnings;
         }
 
-        if (!azureConfigured) {
-            warnings.add("Azure execution is not configured; run completed in simulator mode for source type " + sourceTypeLiteral(release) + ".");
+        if (!runtimeConfigured) {
+            warnings.add("Deployment runtime is not configured; run completed in simulator mode for source type " + sourceTypeLiteral(release) + ".");
             return warnings;
         }
 
-        if (project.deploymentDriver() == ProjectDeploymentDriverType.azure_template_spec) {
-            warnings.add(
-                "Azure execution for source type template_spec with deployment scope "
-                    + release.deploymentScope().getLiteral()
-                    + " is not implemented yet; run completed in simulator mode."
-            );
-            return warnings;
-        }
-
-        warnings.add("Azure execution for source type " + sourceTypeLiteral(release) + " is not implemented yet; run completed in simulator mode.");
+        warnings.add("No deployment driver supports source type " + sourceTypeLiteral(release) + "; run completed in simulator mode.");
         if (hasTagValue(targets, "ring", "canary") && release.executionSettings().whatIfOnCanary()) {
             warnings.add("whatIfOnCanary is configured but not implemented in simulator mode.");
         }
         return warnings;
     }
 
-    public String verificationMessage(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
-        if (useRealTemplateSpecExecution(project, release, azureConfigured)) {
-            return "Verification passed: ARM deployment completed successfully.";
-        }
-        if (useRealDeploymentStackExecution(project, release, azureConfigured)) {
-            return "Verification passed: deployment stack completed successfully.";
-        }
-        if (useRealPipelineTriggerExecution(project)) {
-            return "Verification passed: external pipeline deployment completed successfully.";
-        }
-        return "Verification passed in simulator mode.";
+    public String verificationMessage(ProjectDefinition project, ReleaseRecord release, boolean runtimeConfigured) {
+        return deploymentDriverRegistry.findDriver(project, release, runtimeConfigured)
+            .map(driver -> driver.verificationMessage(project, release))
+            .orElse("Verification passed in simulator mode.");
     }
 
-    public boolean useRealTemplateSpecExecution(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
-        return azureConfigured
-            && project.deploymentDriver() == ProjectDeploymentDriverType.azure_template_spec
-            && release.deploymentScope().getLiteral().equals("resource_group");
-    }
-
-    public boolean useRealDeploymentStackExecution(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
-        return azureConfigured
-            && project.deploymentDriver() == ProjectDeploymentDriverType.azure_deployment_stack
-            && release.deploymentScope().getLiteral().equals("resource_group");
-    }
-
-    public boolean useRealPipelineTriggerExecution(ProjectDefinition project) {
-        return project.deploymentDriver() == ProjectDeploymentDriverType.pipeline_trigger;
-    }
-
-    public boolean useRealExecution(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
-        return useRealTemplateSpecExecution(project, release, azureConfigured)
-            || useRealDeploymentStackExecution(project, release, azureConfigured)
-            || useRealPipelineTriggerExecution(project);
-    }
-
-    public boolean isSimulatorMode(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured) {
-        return !useRealExecution(project, release, azureConfigured);
+    public boolean isSimulatorMode(ProjectDefinition project, ReleaseRecord release, boolean runtimeConfigured) {
+        return !hasDeploymentDriver(project, release, runtimeConfigured);
     }
 
     public String haltReasonFor(RunStopPolicyRecord stopPolicy, int failedCount, int processedCount, int totalTargets) {
@@ -205,6 +170,10 @@ public class RunExecutionPolicyService {
 
     private String sourceTypeLiteral(ReleaseRecord release) {
         return release.sourceType() == null ? "template_spec" : release.sourceType().getLiteral();
+    }
+
+    private boolean hasDeploymentDriver(ProjectDefinition project, ReleaseRecord release, boolean runtimeConfigured) {
+        return deploymentDriverRegistry.findDriver(project, release, runtimeConfigured).isPresent();
     }
 
     private boolean blank(String value) {

@@ -1,7 +1,9 @@
 package com.mappo.controlplane.integrations.github.release;
 
 import com.mappo.controlplane.api.ApiException;
-import com.mappo.controlplane.application.release.GithubReleaseWebhookHandler;
+import com.mappo.controlplane.application.release.ReleaseManifestSourceClient;
+import com.mappo.controlplane.application.release.ReleaseWebhookHandler;
+import com.mappo.controlplane.application.release.ReleaseWebhookRequest;
 import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;
 import com.mappo.controlplane.jooq.enums.MappoReleaseWebhookStatus;
 import com.mappo.controlplane.model.ReleaseIngestLinkedProjectRecord;
@@ -10,7 +12,6 @@ import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
 import com.mappo.controlplane.service.release.ParsedReleaseManifest;
 import com.mappo.controlplane.service.release.ReleaseManifestApplyService;
 import com.mappo.controlplane.service.release.ReleaseManifestParser;
-import com.mappo.controlplane.service.release.ReleaseManifestSourceClient;
 import com.mappo.controlplane.service.release.ReleaseWebhookAuditService;
 import com.mappo.controlplane.service.releaseingest.ReleaseIngestEndpointCatalogService;
 import com.mappo.controlplane.service.releaseingest.ReleaseIngestSecretResolver;
@@ -23,7 +24,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class GithubReleaseWebhookHandlerImpl implements GithubReleaseWebhookHandler {
+public class GithubReleaseWebhookHandlerImpl implements ReleaseWebhookHandler {
 
     private final GithubWebhookDecisionService githubWebhookDecisionService;
     private final GithubWebhookSignatureService githubWebhookSignatureService;
@@ -35,13 +36,18 @@ public class GithubReleaseWebhookHandlerImpl implements GithubReleaseWebhookHand
     private final ReleaseIngestEndpointCatalogService releaseIngestEndpointCatalogService;
     private final ReleaseIngestSecretResolver releaseIngestSecretResolver;
 
-    public ReleaseManifestIngestResultRecord handle(
-        String endpointId,
-        String rawPayload,
-        String githubEvent,
-        String signatureHeader,
-        String githubDeliveryId
-    ) {
+    @Override
+    public ReleaseIngestProviderType provider() {
+        return ReleaseIngestProviderType.github;
+    }
+
+    @Override
+    public ReleaseManifestIngestResultRecord handle(ReleaseWebhookRequest request) {
+        String endpointId = request == null ? null : request.endpointId();
+        String rawPayload = request == null ? null : request.rawPayload();
+        String githubEvent = request == null ? null : request.eventTypeHeader();
+        String signatureHeader = request == null ? null : request.signatureHeader();
+        String githubDeliveryId = request == null ? null : request.deliveryIdHeader();
         OffsetDateTime receivedAt = OffsetDateTime.now(ZoneOffset.UTC);
         String deliveryLogId = releaseWebhookAuditService.newDeliveryLogId(githubDeliveryId, githubEvent, rawPayload, receivedAt);
         String normalizedEvent = githubWebhookDecisionService.normalizeEvent(githubEvent);
@@ -87,7 +93,7 @@ public class GithubReleaseWebhookHandlerImpl implements GithubReleaseWebhookHand
                 return result;
             }
 
-            String manifest = sourceClient.fetchGithubManifest(repo, manifestPath, ref);
+            String manifest = sourceClient.fetchManifest(repo, manifestPath, ref);
             ParsedReleaseManifest parsedManifest = releaseManifestParser.parse(manifest);
             ReleaseManifestIngestResultRecord result = releaseManifestApplyService.apply(
                 repo,

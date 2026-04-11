@@ -7,13 +7,13 @@ import com.mappo.controlplane.model.TargetRecord;
 
 public interface TargetAccessResolver {
 
-    boolean supports(ProjectDefinition project, ReleaseRecord release, boolean azureConfigured);
+    boolean supports(ProjectDefinition project, ReleaseRecord release, boolean runtimeConfigured);
 
     TargetAccessValidation validate(
         ProjectDefinition project,
         ReleaseRecord release,
         TargetRecord target,
         TargetExecutionContextRecord context,
-        boolean azureConfigured
+        boolean runtimeConfigured
     );
 }

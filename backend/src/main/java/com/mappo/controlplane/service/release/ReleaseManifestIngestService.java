@@ -1,11 +1,11 @@
 package com.mappo.controlplane.service.release;
 
 import com.mappo.controlplane.api.ApiException;
-import com.mappo.controlplane.application.release.GithubReleaseWebhookHandler;
 import com.mappo.controlplane.api.request.ReleaseManifestIngestRequest;
-import com.mappo.controlplane.application.release.AzureDevOpsReleaseWebhookHandler;
+import com.mappo.controlplane.application.release.ReleaseWebhookRequest;
 import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
+import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;
 import com.mappo.controlplane.model.ReleaseManifestIngestResultRecord;
 import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
 import com.mappo.controlplane.service.project.ProjectCatalogService;
@@ -19,11 +19,10 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ReleaseManifestIngestService {
 
-    private final ReleaseManifestSourceClient sourceClient;
+    private final ReleaseManifestSourceClientRegistry sourceClientRegistry;
     private final ReleaseManifestParser releaseManifestParser;
     private final ReleaseManifestApplyService releaseManifestApplyService;
-    private final GithubReleaseWebhookHandler githubReleaseWebhookHandler;
-    private final AzureDevOpsReleaseWebhookHandler azureDevOpsReleaseWebhookHandler;
+    private final ReleaseWebhookHandlerRegistry webhookHandlerRegistry;
     private final ProjectCatalogService projectCatalogService;
     private final ReleaseIngestEndpointCatalogService releaseIngestEndpointCatalogService;
     private final MappoProperties properties;
@@ -52,7 +51,8 @@ public class ReleaseManifestIngestService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "repo, path, and ref are required for release manifest ingest");
         }
 
-        String manifest = sourceClient.fetchGithubManifest(repo, path, ref);
+        String manifest = sourceClientRegistry.getRequired(ReleaseIngestProviderType.github)
+            .fetchManifest(repo, path, ref);
         ParsedReleaseManifest parsedManifest = releaseManifestParser.parse(manifest);
         List<String> fallbackProjectIds = projectId.isBlank() ? List.of() : List.of(projectId);
         return releaseManifestApplyService.apply(repo, path, ref, allowDuplicates, parsedManifest, fallbackProjectIds);
@@ -64,7 +64,7 @@ public class ReleaseManifestIngestService {
         String signatureHeader,
         String githubDeliveryId
     ) {
-        return githubReleaseWebhookHandler.handle(null, rawPayload, githubEvent, signatureHeader, githubDeliveryId);
+        return ingestGithubWebhookForEndpoint(null, rawPayload, githubEvent, signatureHeader, githubDeliveryId);
     }
 
     public ReleaseManifestIngestResultRecord ingestGithubWebhookForEndpoint(
@@ -74,7 +74,17 @@ public class ReleaseManifestIngestService {
         String signatureHeader,
         String githubDeliveryId
     ) {
-        return githubReleaseWebhookHandler.handle(endpointId, rawPayload, githubEvent, signatureHeader, githubDeliveryId);
+        return webhookHandlerRegistry.getRequired(ReleaseIngestProviderType.github)
+            .handle(new ReleaseWebhookRequest(
+                endpointId,
+                rawPayload,
+                githubEvent,
+                githubDeliveryId,
+                signatureHeader,
+                null,
+                null,
+                null
+            ));
     }
 
     public ReleaseManifestIngestResultRecord ingestAzureDevOpsWebhook(
@@ -85,7 +95,7 @@ public class ReleaseManifestIngestService {
         String queryToken,
         String projectId
     ) {
-        return azureDevOpsReleaseWebhookHandler.handle(
+        return ingestAzureDevOpsWebhookForEndpoint(
             null,
             rawPayload,
             eventTypeHeader,
@@ -105,15 +115,17 @@ public class ReleaseManifestIngestService {
         String queryToken,
         String projectId
     ) {
-        return azureDevOpsReleaseWebhookHandler.handle(
-            endpointId,
-            rawPayload,
-            eventTypeHeader,
-            deliveryIdHeader,
-            authorizationHeader,
-            queryToken,
-            projectId
-        );
+        return webhookHandlerRegistry.getRequired(ReleaseIngestProviderType.azure_devops)
+            .handle(new ReleaseWebhookRequest(
+                endpointId,
+                rawPayload,
+                eventTypeHeader,
+                deliveryIdHeader,
+                null,
+                authorizationHeader,
+                queryToken,
+                projectId
+            ));
     }
 
     private String firstNonBlank(String... values) {
@@ -141,7 +153,7 @@ public class ReleaseManifestIngestService {
             return null;
         }
         ReleaseIngestEndpointRecord endpoint = releaseIngestEndpointCatalogService.getRequired(endpointId);
-        if (endpoint.provider() != com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType.github) {
+        if (endpoint.provider() != ReleaseIngestProviderType.github) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
                 "project %s is not linked to a GitHub release source".formatted(normalizedProjectId)

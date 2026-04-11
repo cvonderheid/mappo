@@ -27,7 +27,7 @@ public class RunTargetVerificationService {
         ReleaseRecord release,
         TargetRecord target,
         TargetExecutionContextRecord context,
-        boolean azureConfigured
+        boolean runtimeConfigured
     ) {
         var start = runTargetStageService.beginStage(
             runId,
@@ -41,9 +41,9 @@ public class RunTargetVerificationService {
                 release,
                 target,
                 context,
-                azureConfigured
+                runtimeConfigured
             )
-            .verify(capabilities.project(), release, target, context, azureConfigured);
+            .verify(capabilities.project(), release, target, context, runtimeConfigured);
         String message = result.message();
         if (!result.succeeded()) {
             return runTargetStageService.failStage(

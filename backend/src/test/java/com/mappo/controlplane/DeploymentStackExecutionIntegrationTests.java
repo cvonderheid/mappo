@@ -21,8 +21,8 @@ import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.model.TargetVerificationResultRecord;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import com.mappo.controlplane.service.run.DeploymentStackExecutor;
-import com.mappo.controlplane.service.run.TargetDeploymentOutcome;
+import com.mappo.controlplane.integrations.azure.deploymentstack.DeploymentStackExecutor;
+import com.mappo.controlplane.domain.execution.TargetDeploymentOutcome;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -195,7 +195,7 @@ class DeploymentStackExecutionIntegrationTests extends PostgresIntegrationTestBa
             ReleaseRecord release,
             TargetRecord target,
             TargetExecutionContextRecord context,
-            boolean azureConfigured
+            boolean runtimeConfigured
         ) {
             return project.runtimeHealthProvider() == ProjectRuntimeHealthProviderType.azure_container_app_http;
         }
@@ -206,7 +206,7 @@ class DeploymentStackExecutionIntegrationTests extends PostgresIntegrationTestBa
             ReleaseRecord release,
             TargetRecord target,
             TargetExecutionContextRecord context,
-            boolean azureConfigured
+            boolean runtimeConfigured
         ) {
             return TargetVerificationResultRecord.success("Runtime verification passed: Runtime responded with HTTP 200.");
         }

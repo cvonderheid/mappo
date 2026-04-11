@@ -6,7 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.mappo.controlplane.service.release.ReleaseManifestSourceClient;
+import com.mappo.controlplane.application.release.ReleaseManifestSourceClient;
+import com.mappo.controlplane.domain.releaseingest.ReleaseIngestProviderType;
 import java.nio.charset.StandardCharsets;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -161,7 +162,16 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
         @Bean
         @Primary
         ReleaseManifestSourceClient releaseManifestSourceClient() {
-            return (repo, path, ref) -> """
+            return new ReleaseManifestSourceClient() {
+
+                @Override
+                public ReleaseIngestProviderType provider() {
+                    return ReleaseIngestProviderType.github;
+                }
+
+                @Override
+                public String fetchManifest(String repo, String path, String ref) {
+                    return """
                 {
                   "releases": [
                     {
@@ -214,6 +224,8 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
                   ]
                 }
                 """;
+                }
+            };
         }
     }
 }

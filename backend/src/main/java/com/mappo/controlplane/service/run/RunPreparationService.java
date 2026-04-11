@@ -25,12 +25,12 @@ public class RunPreparationService {
         }
     }
 
-    public void persistWarnings(RunExecutionContext context, boolean azureConfigured) {
+    public void persistWarnings(RunExecutionContext context, boolean runtimeConfigured) {
         List<String> warnings = runExecutionPolicyService.buildWarnings(
             context.capabilities().project(),
             context.release(),
             context.executableTargets(),
-            azureConfigured
+            runtimeConfigured
         );
 
         runLifecycleCommandRepository.deleteRunWarnings(context.runId());

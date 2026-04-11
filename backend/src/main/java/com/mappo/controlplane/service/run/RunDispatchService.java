@@ -1,6 +1,5 @@
 package com.mappo.controlplane.service.run;
 
-import com.mappo.controlplane.infrastructure.azure.auth.AzureExecutorClient;
 import com.mappo.controlplane.config.MappoProperties;
 import com.mappo.controlplane.domain.execution.RunQueue;
 import com.mappo.controlplane.jooq.enums.MappoRunStatus;
@@ -30,7 +29,6 @@ public class RunDispatchService {
     private final RunExecutionStateRepository runExecutionStateRepository;
     private final RunDetailQueryRepository runDetailQueryRepository;
     private final LiveUpdateService liveUpdateService;
-    private final AzureExecutorClient azureExecutorClient;
     private final RunQueue runQueue;
     private final MappoProperties properties;
     private final Set<String> activeRunIds = ConcurrentHashMap.newKeySet();
@@ -43,7 +41,6 @@ public class RunDispatchService {
         RunExecutionStateRepository runExecutionStateRepository,
         RunDetailQueryRepository runDetailQueryRepository,
         LiveUpdateService liveUpdateService,
-        AzureExecutorClient azureExecutorClient,
         RunQueue runQueue,
         MappoProperties properties
     ) {
@@ -54,7 +51,6 @@ public class RunDispatchService {
         this.runExecutionStateRepository = runExecutionStateRepository;
         this.runDetailQueryRepository = runDetailQueryRepository;
         this.liveUpdateService = liveUpdateService;
-        this.azureExecutorClient = azureExecutorClient;
         this.runQueue = runQueue;
         this.properties = properties;
     }
@@ -145,7 +141,7 @@ public class RunDispatchService {
     private void executeQueuedRun(String runId) {
         activeRunIds.add(runId);
         try {
-            runExecutionService.executeRun(runId, azureExecutorClient.isConfigured());
+            runExecutionService.executeRun(runId);
         } catch (RuntimeException error) {
             log.error("Run execution crashed for {}", runId, error);
             runLifecycleCommandRepository.appendRunWarning(

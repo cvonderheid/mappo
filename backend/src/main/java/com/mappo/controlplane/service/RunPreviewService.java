@@ -13,13 +13,10 @@ import com.mappo.controlplane.model.StageErrorRecord;
 import com.mappo.controlplane.model.TargetExecutionContextRecord;
 import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.persistence.target.TargetExecutionContextRepository;
-import com.mappo.controlplane.service.run.DeploymentDriverRegistry;
 import com.mappo.controlplane.service.run.RunRequestContext;
 import com.mappo.controlplane.service.run.RunRequestResolverService;
-import com.mappo.controlplane.service.run.TargetAccessResolverRegistry;
-import com.mappo.controlplane.service.run.TargetPreviewException;
-import com.mappo.controlplane.service.run.TargetPreviewOutcome;
-import com.mappo.controlplane.infrastructure.azure.auth.AzureExecutorClient;
+import com.mappo.controlplane.domain.execution.TargetPreviewException;
+import com.mappo.controlplane.domain.execution.TargetPreviewOutcome;
 import com.mappo.controlplane.service.project.ProjectExecutionCapabilities;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,12 +33,11 @@ public class RunPreviewService {
 
     private final RunRequestResolverService runRequestResolverService;
     private final TargetExecutionContextRepository targetExecutionContextRepository;
-    private final AzureExecutorClient azureExecutorClient;
 
     public RunPreviewRecord previewRun(RunCreateRequest request) {
         RunRequestContext context = runRequestResolverService.resolve(request);
-        boolean azureConfigured = azureExecutorClient.isConfigured();
         ProjectExecutionCapabilities capabilities = context.capabilities();
+        boolean runtimeConfigured = capabilities.runtimeConfigured();
         List<TargetExecutionContextRecord> executionContexts = targetExecutionContextRepository.getExecutionContextsByIds(
             context.targets().stream().map(TargetRecord::id).toList()
         );
@@ -51,7 +47,7 @@ public class RunPreviewService {
         }
 
         RunPreviewMode mode = previewMode(capabilities);
-        List<String> warnings = previewWarnings(capabilities, context.release(), azureConfigured);
+        List<String> warnings = previewWarnings(capabilities, context.release(), runtimeConfigured);
         List<RunTargetPreviewRecord> targetPreviews = context.targets().stream()
             .map(target -> previewTarget(capabilities, context.release(), target, contextsByTarget.get(target.id()), mode))
             .toList();
@@ -93,7 +89,7 @@ public class RunPreviewService {
 
         try {
             TargetAccessValidation validation = capabilities.targetAccessResolver()
-                .validate(capabilities.project(), release, target, context, azureExecutorClient.isConfigured());
+                .validate(capabilities.project(), release, target, context, capabilities.runtimeConfigured());
             if (!validation.valid()) {
                 return new RunTargetPreviewRecord(
                     target.id(),
@@ -191,16 +187,19 @@ public class RunPreviewService {
     private List<String> previewWarnings(
         ProjectExecutionCapabilities capabilities,
         ReleaseRecord release,
-        boolean azureConfigured
+        boolean runtimeConfigured
     ) {
-        if (!azureConfigured) {
-            return List.of("Azure execution is not configured; run preview is unavailable.");
+        if (!runtimeConfigured) {
+            return List.of("Deployment runtime is not configured; run preview is unavailable.");
         }
-        if (capabilities.project().deploymentDriver() != com.mappo.controlplane.domain.project.ProjectDeploymentDriverType.azure_deployment_stack) {
-            return List.of("Preview is currently implemented only for deployment_stack releases.");
-        }
-        if (!release.deploymentScope().getLiteral().equals("resource_group")) {
-            return List.of("Preview is currently implemented only for resource_group deployment scope.");
+        if (capabilities.previewDriver().isEmpty()) {
+            return List.of(
+                "Preview is not available for source type "
+                    + release.sourceType().getLiteral()
+                    + " at deployment scope "
+                    + release.deploymentScope().getLiteral()
+                    + "."
+            );
         }
         return List.of();
     }

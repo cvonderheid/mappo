@@ -1,12 +1,12 @@
 package com.mappo.controlplane.integrations.azuredevops.discovery;
 
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsBranchDefinitionRecord;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsClientException;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDefinitionRecord;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsPipelineDiscoveryService;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsProjectDefinitionRecord;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsRepositoryDefinitionRecord;
-import com.mappo.controlplane.infrastructure.pipeline.ado.AzureDevOpsServiceConnectionDefinitionRecord;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsBranchDefinitionRecord;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsClientException;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsPipelineDefinitionRecord;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsPipelineDiscoveryService;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsProjectDefinitionRecord;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsRepositoryDefinitionRecord;
+import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsServiceConnectionDefinitionRecord;
 import com.mappo.controlplane.model.ProjectAdoBranchRecord;
 import com.mappo.controlplane.model.ProjectAdoPipelineRecord;
 import com.mappo.controlplane.model.ProjectAdoRepositoryRecord;
