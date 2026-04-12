@@ -20,7 +20,6 @@ import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsPipel
 import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsProjectDefinitionRecord;
 import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsPipelineRunRecord;
 import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsRepositoryDefinitionRecord;
-import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsServiceConnectionDefinitionRecord;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,8 +79,7 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
         patchRequest.put("deploymentDriverConfig", Map.of(
             "organization", "https://dev.azure.com/contoso",
             "project", "demo-app-service",
-            "pipelineId", "123",
-            "azureServiceConnectionName", "contoso-rg-contributor"
+            "pipelineId", "123"
         ));
 
         mockMvc.perform(patch("/api/v1/projects/{projectId}", projectId)
@@ -283,25 +281,6 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
     }
 
     @Test
-    void discoverAdoServiceConnectionsReturnsConfiguredConnections() throws Exception {
-        mockMvc.perform(post("/api/v1/projects/{projectId}/deployment-driver/ado/service-connections/discover", "azure-appservice-ado-pipeline")
-                .contentType(APPLICATION_JSON)
-                .content("""
-                    {
-                      "organization": "https://dev.azure.com/pg123",
-                      "project": "demo-app-service",
-                      "providerConnectionId": "ado-default"
-                    }
-                    """))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.projectId").value("azure-appservice-ado-pipeline"))
-            .andExpect(jsonPath("$.organization").value("https://dev.azure.com/pg123"))
-            .andExpect(jsonPath("$.project").value("demo-app-service"))
-            .andExpect(jsonPath("$.serviceConnections[0].id").value("svc-1"))
-            .andExpect(jsonPath("$.serviceConnections[0].name").value("mappo-ado-demo-rg-contributor"));
-    }
-
-    @Test
     void patchProviderConnectionPersistsPersonalAccessTokenRef() throws Exception {
         mockMvc.perform(patch("/api/v1/provider-connections/{connectionId}", "ado-default")
                 .contentType(APPLICATION_JSON)
@@ -420,25 +399,6 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                     );
                 }
 
-                @Override
-                public List<AzureDevOpsServiceConnectionDefinitionRecord> listServiceConnections(
-                    AzureDevOpsPipelineDiscoveryInputs inputs
-                ) {
-                    return List.of(
-                        new AzureDevOpsServiceConnectionDefinitionRecord(
-                            "svc-1",
-                            "mappo-ado-demo-rg-contributor",
-                            "azurerm",
-                            "https://dev.azure.com/pg123/demo-app-service/_settings/adminservices?resourceId=svc-1"
-                        ),
-                        new AzureDevOpsServiceConnectionDefinitionRecord(
-                            "svc-2",
-                            "mappo-ado-rg-readonly",
-                            "azurerm",
-                            "https://dev.azure.com/pg123/demo-app-service/_settings/adminservices?resourceId=svc-2"
-                        )
-                    );
-                }
             };
         }
     }

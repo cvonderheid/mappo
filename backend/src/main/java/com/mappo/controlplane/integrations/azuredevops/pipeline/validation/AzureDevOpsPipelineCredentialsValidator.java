@@ -46,8 +46,7 @@ public class AzureDevOpsPipelineCredentialsValidator implements ProjectCredentia
 
         if (hasText(pipelineConfig.organization())
             && hasText(pipelineConfig.project())
-            && hasText(pipelineConfig.pipelineId())
-            && hasText(pipelineConfig.azureServiceConnectionName())) {
+            && hasText(pipelineConfig.pipelineId())) {
             findings.add(pass(
                 ProjectValidationScope.credentials,
                 "AZURE_DEVOPS_PIPELINE_CONFIG_PRESENT",
@@ -57,7 +56,7 @@ public class AzureDevOpsPipelineCredentialsValidator implements ProjectCredentia
             findings.add(fail(
                 ProjectValidationScope.credentials,
                 "AZURE_DEVOPS_PIPELINE_CONFIG_MISSING",
-                "Azure DevOps pipeline configuration must include organization, project, pipelineId, and azureServiceConnectionName."
+                "Azure DevOps pipeline configuration must include organization, project, and pipelineId."
             ));
         }
         return findings;

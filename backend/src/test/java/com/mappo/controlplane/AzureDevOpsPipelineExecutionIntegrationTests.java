@@ -20,7 +20,6 @@ import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsPipel
 import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsProjectDefinitionRecord;
 import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsRepositoryDefinitionRecord;
 import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsPipelineRunRecord;
-import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsServiceConnectionDefinitionRecord;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -153,12 +152,11 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
             "project", "demo-app-service",
             "pipelineId", "1",
             "branch", "main",
-            "azureServiceConnectionName", "mappo-ado-demo-rg-contributor",
             "supportsExternalExecutionHandle", true,
             "supportsExternalLogs", true
         ));
         request.put("accessStrategyConfig", Map.of(
-            "authModel", "ado_service_connection",
+            "authModel", "pipeline_owned",
             "requiresAzureCredential", false,
             "requiresTargetExecutionMetadata", true
         ));
@@ -301,18 +299,5 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
             );
         }
 
-        @Override
-        public List<AzureDevOpsServiceConnectionDefinitionRecord> listServiceConnections(
-            AzureDevOpsPipelineDiscoveryInputs inputs
-        ) {
-            return List.of(
-                new AzureDevOpsServiceConnectionDefinitionRecord(
-                    "svc-1",
-                    "mappo-ado-demo-rg-contributor",
-                    "azurerm",
-                    "https://dev.azure.com/pg123/demo-app-service/_settings/adminservices?resourceId=svc-1"
-                )
-            );
-        }
     }
 }

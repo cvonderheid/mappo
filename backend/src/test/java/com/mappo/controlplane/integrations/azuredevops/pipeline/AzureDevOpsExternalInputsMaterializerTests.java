@@ -37,7 +37,7 @@ class AzureDevOpsExternalInputsMaterializerTests {
             null,
             null,
             ProjectAccessStrategyType.azure_workload_rbac,
-            new AzureWorkloadRbacAccessStrategyConfig("ado_service_connection", false, true),
+            new AzureWorkloadRbacAccessStrategyConfig("pipeline_owned", false, true),
             ProjectDeploymentDriverType.pipeline_trigger,
             new PipelineTriggerDriverConfig(
                 "azure_devops",
@@ -46,7 +46,6 @@ class AzureDevOpsExternalInputsMaterializerTests {
                 "demo-app-service",
                 "1",
                 "main",
-                "mappo-ado-demo-rg-contributor",
                 true,
                 true
             ),
@@ -93,7 +92,6 @@ class AzureDevOpsExternalInputsMaterializerTests {
         assertThat(inputs.organization()).isEqualTo("https://dev.azure.com/pg123");
         assertThat(inputs.project()).isEqualTo("demo-app-service");
         assertThat(inputs.pipelineId()).isEqualTo("1");
-        assertThat(inputs.azureServiceConnectionName()).isEqualTo("mappo-ado-demo-rg-contributor");
         assertThat(inputs.personalAccessToken()).isEqualTo("");
         assertThat(inputs.templateParameters()).containsEntry("targetSubscriptionId", "11111111-1111-1111-1111-111111111111");
         assertThat(inputs.templateParameters()).containsEntry("targetResourceGroup", "rg-ado-target-01");

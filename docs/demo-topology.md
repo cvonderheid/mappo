@@ -41,7 +41,7 @@ Provisioned separately from the control plane:
 ### Azure App Service ADO Pipeline
 - release source and deployment connection can be configured
 - deployment mode: Azure DevOps pipeline trigger
-- usable only when the Azure DevOps project has a real Azure service connection
+- usable only when the selected Azure DevOps pipeline owns the Azure credentials/service connections it needs
 
 ## Important boundaries
 - This repo deploys MAPPO itself.

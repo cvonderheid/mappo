@@ -276,26 +276,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{projectId}/deployment-driver/ado/service-connections/discover": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Discover Azure DevOps service connections
-         * @description Discovers Azure DevOps service connections for the selected project using organization/project from request or project config, and Azure DevOps credentials from the linked deployment connection.
-         */
-        post: operations["discoverProjectAdoServiceConnections"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/projects/{projectId}/deployment-driver/ado/repositories/discover": {
         parameters: {
             query?: never;
@@ -1287,24 +1267,6 @@ export interface components {
             validatedAt?: string;
             /** @description Detailed validation findings. */
             findings?: components["schemas"]["ProjectValidationFindingRecord"][];
-        };
-        ProjectAdoServiceConnectionDiscoveryRequest: {
-            organization?: string;
-            project?: string;
-            providerConnectionId?: string;
-            nameContains?: string;
-        };
-        ProjectAdoServiceConnectionDiscoveryResultRecord: {
-            projectId?: string;
-            organization?: string;
-            project?: string;
-            serviceConnections?: components["schemas"]["ProjectAdoServiceConnectionRecord"][];
-        };
-        ProjectAdoServiceConnectionRecord: {
-            id?: string;
-            name?: string;
-            type?: string;
-            webUrl?: string;
         };
         ProjectAdoRepositoryDiscoveryRequest: {
             organization?: string;
@@ -2327,32 +2289,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ProjectValidationResultRecord"];
-                };
-            };
-        };
-    };
-    discoverProjectAdoServiceConnections: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                projectId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["ProjectAdoServiceConnectionDiscoveryRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ProjectAdoServiceConnectionDiscoveryResultRecord"];
                 };
             };
         };

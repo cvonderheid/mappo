@@ -9,7 +9,6 @@ public record PipelineTriggerDriverConfig(
     String repository,
     String pipelineId,
     String branch,
-    String azureServiceConnectionName,
     boolean supportsExternalExecutionHandle,
     boolean supportsExternalLogs
 ) implements ProjectDeploymentDriverConfig {
@@ -22,7 +21,6 @@ public record PipelineTriggerDriverConfig(
             "",
             "",
             "main",
-            "",
             true,
             true
         );

@@ -3,12 +3,10 @@ package com.mappo.controlplane.service.project;
 import com.mappo.controlplane.api.request.ProjectAdoBranchDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoPipelineDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoRepositoryDiscoveryRequest;
-import com.mappo.controlplane.api.request.ProjectAdoServiceConnectionDiscoveryRequest;
 import com.mappo.controlplane.application.project.AzureDevOpsProjectDeploymentDiscoveryHandler;
 import com.mappo.controlplane.model.ProjectAdoBranchDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProjectAdoPipelineDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProjectAdoRepositoryDiscoveryResultRecord;
-import com.mappo.controlplane.model.ProjectAdoServiceConnectionDiscoveryResultRecord;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -41,12 +39,5 @@ public class ProjectDeploymentDriverDiscoveryService {
         ProjectAdoBranchDiscoveryRequest request
     ) {
         return azureDevOpsProjectDeploymentDiscoveryHandler.discoverAdoBranches(projectId, request);
-    }
-
-    public ProjectAdoServiceConnectionDiscoveryResultRecord discoverAdoServiceConnections(
-        String projectId,
-        ProjectAdoServiceConnectionDiscoveryRequest request
-    ) {
-        return azureDevOpsProjectDeploymentDiscoveryHandler.discoverAdoServiceConnections(projectId, request);
     }
 }

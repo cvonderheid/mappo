@@ -108,15 +108,6 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
         return toPipelineDefinitions(inputs, response.body());
     }
 
-    @Override
-    public List<AzureDevOpsServiceConnectionDefinitionRecord> listServiceConnections(
-        AzureDevOpsPipelineDiscoveryInputs inputs
-    ) {
-        String url = serviceConnectionCollectionApiUrl(inputs);
-        HttpResponse<String> response = sendJson(inputs, url, "GET", null);
-        return toServiceConnectionDefinitions(inputs, response.body());
-    }
-
     private HttpResponse<String> sendJson(AzureDevOpsPipelineInputs inputs, String url, String method, Object payload) {
         return sendJson(
             firstNonBlank(inputs == null ? "" : inputs.personalAccessToken(), properties.getAzureDevOps().getPersonalAccessToken()),
@@ -292,43 +283,6 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
         }
     }
 
-    private List<AzureDevOpsServiceConnectionDefinitionRecord> toServiceConnectionDefinitions(
-        AzureDevOpsPipelineDiscoveryInputs inputs,
-        String responseBody
-    ) {
-        try {
-            JsonNode root = objectMapper.readTree(responseBody);
-            List<AzureDevOpsServiceConnectionDefinitionRecord> serviceConnections = new ArrayList<>();
-            JsonNode values = root.path("value");
-            if (values.isArray()) {
-                for (JsonNode node : values) {
-                    String id = normalize(text(node.path("id")));
-                    if (id.isBlank()) {
-                        continue;
-                    }
-                    String name = firstNonBlank(text(node.path("name")), "service-connection-" + id);
-                    String type = normalize(text(node.path("type")));
-                    String webUrl = firstNonBlank(
-                        text(node.path("url")),
-                        organizationUrl(inputs.organization())
-                            + "/" + encodePath(inputs.project())
-                            + "/_settings/adminservices?resourceId=" + encodeQueryParam(id)
-                    );
-                    serviceConnections.add(
-                        new AzureDevOpsServiceConnectionDefinitionRecord(id, name, type, webUrl)
-                    );
-                }
-            }
-            return serviceConnections;
-        } catch (Exception exception) {
-            throw new AzureDevOpsClientException(
-                "Azure DevOps service connection list response parsing failed: " + exception.getMessage(),
-                0,
-                responseBody
-            );
-        }
-    }
-
     private List<AzureDevOpsBranchDefinitionRecord> toBranchDefinitions(String responseBody) {
         try {
             JsonNode root = objectMapper.readTree(responseBody);
@@ -440,13 +394,6 @@ class HttpAzureDevOpsPipelineClient implements AzureDevOpsPipelineClient {
             + "/" + encodePath(inputs.project())
             + "/_apis/git/repositories/" + encodePath(firstNonBlank(inputs.repositoryId(), inputs.repository()))
             + "/refs?filter=heads/&api-version=7.1-preview.1&$top=200";
-    }
-
-    private String serviceConnectionCollectionApiUrl(AzureDevOpsPipelineDiscoveryInputs inputs) {
-        return organizationUrl(inputs.organization())
-            + "/" + encodePath(inputs.project())
-            + "/_apis/serviceendpoint/endpoints?api-version=7.1-preview.4"
-            + "&$top=200";
     }
 
     private String buildRunWebUrl(AzureDevOpsPipelineInputs inputs, String runId) {

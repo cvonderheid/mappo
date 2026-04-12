@@ -70,20 +70,6 @@ public class AzureDevOpsPipelineDiscoveryService {
         return pipelineClient.listRepositories(new AzureDevOpsPipelineDiscoveryInputs(organization, project, token));
     }
 
-    public List<AzureDevOpsServiceConnectionDefinitionRecord> discoverServiceConnections(
-        String organization,
-        String project,
-        String personalAccessToken
-    ) {
-        String token = normalize(personalAccessToken);
-        if (token.isBlank()) {
-            throw new IllegalArgumentException("Azure DevOps PAT could not be resolved for the selected deployment connection.");
-        }
-        return pipelineClient.listServiceConnections(
-            new AzureDevOpsPipelineDiscoveryInputs(organization, project, token)
-        );
-    }
-
     private String normalize(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
     }

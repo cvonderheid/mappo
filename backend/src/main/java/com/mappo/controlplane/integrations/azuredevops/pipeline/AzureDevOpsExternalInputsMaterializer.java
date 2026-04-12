@@ -54,7 +54,6 @@ class AzureDevOpsExternalInputsMaterializer implements ReleaseMaterializer<Azure
             normalize(pipelineConfig.branch()),
             normalize(sourceConfig.descriptorPath()),
             normalize(sourceConfig.versionField()),
-            normalize(pipelineConfig.azureServiceConnectionName()),
             "",
             target.tenantId() == null ? "" : target.tenantId().toString(),
             target.subscriptionId() == null ? "" : target.subscriptionId().toString(),
@@ -105,7 +104,6 @@ class AzureDevOpsExternalInputsMaterializer implements ReleaseMaterializer<Azure
 
         parameters.put("mappoAccessStrategy", normalize(project.accessStrategy().name()));
         parameters.put("mappoAccessAuthModel", normalize(accessConfig.authModel()));
-        parameters.put("mappoAzureServiceConnectionName", normalize(pipelineConfig.azureServiceConnectionName()));
         parameters.put("mappoPipelineSystem", normalize(pipelineConfig.pipelineSystem()));
         parameters.put("mappoProjectId", normalize(project.id()));
         parameters.put("mappoTargetId", normalize(target.targetId()));

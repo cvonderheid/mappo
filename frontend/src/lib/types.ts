@@ -69,12 +69,6 @@ export type DiscoverProjectAdoRepositoriesRequest = {
   providerConnectionId?: string;
   nameContains?: string;
 };
-export type DiscoverProjectAdoServiceConnectionsRequest = {
-  organization?: string;
-  project?: string;
-  providerConnectionId?: string;
-  nameContains?: string;
-};
 export type ProjectAdoRepository = {
   id: string;
   name: string;
@@ -111,18 +105,6 @@ export type ProjectAdoPipelineDiscoveryResult = {
   organization: string;
   project: string;
   pipelines: ProjectAdoPipeline[];
-};
-export type ProjectAdoServiceConnection = {
-  id: string;
-  name: string;
-  type?: string;
-  webUrl?: string;
-};
-export type ProjectAdoServiceConnectionDiscoveryResult = {
-  projectId: string;
-  organization: string;
-  project: string;
-  serviceConnections: ProjectAdoServiceConnection[];
 };
 export type Release = Schemas["ReleaseRecord"];
 export type ReleaseIngestEndpoint = Schemas["ReleaseIngestEndpointRecord"];

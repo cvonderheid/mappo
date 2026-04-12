@@ -236,7 +236,6 @@ class AzureDevOpsPipelineTriggerExecutor implements DeploymentDriver {
             normalize(inputs.branch()),
             normalize(inputs.descriptorPath()),
             normalize(inputs.versionField()),
-            normalize(inputs.azureServiceConnectionName()),
             normalize(personalAccessToken),
             normalize(inputs.targetTenantId()),
             normalize(inputs.targetSubscriptionId()),

@@ -43,7 +43,7 @@ class ProjectConfigurationIntegrationTests extends PostgresIntegrationTestBase {
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("name", "Azure App Service ADO Production");
         request.put("accessStrategyConfig", Map.of(
-            "authModel", "ado_service_connection",
+            "authModel", "pipeline_owned",
             "requiresAzureCredential", false,
             "requiresTargetExecutionMetadata", true
         ));
@@ -52,8 +52,7 @@ class ProjectConfigurationIntegrationTests extends PostgresIntegrationTestBase {
             "organization", "https://dev.azure.com/contoso",
             "project", "customer-app-service",
             "pipelineId", "42",
-            "branch", "release",
-            "azureServiceConnectionName", "contoso-rg-contributor"
+            "branch", "release"
         ));
         request.put("runtimeHealthProviderConfig", Map.of(
             "path", "/healthz",
@@ -71,7 +70,6 @@ class ProjectConfigurationIntegrationTests extends PostgresIntegrationTestBase {
                 .andExpect(jsonPath("$.deploymentDriverConfig.organization").value("https://dev.azure.com/contoso"))
                 .andExpect(jsonPath("$.deploymentDriverConfig.project").value("customer-app-service"))
                 .andExpect(jsonPath("$.deploymentDriverConfig.pipelineId").value("42"))
-                .andExpect(jsonPath("$.deploymentDriverConfig.azureServiceConnectionName").value("contoso-rg-contributor"))
                 .andExpect(jsonPath("$.runtimeHealthProviderConfig.path").value("/healthz"));
         } finally {
             mockMvc.perform(patch("/api/v1/projects/{projectId}", BuiltinProjects.AZURE_APPSERVICE_ADO_PIPELINE)

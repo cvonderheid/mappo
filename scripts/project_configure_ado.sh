@@ -9,7 +9,6 @@ ADO_ORGANIZATION=""
 ADO_PROJECT=""
 ADO_PIPELINE_ID=""
 ADO_BRANCH="main"
-SERVICE_CONNECTION_NAME=""
 RUNTIME_HEALTH_PATH=""
 
 usage() {
@@ -26,7 +25,6 @@ Options:
   --ado-project <value>           ADO project name
   --ado-pipeline-id <value>       ADO pipeline ID
   --ado-branch <value>            ADO branch filter (default: main)
-  --service-connection-name <v>   Azure service connection name
   --runtime-health-path <path>    Optional runtime health path override
   -h, --help                      Show help
 EOF
@@ -62,10 +60,6 @@ while [[ $# -gt 0 ]]; do
       ADO_BRANCH="${2:-}"
       shift 2
       ;;
-    --service-connection-name)
-      SERVICE_CONNECTION_NAME="${2:-}"
-      shift 2
-      ;;
     --runtime-health-path)
       RUNTIME_HEALTH_PATH="${2:-}"
       shift 2
@@ -86,8 +80,8 @@ if [[ -z "${API_BASE_URL}" ]]; then
   echo "project-configure-ado: --api-base-url (or MAPPO_API_BASE_URL) is required." >&2
   exit 2
 fi
-if [[ -z "${ADO_ORGANIZATION}" || -z "${ADO_PROJECT}" || -z "${ADO_PIPELINE_ID}" || -z "${SERVICE_CONNECTION_NAME}" ]]; then
-  echo "project-configure-ado: --ado-organization, --ado-project, --ado-pipeline-id, and --service-connection-name are required." >&2
+if [[ -z "${ADO_ORGANIZATION}" || -z "${ADO_PROJECT}" || -z "${ADO_PIPELINE_ID}" ]]; then
+  echo "project-configure-ado: --ado-organization, --ado-project, and --ado-pipeline-id are required." >&2
   exit 2
 fi
 if ! command -v jq >/dev/null 2>&1; then
@@ -105,11 +99,10 @@ PAYLOAD="$(jq -n \
   --arg adoProject "${ADO_PROJECT}" \
   --arg adoPipelineId "${ADO_PIPELINE_ID}" \
   --arg adoBranch "${ADO_BRANCH}" \
-  --arg serviceConnectionName "${SERVICE_CONNECTION_NAME}" \
   --arg runtimeHealthPath "${RUNTIME_HEALTH_PATH}" \
   '{
     accessStrategyConfig: {
-      authModel: "ado_service_connection",
+      authModel: "pipeline_owned",
       requiresAzureCredential: false,
       requiresTargetExecutionMetadata: true
     },
@@ -119,7 +112,6 @@ PAYLOAD="$(jq -n \
       project: $adoProject,
       pipelineId: $adoPipelineId,
       branch: $adoBranch,
-      azureServiceConnectionName: $serviceConnectionName,
       supportsExternalExecutionHandle: true,
       supportsExternalLogs: true
     }

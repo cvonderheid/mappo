@@ -7,7 +7,7 @@ Current hosted demo truth:
 - MAPPO itself runs in Azure Container Apps.
 - Releases are sourced from external systems such as GitHub.
 - The primary proven rollout path is direct Azure rollout using Deployment Stacks.
-- The Azure DevOps pipeline path exists as a second deployment mode, but it depends on a real Azure DevOps service connection in the target Azure DevOps project.
+- The Azure DevOps pipeline path exists as a second deployment mode. MAPPO triggers the selected pipeline; the pipeline owns its Azure credentials/service connections.
 - The current demo does not use live `Microsoft.Solutions/applications` instances and does not use Template Specs.
 
 ## Core objects

@@ -6,11 +6,9 @@ import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsPipel
 import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsPipelineDiscoveryService;
 import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsProjectDefinitionRecord;
 import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsRepositoryDefinitionRecord;
-import com.mappo.controlplane.integrations.azuredevops.pipeline.AzureDevOpsServiceConnectionDefinitionRecord;
 import com.mappo.controlplane.model.ProjectAdoBranchRecord;
 import com.mappo.controlplane.model.ProjectAdoPipelineRecord;
 import com.mappo.controlplane.model.ProjectAdoRepositoryRecord;
-import com.mappo.controlplane.model.ProjectAdoServiceConnectionRecord;
 import com.mappo.controlplane.model.ProviderConnectionAdoProjectRecord;
 import java.util.Comparator;
 import java.util.List;
@@ -143,37 +141,6 @@ public class HttpAzureDevOpsDiscoveryGateway implements AzureDevOpsDiscoveryGate
         } catch (AzureDevOpsClientException exception) {
             throw new AzureDevOpsDiscoveryException(
                 "Azure DevOps pipeline discovery failed: " + normalize(exception.responseBody())
-            );
-        }
-    }
-
-    @Override
-    public List<ProjectAdoServiceConnectionRecord> discoverServiceConnections(
-        String organization,
-        String project,
-        String personalAccessToken,
-        String nameContains
-    ) {
-        String filter = normalize(nameContains).toLowerCase(Locale.ROOT);
-        try {
-            return pipelineDiscoveryService
-                .discoverServiceConnections(organization, project, personalAccessToken)
-                .stream()
-                .filter(connection -> filter.isBlank()
-                    || normalize(connection.name()).toLowerCase(Locale.ROOT).contains(filter))
-                .sorted(Comparator
-                    .comparing((AzureDevOpsServiceConnectionDefinitionRecord connection) -> normalize(connection.name()).toLowerCase(Locale.ROOT))
-                    .thenComparing(connection -> normalize(connection.id())))
-                .map(connection -> new ProjectAdoServiceConnectionRecord(
-                    normalize(connection.id()),
-                    normalize(connection.name()),
-                    normalize(connection.type()),
-                    normalize(connection.webUrl())
-                ))
-                .toList();
-        } catch (AzureDevOpsClientException exception) {
-            throw new AzureDevOpsDiscoveryException(
-                "Azure DevOps service connection discovery failed: " + normalize(exception.responseBody())
             );
         }
     }

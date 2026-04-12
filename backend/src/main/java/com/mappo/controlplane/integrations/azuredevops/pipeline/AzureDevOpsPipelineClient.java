@@ -15,8 +15,4 @@ public interface AzureDevOpsPipelineClient {
     List<AzureDevOpsRepositoryDefinitionRecord> listRepositories(AzureDevOpsPipelineDiscoveryInputs inputs);
 
     List<AzureDevOpsPipelineDefinitionRecord> listPipelines(AzureDevOpsPipelineDiscoveryInputs inputs);
-
-    List<AzureDevOpsServiceConnectionDefinitionRecord> listServiceConnections(
-        AzureDevOpsPipelineDiscoveryInputs inputs
-    );
 }

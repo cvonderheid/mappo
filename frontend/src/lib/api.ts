@@ -4,7 +4,6 @@ import type {
   DiscoverProjectAdoBranchesRequest,
   DiscoverProjectAdoRepositoriesRequest,
   DiscoverProjectAdoPipelinesRequest,
-  DiscoverProjectAdoServiceConnectionsRequest,
   DeleteTargetRegistrationResponse,
   ForwarderLogPage,
   ListForwarderLogsQuery,
@@ -26,7 +25,6 @@ import type {
   ProjectValidationResult,
   ProjectAdoPipelineDiscoveryResult,
   ProjectAdoRepositoryDiscoveryResult,
-  ProjectAdoServiceConnectionDiscoveryResult,
   ProviderConnection,
   ProviderConnectionAdoProjectDiscoveryResult,
   ProviderConnectionCreateRequest,
@@ -241,28 +239,6 @@ export async function discoverProjectAdoBranches(
     throw new Error(httpErrorMessage("Could not load Azure DevOps branches", response.status, payload));
   }
   return payload as ProjectAdoBranchDiscoveryResult;
-}
-
-export async function discoverProjectAdoServiceConnections(
-  projectId: string,
-  request: DiscoverProjectAdoServiceConnectionsRequest
-): Promise<ProjectAdoServiceConnectionDiscoveryResult> {
-  const response = await fetch(
-    `${apiBaseUrl}/api/v1/projects/${encodeURIComponent(projectId)}/deployment-driver/ado/service-connections/discover`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(request ?? {}),
-    }
-  );
-
-  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!response.ok) {
-    throw new Error(httpErrorMessage("Could not load Azure service connections", response.status, payload));
-  }
-  return payload as ProjectAdoServiceConnectionDiscoveryResult;
 }
 
 export async function listProviderConnections(): Promise<ProviderConnection[]> {

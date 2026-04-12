@@ -37,7 +37,6 @@ import {
   discoverProjectAdoBranches,
   discoverProjectAdoPipelines,
   discoverProjectAdoRepositories,
-  discoverProjectAdoServiceConnections,
   getRun,
   listProjects,
   listReleases,
@@ -58,7 +57,6 @@ import type {
   ProjectAdoRepositoryDiscoveryResult,
   ProjectConfigurationPatchRequest,
   ProjectCreateRequest,
-  ProjectAdoServiceConnectionDiscoveryResult,
   ProjectDefinition,
   ProjectAdoPipelineDiscoveryResult,
   ProjectValidationRequest,
@@ -1336,18 +1334,6 @@ function AppShell() {
     return discoverProjectAdoBranches(projectId, request);
   }
 
-  async function handleDiscoverProjectAdoServiceConnections(
-    projectId: string,
-    request: {
-      organization?: string;
-      project?: string;
-      providerConnectionId?: string;
-      nameContains?: string;
-    }
-  ): Promise<ProjectAdoServiceConnectionDiscoveryResult> {
-    return discoverProjectAdoServiceConnections(projectId, request);
-  }
-
   return (
     <main
       className="mx-auto flex w-[min(1480px,96vw)] flex-col gap-4 py-6"
@@ -1495,7 +1481,6 @@ function AppShell() {
                     onDiscoverAdoBranches={handleDiscoverProjectAdoBranches}
                     onDiscoverAdoRepositories={handleDiscoverProjectAdoRepositories}
                     onDiscoverAdoPipelines={handleDiscoverProjectAdoPipelines}
-                    onDiscoverAdoServiceConnections={handleDiscoverProjectAdoServiceConnections}
                   />
                 }
               />

@@ -4,7 +4,6 @@ import com.mappo.controlplane.api.query.ProjectAuditPageParameters;
 import com.mappo.controlplane.api.request.ProjectAdoBranchDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoPipelineDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoRepositoryDiscoveryRequest;
-import com.mappo.controlplane.api.request.ProjectAdoServiceConnectionDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectConfigurationPatchRequest;
 import com.mappo.controlplane.api.request.ProjectCreateRequest;
 import com.mappo.controlplane.model.ProjectAdoRepositoryDiscoveryResultRecord;
@@ -12,7 +11,6 @@ import com.mappo.controlplane.api.request.ProjectValidationRequest;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.model.ProjectAdoBranchDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProjectAdoPipelineDiscoveryResultRecord;
-import com.mappo.controlplane.model.ProjectAdoServiceConnectionDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProjectConfigurationAuditPageRecord;
 import com.mappo.controlplane.model.ProjectValidationResultRecord;
 import com.mappo.controlplane.service.project.ProjectAuditQueryService;
@@ -131,17 +129,5 @@ public class ProjectsController {
         @RequestBody(required = false) ProjectAdoBranchDiscoveryRequest request
     ) {
         return projectDeploymentDriverDiscoveryService.discoverAdoBranches(projectId, request);
-    }
-
-    @PostMapping("/{projectId}/deployment-driver/ado/service-connections/discover")
-    @Operation(
-        summary = "Discover Azure DevOps service connections",
-        description = "Discovers Azure DevOps service connections for the selected project using organization/project from request or project config, and Azure DevOps credentials from the linked deployment connection."
-    )
-    public ProjectAdoServiceConnectionDiscoveryResultRecord discoverProjectAdoServiceConnections(
-        @PathVariable("projectId") String projectId,
-        @RequestBody(required = false) ProjectAdoServiceConnectionDiscoveryRequest request
-    ) {
-        return projectDeploymentDriverDiscoveryService.discoverAdoServiceConnections(projectId, request);
     }
 }

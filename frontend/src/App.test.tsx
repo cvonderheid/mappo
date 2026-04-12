@@ -151,7 +151,6 @@ const apiMock = vi.hoisted(() => ({
   discoverProjectAdoBranches: vi.fn(),
   discoverProjectAdoPipelines: vi.fn(),
   discoverProjectAdoRepositories: vi.fn(),
-  discoverProjectAdoServiceConnections: vi.fn(),
   getRun: vi.fn(),
   listProviderConnections: vi.fn(),
   listProjectAudit: vi.fn(),
@@ -225,7 +224,6 @@ describe("App", () => {
     apiMock.discoverProjectAdoBranches.mockReset();
     apiMock.discoverProjectAdoPipelines.mockReset();
     apiMock.discoverProjectAdoRepositories.mockReset();
-    apiMock.discoverProjectAdoServiceConnections.mockReset();
     apiMock.createRun.mockReset();
     apiMock.previewRun.mockReset();
     apiMock.resumeRun.mockReset();
@@ -369,7 +367,6 @@ describe("App", () => {
           project: "demo-app-service",
           repository: "demo-app-service",
           pipelineId: "42",
-          azureServiceConnectionName: "ado-service-connection",
           branch: "main",
         },
       },

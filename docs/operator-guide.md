@@ -112,7 +112,7 @@ This is currently the strongest operator page in the product and should be the s
 1. Project: `Azure App Service ADO Pipeline`
 2. Deployment Connection: Azure DevOps PAT-backed connection
 3. Deployment mode: Azure DevOps pipeline trigger
-4. Prerequisite: Azure DevOps project must contain a usable Azure service connection
+4. Prerequisite: the selected Azure DevOps pipeline must own whatever Azure credentials/service connections it needs
 
 ## Operator guidance rules
 - Prefer discovered dropdowns over typed IDs.

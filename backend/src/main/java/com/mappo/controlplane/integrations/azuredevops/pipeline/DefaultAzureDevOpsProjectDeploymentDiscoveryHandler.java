@@ -4,7 +4,6 @@ import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.api.request.ProjectAdoBranchDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoPipelineDiscoveryRequest;
 import com.mappo.controlplane.api.request.ProjectAdoRepositoryDiscoveryRequest;
-import com.mappo.controlplane.api.request.ProjectAdoServiceConnectionDiscoveryRequest;
 import com.mappo.controlplane.application.project.AzureDevOpsProjectDeploymentDiscoveryHandler;
 import com.mappo.controlplane.domain.project.ProjectDefinition;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
@@ -14,7 +13,6 @@ import com.mappo.controlplane.integrations.azuredevops.pipeline.config.PipelineT
 import com.mappo.controlplane.model.ProjectAdoBranchDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProjectAdoPipelineDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProjectAdoRepositoryDiscoveryResultRecord;
-import com.mappo.controlplane.model.ProjectAdoServiceConnectionDiscoveryResultRecord;
 import com.mappo.controlplane.model.ProviderConnectionRecord;
 import com.mappo.controlplane.service.project.ProjectCatalogService;
 import com.mappo.controlplane.service.providerconnection.ProviderConnectionCatalogService;
@@ -132,34 +130,6 @@ public class DefaultAzureDevOpsProjectDeploymentDiscoveryHandler implements Azur
                     personalAccessToken,
                     nameContains
                 )
-            );
-        } catch (IllegalArgumentException exception) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, exception.getMessage());
-        } catch (AzureDevOpsDiscoveryException exception) {
-            throw new ApiException(HttpStatus.BAD_GATEWAY, normalize(exception.getMessage()));
-        }
-    }
-
-    @Override
-    public ProjectAdoServiceConnectionDiscoveryResultRecord discoverAdoServiceConnections(
-        String projectId,
-        ProjectAdoServiceConnectionDiscoveryRequest request
-    ) {
-        ProjectDefinition definition = projectCatalogService.getRequired(projectId);
-        PipelineTriggerDriverConfig config = requireAdoPipelineTriggerConfig(definition);
-        String organization = firstNonBlank(request == null ? null : request.organization(), config.organization());
-        String adoProject = firstNonBlank(request == null ? null : request.project(), config.project());
-        String personalAccessToken = resolveAdoPersonalAccessToken(definition, request == null ? null : request.providerConnectionId());
-        String nameContains = normalize(request == null ? null : request.nameContains());
-        if (organization.isBlank() || adoProject.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Select an Azure DevOps project before MAPPO can discover Azure service connections.");
-        }
-        try {
-            return new ProjectAdoServiceConnectionDiscoveryResultRecord(
-                definition.id(),
-                organization,
-                adoProject,
-                azureDevOpsDiscoveryGateway.discoverServiceConnections(organization, adoProject, personalAccessToken, nameContains)
             );
         } catch (IllegalArgumentException exception) {
             throw new ApiException(HttpStatus.BAD_REQUEST, exception.getMessage());
