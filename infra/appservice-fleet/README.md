@@ -45,9 +45,9 @@ Each target entry includes:
   - `runtimeHealthPath`
   - `runtimeExpectedStatus`
 
-That inventory is meant to feed MAPPO onboarding through:
+That inventory is meant to feed MAPPO target import through:
 
-- `/Users/cvonderheid/workspace/mappo/scripts/marketplace_ingest_events.sh`
+- `/Users/cvonderheid/workspace/mappo/scripts/appservice_fleet_import_targets.sh`
 
 ## Recommended workflow
 
@@ -75,14 +75,43 @@ That inventory is meant to feed MAPPO onboarding through:
   --api-base-url https://api.mappopoc.com \
   --ado-organization https://dev.azure.com/<org> \
   --ado-project <project> \
-  --ado-pipeline-id <pipeline-id> \
-  --service-connection-name <service-connection-name>
+  --ado-pipeline-id <pipeline-id>
 ```
 
-3. Tear the fleet down when needed:
+2.6 Configure the ADO release source to listen to the release-readiness pipeline:
 
 ```bash
-./scripts/appservice_fleet_down.sh --stack appservice-demo
+./scripts/release_source_configure_ado.sh \
+  --api-base-url https://api.mappopoc.com \
+  --pipeline-id <release-readiness-pipeline-id>
+```
+
+2.7 Configure the ADO service hook for the same release-readiness pipeline:
+
+```bash
+./scripts/ado_release_hook_configure.sh \
+  --organization https://dev.azure.com/pg123 \
+  --project demo-app-service \
+  --pipeline-id <release-readiness-pipeline-id> \
+  --mappo-api-base-url https://api.mappopoc.com
+```
+
+3. Generate an ADO demo release by opening and completing a release PR:
+
+```bash
+./scripts/ado_appservice_release_pr.sh \
+  --organization https://dev.azure.com/pg123 \
+  --project demo-app-service \
+  --repository demo-app-service \
+  --version 2026.04.12.1
+```
+
+4. Tear the fleet down when needed:
+
+```bash
+./scripts/appservice_fleet_down.sh \
+  --stack appservice-demo \
+  --api-base-url https://api.mappopoc.com
 ```
 
 ## Maven helpers
@@ -93,5 +122,5 @@ The root reactor exposes convenience goals for this Pulumi module:
 - `./mvnw -N exec:exec@appservice-fleet-pulumi-destroy`
 
 Those only run Pulumi. The higher-level shell scripts above are still the intended
-operator flow because they also package/deploy the sample app and emit onboarding
-events for MAPPO.
+operator flow because they also package/deploy the sample app and import/delete
+MAPPO targets from the Pulumi inventory.

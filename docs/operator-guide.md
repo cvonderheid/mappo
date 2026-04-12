@@ -112,7 +112,9 @@ This is currently the strongest operator page in the product and should be the s
 1. Project: `Azure App Service ADO Pipeline`
 2. Deployment Connection: Azure DevOps PAT-backed connection
 3. Deployment mode: Azure DevOps pipeline trigger
-4. Prerequisite: the selected Azure DevOps pipeline must own whatever Azure credentials/service connections it needs
+4. Targets: imported from App Service Pulumi inventory through MAPPO's target import API
+5. Release readiness: merge an ADO release PR to `main`; the release-readiness pipeline service hook creates the MAPPO release
+6. Prerequisite: the selected Azure DevOps deployment pipeline must own whatever Azure credentials/service connections it needs
 
 ## Operator guidance rules
 - Prefer discovered dropdowns over typed IDs.

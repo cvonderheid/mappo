@@ -1,0 +1,9 @@
+{
+  "name": "mappo-appservice-demo-app",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Minimal App Service target application for the MAPPO ADO project demo.",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

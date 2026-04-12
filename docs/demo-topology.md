@@ -29,8 +29,8 @@ Applied by the Azure delivery lifecycle:
 
 ### Target fleets
 Provisioned separately from the control plane:
-- demo target fleet for direct Azure rollout
-- app service target fleet for Azure DevOps pipeline experiments
+- demo target fleet for direct Azure rollout; this uses marketplace-style registration and deregistration events
+- app service target fleet for Azure DevOps pipeline experiments; this uses Pulumi inventory import/delete against MAPPO target APIs
 
 ## Current project shapes
 ### Azure Managed App Deployment Stack
@@ -39,9 +39,12 @@ Provisioned separately from the control plane:
 - current demo path: fully usable
 
 ### Azure App Service ADO Pipeline
-- release source and deployment connection can be configured
+- release source: Azure DevOps pipeline event
+- deployment connection: Azure DevOps PAT-backed connection used by MAPPO to trigger the deployment pipeline
 - deployment mode: Azure DevOps pipeline trigger
-- usable only when the selected Azure DevOps pipeline owns the Azure credentials/service connections it needs
+- release readiness comes from a separate ADO pipeline triggered by PR merge to `main`
+- usable only when the selected Azure DevOps deployment pipeline owns the Azure credentials/service connections it needs
+- targets are imported from App Service Pulumi inventory, not marketplace registration events
 
 ## Important boundaries
 - This repo deploys MAPPO itself.

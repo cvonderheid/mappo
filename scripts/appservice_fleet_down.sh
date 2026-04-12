@@ -6,24 +6,21 @@ IAC_DIR="${ROOT_DIR}/infra/appservice-fleet"
 STACK="appservice-demo"
 INVENTORY_FILE="${ROOT_DIR}/.data/appservice-fleet-target-inventory.json"
 API_BASE_URL="${MAPPO_API_BASE_URL:-}"
-INGEST_TOKEN="${MAPPO_MARKETPLACE_INGEST_TOKEN:-}"
-EVENT_TYPE="subscription_deleted"
-SKIP_EVENTS=false
+SKIP_DELETE=false
 
 usage() {
   cat <<EOF
 usage: $(basename "$0") [options]
 
-Emit offboarding events for the App Service fleet and destroy the Pulumi stack.
+Delete imported App Service targets from MAPPO and destroy the Pulumi stack.
 
 Options:
   --stack <name>               Pulumi stack (default: appservice-demo)
   --iac-dir <path>             Pulumi project dir (default: infra/appservice-fleet)
   --inventory-file <path>      Inventory json file (default: .data/appservice-fleet-target-inventory.json)
-  --api-base-url <url>         MAPPO API base URL for ingest (default: MAPPO_API_BASE_URL)
-  --ingest-token <token>       Optional x-mappo-ingest-token
-  --event-type <name>          Event type for ingest (default: subscription_deleted)
-  --skip-events                Destroy stack only (do not call MAPPO ingest)
+  --api-base-url <url>         MAPPO API base URL for target deletion (default: MAPPO_API_BASE_URL)
+  --skip-delete                Destroy stack only; do not delete MAPPO targets
+  --skip-events                Deprecated alias for --skip-delete
   -h, --help                   Show help
 EOF
 }
@@ -46,16 +43,12 @@ while [[ $# -gt 0 ]]; do
       API_BASE_URL="${2:-}"
       shift 2
       ;;
-    --ingest-token)
-      INGEST_TOKEN="${2:-}"
-      shift 2
-      ;;
-    --event-type)
-      EVENT_TYPE="${2:-}"
-      shift 2
+    --skip-delete)
+      SKIP_DELETE=true
+      shift 1
       ;;
     --skip-events)
-      SKIP_EVENTS=true
+      SKIP_DELETE=true
       shift 1
       ;;
     -h|--help)
@@ -83,7 +76,7 @@ pushd "${IAC_DIR}" >/dev/null
 pulumi login --local >/dev/null
 pulumi stack select "${STACK}" >/dev/null 2>&1 || pulumi stack init "${STACK}" >/dev/null
 
-if [[ "${SKIP_EVENTS}" != "true" ]]; then
+if [[ "${SKIP_DELETE}" != "true" ]]; then
   mkdir -p "$(dirname "${INVENTORY_FILE}")"
   if pulumi stack output --stack "${STACK}" mappoTargetInventory --json >"${INVENTORY_FILE}" 2>/dev/null; then
     echo "appservice-fleet-down: refreshed inventory ${INVENTORY_FILE}"
@@ -91,22 +84,13 @@ if [[ "${SKIP_EVENTS}" != "true" ]]; then
 fi
 popd >/dev/null
 
-if [[ "${SKIP_EVENTS}" != "true" && -n "${API_BASE_URL}" && -f "${INVENTORY_FILE}" ]]; then
-  INGEST_ARGS=()
-  if [[ -n "${INGEST_TOKEN}" ]]; then
-    INGEST_ARGS+=(--ingest-token "${INGEST_TOKEN}")
-  fi
-
-  "${ROOT_DIR}/scripts/marketplace_ingest_events.sh" \
+if [[ "${SKIP_DELETE}" != "true" && -n "${API_BASE_URL}" && -f "${INVENTORY_FILE}" ]]; then
+  "${ROOT_DIR}/scripts/appservice_fleet_delete_targets.sh" \
     --inventory-file "${INVENTORY_FILE}" \
-    --api-base-url "${API_BASE_URL}" \
-    --event-type "${EVENT_TYPE}" \
-    --event-id-prefix "evt-appservice-fleet-down" \
-    --source-label "appservice-fleet-down" \
-    "${INGEST_ARGS[@]}"
-  echo "appservice-fleet-down: offboarding ingest complete."
-elif [[ "${SKIP_EVENTS}" != "true" ]]; then
-  echo "appservice-fleet-down: skipped offboarding ingest (missing api-base-url or inventory file)."
+    --api-base-url "${API_BASE_URL}"
+  echo "appservice-fleet-down: MAPPO target delete complete."
+elif [[ "${SKIP_DELETE}" != "true" ]]; then
+  echo "appservice-fleet-down: skipped MAPPO target delete (missing api-base-url or inventory file)."
 fi
 
 pushd "${IAC_DIR}" >/dev/null

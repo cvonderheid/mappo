@@ -8,26 +8,25 @@ INVENTORY_FILE="${ROOT_DIR}/.data/appservice-fleet-target-inventory.json"
 PACKAGE_FILE="${ROOT_DIR}/.data/appservice-fleet-package/appservice-demo-app.zip"
 API_BASE_URL="${MAPPO_API_BASE_URL:-}"
 INGEST_TOKEN="${MAPPO_MARKETPLACE_INGEST_TOKEN:-}"
-EVENT_TYPE="subscription_purchased"
 SKIP_DEPLOY=false
-SKIP_EVENTS=false
+SKIP_IMPORT=false
 
 usage() {
   cat <<EOF
 usage: $(basename "$0") [options]
 
-Deploy the App Service fleet stack, publish the demo app package to every target, and register the targets in MAPPO.
+Deploy the App Service fleet stack, publish the demo app package to every target, and import the targets into MAPPO.
 
 Options:
   --stack <name>               Pulumi stack (default: appservice-demo)
   --iac-dir <path>             Pulumi project dir (default: infra/appservice-fleet)
   --inventory-file <path>      Output inventory json (default: .data/appservice-fleet-target-inventory.json)
   --package-file <path>        Zip artifact path (default: .data/appservice-fleet-package/appservice-demo-app.zip)
-  --api-base-url <url>         MAPPO API base URL for ingest (default: MAPPO_API_BASE_URL)
-  --ingest-token <token>       Optional x-mappo-ingest-token
-  --event-type <name>          Event type for ingest (default: subscription_purchased)
+  --api-base-url <url>         MAPPO API base URL for target import (default: MAPPO_API_BASE_URL)
+  --ingest-token <token>       Optional x-mappo-ingest-token if the admin ingest API requires it
   --skip-deploy                Provision stack only; do not deploy the app package
-  --skip-events                Provision stack only; do not call MAPPO ingest
+  --skip-import                Provision stack only; do not import targets into MAPPO
+  --skip-events                Deprecated alias for --skip-import
   -h, --help                   Show help
 EOF
 }
@@ -58,16 +57,16 @@ while [[ $# -gt 0 ]]; do
       INGEST_TOKEN="${2:-}"
       shift 2
       ;;
-    --event-type)
-      EVENT_TYPE="${2:-}"
-      shift 2
-      ;;
     --skip-deploy)
       SKIP_DEPLOY=true
       shift 1
       ;;
+    --skip-import)
+      SKIP_IMPORT=true
+      shift 1
+      ;;
     --skip-events)
-      SKIP_EVENTS=true
+      SKIP_IMPORT=true
       shift 1
       ;;
     -h|--help)
@@ -136,8 +135,8 @@ if [[ "${SKIP_DEPLOY}" != "true" ]]; then
   done < <(jq -c '.[]' "${INVENTORY_FILE}")
 fi
 
-if [[ "${SKIP_EVENTS}" == "true" ]]; then
-  echo "appservice-fleet-up: skip-events enabled; no onboarding events sent."
+if [[ "${SKIP_IMPORT}" == "true" ]]; then
+  echo "appservice-fleet-up: skip-import enabled; no MAPPO targets imported."
   exit 0
 fi
 
@@ -151,12 +150,9 @@ if [[ -n "${INGEST_TOKEN}" ]]; then
   INGEST_ARGS+=(--ingest-token "${INGEST_TOKEN}")
 fi
 
-"${ROOT_DIR}/scripts/marketplace_ingest_events.sh" \
+"${ROOT_DIR}/scripts/appservice_fleet_import_targets.sh" \
   --inventory-file "${INVENTORY_FILE}" \
   --api-base-url "${API_BASE_URL}" \
-  --event-type "${EVENT_TYPE}" \
-  --event-id-prefix "evt-appservice-fleet-up" \
-  --source-label "appservice-fleet-up" \
   "${INGEST_ARGS[@]}"
 
-echo "appservice-fleet-up: onboarding ingest complete."
+echo "appservice-fleet-up: MAPPO target import complete."

@@ -1,7 +1,7 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Drawer,
   DrawerClose,
@@ -15,9 +15,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { adminListMarketplaceEvents, adminListReleaseWebhookDeliveries, listTargetsPage } from "@/lib/api";
 import type {
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
+  ProjectDefinition,
+  Release,
   TargetRegistrationRecord,
 } from "@/lib/types";
 
@@ -30,6 +33,8 @@ type DemoPanelProps = {
   adminErrorMessage: string;
   adminIsSubmitting: boolean;
   adminResult: MarketplaceEventIngestResponse | null;
+  projects: ProjectDefinition[];
+  releases: Release[];
   registrations: TargetRegistrationRecord[];
   onIngestMarketplaceEvent: (
     request: MarketplaceEventIngestRequest,
@@ -37,6 +42,45 @@ type DemoPanelProps = {
   ) => Promise<void>;
   onRefreshRegistrations: () => Promise<void>;
 };
+
+type DemoProjectStatus = {
+  targetCount: number | null;
+  onboardingEventCount: number | null;
+  errorMessage: string;
+};
+
+const DEMO_PROJECTS = [
+  {
+    id: "azure-managed-app-deployment-stack",
+    title: "VECTR: Azure Managed App Deployment Stack",
+    provider: "GitHub release source + direct Azure rollout",
+    purpose: "Demonstrates MAPPO-controlled target-by-target Azure rollout.",
+    targetFlow: "Pulumi creates target infrastructure and sends marketplace-style registration events.",
+    releaseFlow: "Publisher updates the GitHub managed-app manifest, then MAPPO checks for new releases.",
+    deploymentFlow: "MAPPO deploys directly to each selected Azure target.",
+    command: [
+      "cd /Users/cvonderheid/workspace/mappo-managed-app",
+      "./scripts/create_release.mjs",
+      "./scripts/publish_release.mjs --version <version> --storage-account <account> --acr-name <acr>",
+      "Open MAPPO -> Releases -> Check for new releases",
+    ].join("\n"),
+  },
+  {
+    id: "azure-appservice-ado-pipeline",
+    title: "Azure App Service ADO Pipeline",
+    provider: "Azure DevOps release source + pipeline deployment",
+    purpose: "Demonstrates MAPPO triggering an external deployment pipeline per target.",
+    targetFlow: "Pulumi creates App Service targets and imports the inventory through MAPPO target APIs.",
+    releaseFlow: "A release branch PR merges to main, an ADO release-readiness pipeline succeeds, and its service hook creates the MAPPO release.",
+    deploymentFlow: "MAPPO triggers the deployment pipeline; the pipeline owns Azure credentials and deploys to the selected App Service target.",
+    command: [
+      "cd /Users/cvonderheid/workspace/mappo",
+      "./scripts/appservice_fleet_up.sh --stack appservice-demo --api-base-url https://api.mappopoc.com",
+      "./scripts/ado_appservice_release_pr.sh --organization https://dev.azure.com/pg123 --project demo-app-service --repository demo-app-service --version <version>",
+      "Open MAPPO -> Releases, then start deployment from the new ADO release",
+    ].join("\n"),
+  },
+] as const;
 
 function nextEventId(): string {
   return `evt-demo-${Date.now()}`;
@@ -46,6 +90,8 @@ export default function DemoPanel({
   adminErrorMessage,
   adminIsSubmitting,
   adminResult,
+  projects,
+  releases,
   registrations,
   onIngestMarketplaceEvent,
   onRefreshRegistrations,
@@ -68,6 +114,10 @@ export default function DemoPanel({
   const [environment, setEnvironment] = useState("prod");
   const [tier, setTier] = useState("standard");
   const [ingestToken, setIngestToken] = useState("");
+  const [statusByProjectId, setStatusByProjectId] = useState<Record<string, DemoProjectStatus>>({});
+  const [releaseWebhookDeliveryCount, setReleaseWebhookDeliveryCount] = useState<number | null>(null);
+  const [demoStatusErrorMessage, setDemoStatusErrorMessage] = useState("");
+  const [isRefreshingDemoStatus, setIsRefreshingDemoStatus] = useState(false);
 
   const registrationByTargetId = useMemo(
     () =>
@@ -97,6 +147,71 @@ export default function DemoPanel({
     (eventType === "subscription_purchased"
       ? containerAppResourceId.trim() !== ""
       : hasLocator);
+
+  const releaseCountByProjectId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const release of releases) {
+      if (release.projectId) {
+        counts.set(release.projectId, (counts.get(release.projectId) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [releases]);
+
+  const projectNameById = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const project of projects) {
+      if (project.id) {
+        names.set(project.id, project.name ?? project.id);
+      }
+    }
+    return names;
+  }, [projects]);
+
+  const refreshDemoStatus = useCallback(async () => {
+    setIsRefreshingDemoStatus(true);
+    setDemoStatusErrorMessage("");
+    try {
+      const entries = await Promise.all(
+        DEMO_PROJECTS.map(async (project) => {
+          try {
+            const [targetPage, eventPage] = await Promise.all([
+              listTargetsPage({ projectId: project.id, page: 0, size: 1 }),
+              adminListMarketplaceEvents({ projectId: project.id, page: 0, size: 1 }),
+            ]);
+            return [
+              project.id,
+              {
+                targetCount: targetPage.page?.totalItems ?? 0,
+                onboardingEventCount: eventPage.page?.totalItems ?? 0,
+                errorMessage: "",
+              },
+            ] as const;
+          } catch (error) {
+            return [
+              project.id,
+              {
+                targetCount: null,
+                onboardingEventCount: null,
+                errorMessage: (error as Error).message,
+              },
+            ] as const;
+          }
+        })
+      );
+      const webhookPage = await adminListReleaseWebhookDeliveries({ page: 0, size: 1 });
+      setStatusByProjectId(Object.fromEntries(entries));
+      setReleaseWebhookDeliveryCount(webhookPage.page?.totalItems ?? 0);
+    } catch (error) {
+      setDemoStatusErrorMessage((error as Error).message);
+    } finally {
+      setIsRefreshingDemoStatus(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshDemoStatus();
+  }, [refreshDemoStatus]);
 
   const expectedOutcome = useMemo(() => {
     const knownTarget =
@@ -192,13 +307,101 @@ export default function DemoPanel({
 
   return (
     <div className="space-y-4">
+      <Card className="glass-card animate-fade-up [animation-fill-mode:forwards]">
+        <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <CardTitle>Engineering Demo Control Room</CardTitle>
+            <CardDescription>
+              DEMO PURPOSES ONLY. Use this page to run the two active demo paths without changing low-level configuration during the walkthrough.
+            </CardDescription>
+          </div>
+          <CardAction className="flex-wrap justify-end">
+            <Button type="button" variant="outline" onClick={() => void refreshDemoStatus()} disabled={isRefreshingDemoStatus}>
+              {isRefreshingDemoStatus ? "Refreshing..." : "Refresh demo status"}
+            </Button>
+          </CardAction>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-md border border-border/70 bg-background/50 p-3">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Active demo projects</p>
+            <p className="mt-1 text-2xl font-semibold">{DEMO_PROJECTS.length}</p>
+          </div>
+          <div className="rounded-md border border-border/70 bg-background/50 p-3">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Admin target records loaded</p>
+            <p className="mt-1 text-2xl font-semibold">{registrations.length}</p>
+          </div>
+          <div className="rounded-md border border-border/70 bg-background/50 p-3">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Release webhook events</p>
+            <p className="mt-1 text-2xl font-semibold">{releaseWebhookDeliveryCount ?? "..."}</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {demoStatusErrorMessage ? (
+        <div className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive-foreground">
+          {demoStatusErrorMessage}
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        {DEMO_PROJECTS.map((project) => {
+          const status = statusByProjectId[project.id];
+          const configuredProjectName = projectNameById.get(project.id) ?? project.title;
+          return (
+            <Card key={project.id} className="glass-card animate-fade-up [animation-delay:80ms] [animation-fill-mode:forwards]">
+              <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                  <CardTitle>{configuredProjectName}</CardTitle>
+                  <CardDescription>{project.provider}</CardDescription>
+                </div>
+                <CardAction>
+                  <span className="rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
+                    Demo path
+                  </span>
+                </CardAction>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">{project.purpose}</p>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <div className="rounded-md border border-border/70 bg-background/40 p-3">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Targets</p>
+                    <p className="mt-1 text-xl font-semibold">{status?.targetCount ?? "..."}</p>
+                  </div>
+                  <div className="rounded-md border border-border/70 bg-background/40 p-3">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Releases</p>
+                    <p className="mt-1 text-xl font-semibold">{releaseCountByProjectId.get(project.id) ?? 0}</p>
+                  </div>
+                  <div className="rounded-md border border-border/70 bg-background/40 p-3">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Target events</p>
+                    <p className="mt-1 text-xl font-semibold">{status?.onboardingEventCount ?? "..."}</p>
+                  </div>
+                </div>
+                {status?.errorMessage ? (
+                  <p className="rounded-md border border-destructive/60 bg-destructive/10 p-2 text-xs text-destructive-foreground">
+                    {status.errorMessage}
+                  </p>
+                ) : null}
+                <div className="grid gap-3 text-sm text-muted-foreground">
+                  <p><span className="font-semibold text-foreground">Targets:</span> {project.targetFlow}</p>
+                  <p><span className="font-semibold text-foreground">Release:</span> {project.releaseFlow}</p>
+                  <p><span className="font-semibold text-foreground">Deployment:</span> {project.deploymentFlow}</p>
+                </div>
+                <pre className="overflow-x-auto rounded-md border border-border/70 bg-background/70 p-3 text-xs text-muted-foreground">
+                  <code>{project.command}</code>
+                </pre>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
       <Drawer direction="top" open={drawerOpen} onOpenChange={setDrawerOpen}>
         <Card className="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]">
           <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1">
-              <CardTitle>Demo Event Simulator</CardTitle>
+              <CardTitle>Advanced: Event Simulator</CardTitle>
               <CardDescription>
-                Simulate marketplace lifecycle events without Partner Center.
+                Low-level marketplace lifecycle event simulator. The normal App Service demo uses Pulumi inventory import instead.
               </CardDescription>
             </div>
             <CardAction className="flex-wrap justify-end">

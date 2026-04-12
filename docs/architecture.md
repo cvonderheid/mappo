@@ -60,7 +60,8 @@ MAPPO triggers an external pipeline per selected target instead of mutating Azur
 
 Current implementation:
 - Azure DevOps pipeline trigger
-- repo/pipeline/service-connection discovery through the selected Deployment Connection
+- project, repo, branch, and pipeline discovery through the selected Deployment Connection
+- Azure credentials and service connections are pipeline-owned; MAPPO should not model them as project configuration
 
 ## Runtime components
 - **Backend API**: Spring Boot API, orchestration, persistence, Azure integrations

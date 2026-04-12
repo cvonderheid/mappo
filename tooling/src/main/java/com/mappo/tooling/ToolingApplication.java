@@ -35,6 +35,8 @@ public final class ToolingApplication {
                 case "export-backend-openapi" -> new ExportBackendOpenApiCommand().run(commandArgs);
                 case "marketplace-ingest-events" -> new MarketplaceIngestEventsCommand().run(commandArgs);
                 case "marketplace-forwarder-replay" -> new MarketplaceForwarderReplayInventoryCommand().run(commandArgs);
+                case "target-import-inventory" -> new TargetInventoryImportCommand().run(commandArgs);
+                case "target-delete-inventory" -> new TargetInventoryDeleteCommand().run(commandArgs);
                 case "release-ingest-from-repo" -> new ReleaseIngestFromRepoCommand().run(commandArgs);
                 case "azure-script-support" -> new AzureScriptSupportCommand().run(commandArgs);
                 default -> throw new ToolingException("unknown command: " + command, 2);
@@ -62,6 +64,8 @@ public final class ToolingApplication {
               export-backend-openapi
               marketplace-ingest-events
               marketplace-forwarder-replay
+              target-import-inventory
+              target-delete-inventory
               release-ingest-from-repo
               azure-script-support
             """);

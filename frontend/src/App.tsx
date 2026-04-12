@@ -1583,6 +1583,8 @@ function AppShell() {
                     adminErrorMessage={adminErrorMessage}
                     adminIsSubmitting={adminIsSubmitting}
                     adminResult={adminResult}
+                    projects={projects}
+                    releases={releases}
                     registrations={registrationOptions}
                     onIngestMarketplaceEvent={handleAdminIngestMarketplaceEvent}
                     onRefreshRegistrations={refreshRegistrationOptions}
