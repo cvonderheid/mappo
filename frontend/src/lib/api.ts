@@ -108,6 +108,29 @@ export async function listTargetsPage(query: ListTargetsPageQuery = {}): Promise
   return requireData("Could not load fleet targets", { data, error, response });
 }
 
+export type TargetRuntimeHealthCheckResult = {
+  projectId?: string;
+  checkedCount?: number;
+  inProgress?: boolean;
+};
+
+export async function checkTargetRuntimeHealth(projectId: string): Promise<TargetRuntimeHealthCheckResult> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/targets/runtime-health/check?projectId=${encodeURIComponent(projectId)}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new Error(httpErrorMessage("Could not check target health", response.status, payload));
+  }
+  return payload as TargetRuntimeHealthCheckResult;
+}
+
 export async function listProjects(): Promise<ProjectDefinition[]> {
   const { data, error, response } = await apiClient.GET("/api/v1/projects");
   return requireData("Could not load projects", { data, error, response });

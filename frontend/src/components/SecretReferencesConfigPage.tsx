@@ -134,6 +134,14 @@ function describeBackendRef(secretReference: SecretReference): string {
   return "MAPPO backend secret";
 }
 
+function referenceToken(secretReference: SecretReference): string {
+  const backendRef = normalize(secretReference.backendRef);
+  if (backendRef.startsWith("env:") || backendRef.startsWith("kv:")) {
+    return backendRef;
+  }
+  return "";
+}
+
 export default function SecretReferencesConfigPage({
   selectedProjectId: _selectedProjectId,
 }: SecretReferencesConfigPageProps) {
@@ -322,13 +330,13 @@ export default function SecretReferencesConfigPage({
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline">
-                      {PROVIDER_LABELS[(secretReference.provider ?? "azure_devops") as SecretReferenceProvider]}
+                      Provider: {PROVIDER_LABELS[(secretReference.provider ?? "azure_devops") as SecretReferenceProvider]}
                     </Badge>
                     <Badge variant="outline">
-                      {USAGE_LABELS[(secretReference.usage ?? "deployment_api_credential") as SecretReferenceUsage]}
+                      Usage: {USAGE_LABELS[(secretReference.usage ?? "deployment_api_credential") as SecretReferenceUsage]}
                     </Badge>
                     <Badge variant="outline">
-                      {MODE_LABELS[(secretReference.mode ?? "mappo_default") as SecretReferenceMode]}
+                      Stored as: {MODE_LABELS[(secretReference.mode ?? "mappo_default") as SecretReferenceMode]}
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">
@@ -337,6 +345,19 @@ export default function SecretReferencesConfigPage({
                       {describeBackendRef(secretReference)}
                     </span>
                   </p>
+                  {referenceToken(secretReference) !== "" ? (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                        Reference token
+                      </p>
+                      <Input
+                        value={referenceToken(secretReference)}
+                        readOnly
+                        onFocus={(event) => event.target.select()}
+                        className="font-mono text-xs"
+                      />
+                    </div>
+                  ) : null}
                   {(secretReference.linkedDeploymentConnections?.length ?? 0) > 0 ? (
                     <div className="space-y-1">
                       <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">

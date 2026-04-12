@@ -116,7 +116,7 @@ export default function DeploymentsPage({
             description="Historical deployment runs and actions."
             headerAction={
               <DrawerTrigger asChild>
-                <Button data-testid="open-deployment-controls" variant="outline">
+                <Button data-testid="open-deployment-controls">
                   New Deployment
                 </Button>
               </DrawerTrigger>

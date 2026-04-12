@@ -147,12 +147,17 @@ const apiMock = vi.hoisted(() => ({
   adminIngestMarketplaceEvent: vi.fn(),
   createProject: vi.fn(),
   createRun: vi.fn(),
+  deleteProject: vi.fn(),
+  discoverProjectAdoBranches: vi.fn(),
   discoverProjectAdoPipelines: vi.fn(),
+  discoverProjectAdoRepositories: vi.fn(),
   discoverProjectAdoServiceConnections: vi.fn(),
   getRun: vi.fn(),
+  listProviderConnections: vi.fn(),
   listProjectAudit: vi.fn(),
   listProjects: vi.fn(),
   listReleases: vi.fn(),
+  listReleaseIngestEndpoints: vi.fn(),
   listRuns: vi.fn(),
   listTargetsPage: vi.fn(),
   patchProjectConfiguration: vi.fn(),
@@ -216,15 +221,20 @@ describe("App", () => {
     apiMock.adminIngestGithubReleaseManifest.mockReset();
     apiMock.adminIngestMarketplaceEvent.mockReset();
     apiMock.createProject.mockReset();
+    apiMock.deleteProject.mockReset();
+    apiMock.discoverProjectAdoBranches.mockReset();
     apiMock.discoverProjectAdoPipelines.mockReset();
+    apiMock.discoverProjectAdoRepositories.mockReset();
     apiMock.discoverProjectAdoServiceConnections.mockReset();
     apiMock.createRun.mockReset();
     apiMock.previewRun.mockReset();
     apiMock.resumeRun.mockReset();
     apiMock.retryFailed.mockReset();
     apiMock.listProjectAudit.mockReset();
+    apiMock.listProviderConnections.mockResolvedValue([]);
     apiMock.listProjects.mockResolvedValue(mockProjects);
     apiMock.listReleases.mockResolvedValue(mockReleases);
+    apiMock.listReleaseIngestEndpoints.mockResolvedValue([]);
     apiMock.listRuns.mockResolvedValue(mockRunPage);
     apiMock.getRun.mockResolvedValue(mockRunDetail);
     apiMock.listTargetsPage.mockResolvedValue(mockTargetPage);
@@ -346,6 +356,48 @@ describe("App", () => {
       expect(screen.getByText("Project Settings")).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Create Project" })).toBeInTheDocument();
     });
+  });
+
+  it("hides Azure DevOps controls for direct Azure rollout projects", async () => {
+    apiMock.listProjects.mockResolvedValue([
+      {
+        ...mockProjects[0],
+        deploymentDriver: "azure_deployment_stack",
+        providerConnectionId: "ado-default",
+        deploymentDriverConfig: {
+          organization: "https://dev.azure.com/pg123",
+          project: "demo-app-service",
+          repository: "demo-app-service",
+          pipelineId: "42",
+          azureServiceConnectionName: "ado-service-connection",
+          branch: "main",
+        },
+      },
+    ]);
+    window.history.replaceState({}, "", "/projects");
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Project Settings")).toBeInTheDocument();
+    });
+
+    const deploymentDriverTab = screen.getByRole("tab", { name: "Deployment Driver" });
+    fireEvent.pointerDown(deploymentDriverTab, { button: 0, ctrlKey: false });
+    fireEvent.mouseDown(deploymentDriverTab, { button: 0, ctrlKey: false });
+    fireEvent.click(deploymentDriverTab);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Check Azure access/i })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByLabelText("Deployment connection")).not.toBeInTheDocument();
+    expect(screen.queryByText("Azure DevOps Project")).not.toBeInTheDocument();
+    expect(screen.queryByText("Azure DevOps Repository")).not.toBeInTheDocument();
+    expect(screen.queryByText("Azure DevOps Pipeline")).not.toBeInTheDocument();
+    expect(screen.queryByText("Azure Service Connection")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Load pipelines/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Load service connections/i })).not.toBeInTheDocument();
   });
 
   it("includes run live topics on deployments routes", async () => {

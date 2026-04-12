@@ -51,8 +51,13 @@ function targetLabel(target: Target): string {
   );
 }
 
-function detailList(values: string[]): string[] {
-  return values.filter((value) => value.trim() !== "");
+type FlowDetail = {
+  label: string;
+  value: string;
+};
+
+function detailList(values: FlowDetail[]): FlowDetail[] {
+  return values.filter((value) => value.value.trim() !== "");
 }
 
 function FlowNode({
@@ -64,10 +69,10 @@ function FlowNode({
   icon: ReactNode;
   eyebrow: string;
   title: string;
-  details: string[];
+  details: FlowDetail[];
 }) {
   return (
-    <div className="min-w-0 flex-1 rounded-xl border border-border/70 bg-background/40 p-4">
+    <div className="min-w-0 flex-1 rounded-xl border border-border/70 bg-gradient-to-br from-background/70 via-background/40 to-background/20 p-4 shadow-sm">
       <div className="flex items-start gap-3">
         <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
           {icon}
@@ -77,11 +82,14 @@ function FlowNode({
             <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{eyebrow}</p>
             <p className="text-sm font-semibold text-foreground">{title}</p>
           </div>
-          <div className="space-y-1">
+          <div className="grid gap-2 text-xs text-muted-foreground">
             {details.map((detail) => (
-              <p key={detail} className="text-xs text-muted-foreground">
-                {detail}
-              </p>
+              <div key={`${detail.label}-${detail.value}`} className="flex flex-col gap-0.5">
+                <span className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground/80">
+                  {detail.label}
+                </span>
+                <span className="text-xs text-foreground/90">{detail.value}</span>
+              </div>
             ))}
           </div>
         </div>
@@ -113,40 +121,79 @@ export default function ProjectFlowDiagram({
   const releaseDetails =
     releaseSourceProvider === "github"
       ? detailList([
-          `Source: ${releaseSourceName}`,
-          `Type: ${releaseSourceTypeLabel}`,
-          releaseSourceRecord?.repoFilter ? `Repository filter: ${releaseSourceRecord.repoFilter}` : "",
-          releaseSourceRecord?.branchFilter ? `Branch filter: ${releaseSourceRecord.branchFilter}` : "",
-          releaseSourceRecord?.manifestPath ? `Manifest path: ${releaseSourceRecord.manifestPath}` : "",
+          { label: "Source", value: releaseSourceName },
+          { label: "Type", value: releaseSourceTypeLabel },
+          {
+            label: "Repository filter",
+            value: releaseSourceRecord?.repoFilter ? releaseSourceRecord.repoFilter : "",
+          },
+          {
+            label: "Branch filter",
+            value: releaseSourceRecord?.branchFilter ? releaseSourceRecord.branchFilter : "",
+          },
+          {
+            label: "Manifest path",
+            value: releaseSourceRecord?.manifestPath ? releaseSourceRecord.manifestPath : "",
+          },
         ])
       : detailList([
-          `Source: ${releaseSourceName}`,
-          `Type: ${releaseSourceTypeLabel}`,
-          releaseSourceRecord?.branchFilter ? `Branch filter: ${releaseSourceRecord.branchFilter}` : "",
-          releaseSourceRecord?.pipelineIdFilter ? `Pipeline filter: ${releaseSourceRecord.pipelineIdFilter}` : "",
+          { label: "Source", value: releaseSourceName },
+          { label: "Type", value: releaseSourceTypeLabel },
+          {
+            label: "Branch filter",
+            value: releaseSourceRecord?.branchFilter ? releaseSourceRecord.branchFilter : "",
+          },
+          {
+            label: "Pipeline filter",
+            value: releaseSourceRecord?.pipelineIdFilter ? releaseSourceRecord.pipelineIdFilter : "",
+          },
         ]);
 
   const deploymentDetails =
     deploymentSystem === "azure_devops"
       ? detailList([
-          `Method: ${deploymentMethodLabel}`,
-          deploymentConnectionName ? `Connection: ${deploymentConnectionName}` : "Connection: not linked",
-          azureDevOpsProjectName ? `Azure DevOps project: ${azureDevOpsProjectName}` : "Azure DevOps project: not selected",
-          repositoryName ? `Repository: ${repositoryName}` : "Repository: not selected",
-          pipelineName ? `Pipeline: ${pipelineName}` : "Pipeline: not selected",
-          branchName ? `Branch: ${branchName}` : "",
+          { label: "Method", value: deploymentMethodLabel },
+          {
+            label: "Connection",
+            value: deploymentConnectionName ? deploymentConnectionName : "Not linked",
+          },
+          {
+            label: "Azure DevOps project",
+            value: azureDevOpsProjectName ? azureDevOpsProjectName : "Not selected",
+          },
+          {
+            label: "Repository",
+            value: repositoryName ? repositoryName : "Not selected",
+          },
+          {
+            label: "Pipeline",
+            value: pipelineName ? pipelineName : "Not selected",
+          },
+          { label: "Branch", value: branchName ? branchName : "" },
         ])
       : detailList([
-          `Method: ${deploymentMethodLabel}`,
-          "MAPPO updates each selected target directly in Azure.",
-          "Direct Azure rollout uses each target's Deployment Stack.",
+          { label: "Method", value: deploymentMethodLabel },
+          { label: "Rollout", value: "MAPPO updates each selected target directly in Azure." },
+          { label: "Mechanism", value: "Direct Azure rollout uses each target's Deployment Stack." },
         ]);
 
   const targetDetails = detailList([
-    `${targetCount} target${targetCount === 1 ? "" : "s"} registered`,
-    `${projectReleaseCount} release${projectReleaseCount === 1 ? "" : "s"} available`,
-    ...targetExamples.map((label) => `Example target: ${label}`),
-    targetOverflow > 0 ? `+${targetOverflow} more target${targetOverflow === 1 ? "" : "s"}` : "",
+    {
+      label: "Targets",
+      value: `${targetCount} target${targetCount === 1 ? "" : "s"} registered`,
+    },
+    {
+      label: "Releases",
+      value: `${projectReleaseCount} release${projectReleaseCount === 1 ? "" : "s"} available`,
+    },
+    ...targetExamples.map((label, index) => ({
+      label: `Example ${index + 1}`,
+      value: label,
+    })),
+    {
+      label: "More",
+      value: targetOverflow > 0 ? `+${targetOverflow} more target${targetOverflow === 1 ? "" : "s"}` : "",
+    },
   ]);
 
   return (
@@ -170,20 +217,28 @@ export default function ProjectFlowDiagram({
             title={releaseSourceProvider === "github" ? "GitHub" : "Azure DevOps"}
             details={releaseDetails}
           />
-          <div className="flex items-center justify-center text-muted-foreground">
-            <LuMoveRight className="h-5 w-5 xl:block" />
+          <div className="flex items-center justify-center gap-2 text-muted-foreground">
+            <span className="h-px w-8 bg-border/70" />
+            <LuMoveRight className="h-5 w-5" />
           </div>
           <FlowNode
             icon={<LuWorkflow className="h-5 w-5" />}
             eyebrow="MAPPO"
             title={projectName}
             details={detailList([
-              `${projectReleaseCount} release${projectReleaseCount === 1 ? "" : "s"} in catalog`,
-              `${targetCount} deploy target${targetCount === 1 ? "" : "s"} linked`,
+              {
+                label: "Catalog",
+                value: `${projectReleaseCount} release${projectReleaseCount === 1 ? "" : "s"} ready`,
+              },
+              {
+                label: "Targets",
+                value: `${targetCount} deploy target${targetCount === 1 ? "" : "s"} linked`,
+              },
             ])}
           />
-          <div className="flex items-center justify-center text-muted-foreground">
-            <LuMoveRight className="h-5 w-5 xl:block" />
+          <div className="flex items-center justify-center gap-2 text-muted-foreground">
+            <span className="h-px w-8 bg-border/70" />
+            <LuMoveRight className="h-5 w-5" />
           </div>
           <FlowNode
             icon={deploymentIcon(deploymentSystem, "h-5 w-5")}
@@ -191,8 +246,9 @@ export default function ProjectFlowDiagram({
             title={deploymentSystem === "azure_devops" ? "Azure DevOps" : "Azure"}
             details={deploymentDetails}
           />
-          <div className="flex items-center justify-center text-muted-foreground">
-            <LuMoveRight className="h-5 w-5 xl:block" />
+          <div className="flex items-center justify-center gap-2 text-muted-foreground">
+            <span className="h-px w-8 bg-border/70" />
+            <LuMoveRight className="h-5 w-5" />
           </div>
           <FlowNode
             icon={<LuBoxes className="h-5 w-5" />}

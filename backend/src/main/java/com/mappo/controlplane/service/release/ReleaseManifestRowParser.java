@@ -95,10 +95,8 @@ public class ReleaseManifestRowParser {
             )
         );
 
-        String projectId = firstNonBlank(stringValue(row.get("project_id")), stringValue(row.get("projectId")));
-
         return new ReleaseCreateRequest(
-            projectId,
+            "",
             sourceRef,
             sourceVersion,
             sourceType,

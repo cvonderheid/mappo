@@ -66,6 +66,10 @@ class ReleaseManifestIngestIntegrationTests extends PostgresIntegrationTestBase 
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.length()").value(2))
             .andExpect(jsonPath("$[0].sourceRef").value("github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json"))
+            .andExpect(jsonPath("$[*].projectId", containsInAnyOrder(
+                "azure-managed-app-deployment-stack",
+                "azure-managed-app-deployment-stack"
+            )))
             .andExpect(jsonPath("$[*].sourceVersion", containsInAnyOrder("2026.03.06.1", "2026.03.07.1")));
     }
 
@@ -88,7 +92,7 @@ class ReleaseManifestIngestIntegrationTests extends PostgresIntegrationTestBase 
                 {
                   "releases": [
                     {
-                      "publication_status": "published",
+                      "project_id": "azure-managed-app-template-spec",
                       "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
                       "source_version": "2026.03.06.1",
                       "source_type": "deployment_stack",
@@ -109,7 +113,6 @@ class ReleaseManifestIngestIntegrationTests extends PostgresIntegrationTestBase 
                       ]
                     },
                     {
-                      "publication_status": "published",
                       "template_spec_id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Resources/templateSpecs/demo",
                       "template_spec_version": "2026.03.06.1",
                       "template_spec_version_id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Resources/templateSpecs/demo/versions/2026.03.06.1",
@@ -122,7 +125,6 @@ class ReleaseManifestIngestIntegrationTests extends PostgresIntegrationTestBase 
                       "release_notes": "Template spec fallback release"
                     },
                     {
-                      "publication_status": "published",
                       "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
                       "source_version": "2026.03.07.1",
                       "source_type": "deployment_stack",

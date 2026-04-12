@@ -189,7 +189,8 @@ public class AzureDevOpsReleaseWebhookHandlerImpl implements ReleaseWebhookHandl
                 "azure-devops-service-hook",
                 ref,
                 false,
-                new ParsedReleaseManifest(1, 0, List.of(releaseRequest))
+                new ParsedReleaseManifest(1, 0, List.of(releaseRequest)),
+                List.of(resolvedProjectId)
             );
             MappoReleaseWebhookStatus status = result.createdCount() > 0
                 ? MappoReleaseWebhookStatus.applied

@@ -8,16 +8,17 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+import { toast } from "sonner";
 
 import ColumnVisibilityMenu from "@/components/ColumnVisibilityMenu";
 import DataTablePagination from "@/components/DataTablePagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { listTargetsPage } from "@/lib/api";
+import { checkTargetRuntimeHealth, listTargetsPage } from "@/lib/api";
 import {
   targetLastDeploymentTone,
   targetLatestReleaseStatus,
@@ -148,6 +149,8 @@ export default function FleetTable({ latestRelease, refreshKey, selectedProjectI
   const [pageData, setPageData] = useState<TargetPage>(EMPTY_PAGE);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [checkingHealth, setCheckingHealth] = useState(false);
+  const [manualRefreshKey, setManualRefreshKey] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
@@ -170,6 +173,7 @@ export default function FleetTable({ latestRelease, refreshKey, selectedProjectI
     () =>
       JSON.stringify({
         selectedProjectId,
+        manualRefreshKey,
         page,
         pageSize,
         targetIdFilter,
@@ -186,6 +190,7 @@ export default function FleetTable({ latestRelease, refreshKey, selectedProjectI
     [
       customerNameFilter,
       lastDeploymentFilter,
+      manualRefreshKey,
       page,
       pageSize,
       regionFilter,
@@ -270,6 +275,32 @@ export default function FleetTable({ latestRelease, refreshKey, selectedProjectI
     querySignature,
     refreshKey,
   ]);
+
+  async function handleCheckHealth(): Promise<void> {
+    if (!selectedProjectId || checkingHealth) {
+      return;
+    }
+
+    setCheckingHealth(true);
+    try {
+      const result = await checkTargetRuntimeHealth(selectedProjectId);
+      if (result.inProgress) {
+        toast.info("Target health check is already running.");
+        return;
+      }
+      const checkedCount = result.checkedCount ?? 0;
+      toast.success(
+        checkedCount === 1
+          ? "Checked health for 1 target."
+          : `Checked health for ${checkedCount} targets.`
+      );
+      setManualRefreshKey((value) => value + 1);
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setCheckingHealth(false);
+    }
+  }
 
   const rows = useMemo<FleetRow[]>(
     () =>
@@ -583,9 +614,9 @@ export default function FleetTable({ latestRelease, refreshKey, selectedProjectI
 
   return (
     <Card className="glass-card animate-fade-up [animation-delay:80ms] [animation-fill-mode:forwards]">
-      <CardHeader className="flex-row items-center justify-between space-y-0">
+      <CardHeader className="flex-row items-start justify-between space-y-0">
         <CardTitle>Fleet Targets</CardTitle>
-        <div className="flex items-center gap-2">
+        <CardAction>
           <span
             className={`inline-flex min-w-[4.5rem] justify-end text-xs text-muted-foreground transition-opacity ${
               refreshing ? "opacity-100" : "opacity-0"
@@ -593,11 +624,20 @@ export default function FleetTable({ latestRelease, refreshKey, selectedProjectI
           >
             Syncing…
           </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!selectedProjectId || checkingHealth}
+            onClick={() => void handleCheckHealth()}
+          >
+            {checkingHealth ? "Checking..." : "Check health"}
+          </Button>
           <ColumnVisibilityMenu table={table} />
           <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
             Clear filters
           </Button>
-        </div>
+        </CardAction>
       </CardHeader>
       <CardContent className="space-y-3">
         <Table>

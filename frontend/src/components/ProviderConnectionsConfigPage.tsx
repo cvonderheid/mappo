@@ -710,18 +710,56 @@ export default function ProviderConnectionsConfigPage({
               || Boolean(discoveryErrorsByConnectionId[connectionId]);
             const resolvedAccountUrl = resolveConnectionAccountUrl(connection);
             return (
-              <div key={connectionId || connection.name} className="rounded-md border border-border/70 bg-card/70 p-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold text-primary">
-                      {connection.name || connectionId}
-                    </p>
+              <Card key={connectionId || connection.name} className="border border-border/70 bg-card/70">
+                <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-1">
+                    <CardTitle>{connection.name || connectionId}</CardTitle>
                     <p className="font-mono text-[11px] text-muted-foreground">{connectionId}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full border border-primary/40 px-2 py-0.5 text-[11px] uppercase tracking-[0.06em] text-primary">
-                      {(connection.provider ?? "azure_devops").replaceAll("_", " ")}
-                    </span>
+                  <CardAction className="flex-wrap justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        void handleDiscoverProjects(connection);
+                      }}
+                      disabled={connectionId === "" || isDiscovering}
+                    >
+                      {isDiscovering
+                        ? "Verifying..."
+                        : hasDiscoveryState
+                          ? "Re-verify access"
+                          : "Verify / refresh access"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEditDrawer(connection)}
+                      disabled={connectionId === ""}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-destructive/60 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => {
+                        void handleDelete(connection);
+                      }}
+                      disabled={connectionId === ""}
+                    >
+                      Delete
+                    </Button>
+                  </CardAction>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">
+                      Provider: {(connection.provider ?? "azure_devops").replaceAll("_", " ")}
+                    </Badge>
                     <Badge variant={connection.enabled ? "default" : "secondary"}>
                       {connection.enabled ? "Enabled" : "Disabled"}
                     </Badge>
@@ -732,109 +770,74 @@ export default function ProviderConnectionsConfigPage({
                     ) : discoveryErrorsByConnectionId[connectionId] ? (
                       <Badge variant="destructive">Verification failed</Badge>
                     ) : null}
-                  </div>
-                </div>
-                <div className="mt-2 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
-                  <p>
-                    Azure DevOps account scope:{" "}
-                    <span className="font-mono text-foreground">
-                      {resolvedAccountUrl || "not configured"}
+                    <span className="text-xs text-muted-foreground">
+                      {describeDiscoveredProjectCount(discoveredProjects.length)}
                     </span>
-                  </p>
-                  <p>
-                    API credential source: <span className="font-medium text-foreground">{describePersonalAccessTokenSource(connection, secretReferenceLookup)}</span>
-                  </p>
-                </div>
-                {resolvedAccountUrl === "" ? (
-                  <p className="mt-2 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                    This deployment connection still needs verification. Edit it, paste any Azure DevOps project or repository URL from the Azure DevOps account MAPPO should browse, then verify the connection.
-                  </p>
-                ) : null}
-                {isVerified ? (
-                  <p className="mt-2 rounded-md border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
-                    Verified Azure DevOps access. MAPPO can browse {discoveredProjects.length} Azure DevOps project{discoveredProjects.length === 1 ? "" : "s"} through this deployment connection.
-                  </p>
-                ) : null}
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-muted-foreground">MAPPO projects using this connection:</span>
-                  {linkedProjects.length === 0 ? (
-                    <Badge variant="secondary">none</Badge>
-                  ) : (
-                    linkedProjects.map((linked) => {
-                      const projectId = linked.projectId ?? "unknown";
-                      const label = linked.projectDisplayName || linked.projectName || projectId;
-                      return (
-                        <Badge
-                          key={`${connectionId}-${projectId}`}
-                          variant={selectedProjectLinked && projectId === selectedProjectId ? "default" : "secondary"}
-                        >
-                          {label}
-                        </Badge>
-                      );
-                    })
-                  )}
-                </div>
-                {hasDiscoveryState ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Azure DevOps projects MAPPO can browse:</span>
-                    {discoveredProjects.length ? (
-                      discoveredProjects.map((project) => (
-                        <Badge key={`${connectionId}-${project.id}`} variant="secondary">
-                          {project.name}
-                        </Badge>
-                      ))
+                  </div>
+                  <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
+                    <p>
+                      Azure DevOps account scope:{" "}
+                      <span className="font-mono text-foreground">
+                        {resolvedAccountUrl || "not configured"}
+                      </span>
+                    </p>
+                    <p>
+                      API credential source:{" "}
+                      <span className="font-medium text-foreground">
+                        {describePersonalAccessTokenSource(connection, secretReferenceLookup)}
+                      </span>
+                    </p>
+                  </div>
+                  {resolvedAccountUrl === "" ? (
+                    <p className="rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                      This deployment connection still needs verification. Edit it, paste any Azure DevOps project or repository URL from the Azure DevOps account MAPPO should browse, then verify the connection.
+                    </p>
+                  ) : null}
+                  {isVerified ? (
+                    <p className="rounded-md border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
+                      Verified Azure DevOps access. MAPPO can browse {discoveredProjects.length} Azure DevOps project{discoveredProjects.length === 1 ? "" : "s"} through this deployment connection.
+                    </p>
+                  ) : null}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-muted-foreground">MAPPO projects using this connection:</span>
+                    {linkedProjects.length === 0 ? (
+                      <Badge variant="secondary">none</Badge>
                     ) : (
-                      <Badge variant="secondary">none returned</Badge>
+                      linkedProjects.map((linked) => {
+                        const projectId = linked.projectId ?? "unknown";
+                        const label = linked.projectDisplayName || linked.projectName || projectId;
+                        return (
+                          <Badge
+                            key={`${connectionId}-${projectId}`}
+                            variant={selectedProjectLinked && projectId === selectedProjectId ? "default" : "secondary"}
+                          >
+                            {label}
+                          </Badge>
+                        );
+                      })
                     )}
                   </div>
-                ) : null}
-                {discoveryErrorsByConnectionId[connectionId] ? (
-                  <p className="mt-2 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                    {discoveryErrorsByConnectionId[connectionId]}
-                  </p>
-                ) : null}
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      void handleDiscoverProjects(connection);
-                    }}
-                    disabled={connectionId === "" || isDiscovering}
-                  >
-                    {isDiscovering
-                      ? "Verifying..."
-                      : hasDiscoveryState
-                        ? "Re-verify access"
-                        : "Verify / refresh access"}
-                  </Button>
-                  <span className="text-xs text-muted-foreground">
-                    {describeDiscoveredProjectCount(discoveredProjects.length)}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEditDrawer(connection)}
-                    disabled={connectionId === ""}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="border-destructive/60 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => {
-                      void handleDelete(connection);
-                    }}
-                    disabled={connectionId === ""}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </div>
+                  {hasDiscoveryState ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Azure DevOps projects MAPPO can browse:</span>
+                      {discoveredProjects.length ? (
+                        discoveredProjects.map((project) => (
+                          <Badge key={`${connectionId}-${project.id}`} variant="outline">
+                            {project.name || project.id}
+                          </Badge>
+                        ))
+                      ) : (
+                        <Badge variant="secondary">none</Badge>
+                      )}
+                    </div>
+                  ) : null}
+                  {discoveryErrorsByConnectionId[connectionId] ? (
+                    <p className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive-foreground">
+                      {discoveryErrorsByConnectionId[connectionId]}
+                    </p>
+                  ) : null}
+                </CardContent>
+              </Card>
             );
           })}
         </CardContent>
@@ -1068,7 +1071,7 @@ export default function ProviderConnectionsConfigPage({
                       placeholder="mappo-ado-pg123-pat"
                     />
                     <p className="text-xs text-muted-foreground">
-                      MAPPO will resolve this as <span className="font-mono text-foreground">kv:{normalize(draft.personalAccessTokenKeyVaultSecret) || "secret-name"}</span> using the Azure Key Vault configured on the backend runtime.
+                      MAPPO will resolve this as <span className="font-mono text-foreground">kv:{normalize(draft.personalAccessTokenKeyVaultSecret) || "secret-name"}</span> using the Azure Key Vault configured on the backend runtime. To keep this linked to Admin → Secret References, choose <span className="font-medium text-foreground">Use secret reference</span> above instead.
                     </p>
                   </div>
                 ) : null}

@@ -126,14 +126,10 @@ public class ReleaseManifestApplyService {
         com.mappo.controlplane.api.request.ReleaseCreateRequest candidate,
         List<String> fallbackProjectIds
     ) {
-        String explicitProjectId = normalize(candidate.projectId());
-        if (!explicitProjectId.isBlank()) {
-            return List.of(projectCatalogService.resolveRequiredProjectId(explicitProjectId));
-        }
         if (fallbackProjectIds.isEmpty()) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "release %s is missing project_id and no linked project fallback is available".formatted(
+                "release source is not linked to a MAPPO project for release %s".formatted(
                     normalize(candidate.sourceVersion())
                 )
             );

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { EventsDataTable, RegistrationsDataTable } from "@/components/AdminTables";
 import TargetOnboardingDrawer from "@/components/TargetOnboardingDrawer";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -309,9 +310,8 @@ export default function TargetsPage({
           <DrawerHeader>
             <DrawerTitle>Edit Registered Target</DrawerTitle>
             <DrawerDescription>
-              {isPipelineProject
-                ? "Update target metadata and App Service deployment details for this project."
-                : "Update target metadata and direct Azure rollout details for this project."}
+              Update operator-facing labels and grouping. Provider resource fields are advanced
+              overrides for correcting registration or IaC metadata.
             </DrawerDescription>
           </DrawerHeader>
           <div className="max-h-[74vh] overflow-y-auto px-4 pb-2">
@@ -343,79 +343,6 @@ export default function TargetsPage({
                   placeholder="Contoso"
                 />
               </div>
-              {isPipelineProject ? (
-                <>
-                  <div className="space-y-1">
-                    <Label htmlFor="edit-pipeline-rg">Azure Resource Group</Label>
-                    <Input
-                      id="edit-pipeline-rg"
-                      value={editPipelineTargetResourceGroup}
-                      onChange={(item) => setEditPipelineTargetResourceGroup(item.target.value)}
-                      placeholder="rg-demo-appservice-target-01"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="edit-pipeline-app-name">App Service Name</Label>
-                    <Input
-                      id="edit-pipeline-app-name"
-                      value={editPipelineTargetAppName}
-                      onChange={(item) => setEditPipelineTargetAppName(item.target.value)}
-                      placeholder="appsvc-demo-target-01"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="edit-pipeline-slot">Deployment Slot</Label>
-                    <Input
-                      id="edit-pipeline-slot"
-                      value={editPipelineSlotName}
-                      onChange={(item) => setEditPipelineSlotName(item.target.value)}
-                      placeholder="staging"
-                    />
-                  </div>
-                  <div className="space-y-1 sm:col-span-2 lg:col-span-3">
-                    <Label htmlFor="edit-pipeline-health-path">Health Check Path</Label>
-                    <Input
-                      id="edit-pipeline-health-path"
-                      value={editPipelineHealthPath}
-                      onChange={(item) => setEditPipelineHealthPath(item.target.value)}
-                      placeholder="/health"
-                    />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="space-y-1 lg:col-span-2">
-                    <Label htmlFor="edit-container-app-id">Container App ID</Label>
-                    <Input
-                      id="edit-container-app-id"
-                      value={editContainerAppResourceId}
-                      onChange={(item) => setEditContainerAppResourceId(item.target.value)}
-                      placeholder="/subscriptions/.../providers/Microsoft.App/containerApps/..."
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="edit-managed-rg-id">Managed RG ID</Label>
-                    <Input
-                      id="edit-managed-rg-id"
-                      value={editManagedResourceGroupId}
-                      onChange={(item) => setEditManagedResourceGroupId(item.target.value)}
-                      placeholder="/subscriptions/.../resourceGroups/..."
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="edit-deployment-stack-name">Deployment Stack Name</Label>
-                    <Input
-                      id="edit-deployment-stack-name"
-                      value={editDeploymentStackName}
-                      onChange={(item) => setEditDeploymentStackName(item.target.value)}
-                      placeholder="mappo-stack-target-01"
-                    />
-                  </div>
-                </>
-              )}
               <div className="space-y-1">
                 <Label htmlFor="edit-target-group">Target Group</Label>
                 <Input
@@ -451,6 +378,96 @@ export default function TargetsPage({
                   onChange={(item) => setEditTier(item.target.value)}
                   placeholder="standard"
                 />
+              </div>
+              <div className="sm:col-span-2 lg:col-span-3">
+                <Accordion type="single" collapsible className="rounded-md border border-border/70 bg-background/40 px-3">
+                  <AccordionItem value="target-resource-overrides" className="border-none">
+                    <AccordionTrigger className="py-3 text-sm font-medium hover:no-underline">
+                      Advanced target resource overrides
+                    </AccordionTrigger>
+                    <AccordionContent className="space-y-3 pb-3">
+                      <p className="text-sm text-muted-foreground">
+                        Most targets inherit these values from registration events and project IaC.
+                        Change them only when the registered metadata is wrong for this target.
+                      </p>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {isPipelineProject ? (
+                          <>
+                            <div className="space-y-1">
+                              <Label htmlFor="edit-pipeline-rg">Azure Resource Group</Label>
+                              <Input
+                                id="edit-pipeline-rg"
+                                value={editPipelineTargetResourceGroup}
+                                onChange={(item) => setEditPipelineTargetResourceGroup(item.target.value)}
+                                placeholder="rg-demo-appservice-target-01"
+                                required
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="edit-pipeline-app-name">App Service Name</Label>
+                              <Input
+                                id="edit-pipeline-app-name"
+                                value={editPipelineTargetAppName}
+                                onChange={(item) => setEditPipelineTargetAppName(item.target.value)}
+                                placeholder="appsvc-demo-target-01"
+                                required
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="edit-pipeline-slot">Deployment Slot</Label>
+                              <Input
+                                id="edit-pipeline-slot"
+                                value={editPipelineSlotName}
+                                onChange={(item) => setEditPipelineSlotName(item.target.value)}
+                                placeholder="staging"
+                              />
+                            </div>
+                            <div className="space-y-1 sm:col-span-2 lg:col-span-3">
+                              <Label htmlFor="edit-pipeline-health-path">Health Check Path</Label>
+                              <Input
+                                id="edit-pipeline-health-path"
+                                value={editPipelineHealthPath}
+                                onChange={(item) => setEditPipelineHealthPath(item.target.value)}
+                                placeholder="/health"
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="space-y-1 lg:col-span-2">
+                              <Label htmlFor="edit-container-app-id">Container App ID</Label>
+                              <Input
+                                id="edit-container-app-id"
+                                value={editContainerAppResourceId}
+                                onChange={(item) => setEditContainerAppResourceId(item.target.value)}
+                                placeholder="/subscriptions/.../providers/Microsoft.App/containerApps/..."
+                                required
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="edit-managed-rg-id">Managed RG ID</Label>
+                              <Input
+                                id="edit-managed-rg-id"
+                                value={editManagedResourceGroupId}
+                                onChange={(item) => setEditManagedResourceGroupId(item.target.value)}
+                                placeholder="/subscriptions/.../resourceGroups/..."
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="edit-deployment-stack-name">Deployment Stack Name</Label>
+                              <Input
+                                id="edit-deployment-stack-name"
+                                value={editDeploymentStackName}
+                                onChange={(item) => setEditDeploymentStackName(item.target.value)}
+                                placeholder="mappo-stack-target-01"
+                              />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </div>
             </form>
           </div>

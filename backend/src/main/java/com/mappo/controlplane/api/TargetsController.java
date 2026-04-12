@@ -2,6 +2,7 @@ package com.mappo.controlplane.api;
 
 import com.mappo.controlplane.api.query.TargetPageParameters;
 import com.mappo.controlplane.model.TargetPageRecord;
+import com.mappo.controlplane.model.TargetRuntimeProbeRefreshResultRecord;
 import com.mappo.controlplane.service.TargetService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -10,7 +11,9 @@ import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -30,5 +33,13 @@ public class TargetsController {
         TargetPageParameters parameters
     ) {
         return targetService.listTargetsPage(parameters.toQuery());
+    }
+
+    @PostMapping("/runtime-health/check")
+    @Operation(summary = "Check target runtime health", description = "Runs runtime health probes for targets in the selected project.")
+    public TargetRuntimeProbeRefreshResultRecord checkRuntimeHealth(
+        @RequestParam("projectId") String projectId
+    ) {
+        return targetService.checkRuntimeHealth(projectId);
     }
 }

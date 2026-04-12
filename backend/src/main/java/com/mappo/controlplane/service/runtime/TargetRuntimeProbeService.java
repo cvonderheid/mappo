@@ -1,6 +1,8 @@
 package com.mappo.controlplane.service.runtime;
 
+import com.mappo.controlplane.api.ApiException;
 import com.mappo.controlplane.config.MappoProperties;
+import com.mappo.controlplane.model.TargetRuntimeProbeRefreshResultRecord;
 import com.mappo.controlplane.model.TargetRuntimeProbeContextRecord;
 import com.mappo.controlplane.persistence.target.TargetRuntimeProbeContextRepository;
 import com.mappo.controlplane.service.live.LiveUpdateService;
@@ -12,6 +14,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -40,14 +43,36 @@ public class TargetRuntimeProbeService {
         if (!properties.getRuntimeProbe().isEnabled()) {
             return;
         }
+        refreshRuntimeProbesForTargets(targetRuntimeProbeContextRepository.listRuntimeProbeContexts());
+    }
+
+    public TargetRuntimeProbeRefreshResultRecord refreshRuntimeProbesForProject(String projectId) {
+        String normalizedProjectId = normalize(projectId);
+        if (normalizedProjectId.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "projectId is required");
+        }
+        return refreshRuntimeProbesForTargets(
+            normalizedProjectId,
+            targetRuntimeProbeContextRepository.listRuntimeProbeContextsForProject(normalizedProjectId)
+        );
+    }
+
+    private void refreshRuntimeProbesForTargets(List<TargetRuntimeProbeContextRecord> targets) {
+        refreshRuntimeProbesForTargets(null, targets);
+    }
+
+    private TargetRuntimeProbeRefreshResultRecord refreshRuntimeProbesForTargets(
+        String requestedProjectId,
+        List<TargetRuntimeProbeContextRecord> targets
+    ) {
+        String normalizedRequestedProjectId = normalize(requestedProjectId);
         if (!refreshInProgress.compareAndSet(false, true)) {
-            return;
+            return new TargetRuntimeProbeRefreshResultRecord(normalizedRequestedProjectId, 0, true);
         }
 
         try {
-            List<TargetRuntimeProbeContextRecord> targets = targetRuntimeProbeContextRepository.listRuntimeProbeContexts();
             if (targets.isEmpty()) {
-                return;
+                return new TargetRuntimeProbeRefreshResultRecord(normalizedRequestedProjectId, 0, false);
             }
 
             Set<String> changedProjectIds = new LinkedHashSet<>();
@@ -63,6 +88,11 @@ public class TargetRuntimeProbeService {
                 }
             }
             changedProjectIds.forEach(liveUpdateService::emitTargetsUpdated);
+            return new TargetRuntimeProbeRefreshResultRecord(
+                normalizedRequestedProjectId,
+                targets.size(),
+                false
+            );
         } finally {
             refreshInProgress.set(false);
         }
@@ -83,5 +113,9 @@ public class TargetRuntimeProbeService {
             // Probe failures are captured per-target and persisted as unknown/unreachable results.
             return null;
         }
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim();
     }
 }

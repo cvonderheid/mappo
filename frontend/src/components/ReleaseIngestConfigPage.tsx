@@ -3,6 +3,7 @@ import { toast } from "sonner";
 
 import FieldHelpTooltip from "@/components/FieldHelpTooltip";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -420,123 +421,114 @@ export default function ReleaseIngestConfigPage({
               (linked) => (linked.projectId ?? "") === selectedProjectId
             );
             return (
-              <div key={endpointId || endpoint.name} className="rounded-md border border-border/70 bg-card/70 p-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold text-primary">{endpoint.name || endpointId}</p>
+              <Card key={endpointId || endpoint.name} className="border border-border/70 bg-card/70">
+                <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-1">
+                    <CardTitle>{endpoint.name || endpointId}</CardTitle>
                     <p className="font-mono text-[11px] text-muted-foreground">{endpointId}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full border border-primary/40 px-2 py-0.5 text-[11px] uppercase tracking-[0.06em] text-primary">
-                      {provider.replaceAll("_", " ")}
-                    </span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.06em] ${
-                        endpoint.enabled
-                          ? "bg-emerald-500/20 text-emerald-200"
-                          : "bg-amber-500/20 text-amber-200"
-                      }`}
+                  <CardAction className="flex-wrap justify-end">
+                    <Button type="button" variant="outline" onClick={() => void handleCopyWebhookUrl(endpoint)}>
+                      Copy Webhook URL
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => openEditDrawer(endpoint)}>
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => void handleDelete(endpoint)}
                     >
-                      {endpoint.enabled ? "enabled" : "disabled"}
-                    </span>
+                      Delete
+                    </Button>
+                  </CardAction>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">Provider: {provider.replaceAll("_", " ")}</Badge>
+                    <Badge variant={endpoint.enabled ? "default" : "secondary"}>
+                      {endpoint.enabled ? "Enabled" : "Disabled"}
+                    </Badge>
                   </div>
-                </div>
 
-                <div className="mt-3 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
-                  <p>
-                    Verification secret:{" "}
-                    <span className="font-medium text-foreground">{describeWebhookSecretSource(endpoint, secretReferenceLookup)}</span>
-                  </p>
-                  <p>
-                    Updated: <span className="text-foreground">{formatTimestamp(endpoint.updatedAt)}</span>
-                  </p>
-                </div>
-
-                <div className="mt-2 rounded-md border border-border/60 bg-background/50 p-2">
-                  <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">Webhook URL</p>
-                  <p className="mt-1 break-all font-mono text-[11px] text-foreground">{webhookUrl}</p>
-                </div>
-
-                {endpoint.repoFilter || endpoint.branchFilter || endpoint.pipelineIdFilter || endpoint.manifestPath ? (
-                  <Accordion type="single" collapsible className="mt-2 rounded-md border border-border/60 bg-background/40 px-3">
-                    <AccordionItem value="advanced-routing" className="border-none">
-                      <AccordionTrigger className="py-2 text-xs font-medium text-muted-foreground hover:no-underline">
-                        Optional routing filters
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
-                          {endpoint.branchFilter ? (
-                            <p>
-                              Branch filter: <span className="font-mono text-foreground">{endpoint.branchFilter}</span>
-                            </p>
-                          ) : null}
-                          {provider === "github" && endpoint.repoFilter ? (
-                            <p>
-                              Repository filter: <span className="font-mono text-foreground">{endpoint.repoFilter}</span>
-                            </p>
-                          ) : null}
-                          {provider === "github" && endpoint.manifestPath ? (
-                            <p>
-                              Manifest path: <span className="font-mono text-foreground">{endpoint.manifestPath}</span>
-                            </p>
-                          ) : null}
-                          {provider === "azure_devops" && endpoint.pipelineIdFilter ? (
-                            <p>
-                              Pipeline filter: <span className="font-mono text-foreground">{endpoint.pipelineIdFilter}</span>
-                            </p>
-                          ) : null}
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                ) : null}
-
-                <div className="mt-2">
-                  <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">Linked projects</p>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {linkedProjects.length === 0 ? (
-                      <span className="text-xs text-muted-foreground">No linked projects</span>
-                    ) : (
-                      linkedProjects.map((linked) => {
-                        const linkedProjectId = linked.projectId ?? "";
-                        const isSelected = linkedProjectId === selectedProjectId;
-                        return (
-                          <span
-                            key={`${endpointId}-${linkedProjectId}`}
-                            className={`rounded-full border px-2 py-0.5 text-[11px] ${
-                              isSelected
-                                ? "border-primary/60 bg-primary/15 text-primary"
-                                : "border-border/60 bg-background/50 text-muted-foreground"
-                            }`}
-                          >
-                            {linked.projectName || linkedProjectId}
-                          </span>
-                        );
-                      })
-                    )}
+                  <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
+                    <p>
+                      Verification secret:{" "}
+                      <span className="font-medium text-foreground">
+                        {describeWebhookSecretSource(endpoint, secretReferenceLookup)}
+                      </span>
+                    </p>
+                    <p>
+                      Updated: <span className="text-foreground">{formatTimestamp(endpoint.updatedAt)}</span>
+                    </p>
                   </div>
-                  {selectedProjectLinked ? (
-                    <p className="mt-1 text-[11px] text-primary">Selected project is linked to this endpoint.</p>
+
+                  <div className="rounded-md border border-border/60 bg-background/50 p-2">
+                    <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">Webhook URL</p>
+                    <p className="mt-1 break-all font-mono text-[11px] text-foreground">{webhookUrl}</p>
+                  </div>
+
+                  {endpoint.repoFilter || endpoint.branchFilter || endpoint.pipelineIdFilter || endpoint.manifestPath ? (
+                    <Accordion type="single" collapsible className="rounded-md border border-border/60 bg-background/40 px-3">
+                      <AccordionItem value="advanced-routing" className="border-none">
+                        <AccordionTrigger className="py-2 text-xs font-medium text-muted-foreground hover:no-underline">
+                          Optional routing filters
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
+                            {endpoint.branchFilter ? (
+                              <p>
+                                Branch filter: <span className="font-mono text-foreground">{endpoint.branchFilter}</span>
+                              </p>
+                            ) : null}
+                            {provider === "github" && endpoint.repoFilter ? (
+                              <p>
+                                Repository filter: <span className="font-mono text-foreground">{endpoint.repoFilter}</span>
+                              </p>
+                            ) : null}
+                            {provider === "github" && endpoint.manifestPath ? (
+                              <p>
+                                Manifest path: <span className="font-mono text-foreground">{endpoint.manifestPath}</span>
+                              </p>
+                            ) : null}
+                            {provider === "azure_devops" && endpoint.pipelineIdFilter ? (
+                              <p>
+                                Pipeline filter: <span className="font-mono text-foreground">{endpoint.pipelineIdFilter}</span>
+                              </p>
+                            ) : null}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
                   ) : null}
-                </div>
 
-                <div className="mt-3 flex flex-wrap justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => void handleCopyWebhookUrl(endpoint)}>
-                    Copy Webhook URL
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => openEditDrawer(endpoint)}>
-                    Edit
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => void handleDelete(endpoint)}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">Linked projects</p>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {linkedProjects.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">No linked projects</span>
+                      ) : (
+                        linkedProjects.map((linked) => {
+                          const linkedProjectId = linked.projectId ?? "";
+                          const isSelected = linkedProjectId === selectedProjectId;
+                          return (
+                            <Badge
+                              key={`${endpointId}-${linkedProjectId}`}
+                              variant={isSelected ? "default" : "secondary"}
+                            >
+                              {linked.projectName || linkedProjectId}
+                            </Badge>
+                          );
+                        })
+                      )}
+                    </div>
+                    {selectedProjectLinked ? (
+                      <p className="mt-1 text-[11px] text-primary">Selected project is linked to this endpoint.</p>
+                    ) : null}
+                  </div>
+                </CardContent>
+              </Card>
             );
           })}
         </CardContent>
@@ -804,7 +796,7 @@ export default function ReleaseIngestConfigPage({
                   placeholder={draft.provider === "azure_devops" ? "mappo-ado-webhook-secret" : "mappo-github-webhook-secret"}
                 />
                 <p className="text-xs text-muted-foreground">
-                  MAPPO will resolve this as <span className="font-mono text-foreground">kv:{draft.webhookSecretKeyVaultSecret.trim() || "secret-name"}</span> using the Azure Key Vault configured on the backend runtime.
+                  MAPPO will resolve this as <span className="font-mono text-foreground">kv:{draft.webhookSecretKeyVaultSecret.trim() || "secret-name"}</span> using the Azure Key Vault configured on the backend runtime. To keep this linked to Admin → Secret References, choose <span className="font-medium text-foreground">Use secret reference</span> above instead.
                 </p>
               </div>
             ) : null}

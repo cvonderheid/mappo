@@ -18,7 +18,6 @@ import {
   DrawerFooter,
   DrawerHeader,
   DrawerTitle,
-  DrawerTrigger,
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -571,11 +570,6 @@ export default function TargetOnboardingDrawer({
 
   return (
     <Drawer direction="top" open={isOpen} onOpenChange={handleOpenChange}>
-      <DrawerTrigger asChild>
-        <Button type="button" variant="outline" data-testid="open-target-onboarding-drawer">
-          Add Targets
-        </Button>
-      </DrawerTrigger>
       <DrawerContent className="glass-card">
         <DrawerHeader>
           <DrawerTitle>Add Targets</DrawerTitle>
