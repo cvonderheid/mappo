@@ -10,6 +10,9 @@ import lombok.Setter;
 @Setter
 public class ReleaseWebhookDeliveryPageParameters extends PageQueryParameters {
 
+    @Schema(description = "Filter by MAPPO project identifier.", example = "azure-managed-app-deployment-stack")
+    private String projectId;
+
     @Schema(description = "Filter by GitHub delivery identifier.", example = "4b85fdb0-1d72-11ef-8c1c-0242ac120002")
     private String deliveryId;
 
@@ -17,6 +20,6 @@ public class ReleaseWebhookDeliveryPageParameters extends PageQueryParameters {
     private MappoReleaseWebhookStatus status;
 
     public ReleaseWebhookDeliveryPageQuery toQuery() {
-        return new ReleaseWebhookDeliveryPageQuery(getPage(), getSize(), deliveryId, status);
+        return new ReleaseWebhookDeliveryPageQuery(getPage(), getSize(), projectId, deliveryId, status);
     }
 }

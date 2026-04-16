@@ -59,7 +59,7 @@ curl_ado() {
   if [[ "${DRY_RUN}" == "true" ]]; then
     echo "ado-release-hook-configure: ${method} ${url}" >&2
     if [[ -n "${body}" ]]; then
-      echo "${body}" | jq . >&2
+      echo "${body}" | jq 'if .consumerInputs.url then .consumerInputs.url |= sub("token=[^&]*"; "token=<redacted>") else . end' >&2
     fi
     echo '{}'
     return

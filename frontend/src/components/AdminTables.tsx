@@ -898,10 +898,12 @@ export function ForwarderLogsDataTable({
 
 type ReleaseWebhookDeliveriesDataTableProps = {
   refreshKey: number;
+  projectId?: string;
 } & DataTableCardProps;
 
 export function ReleaseWebhookDeliveriesDataTable({
   refreshKey,
+  projectId,
   title,
   description,
   cardAction,
@@ -919,6 +921,10 @@ export function ReleaseWebhookDeliveriesDataTable({
   const [columnVisibility, setColumnVisibility] = usePersistentColumnVisibility("admin-release-webhooks");
 
   useEffect(() => {
+    setPage(0);
+  }, [projectId]);
+
+  useEffect(() => {
     let active = true;
     const hasVisibleData =
       (pageData.items?.length ?? 0) > 0 || (pageData.page?.totalItems ?? 0) > 0;
@@ -930,6 +936,7 @@ export function ReleaseWebhookDeliveriesDataTable({
     void adminListReleaseWebhookDeliveries({
       page,
       size: pageSize,
+      projectId: projectId || undefined,
       deliveryId: deliveryIdFilter || undefined,
       status: statusFilter === "all" ? undefined : statusFilter,
     })
@@ -956,7 +963,7 @@ export function ReleaseWebhookDeliveriesDataTable({
     return () => {
       active = false;
     };
-  }, [deliveryIdFilter, page, pageSize, refreshKey, statusFilter]);
+  }, [deliveryIdFilter, page, pageSize, projectId, refreshKey, statusFilter]);
 
   const rows = useMemo<ReleaseWebhookRow[]>(
     () =>

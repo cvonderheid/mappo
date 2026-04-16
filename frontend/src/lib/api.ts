@@ -582,6 +582,7 @@ export async function adminListReleaseWebhookDeliveries(
       query: {
         page: query.page,
         size: query.size,
+        projectId: query.projectId,
         deliveryId: query.deliveryId,
         status: query.status,
       },

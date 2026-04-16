@@ -87,6 +87,7 @@ public class AzureDevOpsReleaseWebhookHandlerImpl implements ReleaseWebhookHandl
         String repo = repoLabel(pipelineConfig, payload);
         String ref = firstNonBlank(payload.branch(), normalize(pipelineConfig.branch()));
         String manifestPath = "pipelines/" + firstNonBlank(payload.pipelineId(), pipelineConfig.pipelineId()) + "/runs/" + payload.runId();
+        List<String> projectIds = List.of(resolvedProjectId);
 
         try {
             if (!isActionableEvent(normalizedEvent)) {
@@ -101,6 +102,7 @@ public class AzureDevOpsReleaseWebhookHandlerImpl implements ReleaseWebhookHandl
                     MappoReleaseWebhookStatus.skipped,
                     "Ignored Azure DevOps webhook event type " + normalizedEvent + ".",
                     List.of(),
+                    projectIds,
                     result,
                     receivedAt
                 );
@@ -120,6 +122,7 @@ public class AzureDevOpsReleaseWebhookHandlerImpl implements ReleaseWebhookHandl
                     MappoReleaseWebhookStatus.skipped,
                     "Ignored Azure DevOps webhook for non-configured pipeline " + pipelineId + ".",
                     List.of(),
+                    projectIds,
                     result,
                     receivedAt
                 );
@@ -138,6 +141,7 @@ public class AzureDevOpsReleaseWebhookHandlerImpl implements ReleaseWebhookHandl
                     MappoReleaseWebhookStatus.skipped,
                     "Ignored Azure DevOps webhook for non-configured branch " + payload.branch() + ".",
                     List.of(),
+                    projectIds,
                     result,
                     receivedAt
                 );
@@ -156,6 +160,7 @@ public class AzureDevOpsReleaseWebhookHandlerImpl implements ReleaseWebhookHandl
                     MappoReleaseWebhookStatus.skipped,
                     "Ignored Azure DevOps webhook because run result is " + payload.runResult() + ".",
                     List.of(),
+                    projectIds,
                     result,
                     receivedAt
                 );
@@ -208,6 +213,7 @@ public class AzureDevOpsReleaseWebhookHandlerImpl implements ReleaseWebhookHandl
                 status,
                 message,
                 List.of(),
+                projectIds,
                 result,
                 receivedAt
             );
@@ -223,6 +229,7 @@ public class AzureDevOpsReleaseWebhookHandlerImpl implements ReleaseWebhookHandl
                 MappoReleaseWebhookStatus.failed,
                 normalize(exception.getMessage()),
                 List.of(),
+                projectIds,
                 null,
                 receivedAt
             );

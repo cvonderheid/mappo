@@ -53,6 +53,7 @@ public class GithubReleaseWebhookHandlerImpl implements ReleaseWebhookHandler {
         String normalizedEvent = githubWebhookDecisionService.normalizeEvent(githubEvent);
         ReleaseIngestEndpointRecord endpoint = resolveEndpoint(endpointId);
         String manifestPath = githubWebhookDecisionService.manifestPath(endpoint);
+        List<String> projectIds = linkedProjectIds(endpoint);
         String repo = "";
         String ref = "";
         List<String> changedPaths = List.of();
@@ -87,6 +88,7 @@ public class GithubReleaseWebhookHandlerImpl implements ReleaseWebhookHandler {
                     decision.status(),
                     decision.message(),
                     changedPaths,
+                    projectIds,
                     result,
                     receivedAt
                 );
@@ -101,12 +103,7 @@ public class GithubReleaseWebhookHandlerImpl implements ReleaseWebhookHandler {
                 ref,
                 false,
                 parsedManifest,
-                endpoint == null
-                    ? List.of()
-                    : endpoint.linkedProjects().stream()
-                        .map(ReleaseIngestLinkedProjectRecord::projectId)
-                        .filter(projectId -> !normalize(projectId).isBlank())
-                        .toList()
+                projectIds
             );
             MappoReleaseWebhookStatus status = result.createdCount() > 0
                 ? MappoReleaseWebhookStatus.applied
@@ -124,6 +121,7 @@ public class GithubReleaseWebhookHandlerImpl implements ReleaseWebhookHandler {
                 status,
                 message,
                 changedPaths,
+                projectIds,
                 result,
                 receivedAt
             );
@@ -139,6 +137,7 @@ public class GithubReleaseWebhookHandlerImpl implements ReleaseWebhookHandler {
                 MappoReleaseWebhookStatus.failed,
                 normalize(exception.getMessage()),
                 changedPaths,
+                projectIds,
                 null,
                 receivedAt
             );
@@ -166,6 +165,17 @@ public class GithubReleaseWebhookHandlerImpl implements ReleaseWebhookHandler {
 
     private ReleaseManifestIngestResultRecord emptyResult(String repo, String manifestPath, String ref) {
         return new ReleaseManifestIngestResultRecord(repo, manifestPath, ref, 0, 0, 0, 0, List.of());
+    }
+
+    private List<String> linkedProjectIds(ReleaseIngestEndpointRecord endpoint) {
+        if (endpoint == null || endpoint.linkedProjects() == null || endpoint.linkedProjects().isEmpty()) {
+            return List.of();
+        }
+        return endpoint.linkedProjects().stream()
+            .map(ReleaseIngestLinkedProjectRecord::projectId)
+            .filter(projectId -> !normalize(projectId).isBlank())
+            .distinct()
+            .toList();
     }
 
     private String normalize(Object value) {

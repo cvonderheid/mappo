@@ -49,5 +49,6 @@ Provisioned separately from the control plane:
 ## Important boundaries
 - This repo deploys MAPPO itself.
 - `/Users/cvonderheid/workspace/mappo-managed-app` defines the customer workload release catalog.
+- `/Users/cvonderheid/workspace/demo-app-service` defines the Azure App Service workload and ADO pipeline YAML for the pipeline demo.
 - MAPPO owns rollout orchestration, visibility, retries, and stop policies.
 - Azure does not fan out one global deployment automatically; MAPPO updates each selected target.

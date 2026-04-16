@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Objects;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -47,6 +48,36 @@ public class ReleaseWebhookAuditService {
         ReleaseManifestIngestResultRecord result,
         OffsetDateTime receivedAt
     ) {
+        logWebhookDelivery(
+            deliveryLogId,
+            externalDeliveryId,
+            eventType,
+            repo,
+            ref,
+            manifestPath,
+            status,
+            message,
+            changedPaths,
+            List.of(),
+            result,
+            receivedAt
+        );
+    }
+
+    public void logWebhookDelivery(
+        String deliveryLogId,
+        String externalDeliveryId,
+        String eventType,
+        String repo,
+        String ref,
+        String manifestPath,
+        MappoReleaseWebhookStatus status,
+        String message,
+        List<String> changedPaths,
+        List<String> projectIds,
+        ReleaseManifestIngestResultRecord result,
+        OffsetDateTime receivedAt
+    ) {
         releaseWebhookRepository.saveDelivery(new ReleaseWebhookDeliveryCommand(
             deliveryLogId,
             nullable(externalDeliveryId),
@@ -62,6 +93,7 @@ public class ReleaseWebhookAuditService {
             result == null ? 0 : result.skippedCount(),
             result == null ? 0 : result.ignoredCount(),
             result == null ? List.of() : result.createdReleaseIds(),
+            normalizedIds(projectIds),
             receivedAt
         ));
         liveUpdateService.emitAdminUpdated();
@@ -97,6 +129,18 @@ public class ReleaseWebhookAuditService {
 
     private String defaultIfBlank(String value, String fallback) {
         return value.isBlank() ? fallback : value;
+    }
+
+    private List<String> normalizedIds(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        return values.stream()
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(value -> !value.isBlank())
+            .distinct()
+            .toList();
     }
 
     private String normalize(Object value) {

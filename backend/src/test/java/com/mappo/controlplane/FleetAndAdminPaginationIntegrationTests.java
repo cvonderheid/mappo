@@ -31,6 +31,9 @@ import org.springframework.web.context.WebApplicationContext;
 @SpringBootTest
 class FleetAndAdminPaginationIntegrationTests extends PostgresIntegrationTestBase {
 
+    private static final String MANAGED_APP_PROJECT_ID = "azure-managed-app-deployment-stack";
+    private static final String ADO_PROJECT_ID = "azure-appservice-ado-pipeline";
+
     @Autowired
     private WebApplicationContext context;
 
@@ -89,6 +92,7 @@ class FleetAndAdminPaginationIntegrationTests extends PostgresIntegrationTestBas
             3,
             0,
             java.util.List.of("rel-123"),
+            java.util.List.of(MANAGED_APP_PROJECT_ID),
             OffsetDateTime.now(ZoneOffset.UTC)
         ));
         releaseWebhookRepository.saveDelivery(new ReleaseWebhookDeliveryCommand(
@@ -106,6 +110,7 @@ class FleetAndAdminPaginationIntegrationTests extends PostgresIntegrationTestBas
             4,
             0,
             java.util.List.of(),
+            java.util.List.of(ADO_PROJECT_ID),
             OffsetDateTime.now(ZoneOffset.UTC)
         ));
 
@@ -155,6 +160,11 @@ class FleetAndAdminPaginationIntegrationTests extends PostgresIntegrationTestBas
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.items.length()").value(1))
             .andExpect(jsonPath("$.items[0].externalDeliveryId").value("gh-delivery-002"));
+
+        mockMvc.perform(get("/api/v1/admin/releases/webhook-deliveries").param("projectId", MANAGED_APP_PROJECT_ID))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].externalDeliveryId").value("gh-delivery-001"));
     }
 
     private void registerTarget(

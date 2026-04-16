@@ -27,7 +27,7 @@ public class ReleaseWebhookRepository {
 
     public List<ReleaseWebhookDeliveryRecord> listReleaseWebhookDeliveries(int limit) {
         return listReleaseWebhookDeliveriesPage(
-            new ReleaseWebhookDeliveryPageQuery(0, Math.max(1, limit), null, null)
+            new ReleaseWebhookDeliveryPageQuery(0, Math.max(1, limit), null, null, null)
         ).items();
     }
 
@@ -61,6 +61,7 @@ public class ReleaseWebhookRepository {
                 RELEASE_WEBHOOK_DELIVERIES.SKIPPED_COUNT,
                 RELEASE_WEBHOOK_DELIVERIES.IGNORED_COUNT,
                 RELEASE_WEBHOOK_DELIVERIES.CREATED_RELEASE_IDS_TEXT,
+                RELEASE_WEBHOOK_DELIVERIES.PROJECT_IDS_TEXT,
                 RELEASE_WEBHOOK_DELIVERIES.RECEIVED_AT
             )
             .from(RELEASE_WEBHOOK_DELIVERIES)
@@ -96,6 +97,7 @@ public class ReleaseWebhookRepository {
             .set(RELEASE_WEBHOOK_DELIVERIES.SKIPPED_COUNT, intOrZero(command.skippedCount()))
             .set(RELEASE_WEBHOOK_DELIVERIES.IGNORED_COUNT, intOrZero(command.ignoredCount()))
             .set(RELEASE_WEBHOOK_DELIVERIES.CREATED_RELEASE_IDS_TEXT, join(command.createdReleaseIds()))
+            .set(RELEASE_WEBHOOK_DELIVERIES.PROJECT_IDS_TEXT, join(command.projectIds()))
             .set(RELEASE_WEBHOOK_DELIVERIES.RECEIVED_AT, receivedAt)
             .execute();
     }
@@ -116,6 +118,7 @@ public class ReleaseWebhookRepository {
             row.get(RELEASE_WEBHOOK_DELIVERIES.SKIPPED_COUNT),
             row.get(RELEASE_WEBHOOK_DELIVERIES.IGNORED_COUNT),
             split(row.get(RELEASE_WEBHOOK_DELIVERIES.CREATED_RELEASE_IDS_TEXT)),
+            split(row.get(RELEASE_WEBHOOK_DELIVERIES.PROJECT_IDS_TEXT)),
             row.get(RELEASE_WEBHOOK_DELIVERIES.RECEIVED_AT)
         );
     }
@@ -160,9 +163,13 @@ public class ReleaseWebhookRepository {
         }
 
         Condition condition = DSL.trueCondition();
+        String projectId = normalize(query.projectId());
         String deliveryId = normalize(query.deliveryId());
         MappoReleaseWebhookStatus status = query.status();
 
+        if (!projectId.isBlank()) {
+            condition = condition.and(deliveryProjectIds().contains("\n" + projectId + "\n"));
+        }
         if (!deliveryId.isBlank()) {
             condition = condition.and(RELEASE_WEBHOOK_DELIVERIES.EXTERNAL_DELIVERY_ID.containsIgnoreCase(deliveryId));
         }
@@ -170,6 +177,14 @@ public class ReleaseWebhookRepository {
             condition = condition.and(RELEASE_WEBHOOK_DELIVERIES.STATUS.eq(status));
         }
         return condition;
+    }
+
+    private org.jooq.Field<String> deliveryProjectIds() {
+        return DSL.concat(
+            DSL.inline("\n"),
+            DSL.coalesce(RELEASE_WEBHOOK_DELIVERIES.PROJECT_IDS_TEXT, ""),
+            DSL.inline("\n")
+        );
     }
 
     private int normalizePage(Integer value) {

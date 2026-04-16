@@ -8,6 +8,7 @@ This module is Sprint 1 infrastructure for the second real MAPPO project:
 - project: `azure-appservice-ado-pipeline`
 - deployment driver: `pipeline_trigger`
 - platform: Azure App Service
+- ADO workload repo: `/Users/cvonderheid/workspace/demo-app-service`
 
 It provisions one Linux App Service target per configured subscription and exports a
 MAPPO-compatible target inventory JSON payload.
@@ -24,6 +25,18 @@ For each configured target, the stack creates:
 The current sample app is packaged from:
 
 - `/Users/cvonderheid/workspace/mappo/delivery/appservice-demo-app`
+
+The Azure DevOps deployment and release-readiness pipelines live in:
+
+- `/Users/cvonderheid/workspace/demo-app-service`
+
+After the release-readiness pipeline exists in Azure DevOps, configure its MAPPO webhook with:
+
+```bash
+./scripts/ado_release_webhook_bootstrap.sh \
+  --pipeline-id <release-readiness-pipeline-id> \
+  --replace-existing
+```
 
 ## Outputs
 

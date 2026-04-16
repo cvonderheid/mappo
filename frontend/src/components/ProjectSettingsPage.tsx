@@ -206,6 +206,35 @@ function deriveDeploymentSystem(driver: ProjectDraft["deploymentDriver"]): Deplo
   return driver === "pipeline_trigger" ? "azure_devops" : "azure";
 }
 
+function normalizeDeploymentSystem(value: string | null | undefined): DeploymentSystem | null {
+  const normalized = (value ?? "").trim().toLowerCase().replaceAll("-", "_").replaceAll(" ", "_");
+  if (normalized === "azure") {
+    return "azure";
+  }
+  if (normalized === "azure_devops") {
+    return "azure_devops";
+  }
+  return null;
+}
+
+function normalizeDeploymentDriver(value: string | null | undefined): ProjectDraft["deploymentDriver"] | null {
+  const normalized = (value ?? "").trim().toLowerCase().replaceAll("-", "_").replaceAll(" ", "_");
+  if (normalized === "azure_deployment_stack" || normalized === "direct_azure_rollout") {
+    return "azure_deployment_stack";
+  }
+  if (
+    normalized === "azure_template_spec" ||
+    normalized === "direct_azure_rollout_(template_spec)" ||
+    normalized === "direct_azure_rollout_template_spec"
+  ) {
+    return "azure_template_spec";
+  }
+  if (normalized === "pipeline_trigger" || normalized === "pipeline_driven_rollout") {
+    return "pipeline_trigger";
+  }
+  return null;
+}
+
 const DEPLOYMENT_DRIVER_LABELS: Record<ProjectDraft["deploymentDriver"], string> = {
   azure_deployment_stack: "Direct Azure rollout",
   azure_template_spec: "Direct Azure rollout (template spec)",
@@ -266,7 +295,7 @@ function defaultReleaseSystemForDriver(driver: ProjectDraft["deploymentDriver"])
 function firstDriverForDeploymentSystem(
   system: DeploymentSystem
 ): ProjectDraft["deploymentDriver"] {
-  return DEPLOYMENT_METHODS_BY_SYSTEM[system][0];
+  return DEPLOYMENT_METHODS_BY_SYSTEM[system]?.[0] ?? "azure_deployment_stack";
 }
 
 function applyDeploymentDriverSelection(
@@ -803,13 +832,21 @@ export default function ProjectSettingsPage({
     selectedReleaseIngestEndpointIsAzureDevOps,
   ]);
   const selectedDiscoveredPipelineId = useMemo(() => {
-    if (draft.driver.pipelineId.trim() === "") {
+    const currentValue = draft.driver.pipelineId.trim();
+    if (currentValue === "") {
       return "__none";
     }
-    return discoveredPipelines.some((pipeline) => pipeline.id === draft.driver.pipelineId.trim())
-      ? draft.driver.pipelineId.trim()
-      : "__none";
+    return currentValue;
+  }, [draft.driver.pipelineId]);
+  const selectedDiscoveredPipeline = useMemo(() => {
+    const currentValue = draft.driver.pipelineId.trim();
+    if (currentValue === "") {
+      return null;
+    }
+    return discoveredPipelines.find((pipeline) => pipeline.id === currentValue) ?? null;
   }, [discoveredPipelines, draft.driver.pipelineId]);
+  const hasSavedPipelineOutsideDiscovery =
+    draft.driver.pipelineId.trim() !== "" && selectedDiscoveredPipeline === null;
   const selectedDiscoveredRepositoryId = useMemo(() => {
     const currentValue = draft.driver.repository.trim();
     if (currentValue === "") {
@@ -913,6 +950,9 @@ export default function ProjectSettingsPage({
       return;
     }
     if (draft.driver.project.trim() === "") {
+      return;
+    }
+    if (cachedProviderConnectionProjects.length === 0) {
       return;
     }
     const matchingProject = cachedProviderConnectionProjects.find(
@@ -1427,19 +1467,35 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
   }
 
   function updateCreateDeploymentSystem(system: DeploymentSystem): void {
-    setCreateDraft((current) => applyDeploymentDriverSelection(current, firstDriverForDeploymentSystem(system)));
+    const normalizedSystem = normalizeDeploymentSystem(system);
+    if (!normalizedSystem) {
+      return;
+    }
+    setCreateDraft((current) => applyDeploymentDriverSelection(current, firstDriverForDeploymentSystem(normalizedSystem)));
   }
 
   function updateDeploymentSystem(system: DeploymentSystem): void {
-    setDraft((current) => applyDeploymentDriverSelection(current, firstDriverForDeploymentSystem(system)));
+    const normalizedSystem = normalizeDeploymentSystem(system);
+    if (!normalizedSystem) {
+      return;
+    }
+    setDraft((current) => applyDeploymentDriverSelection(current, firstDriverForDeploymentSystem(normalizedSystem)));
   }
 
   function updateDeploymentMethod(method: ProjectDraft["deploymentDriver"]): void {
-    setDraft((current) => applyDeploymentDriverSelection(current, method));
+    const normalizedMethod = normalizeDeploymentDriver(method);
+    if (!normalizedMethod) {
+      return;
+    }
+    setDraft((current) => applyDeploymentDriverSelection(current, normalizedMethod));
   }
 
   function updateCreateDeploymentMethod(method: ProjectDraft["deploymentDriver"]): void {
-    setCreateDraft((current) => applyDeploymentDriverSelection(current, method));
+    const normalizedMethod = normalizeDeploymentDriver(method);
+    if (!normalizedMethod) {
+      return;
+    }
+    setCreateDraft((current) => applyDeploymentDriverSelection(current, normalizedMethod));
   }
 
   function focusValidationIssue(issue: DraftValidationIssue): void {
@@ -2282,7 +2338,7 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                               <Label htmlFor="driver-pipeline-select">Azure DevOps Pipeline</Label>
                               <FieldHelpTooltip content="Pipeline MAPPO queues when an operator starts a deployment run for this project." />
                             </div>
-                            {discoveredPipelines.length > 0 ? (
+                            {discoveredPipelines.length > 0 || draft.driver.pipelineId.trim() !== "" ? (
                               <Select
                                 value={selectedDiscoveredPipelineId}
                                 onValueChange={(value) => {
@@ -2304,6 +2360,11 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="__none">Select discovered pipeline</SelectItem>
+                                  {hasSavedPipelineOutsideDiscovery ? (
+                                    <SelectItem value={draft.driver.pipelineId.trim()}>
+                                      Saved pipeline ID {draft.driver.pipelineId.trim()}
+                                    </SelectItem>
+                                  ) : null}
                                   {discoveredPipelines.map((pipeline) => (
                                     <SelectItem key={`${pipeline.id}-${pipeline.name}`} value={pipeline.id}>
                                       {pipeline.name}
@@ -2321,6 +2382,11 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                             {hasSingleDiscoveredPipeline && draft.driver.pipelineId.trim() !== "" ? (
                               <p className="text-xs text-emerald-300">
                                 MAPPO auto-selected the only pipeline returned by Azure DevOps.
+                              </p>
+                            ) : null}
+                            {hasSavedPipelineOutsideDiscovery ? (
+                              <p className="text-xs text-muted-foreground">
+                                Saved pipeline ID <span className="font-medium text-foreground">{draft.driver.pipelineId.trim()}</span> will resolve to a name after MAPPO reloads Azure DevOps pipelines.
                               </p>
                             ) : null}
                           </div>

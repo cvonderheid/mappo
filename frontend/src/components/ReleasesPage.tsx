@@ -185,6 +185,7 @@ export default function ReleasesPage({
 
       <ReleaseWebhookDeliveriesDataTable
         refreshKey={refreshKey}
+        projectId={selectedProjectId}
         title="Release Webhook Events"
         cardClassName="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]"
       />

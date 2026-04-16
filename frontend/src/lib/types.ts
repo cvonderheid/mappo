@@ -24,7 +24,9 @@ export type ListMarketplaceEventsQuery =
 export type ListForwarderLogsQuery =
   NonNullable<operations["listForwarderLogsPage"]["parameters"]["query"]>;
 export type ListReleaseWebhookDeliveriesQuery =
-  NonNullable<operations["listReleaseWebhookDeliveries"]["parameters"]["query"]>;
+  NonNullable<operations["listReleaseWebhookDeliveries"]["parameters"]["query"]> & {
+    projectId?: string;
+  };
 export type MarketplaceEventIngestRequest = Schemas["OnboardingEventRequest"];
 export type MarketplaceEventIngestResponse = Schemas["EventIngestResultRecord"];
 export type MarketplaceEventRecord = Schemas["MarketplaceEventRecord"];

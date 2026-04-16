@@ -19,6 +19,7 @@ public record ReleaseWebhookDeliveryCommand(
     Integer skippedCount,
     Integer ignoredCount,
     List<String> createdReleaseIds,
+    List<String> projectIds,
     OffsetDateTime receivedAt
 ) {
 }

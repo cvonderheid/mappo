@@ -890,6 +890,10 @@ if [[ -n "${MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN:-}" ]]; then
   backend_env_vars+=("MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN=secretref:azure-devops-personal-access-token")
   backend_secrets+=("azure-devops-personal-access-token=${MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN}")
 fi
+if [[ -n "${MAPPO_AZURE_DEVOPS_WEBHOOK_SECRET:-}" ]]; then
+  backend_env_vars+=("MAPPO_AZURE_DEVOPS_WEBHOOK_SECRET=secretref:azure-devops-webhook-secret")
+  backend_secrets+=("azure-devops-webhook-secret=${MAPPO_AZURE_DEVOPS_WEBHOOK_SECRET}")
+fi
 
 backend_base_url=""
 frontend_base_url=""

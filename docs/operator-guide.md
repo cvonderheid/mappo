@@ -116,6 +116,16 @@ This is currently the strongest operator page in the product and should be the s
 5. Release readiness: merge an ADO release PR to `main`; the release-readiness pipeline service hook creates the MAPPO release
 6. Prerequisite: the selected Azure DevOps deployment pipeline must own whatever Azure credentials/service connections it needs
 
+The ADO workload repo is `/Users/cvonderheid/workspace/demo-app-service`.
+
+Bootstrap the ADO release-readiness webhook after the release pipeline exists:
+
+```bash
+./scripts/ado_release_webhook_bootstrap.sh \
+  --pipeline-id <release-readiness-pipeline-id> \
+  --replace-existing
+```
+
 ## Operator guidance rules
 - Prefer discovered dropdowns over typed IDs.
 - Prefer plain language over backend enum names.

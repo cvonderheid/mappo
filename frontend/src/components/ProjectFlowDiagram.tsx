@@ -72,23 +72,25 @@ function FlowNode({
   details: FlowDetail[];
 }) {
   return (
-    <div className="min-w-0 flex-1 rounded-xl border border-border/70 bg-gradient-to-br from-background/70 via-background/40 to-background/20 p-4 shadow-sm">
+    <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-gradient-to-br from-background/70 via-background/40 to-background/20 p-4 shadow-sm">
       <div className="flex items-start gap-3">
         <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
           {icon}
         </div>
-        <div className="min-w-0 space-y-2">
+        <div className="min-w-0 flex-1 space-y-2">
           <div>
             <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{eyebrow}</p>
-            <p className="text-sm font-semibold text-foreground">{title}</p>
+            <p className="min-w-0 break-words text-sm font-semibold text-foreground [overflow-wrap:anywhere]">{title}</p>
           </div>
           <div className="grid gap-2 text-xs text-muted-foreground">
             {details.map((detail) => (
-              <div key={`${detail.label}-${detail.value}`} className="flex flex-col gap-0.5">
+              <div key={`${detail.label}-${detail.value}`} className="min-w-0 flex flex-col gap-0.5">
                 <span className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground/80">
                   {detail.label}
                 </span>
-                <span className="text-xs text-foreground/90">{detail.value}</span>
+                <span className="min-w-0 break-words text-xs leading-relaxed text-foreground/90 [overflow-wrap:anywhere]">
+                  {detail.value}
+                </span>
               </div>
             ))}
           </div>
