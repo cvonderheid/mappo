@@ -175,8 +175,8 @@ export default function ProjectFlowDiagram({
         ])
       : detailList([
           { label: "Method", value: deploymentMethodLabel },
-          { label: "Rollout", value: "MAPPO updates each selected target directly in Azure." },
-          { label: "Mechanism", value: "Direct Azure rollout uses each target's Deployment Stack." },
+          { label: "Rollout", value: "MAPPO calls Azure directly for each selected target." },
+          { label: "Mechanism", value: "MAPPO Azure API uses Azure SDK/ARM against each target's deployment resources." },
         ]);
 
   const targetDetails = detailList([

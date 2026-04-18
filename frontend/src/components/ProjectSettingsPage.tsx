@@ -1,19 +1,18 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import FieldHelpTooltip from "@/components/FieldHelpTooltip";
 import ProjectFlowDiagram from "@/components/ProjectFlowDiagram";
+import { WizardDecisionCard, WizardReviewRow, WizardShell } from "@/components/Wizard";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Drawer,
-  DrawerClose,
   DrawerContent,
   DrawerDescription,
-  DrawerFooter,
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
@@ -79,6 +78,7 @@ type ProjectTab =
 type ValidationScope = "credentials" | "webhook" | "target_contract";
 type ReleaseSystem = "github" | "azure_devops";
 type DeploymentSystem = "azure" | "azure_devops";
+type CreateProjectWizardStep = "basics" | "release-source" | "deployment" | "targets" | "review";
 
 type ProjectDraft = {
   id: string;
@@ -128,6 +128,34 @@ const PROJECT_TABS: { key: ProjectTab; label: string }[] = [
 ];
 
 const PROJECT_THEME_OPTIONS = Object.values(PROJECT_THEMES);
+const CREATE_PROJECT_WIZARD_STEPS: { key: CreateProjectWizardStep; label: string; description: string }[] = [
+  {
+    key: "basics",
+    label: "Basics",
+    description: "Name the project.",
+  },
+  {
+    key: "release-source",
+    label: "Release Source",
+    description: "Choose where releases come from.",
+  },
+  {
+    key: "deployment",
+    label: "Deployment",
+    description: "Choose how deployments run.",
+  },
+  {
+    key: "targets",
+    label: "Targets",
+    description: "Targets are added after creation.",
+  },
+  {
+    key: "review",
+    label: "Review",
+    description: "Confirm and create.",
+  },
+];
+const CREATE_PROJECT_WIZARD_STEP_KEYS = CREATE_PROJECT_WIZARD_STEPS.map((step) => step.key);
 
 const RELEASE_SYSTEM_ORDER: ReleaseSystem[] = ["github", "azure_devops"];
 const DEPLOYMENT_SYSTEM_ORDER: DeploymentSystem[] = ["azure", "azure_devops"];
@@ -236,8 +264,8 @@ function normalizeDeploymentDriver(value: string | null | undefined): ProjectDra
 }
 
 const DEPLOYMENT_DRIVER_LABELS: Record<ProjectDraft["deploymentDriver"], string> = {
-  azure_deployment_stack: "Direct Azure rollout",
-  azure_template_spec: "Direct Azure rollout (template spec)",
+  azure_deployment_stack: "MAPPO Azure API",
+  azure_template_spec: "MAPPO Azure API (template spec)",
   pipeline_trigger: "Pipeline-driven rollout",
 };
 
@@ -259,9 +287,9 @@ const RUNTIME_HEALTH_LABELS: Record<ProjectDraft["runtimeHealthProvider"], strin
 
 const DEPLOYMENT_DRIVER_HELP: Record<ProjectDraft["deploymentDriver"], string> = {
   azure_deployment_stack:
-    "MAPPO updates each selected target directly in Azure using that target's Deployment Stack.",
+    "MAPPO uses its Azure credentials and Azure SDK/ARM calls to update each selected target.",
   azure_template_spec:
-    "MAPPO updates each selected target directly in Azure using that target's template-spec-backed release.",
+    "MAPPO uses its Azure credentials and Azure SDK/ARM calls to update each selected target from a template-spec-backed release.",
   pipeline_trigger:
     "MAPPO asks an external CI/CD system to deploy each selected target instead of calling Azure directly.",
 };
@@ -385,6 +413,18 @@ function projectToDraft(project: ProjectDefinition | null): ProjectDraft {
       timeoutMs: asNumberString(runtimeConfig.timeoutMs, "5000"),
     },
   };
+}
+
+function emptyProjectDraft(): ProjectDraft {
+  return projectToDraft({
+    id: "",
+    name: "",
+    themeKey: DEFAULT_THEME_KEY,
+    accessStrategy: "azure_workload_rbac",
+    deploymentDriver: "azure_deployment_stack",
+    releaseArtifactSource: "blob_arm_template",
+    runtimeHealthProvider: "azure_container_app_http",
+  });
 }
 
 function parseOptionalNumber(value: string): number | undefined {
@@ -541,19 +581,12 @@ export default function ProjectSettingsPage({
   const [isLoadingReleaseIngestEndpoints, setIsLoadingReleaseIngestEndpoints] = useState(false);
   const [isLoadingProviderConnections, setIsLoadingProviderConnections] = useState(false);
   const [selectedReleaseSystem, setSelectedReleaseSystem] = useState<ReleaseSystem>("github");
+  const [createWizardStep, setCreateWizardStep] = useState<CreateProjectWizardStep>("basics");
+  const [createReleaseSystem, setCreateReleaseSystem] = useState<ReleaseSystem>("github");
   const branchDiscoveryKeyRef = useRef("");
   const repositoryDiscoveryKeyRef = useRef("");
   const pipelineDiscoveryKeyRef = useRef("");
-  const [createDraft, setCreateDraft] = useState<ProjectDraft>(() =>
-    projectToDraft({
-      id: "",
-      name: "",
-      accessStrategy: "azure_workload_rbac",
-      deploymentDriver: "azure_deployment_stack",
-      releaseArtifactSource: "blob_arm_template",
-      runtimeHealthProvider: "azure_container_app_http",
-    })
-  );
+  const [createDraft, setCreateDraft] = useState<ProjectDraft>(() => emptyProjectDraft());
 
   useEffect(() => {
     const nextDraft = projectToDraft(project);
@@ -608,6 +641,9 @@ export default function ProjectSettingsPage({
     if (params.get("new") !== "1") {
       return;
     }
+    setCreateWizardStep("basics");
+    setCreateReleaseSystem("github");
+    setCreateDraft(emptyProjectDraft());
     setCreateDrawerOpen(true);
     params.delete("new");
     const nextSearch = params.toString();
@@ -769,11 +805,36 @@ export default function ProjectSettingsPage({
       releaseIngestEndpoints.find((endpoint) => (endpoint.id ?? "").trim() === endpointId) ?? null
     );
   }, [releaseIngestEndpoints, draft.releaseIngestEndpointId]);
+  const selectedCreateReleaseIngestEndpoint = useMemo(() => {
+    const endpointId = createDraft.releaseIngestEndpointId.trim();
+    if (endpointId === "") {
+      return null;
+    }
+    return (
+      releaseIngestEndpoints.find((endpoint) => (endpoint.id ?? "").trim() === endpointId) ?? null
+    );
+  }, [createDraft.releaseIngestEndpointId, releaseIngestEndpoints]);
+  const createReleaseIngestEndpointOptions = useMemo(
+    () =>
+      sortedReleaseIngestEndpoints.filter(
+        (endpoint) => normalizeReleaseSystem(endpoint.provider) === createReleaseSystem
+      ),
+    [createReleaseSystem, sortedReleaseIngestEndpoints]
+  );
   const pipelineReleaseIngestEndpoints = useMemo(() => {
     return sortedReleaseIngestEndpoints.filter(
       (endpoint) => (endpoint.provider ?? "").toLowerCase() === "azure_devops"
     );
   }, [sortedReleaseIngestEndpoints]);
+  const selectedCreateProviderConnection = useMemo(() => {
+    const connectionId = createDraft.providerConnectionId.trim();
+    if (connectionId === "") {
+      return null;
+    }
+    return (
+      providerConnections.find((connection) => (connection.id ?? "").trim() === connectionId) ?? null
+    );
+  }, [createDraft.providerConnectionId, providerConnections]);
   const selectedReleaseIngestEndpointIsAzureDevOps =
     (selectedReleaseIngestEndpoint?.provider ?? "").toLowerCase() === "azure_devops";
   const availableReleaseSystems = useMemo(() => {
@@ -1030,6 +1091,53 @@ export default function ProjectSettingsPage({
   }, [draft.releaseIngestEndpointId, releaseIngestEndpointOptions]);
 
   useEffect(() => {
+    if (createDraft.releaseIngestEndpointId.trim() !== "") {
+      return;
+    }
+    if (createReleaseIngestEndpointOptions.length !== 1) {
+      return;
+    }
+    const onlyEndpointId = (createReleaseIngestEndpointOptions[0]?.id ?? "").trim();
+    if (onlyEndpointId === "") {
+      return;
+    }
+    setCreateDraft((current) => {
+      if (current.releaseIngestEndpointId.trim() !== "") {
+        return current;
+      }
+      return {
+        ...current,
+        releaseIngestEndpointId: onlyEndpointId,
+      };
+    });
+  }, [createDraft.releaseIngestEndpointId, createReleaseIngestEndpointOptions]);
+
+  useEffect(() => {
+    if (createDraft.deploymentDriver !== "pipeline_trigger") {
+      return;
+    }
+    if (createDraft.providerConnectionId.trim() !== "") {
+      return;
+    }
+    if (pipelineProviderConnections.length !== 1) {
+      return;
+    }
+    const onlyConnectionId = (pipelineProviderConnections[0]?.id ?? "").trim();
+    if (onlyConnectionId === "") {
+      return;
+    }
+    setCreateDraft((current) => {
+      if (current.providerConnectionId.trim() !== "") {
+        return current;
+      }
+      return {
+        ...current,
+        providerConnectionId: onlyConnectionId,
+      };
+    });
+  }, [createDraft.deploymentDriver, createDraft.providerConnectionId, pipelineProviderConnections]);
+
+  useEffect(() => {
     if (draft.deploymentDriver === "pipeline_trigger" && selectedReleaseSystem !== "azure_devops") {
       setSelectedReleaseSystem("azure_devops");
     }
@@ -1157,6 +1265,10 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
   const configComplete = project !== null && draftValidationIssues.length === 0;
   const canPersist = project !== null && draftValidationIssues.length === 0;
   const canCreateProject = createDraft.id.trim() !== "" && createDraft.name.trim() !== "";
+  const createWizardStepIndex = CREATE_PROJECT_WIZARD_STEP_KEYS.indexOf(createWizardStep);
+  const createWizardIsFirstStep = createWizardStepIndex <= 0;
+  const createWizardIsLastStep = createWizardStep === "review";
+  const canAdvanceCreateWizard = createWizardStep !== "basics" || canCreateProject;
   const releaseSourceLabel = releaseSourceTypeLabel;
   const selectedPipelineName = useMemo(() => {
     const currentValue = draft.driver.pipelineId.trim();
@@ -1430,8 +1542,7 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
     resolvedAdoProject,
   ]);
 
-  async function handleCreateProject(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
+  async function handleCreateProject(): Promise<void> {
     if (!canCreateProject) {
       return;
     }
@@ -1440,17 +1551,9 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
       const created = await onCreateProject(buildCreateRequest(createDraft));
       toast.success(`Created project ${created.name ?? created.id}.`);
       setCreateDrawerOpen(false);
-      setCreateDraft(
-        projectToDraft({
-          id: "",
-          name: "",
-          themeKey: DEFAULT_THEME_KEY,
-          accessStrategy: "azure_workload_rbac",
-          deploymentDriver: "azure_deployment_stack",
-          releaseArtifactSource: "blob_arm_template",
-          runtimeHealthProvider: "azure_container_app_http",
-        })
-      );
+      setCreateWizardStep("basics");
+      setCreateReleaseSystem("github");
+      setCreateDraft(emptyProjectDraft());
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
@@ -1466,12 +1569,41 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
     setCreateDraft((current) => ({ ...current, [key]: value }));
   }
 
+  function updateCreateReleaseSystem(system: ReleaseSystem): void {
+    setCreateReleaseSystem(system);
+    setCreateDraft((current) => {
+      const linkedProvider = normalizeReleaseSystem(selectedCreateReleaseIngestEndpoint?.provider);
+      const nextDraft = {
+        ...current,
+        releaseIngestEndpointId: linkedProvider === system ? current.releaseIngestEndpointId : "",
+      };
+      if (current.deploymentDriver === "pipeline_trigger" && system !== "azure_devops") {
+        return applyDeploymentDriverSelection(nextDraft, "azure_deployment_stack");
+      }
+      return nextDraft;
+    });
+  }
+
   function updateCreateDeploymentSystem(system: DeploymentSystem): void {
     const normalizedSystem = normalizeDeploymentSystem(system);
     if (!normalizedSystem) {
       return;
     }
-    setCreateDraft((current) => applyDeploymentDriverSelection(current, firstDriverForDeploymentSystem(normalizedSystem)));
+    const nextDriver = firstDriverForDeploymentSystem(normalizedSystem);
+    if (nextDriver === "pipeline_trigger") {
+      setCreateReleaseSystem("azure_devops");
+    }
+    setCreateDraft((current) => {
+      const nextDraft = applyDeploymentDriverSelection(current, nextDriver);
+      if (nextDriver !== "pipeline_trigger") {
+        return nextDraft;
+      }
+      const linkedProvider = normalizeReleaseSystem(selectedCreateReleaseIngestEndpoint?.provider);
+      return {
+        ...nextDraft,
+        releaseIngestEndpointId: linkedProvider === "azure_devops" ? nextDraft.releaseIngestEndpointId : "",
+      };
+    });
   }
 
   function updateDeploymentSystem(system: DeploymentSystem): void {
@@ -1495,7 +1627,48 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
     if (!normalizedMethod) {
       return;
     }
-    setCreateDraft((current) => applyDeploymentDriverSelection(current, normalizedMethod));
+    if (normalizedMethod === "pipeline_trigger") {
+      setCreateReleaseSystem("azure_devops");
+    }
+    setCreateDraft((current) => {
+      const nextDraft = applyDeploymentDriverSelection(current, normalizedMethod);
+      if (normalizedMethod !== "pipeline_trigger") {
+        return nextDraft;
+      }
+      const linkedProvider = normalizeReleaseSystem(selectedCreateReleaseIngestEndpoint?.provider);
+      return {
+        ...nextDraft,
+        releaseIngestEndpointId: linkedProvider === "azure_devops" ? nextDraft.releaseIngestEndpointId : "",
+      };
+    });
+  }
+
+  function updateCreateDrawerOpen(open: boolean): void {
+    setCreateDrawerOpen(open);
+    if (open) {
+      setCreateWizardStep("basics");
+      setCreateReleaseSystem("github");
+      setCreateDraft(emptyProjectDraft());
+    }
+  }
+
+  function goToPreviousCreateWizardStep(): void {
+    const currentIndex = CREATE_PROJECT_WIZARD_STEP_KEYS.indexOf(createWizardStep);
+    const previousStep = CREATE_PROJECT_WIZARD_STEP_KEYS[Math.max(0, currentIndex - 1)];
+    if (previousStep) {
+      setCreateWizardStep(previousStep);
+    }
+  }
+
+  function goToNextCreateWizardStep(): void {
+    if (createWizardStep === "basics" && !canCreateProject) {
+      return;
+    }
+    const currentIndex = CREATE_PROJECT_WIZARD_STEP_KEYS.indexOf(createWizardStep);
+    const nextStep = CREATE_PROJECT_WIZARD_STEP_KEYS[Math.min(CREATE_PROJECT_WIZARD_STEP_KEYS.length - 1, currentIndex + 1)];
+    if (nextStep) {
+      setCreateWizardStep(nextStep);
+    }
   }
 
   function focusValidationIssue(issue: DraftValidationIssue): void {
@@ -2403,12 +2576,12 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                 ) : (
                   <div className="space-y-3">
                     <div className="rounded-md border border-border/70 bg-background/40 p-3">
-                      <p className="text-sm font-semibold text-foreground">Direct Azure rollout</p>
+                      <p className="text-sm font-semibold text-foreground">MAPPO Azure API</p>
                       <p className="mt-2 text-xs text-muted-foreground">
-                        MAPPO updates each selected target directly in Azure using that target&apos;s Deployment Stack.
+                        MAPPO uses its Azure credentials and Azure SDK/ARM calls to update each selected target.
                       </p>
                       <p className="mt-2 text-xs text-muted-foreground">
-                        No deployment connection is required for this mode because MAPPO talks to Azure directly.
+                        No deployment connection is required for this mode because MAPPO owns the Azure API call.
                       </p>
                     </div>
                     <div className="flex justify-end">
@@ -2598,164 +2771,295 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
         </CardContent>
       </Card>
 
-      <Drawer direction="top" open={createDrawerOpen} onOpenChange={setCreateDrawerOpen}>
+      <Drawer direction="top" open={createDrawerOpen} onOpenChange={updateCreateDrawerOpen}>
         <DrawerContent className="glass-card">
           <DrawerHeader>
-            <DrawerTitle>Create Project</DrawerTitle>
-            <DrawerDescription>
-              Add a new project profile without scripts. You can refine driver/access/runtime details after creation.
-            </DrawerDescription>
+            <DrawerTitle>New Project Wizard</DrawerTitle>
+            <DrawerDescription>Create a project in a few guided steps.</DrawerDescription>
           </DrawerHeader>
-          <div className="max-h-[70vh] overflow-y-auto px-4 pb-2">
-            <form id="project-create-form" className="grid grid-cols-1 gap-3 md:grid-cols-2" onSubmit={handleCreateProject}>
-              <div className="space-y-1">
-                <Label htmlFor="create-project-id">Project ID</Label>
-                <Input
-                  id="create-project-id"
-                  value={createDraft.id}
-                  onChange={(event) => updateCreateDraft("id", event.target.value)}
-                  placeholder="azure-appservice-ado-pipeline"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="create-project-name">Project name</Label>
-                <Input
-                  id="create-project-name"
-                  value={createDraft.name}
-                  onChange={(event) => updateCreateDraft("name", event.target.value)}
-                  placeholder="Azure App Service ADO Pipeline"
-                />
-              </div>
-              <div className="space-y-1 md:col-span-2">
-                <Label htmlFor="create-project-theme">Project theme</Label>
-                <Select
-                  value={createDraft.themeKey}
-                  onValueChange={(value) => updateCreateDraft("themeKey", value as ProjectThemeKey)}
-                >
-                  <SelectTrigger id="create-project-theme">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PROJECT_THEME_OPTIONS.map((theme) => (
-                      <SelectItem key={theme.key} value={theme.key}>
-                        {theme.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {PROJECT_THEMES[createDraft.themeKey]?.description ?? PROJECT_THEMES[DEFAULT_THEME_KEY].description}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="create-access-strategy">Access strategy</Label>
-                <Input
-                  id="create-access-strategy"
-                  value={ACCESS_STRATEGY_LABELS.azure_workload_rbac}
-                  disabled
-                />
-                <p className="text-xs text-muted-foreground">
-                  New projects start with MAPPO using its Azure permissions. You can review this later in Project → Config.
-                </p>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="create-deployment-system">Deployment system</Label>
-                <Select
-                  value={createSelectedDeploymentSystem}
-                  onValueChange={(value) =>
-                    updateCreateDeploymentSystem(value as DeploymentSystem)
-                  }
-                >
-                  <SelectTrigger id="create-deployment-system">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="azure">{DEPLOYMENT_SYSTEM_LABELS.azure}</SelectItem>
-                    <SelectItem value="azure_devops">{DEPLOYMENT_SYSTEM_LABELS.azure_devops}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="create-deployment-method">Deployment method</Label>
-                <Select
-                  value={createDraft.deploymentDriver}
-                  onValueChange={(value) =>
-                    updateCreateDeploymentMethod(value as ProjectDraft["deploymentDriver"])
-                  }
-                  disabled={createDeploymentMethodOptions.length <= 1}
-                >
-                  <SelectTrigger id="create-deployment-method">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {createDeploymentMethodOptions.map((method) => (
-                      <SelectItem key={method} value={method}>
-                        {DEPLOYMENT_DRIVER_LABELS[method]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {createDeploymentMethodOptions.length <= 1
-                    ? `${DEPLOYMENT_SYSTEM_LABELS[createSelectedDeploymentSystem]} currently supports one deployment method in MAPPO.`
-                    : "Choose how MAPPO should deploy through the selected deployment system."}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="create-release-provider">Release provider</Label>
-                <Input
-                  id="create-release-provider"
-                  value={
-                    createDraft.deploymentDriver === "pipeline_trigger"
-                      ? RELEASE_SYSTEM_LABELS.azure_devops
-                      : "Choose after project creation"
-                  }
-                  disabled
-                />
-                <p className="text-xs text-muted-foreground">
-                  {createDraft.deploymentDriver === "pipeline_trigger"
-                    ? "Pipeline-driven rollout always expects Azure DevOps release events."
-                    : "Link the provider-specific release source after you create the project in Project → Config."}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="create-release-type">Release source type</Label>
-                <Input
-                  id="create-release-type"
-                  value={
-                    createDraft.deploymentDriver === "pipeline_trigger"
-                      ? RELEASE_SOURCE_TYPE_LABELS[createDraft.releaseArtifactSource]
-                      : "Set after project creation"
-                  }
-                  disabled
-                />
-                <p className="text-xs text-muted-foreground">
-                  {createDraft.deploymentDriver === "pipeline_trigger"
-                    ? "MAPPO will expect inbound webhook or pipeline events for this project."
-                    : "MAPPO derives the exact release source type after you link a release source in Project → Config."}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="create-runtime-provider">Runtime health check</Label>
-                <Input
-                  id="create-runtime-provider"
-                  value={RUNTIME_HEALTH_LABELS.http_endpoint}
-                  disabled
-                />
-                <p className="text-xs text-muted-foreground">
-                  New projects start with a standard HTTP endpoint health check. You can refine the path and status code later in Project → Config.
-                </p>
-              </div>
-            </form>
+          <div className="max-h-[72vh] overflow-y-auto px-4 pb-4">
+            <WizardShell
+              title="Project setup"
+              description="Choose the project basics, release source, deployment path, and target registration model."
+              steps={CREATE_PROJECT_WIZARD_STEPS}
+              activeStep={createWizardStep}
+              actions={
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => updateCreateDrawerOpen(false)}
+                    disabled={createSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={goToPreviousCreateWizardStep}
+                    disabled={createWizardIsFirstStep || createSubmitting}
+                  >
+                    Back
+                  </Button>
+                  {createWizardIsLastStep ? (
+                    <Button
+                      type="button"
+                      onClick={() => void handleCreateProject()}
+                      disabled={!canCreateProject || createSubmitting}
+                    >
+                      {createSubmitting ? "Creating..." : "Create Project"}
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      onClick={goToNextCreateWizardStep}
+                      disabled={!canAdvanceCreateWizard || createSubmitting}
+                    >
+                      Next
+                    </Button>
+                  )}
+                </>
+              }
+            >
+              {createWizardStep === "basics" ? (
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="create-project-id">Project ID</Label>
+                    <Input
+                      id="create-project-id"
+                      value={createDraft.id}
+                      onChange={(event) => updateCreateDraft("id", event.target.value)}
+                      placeholder="azure-appservice-ado-pipeline"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="create-project-name">Project name</Label>
+                    <Input
+                      id="create-project-name"
+                      value={createDraft.name}
+                      onChange={(event) => updateCreateDraft("name", event.target.value)}
+                      placeholder="Azure App Service ADO Pipeline"
+                    />
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <Label htmlFor="create-project-theme">Project theme</Label>
+                    <Select
+                      value={createDraft.themeKey}
+                      onValueChange={(value) => updateCreateDraft("themeKey", value as ProjectThemeKey)}
+                    >
+                      <SelectTrigger id="create-project-theme">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PROJECT_THEME_OPTIONS.map((theme) => (
+                          <SelectItem key={theme.key} value={theme.key}>
+                            {theme.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {PROJECT_THEMES[createDraft.themeKey]?.description ?? PROJECT_THEMES[DEFAULT_THEME_KEY].description}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
+              {createWizardStep === "release-source" ? (
+                <div className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <WizardDecisionCard
+                      title="GitHub"
+                      description="Webhook plus release manifest."
+                      selected={createReleaseSystem === "github"}
+                      onSelect={() => updateCreateReleaseSystem("github")}
+                      badge={<Badge variant="outline">Release provider</Badge>}
+                    />
+                    <WizardDecisionCard
+                      title="Azure DevOps"
+                      description="Service hook or pipeline event."
+                      selected={createReleaseSystem === "azure_devops"}
+                      onSelect={() => updateCreateReleaseSystem("azure_devops")}
+                      badge={<Badge variant="outline">Release provider</Badge>}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="create-release-source">Release source</Label>
+                    <Select
+                      value={createDraft.releaseIngestEndpointId.trim() || "__none"}
+                      onValueChange={(value) =>
+                        updateCreateDraft("releaseIngestEndpointId", value === "__none" ? "" : value)
+                      }
+                    >
+                      <SelectTrigger id="create-release-source">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none">No linked release source yet</SelectItem>
+                        {createReleaseIngestEndpointOptions.map((endpoint) => {
+                          const endpointId = (endpoint.id ?? "").trim();
+                          if (endpointId === "") {
+                            return null;
+                          }
+                          return (
+                            <SelectItem key={endpointId} value={endpointId}>
+                              {endpoint.name || endpointId}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {isLoadingReleaseIngestEndpoints
+                        ? "Loading release sources..."
+                        : createReleaseIngestEndpointOptions.length === 0
+                          ? `No ${RELEASE_SYSTEM_LABELS[createReleaseSystem]} release sources exist yet.`
+                          : "Select the release source for this project."}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
+              {createWizardStep === "deployment" ? (
+                <div className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <WizardDecisionCard
+                      title="MAPPO Azure API"
+                      description="MAPPO calls Azure directly."
+                      selected={createSelectedDeploymentSystem === "azure"}
+                      onSelect={() => updateCreateDeploymentSystem("azure")}
+                      badge={<Badge variant="outline">Azure</Badge>}
+                    />
+                    <WizardDecisionCard
+                      title="Azure DevOps Pipeline"
+                      description="MAPPO queues a pipeline run."
+                      selected={createSelectedDeploymentSystem === "azure_devops"}
+                      onSelect={() => updateCreateDeploymentSystem("azure_devops")}
+                      badge={<Badge variant="outline">Azure DevOps</Badge>}
+                    />
+                  </div>
+
+                  {createSelectedDeploymentSystem === "azure" ? (
+                    <div className="space-y-1">
+                      <Label htmlFor="create-deployment-method">MAPPO Azure API mode</Label>
+                      <Select
+                        value={createDraft.deploymentDriver}
+                        onValueChange={(value) =>
+                          updateCreateDeploymentMethod(value as ProjectDraft["deploymentDriver"])
+                        }
+                        disabled={createDeploymentMethodOptions.length <= 1}
+                      >
+                        <SelectTrigger id="create-deployment-method">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {createDeploymentMethodOptions.map((method) => (
+                            <SelectItem key={method} value={method}>
+                              {DEPLOYMENT_DRIVER_LABELS[method]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        {createDeploymentMethodOptions.length <= 1
+                          ? "Only one Azure API mode is available."
+                          : "Choose the Azure API mode."}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <Label htmlFor="create-deployment-connection">Deployment connection</Label>
+                      <Select
+                        value={createDraft.providerConnectionId.trim() || "__none"}
+                        onValueChange={(value) =>
+                          updateCreateDraft("providerConnectionId", value === "__none" ? "" : value)
+                        }
+                      >
+                        <SelectTrigger id="create-deployment-connection">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none">No linked deployment connection yet</SelectItem>
+                          {pipelineProviderConnections.map((connection) => {
+                            const connectionId = (connection.id ?? "").trim();
+                            if (connectionId === "") {
+                              return null;
+                            }
+                            return (
+                              <SelectItem key={connectionId} value={connectionId}>
+                                {connection.name || connectionId}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        {isLoadingProviderConnections
+                          ? "Loading deployment connections..."
+                          : pipelineProviderConnections.length === 0
+                            ? "No Azure DevOps deployment connections exist yet."
+                            : "Select the Azure DevOps account MAPPO can call."}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              {createWizardStep === "targets" ? (
+                <div className="rounded-lg border border-border/70 bg-background/40 p-4">
+                  <p className="text-sm font-semibold text-foreground">Targets are added after project creation.</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Use Project {"->"} Targets to add or import targets.
+                  </p>
+                </div>
+              ) : null}
+
+              {createWizardStep === "review" ? (
+                <dl className="grid gap-3 lg:grid-cols-2">
+                  <WizardReviewRow
+                    label="Project"
+                    value={`${createDraft.name.trim() || "Unnamed project"} (${createDraft.id.trim() || "missing-id"})`}
+                  />
+                  <WizardReviewRow
+                    label="Theme"
+                    value={PROJECT_THEMES[createDraft.themeKey]?.name ?? PROJECT_THEMES[DEFAULT_THEME_KEY].name}
+                  />
+                  <WizardReviewRow
+                    label="Release provider"
+                    value={RELEASE_SYSTEM_LABELS[createReleaseSystem]}
+                  />
+                  <WizardReviewRow
+                    label="Release source"
+                    value={
+                      selectedCreateReleaseIngestEndpoint?.name ||
+                      selectedCreateReleaseIngestEndpoint?.id ||
+                      "Not linked yet"
+                    }
+                  />
+                  <WizardReviewRow
+                    label="Release source type"
+                    value={RELEASE_SOURCE_TYPE_LABELS[createDraft.releaseArtifactSource]}
+                  />
+                  <WizardReviewRow
+                    label="Deployment path"
+                    value={`${DEPLOYMENT_SYSTEM_LABELS[createSelectedDeploymentSystem]} -> ${DEPLOYMENT_DRIVER_LABELS[createDraft.deploymentDriver]}`}
+                  />
+                  <WizardReviewRow
+                    label="Deployment connection"
+                    value={
+                      createDraft.deploymentDriver === "pipeline_trigger"
+                        ? selectedCreateProviderConnection?.name || selectedCreateProviderConnection?.id || "Not linked yet"
+                        : "Not required for MAPPO Azure API"
+                    }
+                  />
+                  <WizardReviewRow
+                    label="Targets"
+                    value="Add or import after project creation"
+                  />
+                </dl>
+              ) : null}
+            </WizardShell>
           </div>
-          <DrawerFooter>
-            <Button form="project-create-form" type="submit" disabled={!canCreateProject || createSubmitting}>
-              {createSubmitting ? "Creating..." : "Create Project"}
-            </Button>
-            <DrawerClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DrawerClose>
-          </DrawerFooter>
         </DrawerContent>
       </Drawer>
     </section>

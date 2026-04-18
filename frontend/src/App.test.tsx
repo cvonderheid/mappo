@@ -352,11 +352,11 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Project Settings")).toBeInTheDocument();
-      expect(screen.getByRole("heading", { name: "Create Project" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "New Project Wizard" })).toBeInTheDocument();
     });
   });
 
-  it("hides Azure DevOps controls for direct Azure rollout projects", async () => {
+  it("hides Azure DevOps controls for MAPPO Azure API projects", async () => {
     apiMock.listProjects.mockResolvedValue([
       {
         ...mockProjects[0],

@@ -53,7 +53,7 @@ const DEMO_PROJECTS = [
   {
     id: "azure-managed-app-deployment-stack",
     title: "VECTR: Azure Managed App Deployment Stack",
-    provider: "GitHub release source + direct Azure rollout",
+    provider: "GitHub release source + MAPPO Azure API",
     purpose: "Demonstrates MAPPO-controlled target-by-target Azure rollout.",
     targetFlow: "Pulumi creates target infrastructure and sends marketplace-style registration events.",
     releaseFlow: "Publisher updates the GitHub managed-app manifest, then MAPPO checks for new releases.",
