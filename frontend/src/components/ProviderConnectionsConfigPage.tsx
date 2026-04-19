@@ -1,6 +1,11 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { LuActivity, LuBoxes, LuWorkflow } from "react-icons/lu";
+import { VscAzureDevops } from "react-icons/vsc";
 import { toast } from "sonner";
 
+import AdminIntegrationFlowDiagram, {
+  type AdminIntegrationFlowNode,
+} from "@/components/AdminIntegrationFlowDiagram";
 import FieldHelpTooltip from "@/components/FieldHelpTooltip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,6 +56,8 @@ type ProviderConnectionDraft = {
   personalAccessTokenKeyVaultSecret: string;
   personalAccessTokenSecretReferenceId: string;
 };
+
+type LinkedProject = NonNullable<ProviderConnection["linkedProjects"]>[number];
 
 const DEFAULT_AZURE_DEVOPS_PAT_REF = "mappo.azure-devops.personal-access-token";
 
@@ -262,6 +269,172 @@ function describeDiscoveredProjectCount(count: number): string {
     return "No Azure DevOps projects verified yet";
   }
   return `${count} Azure DevOps project${count === 1 ? "" : "s"} available`;
+}
+
+function providerConnectionLabel(provider: ProviderConnectionProvider | string | null | undefined): string {
+  return normalize(`${provider ?? "azure_devops"}`) === "azure_devops" ? "Azure DevOps" : `${provider ?? "Provider"}`;
+}
+
+function providerConnectionIcon(provider: ProviderConnectionProvider | string | null | undefined, className: string) {
+  if (normalize(`${provider ?? "azure_devops"}`) === "azure_devops") {
+    return <VscAzureDevops className={className} />;
+  }
+  return <LuWorkflow className={className} />;
+}
+
+function summarizeLinkedProjects(linkedProjects: LinkedProject[]): string {
+  if (linkedProjects.length === 0) {
+    return "No linked projects";
+  }
+  const labels = linkedProjects.map((linked) =>
+    linked.projectDisplayName || linked.projectName || linked.projectId || "Project"
+  );
+  const visible = labels.slice(0, 3).join(", ");
+  const overflow = labels.length - 3;
+  return overflow > 0 ? `${visible}, +${overflow} more` : visible;
+}
+
+function summarizeDiscoveredProjects(projects: ProviderConnectionAdoProject[]): string {
+  if (projects.length === 0) {
+    return "No projects loaded";
+  }
+  const labels = projects.map((project) => project.name || project.id || "Azure DevOps project");
+  const visible = labels.slice(0, 3).join(", ");
+  const overflow = labels.length - 3;
+  return overflow > 0 ? `${visible}, +${overflow} more` : visible;
+}
+
+function verificationTitle({
+  isDiscovering,
+  isVerified,
+  error,
+}: {
+  isDiscovering: boolean;
+  isVerified: boolean;
+  error: string;
+}): string {
+  if (isDiscovering) {
+    return "Verification running";
+  }
+  if (isVerified) {
+    return "Access verified";
+  }
+  if (error) {
+    return "Verification failed";
+  }
+  return "Needs verification";
+}
+
+function verificationTone({
+  isDiscovering,
+  isVerified,
+  error,
+}: {
+  isDiscovering: boolean;
+  isVerified: boolean;
+  error: string;
+}): AdminIntegrationFlowNode["tone"] {
+  if (isVerified) {
+    return "success";
+  }
+  if (isDiscovering) {
+    return "primary";
+  }
+  if (error) {
+    return "danger";
+  }
+  return "warning";
+}
+
+function buildDeploymentConnectionFlowNodes({
+  connection,
+  resolvedAccountUrl,
+  credentialSource,
+  isDiscovering,
+  isVerified,
+  discoveryError,
+  discoveredProjects,
+  linkedProjects,
+  selectedProjectLinked,
+}: {
+  connection: ProviderConnection;
+  resolvedAccountUrl: string;
+  credentialSource: string;
+  isDiscovering: boolean;
+  isVerified: boolean;
+  discoveryError: string;
+  discoveredProjects: ProviderConnectionAdoProject[];
+  linkedProjects: LinkedProject[];
+  selectedProjectLinked: boolean;
+}): AdminIntegrationFlowNode[] {
+  const provider = connection.provider ?? "azure_devops";
+  const providerLabel = providerConnectionLabel(provider);
+  return [
+    {
+      step: "00",
+      icon: providerConnectionIcon(provider, "h-5 w-5"),
+      eyebrow: "External account",
+      title: resolvedAccountUrl || "Account scope not set",
+      tone: resolvedAccountUrl ? "muted" : "warning",
+      details: [
+        { label: "Provider", value: providerLabel },
+        { label: "Purpose", value: "Account MAPPO can browse" },
+      ],
+    },
+    {
+      step: "01",
+      icon: providerConnectionIcon(provider, "h-5 w-5"),
+      eyebrow: "Deployment system",
+      title: providerLabel,
+      details: [
+        { label: "Connection", value: connection.name || connection.id },
+        { label: "Status", value: connection.enabled ? "Enabled" : "Disabled" },
+      ],
+    },
+    {
+      step: "02",
+      icon: <LuWorkflow className="h-5 w-5" />,
+      eyebrow: "API credential",
+      title: credentialSource,
+      details: [
+        { label: "Direction", value: "MAPPO outbound API access" },
+        { label: "Secret value", value: "Resolved server-side" },
+      ],
+    },
+    {
+      step: "03",
+      icon: <LuActivity className="h-5 w-5" />,
+      eyebrow: "Verification",
+      title: verificationTitle({ isDiscovering, isVerified, error: discoveryError }),
+      tone: verificationTone({ isDiscovering, isVerified, error: discoveryError }),
+      details: [
+        { label: "Check", value: "Azure DevOps API browse" },
+        { label: "Result", value: discoveryError || describeDiscoveredProjectCount(discoveredProjects.length) },
+      ],
+    },
+    {
+      step: "04",
+      icon: <LuBoxes className="h-5 w-5" />,
+      eyebrow: "Discovered scope",
+      title: "Azure DevOps projects",
+      tone: discoveredProjects.length > 0 ? "success" : "muted",
+      details: [
+        { label: "Count", value: discoveredProjects.length },
+        { label: "Projects", value: summarizeDiscoveredProjects(discoveredProjects) },
+      ],
+    },
+    {
+      step: "05",
+      icon: <LuBoxes className="h-5 w-5" />,
+      eyebrow: "Consumers",
+      title: "Linked MAPPO projects",
+      tone: selectedProjectLinked ? "success" : "default",
+      details: [
+        { label: "Count", value: linkedProjects.length },
+        { label: "Projects", value: summarizeLinkedProjects(linkedProjects) },
+      ],
+    },
+  ];
 }
 
 type DraftVerificationResult = {
@@ -709,6 +882,19 @@ export default function ProviderConnectionsConfigPage({
               || isVerified
               || Boolean(discoveryErrorsByConnectionId[connectionId]);
             const resolvedAccountUrl = resolveConnectionAccountUrl(connection);
+            const discoveryError = discoveryErrorsByConnectionId[connectionId] ?? "";
+            const credentialSource = describePersonalAccessTokenSource(connection, secretReferenceLookup);
+            const flowNodes = buildDeploymentConnectionFlowNodes({
+              connection,
+              resolvedAccountUrl,
+              credentialSource,
+              isDiscovering,
+              isVerified,
+              discoveryError,
+              discoveredProjects,
+              linkedProjects,
+              selectedProjectLinked,
+            });
             return (
               <Card key={connectionId || connection.name} className="border border-border/70 bg-card/70">
                 <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -755,10 +941,12 @@ export default function ProviderConnectionsConfigPage({
                     </Button>
                   </CardAction>
                 </CardHeader>
-                <CardContent className="space-y-2">
+                <CardContent className="space-y-3">
+                  <AdminIntegrationFlowDiagram nodes={flowNodes} />
+
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline">
-                      Provider: {(connection.provider ?? "azure_devops").replaceAll("_", " ")}
+                      Provider: {providerConnectionLabel(connection.provider)}
                     </Badge>
                     <Badge variant={connection.enabled ? "default" : "secondary"}>
                       {connection.enabled ? "Enabled" : "Disabled"}
@@ -784,7 +972,7 @@ export default function ProviderConnectionsConfigPage({
                     <p>
                       API credential source:{" "}
                       <span className="font-medium text-foreground">
-                        {describePersonalAccessTokenSource(connection, secretReferenceLookup)}
+                        {credentialSource}
                       </span>
                     </p>
                   </div>
@@ -831,9 +1019,9 @@ export default function ProviderConnectionsConfigPage({
                       )}
                     </div>
                   ) : null}
-                  {discoveryErrorsByConnectionId[connectionId] ? (
+                  {discoveryError ? (
                     <p className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive-foreground">
-                      {discoveryErrorsByConnectionId[connectionId]}
+                      {discoveryError}
                     </p>
                   ) : null}
                 </CardContent>

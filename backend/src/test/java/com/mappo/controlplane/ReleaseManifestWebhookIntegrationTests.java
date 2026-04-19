@@ -42,7 +42,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
     }
 
     @Test
-    void webhookPushIngstsPublishedRowsOnlyWhenManifestChanges() throws Exception {
+    void webhookPushIngestsManifestRowsWhenManifestChanges() throws Exception {
         String deliveryId = "delivery-created-001";
         String payload = """
             {
@@ -67,14 +67,14 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
                 .header("x-github-delivery", deliveryId)
                 .header("x-hub-signature-256", githubSignature(payload)))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.manifestReleaseCount").value(4))
-            .andExpect(jsonPath("$.createdCount").value(3))
+            .andExpect(jsonPath("$.manifestReleaseCount").value(2))
+            .andExpect(jsonPath("$.createdCount").value(2))
             .andExpect(jsonPath("$.skippedCount").value(0))
-            .andExpect(jsonPath("$.ignoredCount").value(1));
+            .andExpect(jsonPath("$.ignoredCount").value(0));
 
         mockMvc.perform(get("/api/v1/releases"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.length()").value(3));
+            .andExpect(jsonPath("$.length()").value(2));
 
         mockMvc.perform(get("/api/v1/admin/releases/webhook-deliveries"))
             .andExpect(status().isOk())
@@ -82,7 +82,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
             .andExpect(jsonPath("$.items[0].status").value("applied"))
             .andExpect(jsonPath("$.items[0].repo").value("cvonderheid/mappo-managed-app"))
             .andExpect(jsonPath("$.items[0].ref").value("main"))
-            .andExpect(jsonPath("$.items[0].createdCount").value(3))
+            .andExpect(jsonPath("$.items[0].createdCount").value(2))
             .andExpect(jsonPath("$.items[0].changedPaths[0]").value("releases/releases.manifest.json"));
     }
 
@@ -179,18 +179,6 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
                       "source_version": "2026.03.06.1",
                       "source_type": "deployment_stack",
                       "source_version_ref": "https://storage.example.com/releases/2026.03.06.1/mainTemplate.json",
-                      "deployment_scope": "resource_group",
-                      "parameter_defaults": {
-                        "softwareVersion": "2026.03.06.1",
-                        "dataModelVersion": "6"
-                      }
-                    },
-                    {
-                      "template_spec_id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Resources/templateSpecs/demo",
-                      "template_spec_version": "2026.03.06.1",
-                      "template_spec_version_id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Resources/templateSpecs/demo/versions/2026.03.06.1",
-                      "source_type": "template_spec",
-                      "deployment_scope": "resource_group",
                       "parameter_defaults": {
                         "softwareVersion": "2026.03.06.1",
                         "dataModelVersion": "6"
@@ -201,21 +189,9 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
                       "source_version": "2026.03.07.1",
                       "source_type": "deployment_stack",
                       "source_version_ref": "https://storage.example.com/releases/2026.03.07.1/mainTemplate.json",
-                      "deployment_scope": "resource_group",
                       "parameter_defaults": {
                         "softwareVersion": "2026.03.07.1",
                         "dataModelVersion": "7"
-                      }
-                    },
-                    {
-                      "publication_status": "draft",
-                      "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
-                      "source_version": "2026.03.08.1",
-                      "source_type": "deployment_stack",
-                      "deployment_scope": "resource_group",
-                      "parameter_defaults": {
-                        "softwareVersion": "2026.03.08.1",
-                        "dataModelVersion": "8"
                       }
                     }
                   ]

@@ -39,9 +39,6 @@ export default function ProjectSwitcherMenu({
             <p className="truncate text-sm font-semibold">
               {selectedProject?.name ?? "Select project"}
             </p>
-            <p className="truncate font-mono text-[11px] text-muted-foreground">
-              {selectedProject?.id ?? "No project selected"}
-            </p>
           </div>
           <span className="text-xs text-muted-foreground">▼</span>
         </MenubarTrigger>
@@ -85,9 +82,6 @@ export default function ProjectSwitcherMenu({
                       </span>
                     ) : null}
                   </div>
-                  <span className="w-full truncate font-mono text-[11px] text-muted-foreground">
-                    {projectId}
-                  </span>
                 </MenubarItem>
               );
             })

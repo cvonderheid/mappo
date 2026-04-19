@@ -352,7 +352,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Project Settings")).toBeInTheDocument();
-      expect(screen.getByRole("heading", { name: "New Project Wizard" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "New Project" })).toBeInTheDocument();
     });
   });
 
@@ -379,10 +379,7 @@ describe("App", () => {
       expect(screen.getByText("Project Settings")).toBeInTheDocument();
     });
 
-    const deploymentDriverTab = screen.getByRole("tab", { name: "Deployment Driver" });
-    fireEvent.pointerDown(deploymentDriverTab, { button: 0, ctrlKey: false });
-    fireEvent.mouseDown(deploymentDriverTab, { button: 0, ctrlKey: false });
-    fireEvent.click(deploymentDriverTab);
+    fireEvent.click(screen.getByRole("button", { name: /Deployment\s+Azure/i }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Check Azure access/i })).toBeInTheDocument();

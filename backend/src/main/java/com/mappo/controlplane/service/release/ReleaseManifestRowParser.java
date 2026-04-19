@@ -16,48 +16,41 @@ import org.springframework.stereotype.Component;
 @Component
 public class ReleaseManifestRowParser {
 
-    public ReleaseCreateRequest parseIfPublished(Map<?, ?> row, int index) {
-        if (!shouldIngestRow(row, index)) {
-            return null;
-        }
-
+    public ReleaseCreateRequest parse(Map<?, ?> row, int index) {
         String sourceRef = firstNonBlank(
             stringValue(row.get("source_ref")),
-            stringValue(row.get("sourceRef")),
-            stringValue(row.get("template_spec_id"))
+            stringValue(row.get("sourceRef"))
         );
         String sourceVersion = firstNonBlank(
             stringValue(row.get("source_version")),
-            stringValue(row.get("sourceVersion")),
-            stringValue(row.get("template_spec_version"))
+            stringValue(row.get("sourceVersion"))
         );
-        if (sourceRef.isBlank() || sourceVersion.isBlank()) {
-            throw new ApiException(
-                HttpStatus.BAD_REQUEST,
-                "release manifest row #%d missing required fields: source_ref and source_version".formatted(index + 1)
-            );
-        }
-
-        MappoReleaseSourceType sourceType = enumValue(
-            firstNonNull(row.get("source_type"), row.get("sourceType")),
-            MappoReleaseSourceType.class,
-            MappoReleaseSourceType.template_spec,
-            index,
-            "source_type"
+        String sourceTypeValue = firstNonBlank(
+            stringValue(row.get("source_type")),
+            stringValue(row.get("sourceType"))
         );
         String sourceVersionRef = nullable(
             firstNonBlank(
                 stringValue(row.get("source_version_ref")),
-                stringValue(row.get("sourceVersionRef")),
-                stringValue(row.get("template_spec_version_id"))
+                stringValue(row.get("sourceVersionRef"))
             )
         );
-        if (sourceType != MappoReleaseSourceType.template_spec && sourceVersionRef == null) {
+        if (sourceRef.isBlank() || sourceVersion.isBlank() || sourceTypeValue.isBlank() || sourceVersionRef == null) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "release manifest row #%d missing required field: source_version_ref".formatted(index + 1)
+                "release manifest row #%d missing required fields: source_ref, source_version, source_type, and source_version_ref".formatted(
+                    index + 1
+                )
             );
         }
+
+        MappoReleaseSourceType sourceType = enumValue(
+            sourceTypeValue,
+            MappoReleaseSourceType.class,
+            null,
+            index,
+            "source_type"
+        );
 
         Map<?, ?> executionSettingsRow = asMap(
             firstNonNull(row.get("execution_settings"), row.get("executionSettings"), row.get("deployment_mode_settings"))
@@ -113,20 +106,6 @@ public class ReleaseManifestRowParser {
             externalInputs,
             normalize(firstNonBlank(stringValue(row.get("release_notes")), stringValue(row.get("releaseNotes")))),
             verificationHints
-        );
-    }
-
-    private boolean shouldIngestRow(Map<?, ?> row, int index) {
-        String publicationStatus = normalize(firstNonNull(row.get("publication_status"), row.get("publicationStatus")));
-        if (publicationStatus.isBlank() || "published".equals(publicationStatus)) {
-            return true;
-        }
-        if ("draft".equals(publicationStatus)) {
-            return false;
-        }
-        throw new ApiException(
-            HttpStatus.BAD_REQUEST,
-            "release manifest row #%d has invalid publication_status: %s".formatted(index + 1, publicationStatus)
         );
     }
 

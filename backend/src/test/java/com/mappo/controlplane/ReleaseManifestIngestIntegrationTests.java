@@ -43,10 +43,10 @@ class ReleaseManifestIngestIntegrationTests extends PostgresIntegrationTestBase 
                     }
                     """))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.manifestReleaseCount").value(4))
+            .andExpect(jsonPath("$.manifestReleaseCount").value(2))
             .andExpect(jsonPath("$.createdCount").value(2))
-            .andExpect(jsonPath("$.skippedCount").value(1))
-            .andExpect(jsonPath("$.ignoredCount").value(1))
+            .andExpect(jsonPath("$.skippedCount").value(0))
+            .andExpect(jsonPath("$.ignoredCount").value(0))
             .andExpect(jsonPath("$.createdReleaseIds.length()").value(2));
 
         mockMvc.perform(post("/api/v1/admin/releases/ingest/github")
@@ -57,10 +57,10 @@ class ReleaseManifestIngestIntegrationTests extends PostgresIntegrationTestBase 
                     }
                     """))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.manifestReleaseCount").value(4))
+            .andExpect(jsonPath("$.manifestReleaseCount").value(2))
             .andExpect(jsonPath("$.createdCount").value(0))
-            .andExpect(jsonPath("$.skippedCount").value(3))
-            .andExpect(jsonPath("$.ignoredCount").value(1));
+            .andExpect(jsonPath("$.skippedCount").value(2))
+            .andExpect(jsonPath("$.ignoredCount").value(0));
 
         mockMvc.perform(get("/api/v1/releases"))
             .andExpect(status().isOk())
@@ -92,62 +92,23 @@ class ReleaseManifestIngestIntegrationTests extends PostgresIntegrationTestBase 
                 {
                   "releases": [
                     {
-                      "project_id": "azure-managed-app-template-spec",
                       "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
                       "source_version": "2026.03.06.1",
                       "source_type": "deployment_stack",
                       "source_version_ref": "https://storage.example.com/releases/2026.03.06.1/mainTemplate.json",
-                      "deployment_scope": "resource_group",
-                      "execution_settings": {
-                        "arm_mode": "incremental",
-                        "what_if_on_canary": true,
-                        "verify_after_deploy": true
-                      },
                       "parameter_defaults": {
                         "softwareVersion": "2026.03.06.1",
                         "dataModelVersion": "6"
-                      },
-                      "release_notes": "Managed app release 1",
-                      "verification_hints": [
-                        "Verify the landing page shows 2026.03.06.1"
-                      ]
-                    },
-                    {
-                      "template_spec_id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Resources/templateSpecs/demo",
-                      "template_spec_version": "2026.03.06.1",
-                      "template_spec_version_id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Resources/templateSpecs/demo/versions/2026.03.06.1",
-                      "source_type": "template_spec",
-                      "deployment_scope": "resource_group",
-                      "parameter_defaults": {
-                        "softwareVersion": "2026.03.06.1",
-                        "dataModelVersion": "6"
-                      },
-                      "release_notes": "Template spec fallback release"
+                      }
                     },
                     {
                       "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
                       "source_version": "2026.03.07.1",
                       "source_type": "deployment_stack",
                       "source_version_ref": "https://storage.example.com/releases/2026.03.07.1/mainTemplate.json",
-                      "deployment_scope": "resource_group",
                       "parameter_defaults": {
                         "softwareVersion": "2026.03.07.1",
                         "dataModelVersion": "7"
-                      },
-                      "release_notes": "Managed app release 2",
-                      "verification_hints": [
-                        "Verify the landing page shows 2026.03.07.1"
-                      ]
-                    },
-                    {
-                      "publication_status": "draft",
-                      "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
-                      "source_version": "2026.03.08.1",
-                      "source_type": "deployment_stack",
-                      "deployment_scope": "resource_group",
-                      "parameter_defaults": {
-                        "softwareVersion": "2026.03.08.1",
-                        "dataModelVersion": "8"
                       }
                     }
                   ]

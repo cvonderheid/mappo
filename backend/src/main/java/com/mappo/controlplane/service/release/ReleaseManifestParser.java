@@ -20,12 +20,7 @@ public class ReleaseManifestParser {
         List<ReleaseCreateRequest> normalized = new ArrayList<>();
         int ignoredCount = 0;
         for (int index = 0; index < releases.size(); index += 1) {
-            ReleaseCreateRequest request = rowParser.parseIfPublished(releases.get(index), index);
-            if (request == null) {
-                ignoredCount += 1;
-                continue;
-            }
-            normalized.add(request);
+            normalized.add(rowParser.parse(releases.get(index), index));
         }
 
         return new ParsedReleaseManifest(releases.size(), ignoredCount, List.copyOf(normalized));

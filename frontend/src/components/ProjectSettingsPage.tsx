@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import FieldHelpTooltip from "@/components/FieldHelpTooltip";
-import ProjectFlowDiagram from "@/components/ProjectFlowDiagram";
-import { WizardDecisionCard, WizardReviewRow, WizardShell } from "@/components/Wizard";
+import ProjectFlowDiagram, { type ProjectFlowSection } from "@/components/ProjectFlowDiagram";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
@@ -13,13 +12,13 @@ import {
   Drawer,
   DrawerContent,
   DrawerDescription,
+  DrawerFooter,
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   listProviderConnections,
   listReleaseIngestEndpoints,
@@ -73,12 +72,12 @@ type ProjectTab =
   | "general"
   | "release-ingest"
   | "deployment-driver"
+  | "targets"
   | "runtime-health";
 
 type ValidationScope = "credentials" | "webhook" | "target_contract";
 type ReleaseSystem = "github" | "azure_devops";
 type DeploymentSystem = "azure" | "azure_devops";
-type CreateProjectWizardStep = "basics" | "release-source" | "deployment" | "targets" | "review";
 
 type ProjectDraft = {
   id: string;
@@ -120,42 +119,15 @@ type DraftValidationIssue = {
   message: string;
 };
 
-const PROJECT_TABS: { key: ProjectTab; label: string }[] = [
+const PROJECT_SECTIONS: { key: ProjectTab; label: string }[] = [
   { key: "general", label: "General" },
   { key: "release-ingest", label: "Release Source" },
-  { key: "deployment-driver", label: "Deployment Driver" },
+  { key: "deployment-driver", label: "Deployment" },
+  { key: "targets", label: "Targets" },
   { key: "runtime-health", label: "Runtime Health" },
 ];
 
 const PROJECT_THEME_OPTIONS = Object.values(PROJECT_THEMES);
-const CREATE_PROJECT_WIZARD_STEPS: { key: CreateProjectWizardStep; label: string; description: string }[] = [
-  {
-    key: "basics",
-    label: "Basics",
-    description: "Name the project.",
-  },
-  {
-    key: "release-source",
-    label: "Release Source",
-    description: "Choose where releases come from.",
-  },
-  {
-    key: "deployment",
-    label: "Deployment",
-    description: "Choose how deployments run.",
-  },
-  {
-    key: "targets",
-    label: "Targets",
-    description: "Targets are added after creation.",
-  },
-  {
-    key: "review",
-    label: "Review",
-    description: "Confirm and create.",
-  },
-];
-const CREATE_PROJECT_WIZARD_STEP_KEYS = CREATE_PROJECT_WIZARD_STEPS.map((step) => step.key);
 
 const RELEASE_SYSTEM_ORDER: ReleaseSystem[] = ["github", "azure_devops"];
 const DEPLOYMENT_SYSTEM_ORDER: DeploymentSystem[] = ["azure", "azure_devops"];
@@ -427,6 +399,15 @@ function emptyProjectDraft(): ProjectDraft {
   });
 }
 
+function slugifyProjectId(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
 function parseOptionalNumber(value: string): number | undefined {
   if (value.trim() === "") {
     return undefined;
@@ -581,8 +562,6 @@ export default function ProjectSettingsPage({
   const [isLoadingReleaseIngestEndpoints, setIsLoadingReleaseIngestEndpoints] = useState(false);
   const [isLoadingProviderConnections, setIsLoadingProviderConnections] = useState(false);
   const [selectedReleaseSystem, setSelectedReleaseSystem] = useState<ReleaseSystem>("github");
-  const [createWizardStep, setCreateWizardStep] = useState<CreateProjectWizardStep>("basics");
-  const [createReleaseSystem, setCreateReleaseSystem] = useState<ReleaseSystem>("github");
   const branchDiscoveryKeyRef = useRef("");
   const repositoryDiscoveryKeyRef = useRef("");
   const pipelineDiscoveryKeyRef = useRef("");
@@ -641,8 +620,6 @@ export default function ProjectSettingsPage({
     if (params.get("new") !== "1") {
       return;
     }
-    setCreateWizardStep("basics");
-    setCreateReleaseSystem("github");
     setCreateDraft(emptyProjectDraft());
     setCreateDrawerOpen(true);
     params.delete("new");
@@ -805,36 +782,11 @@ export default function ProjectSettingsPage({
       releaseIngestEndpoints.find((endpoint) => (endpoint.id ?? "").trim() === endpointId) ?? null
     );
   }, [releaseIngestEndpoints, draft.releaseIngestEndpointId]);
-  const selectedCreateReleaseIngestEndpoint = useMemo(() => {
-    const endpointId = createDraft.releaseIngestEndpointId.trim();
-    if (endpointId === "") {
-      return null;
-    }
-    return (
-      releaseIngestEndpoints.find((endpoint) => (endpoint.id ?? "").trim() === endpointId) ?? null
-    );
-  }, [createDraft.releaseIngestEndpointId, releaseIngestEndpoints]);
-  const createReleaseIngestEndpointOptions = useMemo(
-    () =>
-      sortedReleaseIngestEndpoints.filter(
-        (endpoint) => normalizeReleaseSystem(endpoint.provider) === createReleaseSystem
-      ),
-    [createReleaseSystem, sortedReleaseIngestEndpoints]
-  );
   const pipelineReleaseIngestEndpoints = useMemo(() => {
     return sortedReleaseIngestEndpoints.filter(
       (endpoint) => (endpoint.provider ?? "").toLowerCase() === "azure_devops"
     );
   }, [sortedReleaseIngestEndpoints]);
-  const selectedCreateProviderConnection = useMemo(() => {
-    const connectionId = createDraft.providerConnectionId.trim();
-    if (connectionId === "") {
-      return null;
-    }
-    return (
-      providerConnections.find((connection) => (connection.id ?? "").trim() === connectionId) ?? null
-    );
-  }, [createDraft.providerConnectionId, providerConnections]);
   const selectedReleaseIngestEndpointIsAzureDevOps =
     (selectedReleaseIngestEndpoint?.provider ?? "").toLowerCase() === "azure_devops";
   const availableReleaseSystems = useMemo(() => {
@@ -1091,53 +1043,6 @@ export default function ProjectSettingsPage({
   }, [draft.releaseIngestEndpointId, releaseIngestEndpointOptions]);
 
   useEffect(() => {
-    if (createDraft.releaseIngestEndpointId.trim() !== "") {
-      return;
-    }
-    if (createReleaseIngestEndpointOptions.length !== 1) {
-      return;
-    }
-    const onlyEndpointId = (createReleaseIngestEndpointOptions[0]?.id ?? "").trim();
-    if (onlyEndpointId === "") {
-      return;
-    }
-    setCreateDraft((current) => {
-      if (current.releaseIngestEndpointId.trim() !== "") {
-        return current;
-      }
-      return {
-        ...current,
-        releaseIngestEndpointId: onlyEndpointId,
-      };
-    });
-  }, [createDraft.releaseIngestEndpointId, createReleaseIngestEndpointOptions]);
-
-  useEffect(() => {
-    if (createDraft.deploymentDriver !== "pipeline_trigger") {
-      return;
-    }
-    if (createDraft.providerConnectionId.trim() !== "") {
-      return;
-    }
-    if (pipelineProviderConnections.length !== 1) {
-      return;
-    }
-    const onlyConnectionId = (pipelineProviderConnections[0]?.id ?? "").trim();
-    if (onlyConnectionId === "") {
-      return;
-    }
-    setCreateDraft((current) => {
-      if (current.providerConnectionId.trim() !== "") {
-        return current;
-      }
-      return {
-        ...current,
-        providerConnectionId: onlyConnectionId,
-      };
-    });
-  }, [createDraft.deploymentDriver, createDraft.providerConnectionId, pipelineProviderConnections]);
-
-  useEffect(() => {
     if (draft.deploymentDriver === "pipeline_trigger" && selectedReleaseSystem !== "azure_devops") {
       setSelectedReleaseSystem("azure_devops");
     }
@@ -1265,10 +1170,8 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
   const configComplete = project !== null && draftValidationIssues.length === 0;
   const canPersist = project !== null && draftValidationIssues.length === 0;
   const canCreateProject = createDraft.id.trim() !== "" && createDraft.name.trim() !== "";
-  const createWizardStepIndex = CREATE_PROJECT_WIZARD_STEP_KEYS.indexOf(createWizardStep);
-  const createWizardIsFirstStep = createWizardStepIndex <= 0;
-  const createWizardIsLastStep = createWizardStep === "review";
-  const canAdvanceCreateWizard = createWizardStep !== "basics" || canCreateProject;
+  const activeSectionLabel =
+    PROJECT_SECTIONS.find((section) => section.key === activeTab)?.label ?? "Project";
   const releaseSourceLabel = releaseSourceTypeLabel;
   const selectedPipelineName = useMemo(() => {
     const currentValue = draft.driver.pipelineId.trim();
@@ -1277,9 +1180,7 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
     }
     return discoveredPipelines.find((pipeline) => pipeline.id === currentValue)?.name ?? currentValue;
   }, [discoveredPipelines, draft.driver.pipelineId]);
-  const createSelectedDeploymentSystem = deriveDeploymentSystem(createDraft.deploymentDriver);
   const deploymentMethodOptions = DEPLOYMENT_METHODS_BY_SYSTEM[selectedDeploymentSystem];
-  const createDeploymentMethodOptions = DEPLOYMENT_METHODS_BY_SYSTEM[createSelectedDeploymentSystem];
 
   async function saveProjectConfig(): Promise<void> {
     if (!project?.id || draftValidationIssues.length > 0) {
@@ -1542,7 +1443,8 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
     resolvedAdoProject,
   ]);
 
-  async function handleCreateProject(): Promise<void> {
+  async function handleCreateProject(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
     if (!canCreateProject) {
       return;
     }
@@ -1551,8 +1453,6 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
       const created = await onCreateProject(buildCreateRequest(createDraft));
       toast.success(`Created project ${created.name ?? created.id}.`);
       setCreateDrawerOpen(false);
-      setCreateWizardStep("basics");
-      setCreateReleaseSystem("github");
       setCreateDraft(emptyProjectDraft());
     } catch (error) {
       toast.error((error as Error).message);
@@ -1569,41 +1469,12 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
     setCreateDraft((current) => ({ ...current, [key]: value }));
   }
 
-  function updateCreateReleaseSystem(system: ReleaseSystem): void {
-    setCreateReleaseSystem(system);
-    setCreateDraft((current) => {
-      const linkedProvider = normalizeReleaseSystem(selectedCreateReleaseIngestEndpoint?.provider);
-      const nextDraft = {
-        ...current,
-        releaseIngestEndpointId: linkedProvider === system ? current.releaseIngestEndpointId : "",
-      };
-      if (current.deploymentDriver === "pipeline_trigger" && system !== "azure_devops") {
-        return applyDeploymentDriverSelection(nextDraft, "azure_deployment_stack");
-      }
-      return nextDraft;
-    });
-  }
-
-  function updateCreateDeploymentSystem(system: DeploymentSystem): void {
-    const normalizedSystem = normalizeDeploymentSystem(system);
-    if (!normalizedSystem) {
-      return;
-    }
-    const nextDriver = firstDriverForDeploymentSystem(normalizedSystem);
-    if (nextDriver === "pipeline_trigger") {
-      setCreateReleaseSystem("azure_devops");
-    }
-    setCreateDraft((current) => {
-      const nextDraft = applyDeploymentDriverSelection(current, nextDriver);
-      if (nextDriver !== "pipeline_trigger") {
-        return nextDraft;
-      }
-      const linkedProvider = normalizeReleaseSystem(selectedCreateReleaseIngestEndpoint?.provider);
-      return {
-        ...nextDraft,
-        releaseIngestEndpointId: linkedProvider === "azure_devops" ? nextDraft.releaseIngestEndpointId : "",
-      };
-    });
+  function updateCreateProjectName(name: string): void {
+    setCreateDraft((current) => ({
+      ...current,
+      name,
+      id: slugifyProjectId(name),
+    }));
   }
 
   function updateDeploymentSystem(system: DeploymentSystem): void {
@@ -1622,52 +1493,10 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
     setDraft((current) => applyDeploymentDriverSelection(current, normalizedMethod));
   }
 
-  function updateCreateDeploymentMethod(method: ProjectDraft["deploymentDriver"]): void {
-    const normalizedMethod = normalizeDeploymentDriver(method);
-    if (!normalizedMethod) {
-      return;
-    }
-    if (normalizedMethod === "pipeline_trigger") {
-      setCreateReleaseSystem("azure_devops");
-    }
-    setCreateDraft((current) => {
-      const nextDraft = applyDeploymentDriverSelection(current, normalizedMethod);
-      if (normalizedMethod !== "pipeline_trigger") {
-        return nextDraft;
-      }
-      const linkedProvider = normalizeReleaseSystem(selectedCreateReleaseIngestEndpoint?.provider);
-      return {
-        ...nextDraft,
-        releaseIngestEndpointId: linkedProvider === "azure_devops" ? nextDraft.releaseIngestEndpointId : "",
-      };
-    });
-  }
-
   function updateCreateDrawerOpen(open: boolean): void {
     setCreateDrawerOpen(open);
     if (open) {
-      setCreateWizardStep("basics");
-      setCreateReleaseSystem("github");
       setCreateDraft(emptyProjectDraft());
-    }
-  }
-
-  function goToPreviousCreateWizardStep(): void {
-    const currentIndex = CREATE_PROJECT_WIZARD_STEP_KEYS.indexOf(createWizardStep);
-    const previousStep = CREATE_PROJECT_WIZARD_STEP_KEYS[Math.max(0, currentIndex - 1)];
-    if (previousStep) {
-      setCreateWizardStep(previousStep);
-    }
-  }
-
-  function goToNextCreateWizardStep(): void {
-    if (createWizardStep === "basics" && !canCreateProject) {
-      return;
-    }
-    const currentIndex = CREATE_PROJECT_WIZARD_STEP_KEYS.indexOf(createWizardStep);
-    const nextStep = CREATE_PROJECT_WIZARD_STEP_KEYS[Math.min(CREATE_PROJECT_WIZARD_STEP_KEYS.length - 1, currentIndex + 1)];
-    if (nextStep) {
-      setCreateWizardStep(nextStep);
     }
   }
 
@@ -1811,46 +1640,15 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
             </div>
           ) : null}
 
-          <ProjectFlowDiagram
-            projectName={draft.name.trim() || project?.name || "Project"}
-            releaseSourceProvider={effectiveReleaseSystem}
-            releaseSourceName={selectedReleaseIngestEndpoint?.name || selectedReleaseIngestEndpoint?.id || "No linked release source"}
-            releaseSourceTypeLabel={releaseSourceTypeLabel}
-            releaseSourceRecord={selectedReleaseIngestEndpoint}
-            deploymentSystem={selectedDeploymentSystem}
-            deploymentMethodLabel={DEPLOYMENT_DRIVER_LABELS[draft.deploymentDriver]}
-            deploymentConnectionName={selectedProviderConnection?.name || selectedProviderConnection?.id || ""}
-            azureDevOpsProjectName={selectedDiscoveredAdoProject?.name || resolvedAdoProject}
-            repositoryName={draft.driver.repository.trim()}
-            pipelineName={selectedPipelineName}
-            branchName={draft.driver.branch.trim()}
-            targetCount={targetCount}
-            projectReleaseCount={projectReleaseCount}
-            targets={targets}
-          />
-
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-            <div className="min-w-0">
-              <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ProjectTab)} className="space-y-4">
-                <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-background/70 p-1">
-                  {PROJECT_TABS.map((tab) => (
-                    <TabsTrigger
-                      key={tab.key}
-                      value={tab.key}
-                      className="h-auto min-w-[120px] whitespace-normal px-3 py-2 text-center text-xs leading-tight sm:min-w-[140px]"
-                    >
-                      {tab.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-
-            <TabsContent value="general" className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">General</h3>
+          <Card className="border-border/70 bg-background/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm uppercase tracking-[0.08em]">Project basics</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Operator-facing project name and visual theme. These apply across the control plane and are always editable here.
+              </p>
+            </CardHeader>
+            <CardContent>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <Label htmlFor="project-id">Project ID</Label>
-                  <Input id="project-id" value={draft.id} disabled />
-                </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
                     <Label htmlFor="project-name">Project display name</Label>
@@ -1863,7 +1661,7 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                     placeholder="Customer Managed App Orchestrator"
                   />
                 </div>
-                <div className="space-y-1 md:col-span-2">
+                <div className="space-y-1">
                   <div className="flex items-center gap-1">
                     <Label htmlFor="project-theme">Project theme</Label>
                     <FieldHelpTooltip content="Visual theme used for this project in the control plane shell and project pages." />
@@ -1888,10 +1686,57 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                   </p>
                 </div>
               </div>
-            </TabsContent>
+            </CardContent>
+          </Card>
 
-            <TabsContent value="release-ingest" className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Release Source</h3>
+          <ProjectFlowDiagram
+            projectName={draft.name.trim() || project?.name || "Project"}
+            releaseSourceProvider={effectiveReleaseSystem}
+            releaseSourceName={selectedReleaseIngestEndpoint?.name || selectedReleaseIngestEndpoint?.id || "No linked release source"}
+            releaseSourceTypeLabel={releaseSourceTypeLabel}
+            releaseSourceRecord={selectedReleaseIngestEndpoint}
+            deploymentSystem={selectedDeploymentSystem}
+            deploymentMethodLabel={DEPLOYMENT_DRIVER_LABELS[draft.deploymentDriver]}
+            deploymentConnectionName={selectedProviderConnection?.name || selectedProviderConnection?.id || ""}
+            azureDevOpsProjectName={selectedDiscoveredAdoProject?.name || resolvedAdoProject}
+            repositoryName={draft.driver.repository.trim()}
+            pipelineName={selectedPipelineName}
+            branchName={draft.driver.branch.trim()}
+            targetCount={targetCount}
+            projectReleaseCount={projectReleaseCount}
+            targets={targets}
+            runtimeHealthLabel={RUNTIME_HEALTH_LABELS[draft.runtimeHealthProvider] ?? "HTTP endpoint"}
+            runtimeHealthPath={draft.runtime.path}
+            runtimeHealthExpectedStatus={draft.runtime.expectedStatus}
+            runtimeHealthTimeoutMs={draft.runtime.timeoutMs}
+            activeSection={activeTab as ProjectFlowSection}
+            onSectionSelect={(section) => setActiveTab(section)}
+          />
+
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+            <div className="min-w-0">
+              <Card className="border-border/70 bg-background/50">
+                <CardHeader className="pb-3">
+                  <CardTitle>{activeSectionLabel}</CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Select a node in the project flow above to configure that part of the setup.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+
+            {activeTab === "general" ? (
+              <div className="space-y-3">
+                <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                  <p className="text-sm font-semibold text-foreground">MAPPO project record</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Project name and theme are configured in Project basics above. Select another node in the flow to configure release source, deployment behavior, targets, or runtime health.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {activeTab === "release-ingest" ? (
+              <div className="space-y-3">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
@@ -1997,10 +1842,51 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                   ) : null}
                 </div>
               </div>
-            </TabsContent>
+              {effectiveReleaseSystem === "github" && draft.deploymentDriver !== "pipeline_trigger" ? (
+                <Accordion type="single" collapsible className="rounded-md border border-border/70 bg-background/40 px-3">
+                  <AccordionItem value="release-manifest-reference" className="border-none">
+                    <AccordionTrigger className="py-3 text-sm font-medium text-foreground hover:no-underline">
+                      Release manifest reference
+                    </AccordionTrigger>
+                    <AccordionContent className="space-y-3 pt-0 text-xs text-muted-foreground">
+                      <p>
+                        MAPPO expects a JSON object with a <span className="font-mono text-foreground">releases</span>{" "}
+                        array. MAPPO Azure SDK rows need <span className="font-mono text-foreground">source_ref</span>,{" "}
+                        <span className="font-mono text-foreground">source_version</span>,{" "}
+                        <span className="font-mono text-foreground">source_type</span>,{" "}
+                        <span className="font-mono text-foreground">source_version_ref</span>, and any release-level{" "}
+                        <span className="font-mono text-foreground">parameter_defaults</span> the template needs.
+                      </p>
+                      <pre className="overflow-x-auto rounded-md border border-border/60 bg-background/70 p-3 text-[11px] leading-relaxed text-foreground">
+{`{
+  "releases": [
+    {
+      "source_ref": "github://owner/repo/artifacts/mainTemplate.json",
+      "source_version": "2026.03.10.1",
+      "source_type": "deployment_stack",
+      "source_version_ref": "https://storage.example/releases/2026.03.10.1/mainTemplate.json",
+      "parameter_defaults": {
+        "containerImage": "registry.example/app:2026.03.10.1",
+        "softwareVersion": "2026.03.10.1",
+        "dataModelVersion": "8"
+      }
+    }
+  ]
+}`}
+                      </pre>
+                      <p>
+                        Do not put MAPPO project IDs, publish workflow state, registry secrets, or local artifact bookkeeping in publisher manifests.
+                        MAPPO routes releases through the project-linked Release Source.
+                      </p>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              ) : null}
+              </div>
+            ) : null}
 
-            <TabsContent value="deployment-driver" className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Deployment Driver</h3>
+            {activeTab === "deployment-driver" ? (
+              <div className="space-y-3">
               <div className="space-y-3">
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="space-y-1">
@@ -2600,10 +2486,32 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                 )}
 
               </div>
-            </TabsContent>
+              </div>
+            ) : null}
 
-            <TabsContent value="runtime-health" className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Runtime Health</h3>
+            {activeTab === "targets" ? (
+              <div className="space-y-3">
+                <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                  <p className="text-sm font-semibold text-foreground">Targets are managed from Project → Targets</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    This project currently has {targetCount} registered target{targetCount === 1 ? "" : "s"}. Use the Targets page to add, import, refresh, edit, or remove target registrations.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="rounded-md border border-border/70 bg-background/40 p-3">
+                    <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Registration model</p>
+                    <p className="mt-2 text-sm text-foreground">Project-scoped targets</p>
+                  </div>
+                  <div className="rounded-md border border-border/70 bg-background/40 p-3">
+                    <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Registered targets</p>
+                    <p className="mt-2 text-sm text-foreground">{targetCount}</p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {activeTab === "runtime-health" ? (
+              <div className="space-y-3">
               <div className="rounded-md border border-border/70 bg-background/60 p-3">
                 <p className="text-sm font-semibold text-foreground">Health check type</p>
                 <p className="mt-2 text-sm text-foreground">HTTP endpoint</p>
@@ -2661,9 +2569,11 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                   />
                 </div>
               </div>
-            </TabsContent>
+              </div>
+            ) : null}
 
-              </Tabs>
+                </CardContent>
+              </Card>
             </div>
             <Card className="h-fit border-border/70 bg-background/50 xl:sticky xl:top-4">
               <CardHeader className="pb-2">
@@ -2747,7 +2657,9 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                       </div>
                       <div className="flex justify-between gap-3">
                         <dt className="text-muted-foreground">Runtime check</dt>
-                        <dd className="text-right text-foreground">{RUNTIME_HEALTH_LABELS[draft.runtimeHealthProvider]}</dd>
+                        <dd className="text-right text-foreground">
+                          {RUNTIME_HEALTH_LABELS[draft.runtimeHealthProvider] ?? "HTTP endpoint"}
+                        </dd>
                       </div>
                       <div className="flex justify-between gap-3">
                         <dt className="text-muted-foreground">Health path</dt>
@@ -2774,292 +2686,61 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
       <Drawer direction="top" open={createDrawerOpen} onOpenChange={updateCreateDrawerOpen}>
         <DrawerContent className="glass-card">
           <DrawerHeader>
-            <DrawerTitle>New Project Wizard</DrawerTitle>
-            <DrawerDescription>Create a project in a few guided steps.</DrawerDescription>
+            <DrawerTitle>New Project</DrawerTitle>
+            <DrawerDescription>
+              Create the project shell, then finish setup from the project flow on the Config page.
+            </DrawerDescription>
           </DrawerHeader>
-          <div className="max-h-[72vh] overflow-y-auto px-4 pb-4">
-            <WizardShell
-              title="Project setup"
-              description="Choose the project basics, release source, deployment path, and target registration model."
-              steps={CREATE_PROJECT_WIZARD_STEPS}
-              activeStep={createWizardStep}
-              actions={
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => updateCreateDrawerOpen(false)}
-                    disabled={createSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={goToPreviousCreateWizardStep}
-                    disabled={createWizardIsFirstStep || createSubmitting}
-                  >
-                    Back
-                  </Button>
-                  {createWizardIsLastStep ? (
-                    <Button
-                      type="button"
-                      onClick={() => void handleCreateProject()}
-                      disabled={!canCreateProject || createSubmitting}
-                    >
-                      {createSubmitting ? "Creating..." : "Create Project"}
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      onClick={goToNextCreateWizardStep}
-                      disabled={!canAdvanceCreateWizard || createSubmitting}
-                    >
-                      Next
-                    </Button>
-                  )}
-                </>
-              }
-            >
-              {createWizardStep === "basics" ? (
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="create-project-id">Project ID</Label>
-                    <Input
-                      id="create-project-id"
-                      value={createDraft.id}
-                      onChange={(event) => updateCreateDraft("id", event.target.value)}
-                      placeholder="azure-appservice-ado-pipeline"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="create-project-name">Project name</Label>
-                    <Input
-                      id="create-project-name"
-                      value={createDraft.name}
-                      onChange={(event) => updateCreateDraft("name", event.target.value)}
-                      placeholder="Azure App Service ADO Pipeline"
-                    />
-                  </div>
-                  <div className="space-y-1 md:col-span-2">
-                    <Label htmlFor="create-project-theme">Project theme</Label>
-                    <Select
-                      value={createDraft.themeKey}
-                      onValueChange={(value) => updateCreateDraft("themeKey", value as ProjectThemeKey)}
-                    >
-                      <SelectTrigger id="create-project-theme">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PROJECT_THEME_OPTIONS.map((theme) => (
-                          <SelectItem key={theme.key} value={theme.key}>
-                            {theme.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      {PROJECT_THEMES[createDraft.themeKey]?.description ?? PROJECT_THEMES[DEFAULT_THEME_KEY].description}
-                    </p>
-                  </div>
-                </div>
-              ) : null}
-
-              {createWizardStep === "release-source" ? (
-                <div className="space-y-4">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <WizardDecisionCard
-                      title="GitHub"
-                      description="Webhook plus release manifest."
-                      selected={createReleaseSystem === "github"}
-                      onSelect={() => updateCreateReleaseSystem("github")}
-                      badge={<Badge variant="outline">Release provider</Badge>}
-                    />
-                    <WizardDecisionCard
-                      title="Azure DevOps"
-                      description="Service hook or pipeline event."
-                      selected={createReleaseSystem === "azure_devops"}
-                      onSelect={() => updateCreateReleaseSystem("azure_devops")}
-                      badge={<Badge variant="outline">Release provider</Badge>}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="create-release-source">Release source</Label>
-                    <Select
-                      value={createDraft.releaseIngestEndpointId.trim() || "__none"}
-                      onValueChange={(value) =>
-                        updateCreateDraft("releaseIngestEndpointId", value === "__none" ? "" : value)
-                      }
-                    >
-                      <SelectTrigger id="create-release-source">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none">No linked release source yet</SelectItem>
-                        {createReleaseIngestEndpointOptions.map((endpoint) => {
-                          const endpointId = (endpoint.id ?? "").trim();
-                          if (endpointId === "") {
-                            return null;
-                          }
-                          return (
-                            <SelectItem key={endpointId} value={endpointId}>
-                              {endpoint.name || endpointId}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      {isLoadingReleaseIngestEndpoints
-                        ? "Loading release sources..."
-                        : createReleaseIngestEndpointOptions.length === 0
-                          ? `No ${RELEASE_SYSTEM_LABELS[createReleaseSystem]} release sources exist yet.`
-                          : "Select the release source for this project."}
-                    </p>
-                  </div>
-                </div>
-              ) : null}
-
-              {createWizardStep === "deployment" ? (
-                <div className="space-y-4">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <WizardDecisionCard
-                      title="MAPPO Azure API"
-                      description="MAPPO calls Azure directly."
-                      selected={createSelectedDeploymentSystem === "azure"}
-                      onSelect={() => updateCreateDeploymentSystem("azure")}
-                      badge={<Badge variant="outline">Azure</Badge>}
-                    />
-                    <WizardDecisionCard
-                      title="Azure DevOps Pipeline"
-                      description="MAPPO queues a pipeline run."
-                      selected={createSelectedDeploymentSystem === "azure_devops"}
-                      onSelect={() => updateCreateDeploymentSystem("azure_devops")}
-                      badge={<Badge variant="outline">Azure DevOps</Badge>}
-                    />
-                  </div>
-
-                  {createSelectedDeploymentSystem === "azure" ? (
-                    <div className="space-y-1">
-                      <Label htmlFor="create-deployment-method">MAPPO Azure API mode</Label>
-                      <Select
-                        value={createDraft.deploymentDriver}
-                        onValueChange={(value) =>
-                          updateCreateDeploymentMethod(value as ProjectDraft["deploymentDriver"])
-                        }
-                        disabled={createDeploymentMethodOptions.length <= 1}
-                      >
-                        <SelectTrigger id="create-deployment-method">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {createDeploymentMethodOptions.map((method) => (
-                            <SelectItem key={method} value={method}>
-                              {DEPLOYMENT_DRIVER_LABELS[method]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        {createDeploymentMethodOptions.length <= 1
-                          ? "Only one Azure API mode is available."
-                          : "Choose the Azure API mode."}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      <Label htmlFor="create-deployment-connection">Deployment connection</Label>
-                      <Select
-                        value={createDraft.providerConnectionId.trim() || "__none"}
-                        onValueChange={(value) =>
-                          updateCreateDraft("providerConnectionId", value === "__none" ? "" : value)
-                        }
-                      >
-                        <SelectTrigger id="create-deployment-connection">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none">No linked deployment connection yet</SelectItem>
-                          {pipelineProviderConnections.map((connection) => {
-                            const connectionId = (connection.id ?? "").trim();
-                            if (connectionId === "") {
-                              return null;
-                            }
-                            return (
-                              <SelectItem key={connectionId} value={connectionId}>
-                                {connection.name || connectionId}
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        {isLoadingProviderConnections
-                          ? "Loading deployment connections..."
-                          : pipelineProviderConnections.length === 0
-                            ? "No Azure DevOps deployment connections exist yet."
-                            : "Select the Azure DevOps account MAPPO can call."}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ) : null}
-
-              {createWizardStep === "targets" ? (
-                <div className="rounded-lg border border-border/70 bg-background/40 p-4">
-                  <p className="text-sm font-semibold text-foreground">Targets are added after project creation.</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Use Project {"->"} Targets to add or import targets.
-                  </p>
-                </div>
-              ) : null}
-
-              {createWizardStep === "review" ? (
-                <dl className="grid gap-3 lg:grid-cols-2">
-                  <WizardReviewRow
-                    label="Project"
-                    value={`${createDraft.name.trim() || "Unnamed project"} (${createDraft.id.trim() || "missing-id"})`}
-                  />
-                  <WizardReviewRow
-                    label="Theme"
-                    value={PROJECT_THEMES[createDraft.themeKey]?.name ?? PROJECT_THEMES[DEFAULT_THEME_KEY].name}
-                  />
-                  <WizardReviewRow
-                    label="Release provider"
-                    value={RELEASE_SYSTEM_LABELS[createReleaseSystem]}
-                  />
-                  <WizardReviewRow
-                    label="Release source"
-                    value={
-                      selectedCreateReleaseIngestEndpoint?.name ||
-                      selectedCreateReleaseIngestEndpoint?.id ||
-                      "Not linked yet"
-                    }
-                  />
-                  <WizardReviewRow
-                    label="Release source type"
-                    value={RELEASE_SOURCE_TYPE_LABELS[createDraft.releaseArtifactSource]}
-                  />
-                  <WizardReviewRow
-                    label="Deployment path"
-                    value={`${DEPLOYMENT_SYSTEM_LABELS[createSelectedDeploymentSystem]} -> ${DEPLOYMENT_DRIVER_LABELS[createDraft.deploymentDriver]}`}
-                  />
-                  <WizardReviewRow
-                    label="Deployment connection"
-                    value={
-                      createDraft.deploymentDriver === "pipeline_trigger"
-                        ? selectedCreateProviderConnection?.name || selectedCreateProviderConnection?.id || "Not linked yet"
-                        : "Not required for MAPPO Azure API"
-                    }
-                  />
-                  <WizardReviewRow
-                    label="Targets"
-                    value="Add or import after project creation"
-                  />
-                </dl>
-              ) : null}
-            </WizardShell>
-          </div>
+          <form onSubmit={(event) => void handleCreateProject(event)}>
+            <div className="grid grid-cols-1 gap-3 px-4 pb-4 md:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="create-project-name">Project name</Label>
+                <Input
+                  id="create-project-name"
+                  value={createDraft.name}
+                  onChange={(event) => updateCreateProjectName(event.target.value)}
+                  placeholder="Azure App Service ADO Pipeline"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="create-project-theme">Project theme</Label>
+                <Select
+                  value={createDraft.themeKey}
+                  onValueChange={(value) => updateCreateDraft("themeKey", value as ProjectThemeKey)}
+                >
+                  <SelectTrigger id="create-project-theme">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROJECT_THEME_OPTIONS.map((theme) => (
+                      <SelectItem key={theme.key} value={theme.key}>
+                        {theme.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {PROJECT_THEMES[createDraft.themeKey]?.description ?? PROJECT_THEMES[DEFAULT_THEME_KEY].description}
+                </p>
+              </div>
+              <div className="rounded-md border border-border/70 bg-background/40 px-3 py-2 text-xs text-muted-foreground md:col-span-2">
+                Release source, deployment, targets, and health checks are configured next from the project flow.
+              </div>
+            </div>
+            <DrawerFooter>
+              <Button type="submit" disabled={!canCreateProject || createSubmitting}>
+                {createSubmitting ? "Creating..." : "Create and Configure"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => updateCreateDrawerOpen(false)}
+                disabled={createSubmitting}
+              >
+                Cancel
+              </Button>
+            </DrawerFooter>
+          </form>
         </DrawerContent>
       </Drawer>
     </section>

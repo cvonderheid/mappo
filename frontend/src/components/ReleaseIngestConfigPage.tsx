@@ -1,6 +1,12 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { LuActivity, LuBoxes, LuWorkflow } from "react-icons/lu";
+import { SiGithub } from "react-icons/si";
+import { VscAzureDevops } from "react-icons/vsc";
 import { toast } from "sonner";
 
+import AdminIntegrationFlowDiagram, {
+  type AdminIntegrationFlowNode,
+} from "@/components/AdminIntegrationFlowDiagram";
 import FieldHelpTooltip from "@/components/FieldHelpTooltip";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +60,8 @@ type EndpointDraft = {
   pipelineIdFilter: string;
   manifestPath: string;
 };
+
+type LinkedProject = NonNullable<ReleaseIngestEndpoint["linkedProjects"]>[number];
 
 function emptyDraft(): EndpointDraft {
   return {
@@ -150,6 +158,128 @@ function describeWebhookSecretSource(
     return `Azure Key Vault secret (${normalized.slice("kv:".length).trim()})`;
   }
   return "Named runtime secret";
+}
+
+function releaseProviderLabel(provider: ReleaseIngestProvider): string {
+  return provider === "azure_devops" ? "Azure DevOps" : "GitHub";
+}
+
+function releaseProviderIcon(provider: ReleaseIngestProvider, className: string) {
+  return provider === "azure_devops" ? (
+    <VscAzureDevops className={className} />
+  ) : (
+    <SiGithub className={className} />
+  );
+}
+
+function summarizeLinkedProjects(linkedProjects: LinkedProject[]): string {
+  if (linkedProjects.length === 0) {
+    return "No linked projects";
+  }
+  const labels = linkedProjects.map((linked) => linked.projectName || linked.projectId || "Project");
+  const visible = labels.slice(0, 3).join(", ");
+  const overflow = labels.length - 3;
+  return overflow > 0 ? `${visible}, +${overflow} more` : visible;
+}
+
+function releaseResultLabel(provider: ReleaseIngestProvider): string {
+  return provider === "azure_devops"
+    ? "Pipeline event is emitted"
+    : "Release manifest is updated";
+}
+
+function buildReleaseSourceFlowNodes({
+  endpoint,
+  provider,
+  webhookUrl,
+  secretSource,
+  linkedProjects,
+  selectedProjectLinked,
+}: {
+  endpoint: ReleaseIngestEndpoint;
+  provider: ReleaseIngestProvider;
+  webhookUrl: string;
+  secretSource: string;
+  linkedProjects: LinkedProject[];
+  selectedProjectLinked: boolean;
+}): AdminIntegrationFlowNode[] {
+  const enabled = endpoint.enabled ?? true;
+  const providerLabel = releaseProviderLabel(provider);
+  const hasRoutingFilters = Boolean(
+    endpoint.repoFilter || endpoint.branchFilter || endpoint.pipelineIdFilter || endpoint.manifestPath
+  );
+  return [
+    {
+      step: "00",
+      icon: releaseProviderIcon(provider, "h-5 w-5"),
+      eyebrow: "Outside MAPPO",
+      title: "Release performed",
+      tone: "muted",
+      details: [
+        { label: "Provider", value: providerLabel },
+        { label: "Result", value: releaseResultLabel(provider) },
+      ],
+    },
+    {
+      step: "01",
+      icon: releaseProviderIcon(provider, "h-5 w-5"),
+      eyebrow: "Provider",
+      title: providerLabel,
+      details: [
+        { label: "Source", value: endpoint.name || endpoint.id },
+        { label: "Status", value: enabled ? "Enabled" : "Disabled" },
+      ],
+    },
+    {
+      step: "02",
+      icon: <LuWorkflow className="h-5 w-5" />,
+      eyebrow: "MAPPO endpoint",
+      title: endpoint.id || "Release source",
+      tone: "primary",
+      details: [
+        { label: "Webhook URL", value: webhookUrl },
+        { label: "Direction", value: "Inbound release notification" },
+      ],
+    },
+    {
+      step: "03",
+      icon: <LuActivity className="h-5 w-5" />,
+      eyebrow: "Verification",
+      title: "Webhook secret",
+      details: [
+        { label: "Secret source", value: secretSource },
+        { label: "Purpose", value: "Verify inbound payloads" },
+      ],
+    },
+    {
+      step: "04",
+      icon: <LuWorkflow className="h-5 w-5" />,
+      eyebrow: "Routing filters",
+      title: hasRoutingFilters ? "Filters configured" : "No routing filters",
+      tone: hasRoutingFilters ? "default" : "muted",
+      details: provider === "azure_devops"
+        ? [
+            { label: "Branch", value: endpoint.branchFilter || "Any branch" },
+            { label: "Pipeline", value: endpoint.pipelineIdFilter || "Any pipeline" },
+          ]
+        : [
+            { label: "Repository", value: endpoint.repoFilter || "Any repository" },
+            { label: "Branch", value: endpoint.branchFilter || "Any branch" },
+            { label: "Manifest", value: endpoint.manifestPath || "Default manifest path" },
+          ],
+    },
+    {
+      step: "05",
+      icon: <LuBoxes className="h-5 w-5" />,
+      eyebrow: "Consumers",
+      title: "Linked projects",
+      tone: selectedProjectLinked ? "success" : "default",
+      details: [
+        { label: "Count", value: linkedProjects.length },
+        { label: "Projects", value: summarizeLinkedProjects(linkedProjects) },
+      ],
+    },
+  ];
 }
 
 function formatTimestamp(value: string | null | undefined): string {
@@ -420,6 +550,15 @@ export default function ReleaseIngestConfigPage({
             const selectedProjectLinked = linkedProjects.some(
               (linked) => (linked.projectId ?? "") === selectedProjectId
             );
+            const secretSource = describeWebhookSecretSource(endpoint, secretReferenceLookup);
+            const flowNodes = buildReleaseSourceFlowNodes({
+              endpoint,
+              provider,
+              webhookUrl,
+              secretSource,
+              linkedProjects,
+              selectedProjectLinked,
+            });
             return (
               <Card key={endpointId || endpoint.name} className="border border-border/70 bg-card/70">
                 <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -444,24 +583,20 @@ export default function ReleaseIngestConfigPage({
                     </Button>
                   </CardAction>
                 </CardHeader>
-                <CardContent className="space-y-2">
+                <CardContent className="space-y-3">
+                  <AdminIntegrationFlowDiagram nodes={flowNodes} />
+
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline">Provider: {provider.replaceAll("_", " ")}</Badge>
+                    <Badge variant="outline">Provider: {releaseProviderLabel(provider)}</Badge>
                     <Badge variant={endpoint.enabled ? "default" : "secondary"}>
                       {endpoint.enabled ? "Enabled" : "Disabled"}
                     </Badge>
-                  </div>
-
-                  <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
-                    <p>
-                      Verification secret:{" "}
-                      <span className="font-medium text-foreground">
-                        {describeWebhookSecretSource(endpoint, secretReferenceLookup)}
-                      </span>
-                    </p>
-                    <p>
-                      Updated: <span className="text-foreground">{formatTimestamp(endpoint.updatedAt)}</span>
-                    </p>
+                    <Badge variant="secondary">
+                      Verification: {secretSource}
+                    </Badge>
+                    {formatTimestamp(endpoint.updatedAt) ? (
+                      <Badge variant="secondary">Updated {formatTimestamp(endpoint.updatedAt)}</Badge>
+                    ) : null}
                   </div>
 
                   <div className="rounded-md border border-border/60 bg-background/50 p-2">
