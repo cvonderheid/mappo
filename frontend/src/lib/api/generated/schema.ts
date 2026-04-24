@@ -1700,6 +1700,7 @@ export interface components {
             /** Format: int32 */
             ignoredCount?: number;
             createdReleaseIds?: string[];
+            projectIds?: string[];
             /** Format: date-time */
             receivedAt?: string;
         };
@@ -3029,6 +3030,11 @@ export interface operations {
     listReleaseWebhookDeliveries: {
         parameters: {
             query?: {
+                /**
+                 * @description Filter by MAPPO project identifier.
+                 * @example azure-managed-app-deployment-stack
+                 */
+                projectId?: string;
                 /**
                  * @description Filter by GitHub delivery identifier.
                  * @example 4b85fdb0-1d72-11ef-8c1c-0242ac120002
