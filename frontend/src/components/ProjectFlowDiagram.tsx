@@ -4,6 +4,7 @@ import { SiGithub } from "react-icons/si";
 import { VscAzure, VscAzureDevops } from "react-icons/vsc";
 
 import { FlowContractDrawer, type FlowContract } from "@/components/FlowContractDetails";
+import { buildProjectFlowContracts } from "@/components/ProjectFlowContracts";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -268,78 +269,6 @@ function FlowArrow({
   );
 }
 
-function releaseManifestExample(): string {
-  return JSON.stringify(
-    {
-      releases: [
-        {
-          source_ref: "github://owner/repo/managed-app/mainTemplate.json",
-          source_version: "2026.04.19.1",
-          source_type: "deployment_stack",
-          source_version_ref: "https://storage.example/releases/2026.04.19.1/mainTemplate.json",
-          parameter_defaults: {
-            containerImage: "registry.example/app:2026.04.19.1",
-            softwareVersion: "2026.04.19.1",
-            dataModelVersion: "12",
-          },
-        },
-      ],
-    },
-    null,
-    2
-  );
-}
-
-function azureDevOpsReleaseEventExample(): string {
-  return JSON.stringify(
-    {
-      eventType: "ms.vss-pipelines.run-state-changed-event",
-      resource: {
-        run: {
-          id: "1234",
-          name: "2026.04.19.1",
-          result: "succeeded",
-          url: "https://dev.azure.com/org/project/_build/results?buildId=1234",
-        },
-        pipeline: {
-          id: "2",
-          name: "release-readiness",
-        },
-        repository: {
-          name: "demo-app-service",
-          refName: "refs/heads/main",
-        },
-      },
-    },
-    null,
-    2
-  );
-}
-
-function pipelineRunExample(): string {
-  return JSON.stringify(
-    {
-      resources: {
-        repositories: {
-          self: {
-            refName: "refs/heads/main",
-          },
-        },
-      },
-      templateParameters: {
-        targetTenantId: "<target tenant>",
-        targetSubscriptionId: "<target subscription>",
-        targetId: "<mappo target id>",
-        mappoReleaseVersion: "2026.04.19.1",
-        appVersion: "2026.04.19.1",
-        dataModelVersion: "12",
-      },
-    },
-    null,
-    2
-  );
-}
-
 export default function ProjectFlowDiagram({
   projectName,
   releaseSourceProvider,
@@ -517,183 +446,24 @@ export default function ProjectFlowDiagram({
       details: runtimeDetails,
     },
   ];
-  const releaseContract: FlowContract =
-    releaseSourceProvider === "github"
-      ? {
-          title: "Release notification and manifest",
-          description:
-            "The external provider performs the release, updates the release manifest, and sends MAPPO a webhook. MAPPO uses the webhook as a signal to fetch the manifest.",
-          producer: "GitHub repository",
-          consumer: "MAPPO Release Source",
-          direction: "Inbound webhook, then manifest fetch",
-          facts: [
-            { label: "Release source", value: releaseSourceName },
-            { label: "Manifest path", value: releaseSourceRecord?.manifestPath || "releases/releases.manifest.json" },
-            { label: "Repository filter", value: releaseSourceRecord?.repoFilter || "Any repository" },
-            { label: "Branch filter", value: releaseSourceRecord?.branchFilter || "Any branch" },
-          ],
-          fields: [
-            { name: "source_ref", required: true, description: "Stable logical identity for the release artifact family." },
-            { name: "source_version", required: true, description: "Operator-visible version MAPPO stores in the release catalog." },
-            { name: "source_type", required: true, description: "Artifact type. The managed-app Azure SDK demo uses deployment_stack." },
-            { name: "source_version_ref", required: true, description: "Immutable URI MAPPO can fetch when deploying this release." },
-            { name: "parameter_defaults", required: true, type: "object", description: "Release-level deployment values, such as image and app version." },
-          ],
-          examples: [{ title: "Minimal releases.manifest.json", language: "json", code: releaseManifestExample() }],
-          notes: [
-            "Do not include MAPPO project IDs in the publisher manifest.",
-            "Do not include publish workflow state, registry secrets, or local artifact bookkeeping.",
-            "MAPPO links the release to projects through the selected Release Source.",
-          ],
-        }
-      : {
-          title: "Azure DevOps release-ready event",
-          description:
-            "The release-readiness pipeline succeeds and Azure DevOps sends MAPPO a service-hook event. MAPPO turns that event into a release record.",
-          producer: "Azure DevOps pipeline",
-          consumer: "MAPPO Release Source",
-          direction: "Inbound service hook",
-          facts: [
-            { label: "Release source", value: releaseSourceName },
-            { label: "Pipeline filter", value: releaseSourceRecord?.pipelineIdFilter || "Any pipeline" },
-            { label: "Branch filter", value: releaseSourceRecord?.branchFilter || "Any branch" },
-          ],
-          fields: [
-            { name: "run id", required: true, description: "Azure DevOps run identifier. MAPPO requires this to create a release." },
-            { name: "run name", required: true, description: "Used as the release version when present; otherwise MAPPO falls back to run id." },
-            { name: "run result", required: true, description: "MAPPO only creates a release when the run result is succeeded." },
-            { name: "pipeline id", required: false, description: "Matched against the configured pipeline filter when one is set." },
-            { name: "repository ref", required: false, description: "Matched against the configured branch filter when one is set." },
-          ],
-          examples: [{ title: "Service-hook shape MAPPO reads", language: "json", code: azureDevOpsReleaseEventExample() }],
-          notes: [
-            "The Azure DevOps release-ready path does not require releases.manifest.json.",
-            "MAPPO stores external deployment inputs such as artifactVersion and deployedBy from the event.",
-          ],
-        };
-  const ingestContract: FlowContract = {
-    title: "Release Source to MAPPO catalog",
-    description:
-      "MAPPO normalizes the release signal into release records scoped to the projects linked to this Release Source.",
-    producer: "MAPPO Release Source",
-    consumer: "MAPPO release catalog",
-    direction: "Internal ingest",
-    facts: [
-      { label: "Project", value: projectName },
-      { label: "Releases ready", value: projectReleaseCount },
-      { label: "Release source type", value: releaseSourceTypeLabel },
-    ],
-    fields: [
-      { name: "project", required: true, description: "Resolved from MAPPO configuration, not from the publisher payload." },
-      { name: "sourceRef", required: true, description: "Release family identity used for duplicate detection." },
-      { name: "sourceVersion", required: true, description: "Release version shown to operators." },
-      { name: "sourceType", required: true, description: "Controls which deployment materializer can consume the release." },
-      { name: "parameterDefaults", required: false, type: "object", description: "Release-level values merged into deployment inputs." },
-    ],
-    notes: [
-      "Duplicate detection is project + sourceRef + sourceVersion.",
-      "The selected project consumes only release source types compatible with its deployment configuration.",
-    ],
-  };
-  const deploymentContract: FlowContract =
-    deploymentSystem === "azure_devops"
-      ? {
-          title: "MAPPO to Azure DevOps deployment pipeline",
-          description:
-            "When an operator starts a deployment, MAPPO triggers the configured Azure DevOps pipeline for each selected target.",
-          producer: "MAPPO deployment driver",
-          consumer: "Azure DevOps pipeline",
-          direction: "Outbound API call",
-          facts: [
-            { label: "Deployment connection", value: deploymentConnectionName || "Not linked" },
-            { label: "Azure DevOps project", value: azureDevOpsProjectName || "Not selected" },
-            { label: "Repository", value: repositoryName || "Not selected" },
-            { label: "Pipeline", value: pipelineName || "Not selected" },
-            { label: "Branch", value: branchName || "main" },
-          ],
-          fields: [
-            { name: "targetTenantId", required: true, description: "Tenant for the selected MAPPO target." },
-            { name: "targetSubscriptionId", required: true, description: "Subscription for the selected MAPPO target." },
-            { name: "targetId", required: true, description: "MAPPO target identity for the pipeline run." },
-            { name: "mappoReleaseVersion", required: true, description: "Release version selected by the operator." },
-            { name: "appVersion", required: false, description: "Deployment version passed to the pipeline." },
-            { name: "dataModelVersion", required: false, description: "Optional release-level data model version." },
-          ],
-          examples: [{ title: "Pipeline run payload shape", language: "json", code: pipelineRunExample() }],
-          notes: [
-            "MAPPO does not inspect or manage the Azure service connection inside the pipeline.",
-            "Pipeline maintainers own the Azure permissions required by the pipeline steps.",
-          ],
-        }
-      : {
-          title: "MAPPO Azure SDK deployment",
-          description:
-            "When an operator starts a deployment, MAPPO fetches the release template and calls Azure directly for each selected target.",
-          producer: "MAPPO deployment driver",
-          consumer: "Azure Resource Manager",
-          direction: "Outbound Azure SDK/ARM call",
-          facts: [
-            { label: "Deployment method", value: deploymentMethodLabel },
-            { label: "Targets available", value: targetCount },
-            { label: "Release source type", value: releaseSourceTypeLabel },
-          ],
-          fields: [
-            { name: "source_version_ref", required: true, description: "Template URI from the release manifest." },
-            { name: "target tenant/subscription", required: true, description: "Resolved from the selected registered target." },
-            { name: "managed resource group", required: true, description: "Target deployment scope discovered from the registered target." },
-            { name: "parameter_defaults", required: true, type: "object", description: "Release-level template parameter values." },
-            { name: "target parameters", required: true, type: "object", description: "Target-specific values MAPPO derives from target registration and Azure discovery." },
-          ],
-          examples: [{ title: "Release artifact contract", language: "json", code: releaseManifestExample() }],
-          notes: [
-            "The MAPPO Azure SDK path runs once per selected target.",
-            "Registry credentials and target-specific Azure metadata come from MAPPO runtime configuration and target registration, not the release manifest.",
-          ],
-        };
-  const targetContract: FlowContract = {
-    title: "Deployment target selection",
-    description:
-      "MAPPO expands the operator's deployment request into target-specific work items using registered targets for this project.",
-    producer: "MAPPO deployment request",
-    consumer: "Registered target fleet",
-    direction: "Internal target resolution",
-    facts: [
-      { label: "Registered targets", value: targetCount },
-      { label: "Example target", value: targetExamples[0] || "No targets registered" },
-    ],
-    fields: [
-      { name: "targetId", required: true, description: "Stable MAPPO target identity." },
-      { name: "tenantId", required: true, description: "Azure tenant that owns the target." },
-      { name: "subscriptionId", required: true, description: "Azure subscription that owns the target." },
-      { name: "executionConfig", required: false, type: "object", description: "Target-specific deployment values, such as resource group or app name." },
-      { name: "tags", required: false, type: "object", description: "Operator-facing targeting attributes such as ring, tier, or environment." },
-    ],
-    notes: [
-      "Targets are registered before deployment. The deployment page only selects from targets MAPPO already knows.",
-      "A single deployment request can fan out to multiple targets.",
-    ],
-  };
-  const healthContract: FlowContract = {
-    title: "Runtime health check",
-    description:
-      "After rollout, MAPPO can probe each target's configured HTTP endpoint and compare the response against the expected status.",
-    producer: "Registered target runtime",
-    consumer: "MAPPO runtime health check",
-    direction: "HTTP request",
-    facts: [
-      { label: "Check", value: runtimeHealthLabel },
-      { label: "Path", value: runtimeHealthPath || "/" },
-      { label: "Expected status", value: runtimeHealthExpectedStatus || "200" },
-      { label: "Timeout", value: `${runtimeHealthTimeoutMs || "5000"} ms` },
-    ],
-    fields: [
-      { name: "base URL", required: true, description: "Runtime endpoint resolved from the registered target." },
-      { name: "path", required: true, description: "Configured health path appended to the target endpoint." },
-      { name: "expected status", required: true, description: "HTTP status MAPPO treats as healthy." },
-      { name: "timeout", required: true, description: "Maximum request duration before MAPPO marks the probe failed." },
-    ],
-  };
-  const flowContracts = [releaseContract, ingestContract, deploymentContract, targetContract, healthContract];
+  const { releaseContract, deploymentContract, healthContract } = buildProjectFlowContracts({
+    releaseSourceProvider,
+    releaseSourceName,
+    releaseSourceTypeLabel,
+    releaseSourceRecord,
+    deploymentSystem,
+    deploymentMethodLabel,
+    deploymentConnectionName,
+    azureDevOpsProjectName,
+    repositoryName,
+    pipelineName,
+    branchName,
+    targetCount,
+    runtimeHealthLabel,
+    runtimeHealthPath,
+    runtimeHealthExpectedStatus,
+    runtimeHealthTimeoutMs,
+  });
 
   function renderFlowNode(node: FlowNodeModel, className?: string) {
     return (
@@ -728,19 +498,19 @@ export default function ProjectFlowDiagram({
       <CardContent className="pt-0">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)_2.5rem_minmax(0,1fr)_2.5rem]">
           <StaticFlowNode {...externalReleaseNode} className="xl:col-start-1 xl:row-start-1" />
-          <FlowArrow className="xl:col-start-2 xl:row-start-1" contract={flowContracts[0]} onOpenContract={setSelectedContract} />
+          <FlowArrow className="xl:col-start-2 xl:row-start-1" contract={releaseContract} onOpenContract={setSelectedContract} />
           {renderFlowNode(flowNodes[0], "xl:col-start-3 xl:row-start-1")}
-          <FlowArrow className="xl:col-start-4 xl:row-start-1" contract={flowContracts[1]} onOpenContract={setSelectedContract} />
+          <FlowArrow className="xl:col-start-4 xl:row-start-1" />
           {renderFlowNode(flowNodes[1], "xl:col-start-5 xl:row-start-1")}
-          <FlowArrow className="xl:col-start-6 xl:row-start-1" contract={flowContracts[2]} onOpenContract={setSelectedContract} />
+          <FlowArrow className="xl:col-start-6 xl:row-start-1" contract={deploymentContract} onOpenContract={setSelectedContract} />
           {renderFlowNode(flowNodes[2], "xl:col-start-1 xl:row-start-2")}
-          <FlowArrow className="xl:col-start-2 xl:row-start-2" contract={flowContracts[3]} onOpenContract={setSelectedContract} />
+          <FlowArrow className="xl:col-start-2 xl:row-start-2" />
           {renderFlowNode(flowNodes[3], "xl:col-start-3 xl:row-start-2")}
-          <FlowArrow className="xl:col-start-4 xl:row-start-2" contract={flowContracts[4]} onOpenContract={setSelectedContract} />
+          <FlowArrow className="xl:col-start-4 xl:row-start-2" contract={healthContract} onOpenContract={setSelectedContract} />
           {renderFlowNode(flowNodes[4], "xl:col-start-5 xl:row-start-2")}
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Select an arrow to inspect the contract between steps.
+          Select a clickable arrow to inspect the request, payload, or probe contract between steps.
         </p>
       </CardContent>
       <FlowContractDrawer

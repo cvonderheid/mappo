@@ -1,7 +1,6 @@
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { LuArrowDown, LuMoveRight } from "react-icons/lu";
 
-import { FlowContractDrawer, type FlowContract } from "@/components/FlowContractDetails";
 import { cn } from "@/lib/utils";
 
 export type AdminIntegrationFlowDetail = {
@@ -106,76 +105,17 @@ function FlowNode({ node, className }: { node: AdminIntegrationFlowNode; classNa
   );
 }
 
-function buildFlowContract(
-  from: AdminIntegrationFlowNode,
-  to: AdminIntegrationFlowNode
-): FlowContract {
-  const sourceFacts = normalizedDetails(from.details).map((detail) => ({
-    label: `${from.eyebrow}: ${detail.label}`,
-    value: detail.value,
-  }));
-  const destinationFacts = normalizedDetails(to.details).map((detail) => ({
-    label: `${to.eyebrow}: ${detail.label}`,
-    value: detail.value,
-  }));
-
-  return {
-    title: `${from.eyebrow} to ${to.eyebrow}`,
-    description:
-      "Configured handoff between these two setup steps. Values shown here come from the configured records on this page.",
-    producer: from.title,
-    consumer: to.title,
-    direction: `${from.step} -> ${to.step}`,
-    facts: [
-      { label: "From", value: `${from.step} ${from.eyebrow}` },
-      { label: "To", value: `${to.step} ${to.eyebrow}` },
-      ...sourceFacts,
-      ...destinationFacts,
-    ],
-    notes: [
-      "This is a configuration relationship view, not an inferred runtime trace.",
-      "Project-specific release and deployment payload details are shown in Project -> Config -> Project Flow.",
-    ],
-  };
-}
-
 function FlowArrow({
   className,
-  from,
-  to,
-  onOpenContract,
 }: {
   className?: string;
-  from?: AdminIntegrationFlowNode;
-  to?: AdminIntegrationFlowNode;
-  onOpenContract?: (contract: FlowContract) => void;
 }) {
-  const contract = from && to ? buildFlowContract(from, to) : null;
   const arrowIcon = (
     <>
       <LuMoveRight className="hidden h-5 w-5 xl:block" />
       <LuArrowDown className="h-5 w-5 xl:hidden" />
     </>
   );
-
-  if (contract && onOpenContract) {
-    return (
-      <div className={cn("flex items-center justify-center text-muted-foreground", className)}>
-        <button
-          type="button"
-          className={cn(
-            "flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-background/60 transition",
-            "hover:border-primary/70 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          )}
-          aria-label={`View contract: ${contract.title}`}
-          title={`View contract: ${contract.title}`}
-          onClick={() => onOpenContract(contract)}
-        >
-          {arrowIcon}
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className={cn("flex items-center justify-center text-muted-foreground", className)}>
@@ -191,70 +131,31 @@ export default function AdminIntegrationFlowDiagram({
 }: {
   nodes: AdminIntegrationFlowNode[];
 }) {
-  const [selectedContract, setSelectedContract] = useState<FlowContract | null>(null);
-
   return (
     <>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)_2.5rem_minmax(0,1fr)_2.5rem]">
         {nodes[0] ? <FlowNode node={nodes[0]} className="xl:col-start-1 xl:row-start-1" /> : null}
         {nodes[1] ? (
-          <FlowArrow
-            className="xl:col-start-2 xl:row-start-1"
-            from={nodes[0]}
-            to={nodes[1]}
-            onOpenContract={setSelectedContract}
-          />
+          <FlowArrow className="xl:col-start-2 xl:row-start-1" />
         ) : null}
         {nodes[1] ? <FlowNode node={nodes[1]} className="xl:col-start-3 xl:row-start-1" /> : null}
         {nodes[2] ? (
-          <FlowArrow
-            className="xl:col-start-4 xl:row-start-1"
-            from={nodes[1]}
-            to={nodes[2]}
-            onOpenContract={setSelectedContract}
-          />
+          <FlowArrow className="xl:col-start-4 xl:row-start-1" />
         ) : null}
         {nodes[2] ? <FlowNode node={nodes[2]} className="xl:col-start-5 xl:row-start-1" /> : null}
         {nodes[3] ? (
-          <FlowArrow
-            className="xl:col-start-6 xl:row-start-1"
-            from={nodes[2]}
-            to={nodes[3]}
-            onOpenContract={setSelectedContract}
-          />
+          <FlowArrow className="xl:col-start-6 xl:row-start-1" />
         ) : null}
         {nodes[3] ? <FlowNode node={nodes[3]} className="xl:col-start-1 xl:row-start-2" /> : null}
         {nodes[4] ? (
-          <FlowArrow
-            className="xl:col-start-2 xl:row-start-2"
-            from={nodes[3]}
-            to={nodes[4]}
-            onOpenContract={setSelectedContract}
-          />
+          <FlowArrow className="xl:col-start-2 xl:row-start-2" />
         ) : null}
         {nodes[4] ? <FlowNode node={nodes[4]} className="xl:col-start-3 xl:row-start-2" /> : null}
         {nodes[5] ? (
-          <FlowArrow
-            className="xl:col-start-4 xl:row-start-2"
-            from={nodes[4]}
-            to={nodes[5]}
-            onOpenContract={setSelectedContract}
-          />
+          <FlowArrow className="xl:col-start-4 xl:row-start-2" />
         ) : null}
         {nodes[5] ? <FlowNode node={nodes[5]} className="xl:col-start-5 xl:row-start-2" /> : null}
       </div>
-      <p className="mt-3 text-xs text-muted-foreground">
-        Select an arrow to inspect the configured handoff between steps.
-      </p>
-      <FlowContractDrawer
-        contract={selectedContract}
-        open={selectedContract !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedContract(null);
-          }
-        }}
-      />
     </>
   );
 }
