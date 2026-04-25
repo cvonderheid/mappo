@@ -54,6 +54,22 @@
                 </configuration>
               </execution>
               <execution>
+                <id>azure-export-db-env</id>
+                <phase>deploy</phase>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+                <configuration>
+                  <executable>bash</executable>
+                  <workingDirectory>${mappo.root.dir}</workingDirectory>
+                  <arguments>
+                    <argument>./scripts/iac_export_db_env.sh</argument>
+                    <argument>--stack</argument>
+                    <argument>${pulumi.stack}</argument>
+                  </arguments>
+                </configuration>
+              </execution>
+              <execution>
                 <id>azure-runtime-prepare</id>
                 <phase>deploy</phase>
                 <goals>

@@ -14,7 +14,7 @@ public record ProviderConnectionRecord(
     ProviderConnectionProviderType provider,
     @Schema(description = "Whether this deployment connection is enabled.")
     boolean enabled,
-    @Schema(description = "Verified Azure DevOps account URL used for project discovery.", example = "https://dev.azure.com/pg123")
+    @Schema(description = "Verified Azure DevOps account URL used for project discovery.", example = "https://dev.azure.com/example-ado-org")
     String organizationUrl,
     @Schema(
         description = "Secret reference used to resolve the external-system API credential.",

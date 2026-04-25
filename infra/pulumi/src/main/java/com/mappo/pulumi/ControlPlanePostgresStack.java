@@ -36,22 +36,22 @@ final class ControlPlanePostgresStack {
             );
         }
 
-        String subscriptionKey = PulumiSupport.subscriptionKey(config.subscriptionId());
+        String resourceNameSuffix = config.resourceNameSuffix();
         String resourceGroupName = PulumiSupport.normalizeName(
-            config.resourceGroupPrefix() + "-" + subscriptionKey,
-            "rg-mappo-control-plane-" + subscriptionKey,
+            config.resourceGroupName(),
+            "rg-mappo-control-plane-" + resourceNameSuffix,
             90
         );
         String serverName = PulumiSupport.normalizeName(
-            config.serverNamePrefix() + "-" + subscriptionKey,
-            "pg-mappo-" + subscriptionKey,
+            config.serverNamePrefix() + "-" + resourceNameSuffix,
+            "pg-mappo-" + resourceNameSuffix,
             63
         );
 
         CustomResourceOptions withProvider = CustomResourceOptions.builder().provider(provider).build();
 
         ResourceGroup resourceGroup = new ResourceGroup(
-            "control-plane-rg-" + subscriptionKey,
+            "control-plane-rg-" + resourceNameSuffix,
             ResourceGroupArgs.builder()
                 .resourceGroupName(resourceGroupName)
                 .location(config.location())
@@ -65,7 +65,7 @@ final class ControlPlanePostgresStack {
         );
 
         Server server = new Server(
-            "control-plane-postgres-" + subscriptionKey,
+            "control-plane-postgres-" + resourceNameSuffix,
             ServerArgs.builder()
                 .resourceGroupName(resourceGroup.name())
                 .serverName(serverName)
@@ -107,7 +107,7 @@ final class ControlPlanePostgresStack {
         );
 
         Database database = new Database(
-            "control-plane-postgres-db-" + subscriptionKey,
+            "control-plane-postgres-db-" + resourceNameSuffix,
             DatabaseArgs.builder()
                 .resourceGroupName(resourceGroup.name())
                 .serverName(server.name())
@@ -119,7 +119,7 @@ final class ControlPlanePostgresStack {
         );
 
         new Configuration(
-            "control-plane-postgres-ext-" + subscriptionKey,
+            "control-plane-postgres-ext-" + resourceNameSuffix,
             ConfigurationArgs.builder()
                 .resourceGroupName(resourceGroup.name())
                 .serverName(server.name())
@@ -140,7 +140,7 @@ final class ControlPlanePostgresStack {
         if (config.publicNetworkAccess()) {
             if (config.allowAzureServices()) {
                 new FirewallRule(
-                    "control-plane-postgres-fw-azure-" + subscriptionKey,
+                    "control-plane-postgres-fw-azure-" + resourceNameSuffix,
                     FirewallRuleArgs.builder()
                         .resourceGroupName(resourceGroup.name())
                         .serverName(server.name())
@@ -155,7 +155,7 @@ final class ControlPlanePostgresStack {
             for (int i = 0; i < config.firewallIpRanges().size(); i++) {
                 PulumiSupport.FirewallIpRange range = config.firewallIpRanges().get(i);
                 new FirewallRule(
-                    "control-plane-postgres-fw-custom-" + subscriptionKey + "-" + (i + 1),
+                    "control-plane-postgres-fw-custom-" + resourceNameSuffix + "-" + (i + 1),
                     FirewallRuleArgs.builder()
                         .resourceGroupName(resourceGroup.name())
                         .serverName(server.name())

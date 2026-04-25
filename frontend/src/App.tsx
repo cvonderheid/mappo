@@ -171,7 +171,7 @@ const SIDEBAR_NAVIGATION: SidebarNavigationGroup[] = [
   {
     label: "Admin",
     items: [
-      { label: "Secret References", to: "/secret-references" },
+      { label: "Secret Inventory", to: "/secret-references" },
       { label: "Deployment Connections", to: "/deployment-connections" },
       { label: "Release Sources", to: "/release-sources" },
       { label: "Managed App", to: "/managed-app" },
@@ -947,7 +947,7 @@ function AppShell() {
       return items;
     }
     if (path.startsWith("/secret-references")) {
-      items.push({ label: "Admin" }, { label: "Secret References" });
+      items.push({ label: "Admin" }, { label: "Secret Inventory" });
       return items;
     }
     if (path.startsWith("/deployment-connections")) {

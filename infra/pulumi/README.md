@@ -5,7 +5,7 @@ This Pulumi project provisions only the shared control-plane infrastructure that
 - control-plane PostgreSQL
 
 It does not provision target workloads. The target fleet lives in
-[`/Users/cvonderheid/workspace/mappo/infra/demo-fleet`](/Users/cvonderheid/workspace/mappo/infra/demo-fleet).
+[`./infra/demo-fleet`](./infra/demo-fleet).
 
 ## Runtime
 
@@ -63,5 +63,5 @@ pulumi destroy --stack <stack> --yes
 ```
 
 Target fleet provisioning:
-- [`/Users/cvonderheid/workspace/mappo/infra/demo-fleet/README.md`](/Users/cvonderheid/workspace/mappo/infra/demo-fleet/README.md)
-- [`/Users/cvonderheid/workspace/mappo/scripts/demo_fleet_up.sh`](/Users/cvonderheid/workspace/mappo/scripts/demo_fleet_up.sh)
+- [`./infra/demo-fleet/README.md`](./infra/demo-fleet/README.md)
+- [`./scripts/demo_fleet_up.sh`](./scripts/demo_fleet_up.sh)

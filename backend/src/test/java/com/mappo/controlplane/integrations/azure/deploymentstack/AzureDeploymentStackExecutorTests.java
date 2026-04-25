@@ -128,7 +128,7 @@ class AzureDeploymentStackExecutorTests {
         ReleaseRecord release = new ReleaseRecord(
             "rel-demo",
             BuiltinProjects.AZURE_MANAGED_APP_DEPLOYMENT_STACK,
-            "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
+            "github://example-org/mappo-release-catalog/managed-app/mainTemplate.json",
             "2026.03.09.1",
             MappoReleaseSourceType.deployment_stack,
             "https://storage.example.com/releases/2026.03.09.1/mainTemplate.json",

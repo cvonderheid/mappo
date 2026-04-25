@@ -48,7 +48,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
             {
               "ref": "refs/heads/main",
               "repository": {
-                "full_name": "cvonderheid/mappo-managed-app"
+                "full_name": "example-org/mappo-release-catalog"
               },
               "commits": [
                 {
@@ -80,7 +80,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.items[0].externalDeliveryId").value(deliveryId))
             .andExpect(jsonPath("$.items[0].status").value("applied"))
-            .andExpect(jsonPath("$.items[0].repo").value("cvonderheid/mappo-managed-app"))
+            .andExpect(jsonPath("$.items[0].repo").value("example-org/mappo-release-catalog"))
             .andExpect(jsonPath("$.items[0].ref").value("main"))
             .andExpect(jsonPath("$.items[0].createdCount").value(2))
             .andExpect(jsonPath("$.items[0].changedPaths[0]").value("releases/releases.manifest.json"));
@@ -93,7 +93,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
             {
               "ref": "refs/heads/main",
               "repository": {
-                "full_name": "cvonderheid/mappo-managed-app"
+                "full_name": "example-org/mappo-release-catalog"
               },
               "commits": [
                 {
@@ -131,7 +131,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
             {
               "ref": "refs/heads/main",
               "repository": {
-                "full_name": "cvonderheid/mappo-managed-app"
+                "full_name": "example-org/mappo-release-catalog"
               },
               "commits": []
             }
@@ -175,7 +175,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
                 {
                   "releases": [
                     {
-                      "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
+                      "source_ref": "github://example-org/mappo-release-catalog/managed-app/mainTemplate.json",
                       "source_version": "2026.03.06.1",
                       "source_type": "deployment_stack",
                       "source_version_ref": "https://storage.example.com/releases/2026.03.06.1/mainTemplate.json",
@@ -185,7 +185,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
                       }
                     },
                     {
-                      "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
+                      "source_ref": "github://example-org/mappo-release-catalog/managed-app/mainTemplate.json",
                       "source_version": "2026.03.07.1",
                       "source_type": "deployment_stack",
                       "source_version_ref": "https://storage.example.com/releases/2026.03.07.1/mainTemplate.json",

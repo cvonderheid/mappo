@@ -363,9 +363,9 @@ describe("App", () => {
         deploymentDriver: "azure_deployment_stack",
         providerConnectionId: "ado-default",
         deploymentDriverConfig: {
-          organization: "https://dev.azure.com/pg123",
-          project: "demo-app-service",
-          repository: "demo-app-service",
+          organization: "https://dev.azure.com/example-ado-org",
+          project: "sample-app-service",
+          repository: "sample-app-service",
           pipelineId: "42",
           branch: "main",
         },

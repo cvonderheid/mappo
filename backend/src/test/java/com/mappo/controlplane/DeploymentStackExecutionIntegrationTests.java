@@ -62,7 +62,7 @@ class DeploymentStackExecutionIntegrationTests extends PostgresIntegrationTestBa
 
         Map<String, Object> releaseRequest = new LinkedHashMap<>();
         releaseRequest.put("projectId", BuiltinProjects.AZURE_MANAGED_APP_DEPLOYMENT_STACK);
-        releaseRequest.put("sourceRef", "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json");
+        releaseRequest.put("sourceRef", "github://example-org/mappo-release-catalog/managed-app/mainTemplate.json");
         releaseRequest.put("sourceVersion", "2026.03.08.1");
         releaseRequest.put("sourceType", "deployment_stack");
         releaseRequest.put("sourceVersionRef", "https://storage.example.com/releases/2026.03.08.1/mainTemplate.json");

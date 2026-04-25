@@ -62,6 +62,15 @@ const MODE_LABELS: Record<SecretReferenceMode, string> = {
   key_vault_secret: "Azure Key Vault secret",
 };
 
+const STATUS_LABELS = {
+  configured: "Configured",
+  missing: "Missing reference",
+  runtime: "Runtime default",
+  unused: "Unused",
+} as const;
+
+type SecretInventoryStatus = keyof typeof STATUS_LABELS;
+
 function normalize(value: string | undefined | null): string {
   return (value ?? "").trim();
 }
@@ -142,9 +151,57 @@ function referenceToken(secretReference: SecretReference): string {
   return "";
 }
 
+function linkedUsageCount(secretReference: SecretReference): number {
+  return (
+    (secretReference.linkedDeploymentConnections?.length ?? 0)
+    + (secretReference.linkedReleaseSources?.length ?? 0)
+  );
+}
+
+function inventoryStatus(secretReference: SecretReference): SecretInventoryStatus {
+  const mode = (secretReference.mode ?? "mappo_default") as SecretReferenceMode;
+  if (mode === "mappo_default") {
+    return linkedUsageCount(secretReference) > 0 ? "runtime" : "unused";
+  }
+  if (referenceToken(secretReference) === "") {
+    return "missing";
+  }
+  return linkedUsageCount(secretReference) > 0 ? "configured" : "unused";
+}
+
+function inventoryStatusClassName(status: SecretInventoryStatus): string {
+  if (status === "missing") {
+    return "border-destructive/60 bg-destructive/10 text-destructive";
+  }
+  if (status === "unused") {
+    return "border-muted-foreground/40 text-muted-foreground";
+  }
+  if (status === "runtime") {
+    return "border-amber-400/60 bg-amber-400/10 text-amber-200";
+  }
+  return "border-emerald-400/60 bg-emerald-400/10 text-emerald-200";
+}
+
+function formatDateTime(value: string | undefined): string {
+  if (!value) {
+    return "Not recorded";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleString();
+}
+
+async function copyText(value: string, successMessage: string): Promise<void> {
+  await navigator.clipboard.writeText(value);
+  toast.success(successMessage);
+}
+
 export default function SecretReferencesConfigPage({
-  selectedProjectId: _selectedProjectId,
+  selectedProjectId,
 }: SecretReferencesConfigPageProps) {
+  void selectedProjectId;
   const [secretReferences, setSecretReferences] = useState<SecretReference[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
@@ -184,6 +241,31 @@ export default function SecretReferencesConfigPage({
       ),
     [secretReferences]
   );
+  const inventorySummary = useMemo(() => {
+    const counts = {
+      total: sortedSecretReferences.length,
+      configured: 0,
+      missing: 0,
+      unused: 0,
+      linked: 0,
+    };
+    for (const secretReference of sortedSecretReferences) {
+      const status = inventoryStatus(secretReference);
+      if (status === "configured" || status === "runtime") {
+        counts.configured += 1;
+      }
+      if (status === "missing") {
+        counts.missing += 1;
+      }
+      if (status === "unused") {
+        counts.unused += 1;
+      }
+      if (linkedUsageCount(secretReference) > 0) {
+        counts.linked += 1;
+      }
+    }
+    return counts;
+  }, [sortedSecretReferences]);
 
   function openCreateDrawer(): void {
     setEditingId("");
@@ -275,9 +357,9 @@ export default function SecretReferencesConfigPage({
       <Card className="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]">
         <CardHeader>
           <div className="space-y-1">
-            <CardTitle>Secret References</CardTitle>
+            <CardTitle>Secret Inventory</CardTitle>
             <CardDescription>
-              Give operators one place to define external-system secrets. Deployment Connections and Release Sources can then select these named references instead of typing raw Key Vault or environment references.
+              Read-only inventory of the external-system credentials MAPPO expects, where each value is resolved, and which Release Sources or Deployment Connections use it. Secret values never appear in the browser.
             </CardDescription>
           </div>
           <CardAction className="flex-wrap justify-end">
@@ -297,6 +379,33 @@ export default function SecretReferencesConfigPage({
           </CardAction>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="rounded-lg border border-border/70 bg-background/40 p-3">
+              <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Inventory</p>
+              <p className="mt-1 text-2xl font-semibold text-foreground">{inventorySummary.total}</p>
+              <p className="text-xs text-muted-foreground">named references</p>
+            </div>
+            <div className="rounded-lg border border-emerald-400/40 bg-emerald-400/10 p-3">
+              <p className="text-xs font-medium uppercase tracking-[0.08em] text-emerald-200">Configured</p>
+              <p className="mt-1 text-2xl font-semibold text-foreground">{inventorySummary.configured}</p>
+              <p className="text-xs text-muted-foreground">ready or runtime-backed</p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-background/40 p-3">
+              <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Linked</p>
+              <p className="mt-1 text-2xl font-semibold text-foreground">{inventorySummary.linked}</p>
+              <p className="text-xs text-muted-foreground">used by integrations</p>
+            </div>
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3">
+              <p className="text-xs font-medium uppercase tracking-[0.08em] text-destructive">Needs attention</p>
+              <p className="mt-1 text-2xl font-semibold text-foreground">{inventorySummary.missing + inventorySummary.unused}</p>
+              <p className="text-xs text-muted-foreground">missing or unused</p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background/40 p-3 text-sm text-muted-foreground">
+            MAPPO stores only references here. Put actual values in the backend environment or MAPPO Azure Key Vault, then select these named references from Release Sources and Deployment Connections.
+          </div>
+
           {errorMessage ? (
             <div className="rounded-md border border-destructive/60 bg-destructive/10 p-3 text-sm text-destructive-foreground">
               {errorMessage}
@@ -311,11 +420,14 @@ export default function SecretReferencesConfigPage({
 
           {!isLoading && sortedSecretReferences.length === 0 ? (
             <div className="rounded-md border border-border/60 bg-background/40 p-4 text-sm text-muted-foreground">
-              No secret references are configured yet.
+              No secret references are configured yet. Add a named reference for each external credential MAPPO needs, such as an Azure DevOps PAT or webhook verification secret.
             </div>
           ) : null}
 
-          {sortedSecretReferences.map((secretReference) => (
+          {sortedSecretReferences.map((secretReference) => {
+            const status = inventoryStatus(secretReference);
+            const token = referenceToken(secretReference);
+            return (
             <div
               key={secretReference.id ?? secretReference.name}
               className="rounded-xl border border-border/70 bg-background/40 p-4"
@@ -323,39 +435,73 @@ export default function SecretReferencesConfigPage({
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="space-y-2">
                   <div>
-                    <p className="text-lg font-semibold text-foreground">
-                      {secretReference.name || secretReference.id}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-lg font-semibold text-foreground">
+                        {secretReference.name || secretReference.id}
+                      </p>
+                      <Badge variant="outline" className={inventoryStatusClassName(status)}>
+                        {STATUS_LABELS[status]}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Reference ID: <span className="font-mono">{secretReference.id}</span>
                     </p>
-                    <p className="text-sm text-muted-foreground">{secretReference.id}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline">
-                      Provider: {PROVIDER_LABELS[(secretReference.provider ?? "azure_devops") as SecretReferenceProvider]}
+                      {PROVIDER_LABELS[(secretReference.provider ?? "azure_devops") as SecretReferenceProvider]}
                     </Badge>
                     <Badge variant="outline">
-                      Usage: {USAGE_LABELS[(secretReference.usage ?? "deployment_api_credential") as SecretReferenceUsage]}
+                      {USAGE_LABELS[(secretReference.usage ?? "deployment_api_credential") as SecretReferenceUsage]}
                     </Badge>
                     <Badge variant="outline">
-                      Stored as: {MODE_LABELS[(secretReference.mode ?? "mappo_default") as SecretReferenceMode]}
+                      {MODE_LABELS[(secretReference.mode ?? "mappo_default") as SecretReferenceMode]}
                     </Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Resolved from:{" "}
-                    <span className="font-medium text-foreground">
-                      {describeBackendRef(secretReference)}
-                    </span>
-                  </p>
-                  {referenceToken(secretReference) !== "" ? (
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                        Secret source
+                      </p>
+                      <p className="text-sm font-medium text-foreground">{describeBackendRef(secretReference)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                        Used by
+                      </p>
+                      <p className="text-sm font-medium text-foreground">
+                        {linkedUsageCount(secretReference)} integration{linkedUsageCount(secretReference) === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                        Last updated
+                      </p>
+                      <p className="text-sm font-medium text-foreground">{formatDateTime(secretReference.updatedAt)}</p>
+                    </div>
+                  </div>
+                  {token !== "" ? (
                     <div className="space-y-1">
                       <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
                         Reference token
                       </p>
-                      <Input
-                        value={referenceToken(secretReference)}
-                        readOnly
-                        onFocus={(event) => event.target.select()}
-                        className="font-mono text-xs"
-                      />
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Input
+                          value={token}
+                          readOnly
+                          onFocus={(event) => event.target.select()}
+                          className="font-mono text-xs"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            void copyText(token, "Copied secret reference token.");
+                          }}
+                        >
+                          Copy token
+                        </Button>
+                      </div>
                     </div>
                   ) : null}
                   {(secretReference.linkedDeploymentConnections?.length ?? 0) > 0 ? (
@@ -405,7 +551,8 @@ export default function SecretReferencesConfigPage({
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 
@@ -529,7 +676,7 @@ export default function SecretReferencesConfigPage({
                   id="secret-reference-kv"
                   value={draft.keyVaultSecretName}
                   onChange={(event) => setDraft((current) => ({ ...current, keyVaultSecretName: event.target.value }))}
-                  placeholder="mappo-ado-pg123-pat"
+                  placeholder="mappo-ado-org-pat"
                 />
               </div>
             ) : null}

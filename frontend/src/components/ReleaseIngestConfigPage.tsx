@@ -806,7 +806,7 @@ export default function ReleaseIngestConfigPage({
                 ) : null}
                 {draft.webhookSecretMode === "secret_reference" ? (
                   <p className="text-xs text-muted-foreground">
-                    Use a named secret from <span className="font-medium text-foreground">Admin → Secret References</span> so webhook verification is reusable and easier to explain.
+                    Use a named secret from <span className="font-medium text-foreground">Admin → Secret Inventory</span> so webhook verification is reusable and easier to explain.
                   </p>
                 ) : null}
               </div>
@@ -880,7 +880,7 @@ export default function ReleaseIngestConfigPage({
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
                   <Label htmlFor="endpoint-webhook-secret-reference">Secret reference</Label>
-                  <FieldHelpTooltip content="Named webhook-verification secret from Admin → Secret References. MAPPO still resolves the real secret value server-side." />
+                  <FieldHelpTooltip content="Named webhook-verification secret from Admin → Secret Inventory. MAPPO still resolves the real secret value server-side." />
                 </div>
                 <Select
                   value={draft.webhookSecretReferenceId.trim() === "" ? "__none" : draft.webhookSecretReferenceId}
@@ -908,7 +908,7 @@ export default function ReleaseIngestConfigPage({
                 </Select>
                 {webhookSecretReferences.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    No {draft.provider === "azure_devops" ? "Azure DevOps" : "GitHub"} webhook secret references exist yet. Create one in <span className="font-medium text-foreground">Admin → Secret References</span>.
+                    No {draft.provider === "azure_devops" ? "Azure DevOps" : "GitHub"} webhook secret references exist yet. Create one in <span className="font-medium text-foreground">Admin → Secret Inventory</span>.
                   </p>
                 ) : null}
               </div>
@@ -931,7 +931,7 @@ export default function ReleaseIngestConfigPage({
                   placeholder={draft.provider === "azure_devops" ? "mappo-ado-webhook-secret" : "mappo-github-webhook-secret"}
                 />
                 <p className="text-xs text-muted-foreground">
-                  MAPPO will resolve this as <span className="font-mono text-foreground">kv:{draft.webhookSecretKeyVaultSecret.trim() || "secret-name"}</span> using the Azure Key Vault configured on the backend runtime. To keep this linked to Admin → Secret References, choose <span className="font-medium text-foreground">Use secret reference</span> above instead.
+                  MAPPO will resolve this as <span className="font-mono text-foreground">kv:{draft.webhookSecretKeyVaultSecret.trim() || "secret-name"}</span> using the Azure Key Vault configured on the backend runtime. To keep this linked to Admin → Secret Inventory, choose <span className="font-medium text-foreground">Use secret reference</span> above instead.
                 </p>
               </div>
             ) : null}

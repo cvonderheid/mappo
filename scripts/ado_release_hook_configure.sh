@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ADO_ENV_FILE="${ROOT_DIR}/.data/mappo-ado.env"
-ORGANIZATION="https://dev.azure.com/pg123"
-PROJECT="demo-app-service"
+ORGANIZATION="${MAPPO_DEMO_ADO_ORGANIZATION:-}"
+PROJECT="${MAPPO_DEMO_ADO_PROJECT:-}"
 PIPELINE_ID=""
 MAPPO_API_BASE_URL="${MAPPO_API_BASE_URL:-}"
 ENDPOINT_ID="ado-pipeline-default"
@@ -21,8 +21,8 @@ usage: $(basename "$0") [options]
 Create the Azure DevOps service hook that tells MAPPO an App Service demo release is ready.
 
 Options:
-  --organization <url|name>      Azure DevOps organization (default: https://dev.azure.com/pg123)
-  --project <name>               Azure DevOps project (default: demo-app-service)
+  --organization <url|name>      Azure DevOps organization (or MAPPO_DEMO_ADO_ORGANIZATION)
+  --project <name>               Azure DevOps project (or MAPPO_DEMO_ADO_PROJECT)
   --pipeline-id <id>             ADO release-readiness pipeline ID
   --mappo-api-base-url <url>     MAPPO API base URL (default: MAPPO_API_BASE_URL)
   --endpoint-id <id>             MAPPO release source ID (default: ado-pipeline-default)
@@ -142,8 +142,14 @@ if [[ -f "${ADO_ENV_FILE}" ]]; then
   source "${ADO_ENV_FILE}"
   ADO_PAT="${ADO_PAT:-${AZURE_DEVOPS_EXT_PAT:-}}"
   WEBHOOK_TOKEN="${WEBHOOK_TOKEN:-${MAPPO_AZURE_DEVOPS_WEBHOOK_SECRET:-}}"
+  ORGANIZATION="${ORGANIZATION:-${MAPPO_DEMO_ADO_ORGANIZATION:-}}"
+  PROJECT="${PROJECT:-${MAPPO_DEMO_ADO_PROJECT:-}}"
 fi
 
+if [[ -z "${ORGANIZATION}" || -z "${PROJECT}" ]]; then
+  echo "ado-release-hook-configure: --organization and --project are required unless MAPPO_DEMO_ADO_* env vars are set." >&2
+  exit 2
+fi
 ORGANIZATION="$(normalize_org "${ORGANIZATION}")"
 
 if ! command -v jq >/dev/null 2>&1; then

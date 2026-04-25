@@ -150,6 +150,20 @@ final class PulumiSupport {
         return normalized.substring(0, Math.min(8, normalized.length()));
     }
 
+    static String stackKey(String stackName) {
+        String normalized = normalizeName(stackName, "demo", 40);
+        return normalized.isBlank() ? "demo" : normalized;
+    }
+
+    static String stackScopedResourceSuffix(String stackName, String subscriptionId) {
+        String subscriptionKey = subscriptionKey(subscriptionId);
+        String stackKey = stackKey(stackName);
+        if ("demo".equals(stackKey)) {
+            return subscriptionKey;
+        }
+        return normalizeName(stackKey + "-" + subscriptionKey, subscriptionKey, 52);
+    }
+
     static String urlEncode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }

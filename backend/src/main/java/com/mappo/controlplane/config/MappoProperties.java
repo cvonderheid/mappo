@@ -38,7 +38,7 @@ public class MappoProperties {
     @Getter
     @Setter
     public static class ManagedAppReleaseProperties {
-        private String repo = "cvonderheid/mappo-managed-app";
+        private String repo = "";
         private String path = "releases/releases.manifest.json";
         private String ref = "main";
         private String webhookSecret = "";

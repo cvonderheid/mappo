@@ -1,4 +1,6 @@
 node_modules/
 bin/
+Pulumi.*.yaml
+!Pulumi.yaml
+!Pulumi.*.example.yaml
 Pulumi.*.yaml.backup
-

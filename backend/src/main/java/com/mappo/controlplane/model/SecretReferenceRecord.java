@@ -18,7 +18,7 @@ public record SecretReferenceRecord(
     SecretReferenceUsageType usage,
     @Schema(description = "Where MAPPO resolves this secret from.")
     SecretReferenceModeType mode,
-    @Schema(description = "Normalized backend secret reference MAPPO resolves at runtime.", example = "kv:mappo-ado-pg123-pat")
+    @Schema(description = "Normalized backend secret reference MAPPO resolves at runtime.", example = "kv:mappo-ado-org-pat")
     String backendRef,
     @Schema(description = "Deployment connections currently using this secret reference.")
     List<SecretReferenceLinkedDeploymentConnectionRecord> linkedDeploymentConnections,

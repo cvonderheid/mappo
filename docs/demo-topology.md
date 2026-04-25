@@ -8,7 +8,7 @@ This document describes the current hosted demo at a high level. It intentionall
 - Postgres is hosted in Azure Database for PostgreSQL Flexible Server.
 - Marketplace-style registration events flow through an Azure Function forwarder.
 - The primary proven rollout path is direct Azure rollout using Deployment Stacks.
-- Release artifacts are published from `/Users/cvonderheid/workspace/mappo-managed-app`.
+- Release artifacts are published from `../mappo-release-catalog`.
 
 ## Main Azure resource areas
 ### Control plane
@@ -48,7 +48,7 @@ Provisioned separately from the control plane:
 
 ## Important boundaries
 - This repo deploys MAPPO itself.
-- `/Users/cvonderheid/workspace/mappo-managed-app` defines the customer workload release catalog.
-- `/Users/cvonderheid/workspace/demo-app-service` defines the Azure App Service workload and ADO pipeline YAML for the pipeline demo.
+- `../mappo-release-catalog` defines the customer workload release catalog.
+- `../sample-app-service` defines the Azure App Service workload and ADO pipeline YAML for the pipeline demo.
 - MAPPO owns rollout orchestration, visibility, retries, and stop policies.
 - Azure does not fan out one global deployment automatically; MAPPO updates each selected target.

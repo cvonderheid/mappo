@@ -57,8 +57,8 @@ Contract workflow:
 ```
 
 Contract artifact paths:
-- backend OpenAPI export: `/Users/cvonderheid/workspace/mappo/backend/target/openapi/openapi.json`
-- frontend generated schema: `/Users/cvonderheid/workspace/mappo/frontend/src/lib/api/generated/schema.ts`
+- backend OpenAPI export: `./backend/target/openapi/openapi.json`
+- frontend generated schema: `./frontend/src/lib/api/generated/schema.ts`
 
 Operational automation runs directly through `scripts/` and Pulumi:
 
@@ -66,7 +66,7 @@ Operational automation runs directly through `scripts/` and Pulumi:
 # release ingest from repo/file
 ./scripts/release_ingest_from_repo.sh \
   --api-base-url "$MAPPO_API_BASE_URL" \
-  --github-repo cvonderheid/mappo-managed-app \
+  --github-repo owner/release-catalog \
   --github-path releases/releases.manifest.json \
   --github-ref main
 
@@ -89,8 +89,8 @@ Run backend locally:
 ```
 
 Pulumi IaC projects are now Java-based:
-- `/Users/cvonderheid/workspace/mappo/infra/pulumi`
-- `/Users/cvonderheid/workspace/mappo/infra/demo-fleet`
+- `./infra/pulumi`
+- `./infra/demo-fleet`
 
 ## Backend Stack
 
@@ -101,22 +101,16 @@ Pulumi IaC projects are now Java-based:
 - Azure Java SDK (`azure-identity`, `azure-resourcemanager`)
 
 Backend module location:
-- `/Users/cvonderheid/workspace/mappo/backend`
+- `./backend`
 
 ## Database
 
 Flyway migrations are in:
-- `/Users/cvonderheid/workspace/mappo/backend/src/main/resources/db/migration`
+- `./backend/src/main/resources/db/migration`
 
 Environment variables:
-- `MAPPO_JDBC_DATABASE_URL` (preferred)
-- `MAPPO_DATABASE_URL` (legacy compatibility alias)
-- `MAPPO_DB_USER`
-- `MAPPO_DB_PASSWORD`
-- `MAPPO_MARKETPLACE_INGEST_TOKEN`
-- `MAPPO_AZURE_TENANT_ID`
-- `MAPPO_AZURE_CLIENT_ID`
-- `MAPPO_AZURE_CLIENT_SECRET`
+- Use `./mappo.env.example` as the consolidated template.
+- Copy it to `.data/mappo.env`, fill in real values, and source it before running local/demo scripts.
 
 ## API Surface (Java)
 

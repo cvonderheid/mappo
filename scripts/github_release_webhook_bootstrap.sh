@@ -9,7 +9,7 @@ GITHUB_ENV_FILE="${ROOT_DIR}/.data/mappo-github.env"
 RESOURCE_GROUP=""
 BACKEND_APP_NAME=""
 BACKEND_URL=""
-REPOSITORY="cvonderheid/mappo-managed-app"
+REPOSITORY="${MAPPO_DEMO_GITHUB_REPOSITORY:-}"
 EVENTS="push"
 WEBHOOK_SECRET=""
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
@@ -29,7 +29,7 @@ Options:
   --resource-group <name>      Backend Container App resource group
   --backend-app-name <name>    Backend Container App name
   --backend-url <url>          Backend public base URL
-  --repository <owner/name>    GitHub repository (default: cvonderheid/mappo-managed-app)
+  --repository <owner/name>    GitHub repository (or MAPPO_DEMO_GITHUB_REPOSITORY)
   --events <csv>               GitHub webhook events (default: push)
   --webhook-secret <secret>    Explicit webhook secret (default: generate if missing)
   --github-token <token>       GitHub token used to create/update the repository webhook
@@ -120,6 +120,14 @@ if [[ -f "${GITHUB_ENV_FILE}" ]]; then
   source "${GITHUB_ENV_FILE}"
 fi
 set +a
+
+if [[ -z "${REPOSITORY}" ]]; then
+  REPOSITORY="${MAPPO_DEMO_GITHUB_REPOSITORY:-}"
+fi
+if [[ -z "${REPOSITORY}" ]]; then
+  echo "github-release-webhook-bootstrap: --repository or MAPPO_DEMO_GITHUB_REPOSITORY is required." >&2
+  exit 2
+fi
 
 if [[ -z "${RESOURCE_GROUP}" ]]; then
   RESOURCE_GROUP="${MAPPO_RUNTIME_RESOURCE_GROUP:-}"

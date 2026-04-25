@@ -71,8 +71,8 @@ class TargetExecutionContextRepositoryIntegrationTests extends PostgresIntegrati
         Map<String, Object> event = new LinkedHashMap<>();
         event.put("eventId", "evt-ado-target-01");
         event.put("eventType", "subscription_purchased");
-        event.put("tenantId", "5476530d-fba1-4cd5-b2c0-fa118c5ff36e");
-        event.put("subscriptionId", "597f46c7-2ce0-440e-962d-453e486f159d");
+        event.put("tenantId", "00000000-0000-0000-0000-000000000200");
+        event.put("subscriptionId", "00000000-0000-0000-0000-000000000300");
         event.put("targetId", "ado-target-01");
         event.put("displayName", "ADO Target 01");
         event.put("projectId", BuiltinProjects.AZURE_APPSERVICE_ADO_PIPELINE);

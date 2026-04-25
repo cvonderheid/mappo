@@ -391,7 +391,7 @@ function azureDevOpsReleaseEventExample(): string {
           name: "release-readiness",
         },
         repository: {
-          name: "demo-app-service",
+          name: "workload-repo",
           refName: "refs/heads/main",
         },
       },

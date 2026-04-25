@@ -59,7 +59,7 @@ const DEMO_PROJECTS = [
     releaseFlow: "Publisher updates the GitHub managed-app manifest, then MAPPO checks for new releases.",
     deploymentFlow: "MAPPO deploys directly to each selected Azure target.",
     command: [
-      "cd /Users/cvonderheid/workspace/mappo-managed-app",
+      "cd ../mappo-release-catalog",
       "./scripts/create_release.mjs",
       "./scripts/publish_release.mjs --version <version> --storage-account <account> --acr-name <acr>",
       "Open MAPPO -> Releases -> Check for new releases",
@@ -74,9 +74,9 @@ const DEMO_PROJECTS = [
     releaseFlow: "A release branch PR merges to main, an ADO release-readiness pipeline succeeds, and its service hook creates the MAPPO release.",
     deploymentFlow: "MAPPO triggers the deployment pipeline; the pipeline owns Azure credentials and deploys to the selected App Service target.",
     command: [
-      "cd /Users/cvonderheid/workspace/mappo",
-      "./scripts/appservice_fleet_up.sh --stack appservice-demo --api-base-url https://api.mappopoc.com",
-      "./scripts/ado_appservice_release_pr.sh --organization https://dev.azure.com/pg123 --project demo-app-service --repository demo-app-service --version <version>",
+      "cd .",
+      "./scripts/appservice_fleet_up.sh --stack appservice-demo --api-base-url https://api.example.mappo.local",
+      "./scripts/ado_appservice_release_pr.sh --organization https://dev.azure.com/<org> --project <ado-project> --repository <ado-repository> --version <version>",
       "Open MAPPO -> Releases, then start deployment from the new ADO release",
     ].join("\n"),
   },

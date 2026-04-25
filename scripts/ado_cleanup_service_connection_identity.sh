@@ -29,7 +29,7 @@ Safely clean up Azure DevOps service-connection identity artifacts in this order
 By default this script is dry-run only. Pass --yes to execute.
 
 Options:
-  --organization <url|name>          ADO organization (e.g. https://dev.azure.com/pg123 or pg123)
+  --organization <url|name>          ADO organization (e.g. https://dev.azure.com/example-ado-org or example-ado-org)
   --project <name>                   ADO project name
   --service-connection-name <name>   Service connection name (default lookup key)
   --service-connection-id <id>       Service connection id (optional exact match)

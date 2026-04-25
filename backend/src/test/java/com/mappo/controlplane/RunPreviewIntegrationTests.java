@@ -56,7 +56,7 @@ class RunPreviewIntegrationTests extends PostgresIntegrationTestBase {
 
         Map<String, Object> releaseRequest = new LinkedHashMap<>();
         releaseRequest.put("projectId", BuiltinProjects.AZURE_MANAGED_APP_DEPLOYMENT_STACK);
-        releaseRequest.put("sourceRef", "github://cvonderheid/mappo-managed-app/releases/releases.manifest.json");
+        releaseRequest.put("sourceRef", "github://example-org/mappo-release-catalog/releases/releases.manifest.json");
         releaseRequest.put("sourceVersion", "2026.03.08.2");
         releaseRequest.put("sourceType", "deployment_stack");
         releaseRequest.put("sourceVersionRef", "https://storage.example.com/releases/2026.03.08.2/mainTemplate.json");

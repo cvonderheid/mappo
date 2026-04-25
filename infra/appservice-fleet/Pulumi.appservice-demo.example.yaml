@@ -1,0 +1,12 @@
+# Example only. Do not commit real tenant IDs or subscription IDs.
+config:
+  appserviceFleet:defaultLocation: eastus
+  appserviceFleet:targets:
+    - id: ado-target-01
+      tenantId: <tenant-id>
+      subscriptionId: <subscription-id>
+      targetGroup: canary
+      region: eastus
+      environment: prod
+      tier: gold
+      customerName: ADO Demo Customer A

@@ -20,10 +20,10 @@ public class TargetPageParameters extends PageQueryParameters {
     @Schema(description = "Filter by customer display name.", example = "Demo Customer A")
     private String customerName;
 
-    @Schema(description = "Filter by tenant identifier.", example = "abe468b2-18bb-4dd2-90b9-5b8982337eb7")
+    @Schema(description = "Filter by tenant identifier.", example = "00000000-0000-0000-0000-000000000500")
     private String tenantId;
 
-    @Schema(description = "Filter by subscription identifier.", example = "c0d51042-7d0a-41f7-b270-151e4c4ea263")
+    @Schema(description = "Filter by subscription identifier.", example = "00000000-0000-0000-0000-000000000100")
     private String subscriptionId;
 
     @Schema(description = "Filter by target ring/group.", example = "canary")

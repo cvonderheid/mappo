@@ -47,10 +47,10 @@ class AzureDevOpsReleaseWebhookIntegrationTests extends PostgresIntegrationTestB
                   "name": "2026.03.13.4",
                   "state": "completed",
                   "result": "succeeded",
-                  "url": "https://dev.azure.com/pg123/demo-app-service/_apis/pipelines/1/runs/320",
+                  "url": "https://dev.azure.com/example-ado-org/sample-app-service/_apis/pipelines/1/runs/320",
                   "_links": {
                     "web": {
-                      "href": "https://dev.azure.com/pg123/demo-app-service/_build/results?buildId=320&view=results"
+                      "href": "https://dev.azure.com/example-ado-org/sample-app-service/_build/results?buildId=320&view=results"
                     }
                   },
                   "resources": {
@@ -64,8 +64,8 @@ class AzureDevOpsReleaseWebhookIntegrationTests extends PostgresIntegrationTestB
               },
               "resourceContainers": {
                 "project": {
-                  "baseUrl": "https://dev.azure.com/pg123",
-                  "name": "demo-app-service"
+                  "baseUrl": "https://dev.azure.com/example-ado-org",
+                  "name": "sample-app-service"
                 }
               }
             }
@@ -88,14 +88,14 @@ class AzureDevOpsReleaseWebhookIntegrationTests extends PostgresIntegrationTestB
                 .queryParam("projectId", BuiltinProjects.AZURE_APPSERVICE_ADO_PIPELINE))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].sourceVersion").value("2026.03.13.4"))
-            .andExpect(jsonPath("$[0].sourceRef").value("ado://pg123/demo-app-service/pipelines/1"))
+            .andExpect(jsonPath("$[0].sourceRef").value("ado://example-ado-org/sample-app-service/pipelines/1"))
             .andExpect(jsonPath("$[0].sourceType").value("external_deployment_inputs"));
 
         mockMvc.perform(get("/api/v1/admin/releases/webhook-deliveries"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.items[0].externalDeliveryId").value("ado-delivery-001"))
             .andExpect(jsonPath("$.items[0].status").value("applied"))
-            .andExpect(jsonPath("$.items[0].repo").value("ado://pg123/demo-app-service"))
+            .andExpect(jsonPath("$.items[0].repo").value("ado://example-ado-org/sample-app-service"))
             .andExpect(jsonPath("$.items[0].ref").value("main"));
     }
 
@@ -124,8 +124,8 @@ class AzureDevOpsReleaseWebhookIntegrationTests extends PostgresIntegrationTestB
               },
               "resourceContainers": {
                 "project": {
-                  "baseUrl": "https://dev.azure.com/pg123",
-                  "name": "demo-app-service"
+                  "baseUrl": "https://dev.azure.com/example-ado-org",
+                  "name": "sample-app-service"
                 }
               }
             }

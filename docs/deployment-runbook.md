@@ -24,6 +24,20 @@ Current local runtime shape:
 - backend runs from the prebuilt local image
 - frontend runs in hot-reload mode
 
+## Environment and secrets
+The consolidated environment template is:
+- `./mappo.env.example`
+
+For local/demo work, copy it to `.data/mappo.env`, fill in real values, then source it:
+```bash
+cp mappo.env.example .data/mappo.env
+set -a
+source .data/mappo.env
+set +a
+```
+
+The older `.data/mappo-*.env` files may still exist during cleanup, but new handoff documentation should point developers to `.data/mappo.env` as the single source of truth.
+
 ## Publish artifacts only
 Use this when you want to publish runtime artifacts without mutating Azure.
 
@@ -63,6 +77,19 @@ The `azure` profile performs:
 - frontend/backend update
 - marketplace forwarder deployment
 
+MAPPO platform resources should live together in the runtime resource group:
+- managed Postgres from `infra/pulumi`
+- backend and frontend Container Apps
+- Container Apps environment, unless Azure quota forces reuse of an existing environment
+- migration Container App job
+- runtime ACR
+- Azure Managed Redis
+- MAPPO Azure Key Vault
+- marketplace forwarder Function App and its storage account
+
+Demo target resources remain separate and are owned by the demo fleet Pulumi stacks.
+The default platform resource group name is `rg-mappo-runtime-<stack>`. Override it with `MAPPO_RUNTIME_RESOURCE_GROUP`, `MAPPO_CONTROL_PLANE_RESOURCE_GROUP`, or Pulumi config `mappo:controlPlaneResourceGroupName` when needed.
+
 ## External system secrets
 For the hosted Azure runtime, external system secrets should live in MAPPO's Azure Key Vault.
 
@@ -95,15 +122,15 @@ Frontend type generation and verification:
 ```
 
 Important files:
-- OpenAPI: `/Users/cvonderheid/workspace/mappo/backend/target/openapi/openapi.json`
-- generated frontend schema: `/Users/cvonderheid/workspace/mappo/frontend/src/lib/api/generated/schema.ts`
+- OpenAPI: `./backend/target/openapi/openapi.json`
+- generated frontend schema: `./frontend/src/lib/api/generated/schema.ts`
 
 ## Publisher release flow
 The customer workload release catalog is managed in:
-- `/Users/cvonderheid/workspace/mappo-managed-app`
+- `../mappo-release-catalog`
 
 Typical operator/demo sequence:
-1. create/publish a new release in `mappo-managed-app`
+1. create/publish a new release in `mappo-release-catalog`
 2. push the repo changes
 3. in MAPPO, open the project's Releases page
 4. click `Check for new releases`

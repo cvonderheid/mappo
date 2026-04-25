@@ -110,10 +110,10 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
     private String createAdoRelease(String version) throws Exception {
         Map<String, Object> releaseRequest = new LinkedHashMap<>();
         releaseRequest.put("projectId", BuiltinProjects.AZURE_APPSERVICE_ADO_PIPELINE);
-        releaseRequest.put("sourceRef", "ado://pg123/demo-app-service/pipeline/1");
+        releaseRequest.put("sourceRef", "ado://example-ado-org/sample-app-service/pipeline/1");
         releaseRequest.put("sourceVersion", version);
         releaseRequest.put("sourceType", "external_deployment_inputs");
-        releaseRequest.put("sourceVersionRef", "ado://pg123/demo-app-service/releases/" + version);
+        releaseRequest.put("sourceVersionRef", "ado://example-ado-org/sample-app-service/releases/" + version);
         releaseRequest.put("deploymentScope", "resource_group");
         releaseRequest.put("parameterDefaults", Map.of(
             "appVersion", version,
@@ -148,8 +148,8 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("deploymentDriverConfig", Map.of(
             "pipelineSystem", "azure_devops",
-            "organization", "https://dev.azure.com/pg123",
-            "project", "demo-app-service",
+            "organization", "https://dev.azure.com/example-ado-org",
+            "project", "sample-app-service",
             "pipelineId", "1",
             "branch", "main",
             "supportsExternalExecutionHandle", true,
@@ -221,7 +221,7 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
 
         @Override
         public List<AzureDevOpsProjectDefinitionRecord> listProjects(String organization, String personalAccessToken) {
-            return List.of(new AzureDevOpsProjectDefinitionRecord("demo-app-service", "demo-app-service", organization + "/demo-app-service"));
+            return List.of(new AzureDevOpsProjectDefinitionRecord("sample-app-service", "sample-app-service", organization + "/sample-app-service"));
         }
 
         @Override
@@ -233,9 +233,9 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
                 "stub-" + runId,
                 "inProgress",
                 "",
-                "https://dev.azure.com/pg123/demo-app-service/_build/results?buildId=" + runId + "&view=results",
-                "https://dev.azure.com/pg123/demo-app-service/_build/results?buildId=" + runId + "&view=logs",
-                "https://dev.azure.com/pg123/demo-app-service/_apis/pipelines/1/runs/" + runId
+                "https://dev.azure.com/example-ado-org/sample-app-service/_build/results?buildId=" + runId + "&view=results",
+                "https://dev.azure.com/example-ado-org/sample-app-service/_build/results?buildId=" + runId + "&view=logs",
+                "https://dev.azure.com/example-ado-org/sample-app-service/_apis/pipelines/1/runs/" + runId
             );
         }
 
@@ -249,9 +249,9 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
                     "stub-" + runId,
                     "inProgress",
                     "",
-                    "https://dev.azure.com/pg123/demo-app-service/_build/results?buildId=" + runId + "&view=results",
-                    "https://dev.azure.com/pg123/demo-app-service/_build/results?buildId=" + runId + "&view=logs",
-                    "https://dev.azure.com/pg123/demo-app-service/_apis/pipelines/1/runs/" + runId
+                    "https://dev.azure.com/example-ado-org/sample-app-service/_build/results?buildId=" + runId + "&view=results",
+                    "https://dev.azure.com/example-ado-org/sample-app-service/_build/results?buildId=" + runId + "&view=logs",
+                    "https://dev.azure.com/example-ado-org/sample-app-service/_apis/pipelines/1/runs/" + runId
                 );
             }
             return new AzureDevOpsPipelineRunRecord(
@@ -259,9 +259,9 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
                 "stub-" + runId,
                 "completed",
                 "succeeded",
-                "https://dev.azure.com/pg123/demo-app-service/_build/results?buildId=" + runId + "&view=results",
-                "https://dev.azure.com/pg123/demo-app-service/_build/results?buildId=" + runId + "&view=logs",
-                "https://dev.azure.com/pg123/demo-app-service/_apis/pipelines/1/runs/" + runId
+                "https://dev.azure.com/example-ado-org/sample-app-service/_build/results?buildId=" + runId + "&view=results",
+                "https://dev.azure.com/example-ado-org/sample-app-service/_build/results?buildId=" + runId + "&view=logs",
+                "https://dev.azure.com/example-ado-org/sample-app-service/_apis/pipelines/1/runs/" + runId
             );
         }
 
@@ -278,10 +278,10 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
             return List.of(
                 new AzureDevOpsRepositoryDefinitionRecord(
                     "repo-1",
-                    "demo-app-service",
+                    "sample-app-service",
                     "refs/heads/main",
-                    "https://dev.azure.com/pg123/demo-app-service/_git/demo-app-service",
-                    "https://pg123@dev.azure.com/pg123/demo-app-service/_git/demo-app-service"
+                    "https://dev.azure.com/example-ado-org/sample-app-service/_git/sample-app-service",
+                    "https://example-ado-org@dev.azure.com/example-ado-org/sample-app-service/_git/sample-app-service"
                 )
             );
         }
@@ -293,8 +293,8 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
                     "1",
                     "Deploy App Service",
                     "\\",
-                    "https://dev.azure.com/pg123/demo-app-service/_build?definitionId=1",
-                    "https://dev.azure.com/pg123/demo-app-service/_apis/pipelines/1"
+                    "https://dev.azure.com/example-ado-org/sample-app-service/_build?definitionId=1",
+                    "https://dev.azure.com/example-ado-org/sample-app-service/_apis/pipelines/1"
                 )
             );
         }

@@ -65,7 +65,7 @@ class ReleaseManifestIngestIntegrationTests extends PostgresIntegrationTestBase 
         mockMvc.perform(get("/api/v1/releases"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.length()").value(2))
-            .andExpect(jsonPath("$[0].sourceRef").value("github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json"))
+            .andExpect(jsonPath("$[0].sourceRef").value("github://example-org/mappo-release-catalog/managed-app/mainTemplate.json"))
             .andExpect(jsonPath("$[*].projectId", containsInAnyOrder(
                 "azure-managed-app-deployment-stack",
                 "azure-managed-app-deployment-stack"
@@ -92,7 +92,7 @@ class ReleaseManifestIngestIntegrationTests extends PostgresIntegrationTestBase 
                 {
                   "releases": [
                     {
-                      "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
+                      "source_ref": "github://example-org/mappo-release-catalog/managed-app/mainTemplate.json",
                       "source_version": "2026.03.06.1",
                       "source_type": "deployment_stack",
                       "source_version_ref": "https://storage.example.com/releases/2026.03.06.1/mainTemplate.json",
@@ -102,7 +102,7 @@ class ReleaseManifestIngestIntegrationTests extends PostgresIntegrationTestBase 
                       }
                     },
                     {
-                      "source_ref": "github://cvonderheid/mappo-managed-app/managed-app/mainTemplate.json",
+                      "source_ref": "github://example-org/mappo-release-catalog/managed-app/mainTemplate.json",
                       "source_version": "2026.03.07.1",
                       "source_type": "deployment_stack",
                       "source_version_ref": "https://storage.example.com/releases/2026.03.07.1/mainTemplate.json",

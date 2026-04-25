@@ -50,7 +50,7 @@ final class DocsConsistencyCheckCommand {
             List.of(
                 "./mvnw -pl backend verify",
                 "./mvnw -pl frontend package",
-                "/Users/cvonderheid/workspace/mappo/backend/target/openapi/openapi.json"
+                "./backend/target/openapi/openapi.json"
             )
         );
     }

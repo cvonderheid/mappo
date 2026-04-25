@@ -14,6 +14,12 @@ record InfrastructureConfig(
             "MAPPO_CONTROL_PLANE_SUBSCRIPTION_ID"
         ).orElse(PulumiSupport.resolveDemoSubscriptionId(null));
         String controlPlaneLocation = config.get("controlPlaneLocation").orElse(defaultLocation);
+        String controlPlaneResourceGroupName = PulumiSupport.optionalConfigWithEnvFallback(
+            config,
+            "controlPlaneResourceGroupName",
+            "MAPPO_CONTROL_PLANE_RESOURCE_GROUP"
+        ).or(() -> PulumiSupport.normalizeNullable(System.getenv("MAPPO_RUNTIME_RESOURCE_GROUP")))
+            .orElse("rg-mappo-runtime-" + PulumiSupport.stackKey(stackName));
         Output<String> controlPlanePostgresAdminPassword = PulumiSupport.optionalSecretConfigWithEnvFallback(
             config,
             "controlPlanePostgresAdminPassword",
@@ -36,8 +42,9 @@ record InfrastructureConfig(
         ControlPlanePostgresConfig controlPlanePostgres = new ControlPlanePostgresConfig(
             PulumiSupport.booleanConfigWithEnvFallback(config, "controlPlanePostgresEnabled", "MAPPO_CONTROL_PLANE_DB_ENABLED", false),
             controlPlaneSubscriptionId,
+            PulumiSupport.stackScopedResourceSuffix(stackName, controlPlaneSubscriptionId),
             controlPlaneLocation,
-            config.get("controlPlaneResourceGroupPrefix").orElse("rg-mappo-control-plane"),
+            controlPlaneResourceGroupName,
             config.get("controlPlanePostgresServerNamePrefix").orElse("pg-mappo"),
             config.get("controlPlanePostgresDatabaseName").orElse("mappo"),
             PulumiSupport.normalizePostgresLogin(

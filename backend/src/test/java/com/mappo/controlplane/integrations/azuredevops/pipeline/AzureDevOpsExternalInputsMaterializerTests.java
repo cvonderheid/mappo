@@ -41,9 +41,9 @@ class AzureDevOpsExternalInputsMaterializerTests {
             ProjectDeploymentDriverType.pipeline_trigger,
             new PipelineTriggerDriverConfig(
                 "azure_devops",
-                "https://dev.azure.com/pg123",
-                "demo-app-service",
-                "demo-app-service",
+                "https://dev.azure.com/example-ado-org",
+                "sample-app-service",
+                "sample-app-service",
                 "1",
                 "main",
                 true,
@@ -58,10 +58,10 @@ class AzureDevOpsExternalInputsMaterializerTests {
         ReleaseRecord release = new ReleaseRecord(
             "rel-ado-001",
             "azure-appservice-ado-pipeline",
-            "ado://pg123/demo-app-service/pipeline/1",
+            "ado://example-ado-org/sample-app-service/pipeline/1",
             "2026.03.13.1",
             MappoReleaseSourceType.external_deployment_inputs,
-            "ado://pg123/demo-app-service/releases/2026.03.13.1",
+            "ado://example-ado-org/sample-app-service/releases/2026.03.13.1",
             MappoDeploymentScope.resource_group,
             new ReleaseExecutionSettingsRecord(MappoArmDeploymentMode.incremental, false, true),
             Map.of("softwareVersion", "2026.03.13.1", "dataModelVersion", "13"),
@@ -89,8 +89,8 @@ class AzureDevOpsExternalInputsMaterializerTests {
 
         AzureDevOpsPipelineInputs inputs = materializer.materialize(project, release, target);
 
-        assertThat(inputs.organization()).isEqualTo("https://dev.azure.com/pg123");
-        assertThat(inputs.project()).isEqualTo("demo-app-service");
+        assertThat(inputs.organization()).isEqualTo("https://dev.azure.com/example-ado-org");
+        assertThat(inputs.project()).isEqualTo("sample-app-service");
         assertThat(inputs.pipelineId()).isEqualTo("1");
         assertThat(inputs.personalAccessToken()).isEqualTo("");
         assertThat(inputs.templateParameters()).containsEntry("targetSubscriptionId", "11111111-1111-1111-1111-111111111111");

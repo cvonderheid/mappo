@@ -78,7 +78,7 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
         patchRequest.put("themeKey", "vectr-signal");
         patchRequest.put("deploymentDriverConfig", Map.of(
             "organization", "https://dev.azure.com/contoso",
-            "project", "demo-app-service",
+            "project", "sample-app-service",
             "pipelineId", "123"
         ));
 
@@ -225,15 +225,15 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                 .contentType(APPLICATION_JSON)
                 .content("""
                     {
-                      "organization": "https://dev.azure.com/pg123",
-                      "project": "demo-app-service",
+                      "organization": "https://dev.azure.com/example-ado-org",
+                      "project": "sample-app-service",
                       "providerConnectionId": "ado-default"
                     }
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.projectId").value("azure-appservice-ado-pipeline"))
-            .andExpect(jsonPath("$.organization").value("https://dev.azure.com/pg123"))
-            .andExpect(jsonPath("$.project").value("demo-app-service"))
+            .andExpect(jsonPath("$.organization").value("https://dev.azure.com/example-ado-org"))
+            .andExpect(jsonPath("$.project").value("sample-app-service"))
             .andExpect(jsonPath("$.pipelines[0].id").value("1"))
             .andExpect(jsonPath("$.pipelines[0].name").value("Deploy App Service"));
     }
@@ -244,17 +244,17 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                 .contentType(APPLICATION_JSON)
                 .content("""
                     {
-                      "organization": "https://dev.azure.com/pg123",
-                      "project": "demo-app-service",
+                      "organization": "https://dev.azure.com/example-ado-org",
+                      "project": "sample-app-service",
                       "providerConnectionId": "ado-default"
                     }
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.projectId").value("azure-appservice-ado-pipeline"))
-            .andExpect(jsonPath("$.organization").value("https://dev.azure.com/pg123"))
-            .andExpect(jsonPath("$.project").value("demo-app-service"))
+            .andExpect(jsonPath("$.organization").value("https://dev.azure.com/example-ado-org"))
+            .andExpect(jsonPath("$.project").value("sample-app-service"))
             .andExpect(jsonPath("$.repositories[0].id").value("repo-1"))
-            .andExpect(jsonPath("$.repositories[0].name").value("demo-app-service"));
+            .andExpect(jsonPath("$.repositories[0].name").value("sample-app-service"));
     }
 
     @Test
@@ -263,19 +263,19 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                 .contentType(APPLICATION_JSON)
                 .content("""
                     {
-                      "organization": "https://dev.azure.com/pg123",
-                      "project": "demo-app-service",
+                      "organization": "https://dev.azure.com/example-ado-org",
+                      "project": "sample-app-service",
                       "providerConnectionId": "ado-default",
                       "repositoryId": "repo-1",
-                      "repository": "demo-app-service"
+                      "repository": "sample-app-service"
                     }
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.projectId").value("azure-appservice-ado-pipeline"))
-            .andExpect(jsonPath("$.organization").value("https://dev.azure.com/pg123"))
-            .andExpect(jsonPath("$.project").value("demo-app-service"))
+            .andExpect(jsonPath("$.organization").value("https://dev.azure.com/example-ado-org"))
+            .andExpect(jsonPath("$.project").value("sample-app-service"))
             .andExpect(jsonPath("$.repositoryId").value("repo-1"))
-            .andExpect(jsonPath("$.repository").value("demo-app-service"))
+            .andExpect(jsonPath("$.repository").value("sample-app-service"))
             .andExpect(jsonPath("$.branches[0].name").value("main"))
             .andExpect(jsonPath("$.branches[0].refName").value("refs/heads/main"));
     }
@@ -286,13 +286,13 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                 .contentType(APPLICATION_JSON)
                 .content("""
                     {
-                      "organizationUrl": "https://pg123.visualstudio.com/demo-app-service/_git/demo-app-service",
+                      "organizationUrl": "https://example-ado-org.visualstudio.com/sample-app-service/_git/sample-app-service",
                       "personalAccessTokenRef": "mappo.azure-devops.personal-access-token"
                     }
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value("ado-default"))
-            .andExpect(jsonPath("$.organizationUrl").value("https://pg123.visualstudio.com"))
+            .andExpect(jsonPath("$.organizationUrl").value("https://example-ado-org.visualstudio.com"))
             .andExpect(jsonPath("$.personalAccessTokenRef").value("mappo.azure-devops.personal-access-token"));
     }
 
@@ -302,13 +302,13 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                 .contentType(APPLICATION_JSON)
                 .content("""
                     {
-                      "organizationUrl": "https://pg123.visualstudio.com/demo-app-service/_git/demo-app-service",
+                      "organizationUrl": "https://example-ado-org.visualstudio.com/sample-app-service/_git/sample-app-service",
                       "personalAccessTokenRef": "mappo.azure-devops.personal-access-token"
                     }
                     """))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.organizationUrl").value("https://pg123.visualstudio.com"))
-            .andExpect(jsonPath("$.projects[0].name").value("demo-app-service"));
+            .andExpect(jsonPath("$.organizationUrl").value("https://example-ado-org.visualstudio.com"))
+            .andExpect(jsonPath("$.projects[0].name").value("sample-app-service"));
     }
 
     @TestConfiguration
@@ -325,9 +325,9 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                 ) {
                     return List.of(
                         new AzureDevOpsProjectDefinitionRecord(
-                            "demo-app-service",
-                            "demo-app-service",
-                            organization + "/demo-app-service"
+                            "sample-app-service",
+                            "sample-app-service",
+                            organization + "/sample-app-service"
                         ),
                         new AzureDevOpsProjectDefinitionRecord(
                             "shared-platform",
@@ -364,17 +364,17 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                     return List.of(
                         new AzureDevOpsRepositoryDefinitionRecord(
                             "repo-1",
-                            "demo-app-service",
+                            "sample-app-service",
                             "refs/heads/main",
-                            "https://dev.azure.com/pg123/demo-app-service/_git/demo-app-service",
-                            "https://pg123@dev.azure.com/pg123/demo-app-service/_git/demo-app-service"
+                            "https://dev.azure.com/example-ado-org/sample-app-service/_git/sample-app-service",
+                            "https://example-ado-org@dev.azure.com/example-ado-org/sample-app-service/_git/sample-app-service"
                         ),
                         new AzureDevOpsRepositoryDefinitionRecord(
                             "repo-2",
                             "shared-library",
                             "refs/heads/main",
-                            "https://dev.azure.com/pg123/demo-app-service/_git/shared-library",
-                            "https://pg123@dev.azure.com/pg123/demo-app-service/_git/shared-library"
+                            "https://dev.azure.com/example-ado-org/sample-app-service/_git/shared-library",
+                            "https://example-ado-org@dev.azure.com/example-ado-org/sample-app-service/_git/shared-library"
                         )
                     );
                 }
@@ -386,15 +386,15 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                             "1",
                             "Deploy App Service",
                             "\\",
-                            "https://dev.azure.com/pg123/demo-app-service/_build?definitionId=1",
-                            "https://dev.azure.com/pg123/demo-app-service/_apis/pipelines/1"
+                            "https://dev.azure.com/example-ado-org/sample-app-service/_build?definitionId=1",
+                            "https://dev.azure.com/example-ado-org/sample-app-service/_apis/pipelines/1"
                         ),
                         new AzureDevOpsPipelineDefinitionRecord(
                             "2",
                             "Smoke Test",
                             "\\",
-                            "https://dev.azure.com/pg123/demo-app-service/_build?definitionId=2",
-                            "https://dev.azure.com/pg123/demo-app-service/_apis/pipelines/2"
+                            "https://dev.azure.com/example-ado-org/sample-app-service/_build?definitionId=2",
+                            "https://dev.azure.com/example-ado-org/sample-app-service/_apis/pipelines/2"
                         )
                     );
                 }

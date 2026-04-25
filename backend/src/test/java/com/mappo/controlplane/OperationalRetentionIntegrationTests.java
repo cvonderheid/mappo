@@ -88,7 +88,7 @@ class OperationalRetentionIntegrationTests extends PostgresIntegrationTestBase {
             """
             INSERT INTO release_webhook_deliveries (
               id, external_delivery_id, event_type, repo, ref, manifest_path, status, message, received_at
-            ) VALUES (?, ?, 'push', 'cvonderheid/mappo-managed-app', 'main', 'releases/releases.manifest.json', 'applied', ?, ?)
+            ) VALUES (?, ?, 'push', 'example-org/mappo-release-catalog', 'main', 'releases/releases.manifest.json', 'applied', ?, ?)
             """,
             "delivery-old",
             "delivery-old",
@@ -99,7 +99,7 @@ class OperationalRetentionIntegrationTests extends PostgresIntegrationTestBase {
             """
             INSERT INTO release_webhook_deliveries (
               id, external_delivery_id, event_type, repo, ref, manifest_path, status, message, received_at
-            ) VALUES (?, ?, 'push', 'cvonderheid/mappo-managed-app', 'main', 'releases/releases.manifest.json', 'skipped', ?, ?)
+            ) VALUES (?, ?, 'push', 'example-org/mappo-release-catalog', 'main', 'releases/releases.manifest.json', 'skipped', ?, ?)
             """,
             "delivery-fresh",
             "delivery-fresh",

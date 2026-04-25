@@ -16,7 +16,7 @@ public record ReleaseIngestEndpointRecord(
     boolean enabled,
     @Schema(description = "Secret reference used to verify inbound webhook deliveries.", example = "mappo.managed-app-release.webhook-secret")
     String secretRef,
-    @Schema(description = "Optional provider repository filter.", example = "cvonderheid/mappo-managed-app")
+    @Schema(description = "Optional provider repository filter.", example = "owner/release-catalog")
     String repoFilter,
     @Schema(description = "Optional branch filter.", example = "main")
     String branchFilter,

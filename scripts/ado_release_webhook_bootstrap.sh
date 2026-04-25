@@ -6,8 +6,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AZURE_ENV_FILE="${ROOT_DIR}/.data/mappo-azure.env"
 RUNTIME_ENV_FILE="${ROOT_DIR}/.data/mappo-runtime.env"
 ADO_ENV_FILE="${ROOT_DIR}/.data/mappo-ado.env"
-ORGANIZATION="https://dev.azure.com/pg123"
-PROJECT="demo-app-service"
+ORGANIZATION="${MAPPO_DEMO_ADO_ORGANIZATION:-}"
+PROJECT="${MAPPO_DEMO_ADO_PROJECT:-}"
 PIPELINE_ID=""
 MAPPO_API_BASE_URL="${MAPPO_API_BASE_URL:-}"
 ENDPOINT_ID="ado-pipeline-default"
@@ -30,8 +30,8 @@ Options:
   --azure-env-file <path>       Azure env file (default: .data/mappo-azure.env)
   --runtime-env-file <path>     Runtime env file (default: .data/mappo-runtime.env)
   --ado-env-file <path>         Azure DevOps env file (default: .data/mappo-ado.env)
-  --organization <url|name>     Azure DevOps organization (default: https://dev.azure.com/pg123)
-  --project <name>              Azure DevOps project (default: demo-app-service)
+  --organization <url|name>     Azure DevOps organization (or MAPPO_DEMO_ADO_ORGANIZATION)
+  --project <name>              Azure DevOps project (or MAPPO_DEMO_ADO_PROJECT)
   --pipeline-id <id>            ADO release-readiness pipeline ID
   --mappo-api-base-url <url>    MAPPO API base URL (default: runtime env)
   --endpoint-id <id>            MAPPO release source ID (default: ado-pipeline-default)
@@ -173,10 +173,20 @@ fi
 if [[ -z "${WEBHOOK_SECRET}" ]]; then
   WEBHOOK_SECRET="${MAPPO_AZURE_DEVOPS_WEBHOOK_SECRET:-}"
 fi
+if [[ -z "${ORGANIZATION}" ]]; then
+  ORGANIZATION="${MAPPO_DEMO_ADO_ORGANIZATION:-}"
+fi
+if [[ -z "${PROJECT}" ]]; then
+  PROJECT="${MAPPO_DEMO_ADO_PROJECT:-}"
+fi
 if [[ -z "${WEBHOOK_SECRET}" ]]; then
   WEBHOOK_SECRET="$(openssl rand -hex 32)"
 fi
 
+if [[ -z "${ORGANIZATION}" || -z "${PROJECT}" ]]; then
+  echo "ado-release-webhook-bootstrap: --organization and --project are required unless MAPPO_DEMO_ADO_* env vars are set." >&2
+  exit 2
+fi
 if [[ -z "${RESOURCE_GROUP}" || -z "${BACKEND_APP_NAME}" || -z "${MAPPO_API_BASE_URL}" ]]; then
   echo "ado-release-webhook-bootstrap: runtime env is missing backend app/resource group/API URL." >&2
   exit 1

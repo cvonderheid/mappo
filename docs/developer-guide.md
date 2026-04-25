@@ -1,13 +1,13 @@
 # MAPPO Developer Guide
 
 ## Repo layout
-- `/Users/cvonderheid/workspace/mappo/backend`: Spring Boot API, orchestration, persistence, Azure integrations
-- `/Users/cvonderheid/workspace/mappo/frontend`: React UI
-- `/Users/cvonderheid/workspace/mappo/tooling`: repo checks and workflow helpers
-- `/Users/cvonderheid/workspace/mappo/infra/pulumi`: control-plane IaC
-- `/Users/cvonderheid/workspace/mappo/infra/demo-fleet`: demo target fleet IaC
-- `/Users/cvonderheid/workspace/mappo/infra/appservice-fleet`: app service target fleet IaC
-- `/Users/cvonderheid/workspace/mappo/delivery`: Maven-driven rollout orchestration for the hosted runtime
+- `./backend`: Spring Boot API, orchestration, persistence, Azure integrations
+- `./frontend`: React UI
+- `./tooling`: repo checks and workflow helpers
+- `./infra/pulumi`: control-plane IaC
+- `./infra/demo-fleet`: demo target fleet IaC
+- `./infra/appservice-fleet`: app service target fleet IaC
+- `./delivery`: Maven-driven rollout orchestration for the hosted runtime
 
 ## Development rules
 - Backend OpenAPI is authoritative.
@@ -32,8 +32,8 @@ Targeted checks:
 ```
 
 ## OpenAPI and frontend types
-- OpenAPI export: `/Users/cvonderheid/workspace/mappo/backend/target/openapi/openapi.json`
-- Frontend generated schema: `/Users/cvonderheid/workspace/mappo/frontend/src/lib/api/generated/schema.ts`
+- OpenAPI export: `./backend/target/openapi/openapi.json`
+- Frontend generated schema: `./frontend/src/lib/api/generated/schema.ts`
 - Frontend client generation uses `openapi-typescript`
 
 ## Debugging discipline

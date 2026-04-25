@@ -8,7 +8,7 @@ This module is Sprint 1 infrastructure for the second real MAPPO project:
 - project: `azure-appservice-ado-pipeline`
 - deployment driver: `pipeline_trigger`
 - platform: Azure App Service
-- ADO workload repo: `/Users/cvonderheid/workspace/demo-app-service`
+- ADO workload repo: `../sample-app-service`
 
 It provisions one Linux App Service target per configured subscription and exports a
 MAPPO-compatible target inventory JSON payload.
@@ -24,11 +24,11 @@ For each configured target, the stack creates:
 
 The current sample app is packaged from:
 
-- `/Users/cvonderheid/workspace/mappo/delivery/appservice-demo-app`
+- `./delivery/appservice-demo-app`
 
 The Azure DevOps deployment and release-readiness pipelines live in:
 
-- `/Users/cvonderheid/workspace/demo-app-service`
+- `../sample-app-service`
 
 After the release-readiness pipeline exists in Azure DevOps, configure its MAPPO webhook with:
 
@@ -60,7 +60,7 @@ Each target entry includes:
 
 That inventory is meant to feed MAPPO target import through:
 
-- `/Users/cvonderheid/workspace/mappo/scripts/appservice_fleet_import_targets.sh`
+- `./scripts/appservice_fleet_import_targets.sh`
 
 ## Recommended workflow
 
@@ -69,8 +69,8 @@ That inventory is meant to feed MAPPO target import through:
 ```bash
 ./scripts/appservice_fleet_configure.sh \
   --stack appservice-demo \
-  --first-subscription-id 1adaaa48-139a-477b-a8c8-0e6289d6d199 \
-  --second-subscription-id 597f46c7-2ce0-440e-962d-453e486f159d
+  --first-subscription-id 00000000-0000-0000-0000-000000000400 \
+  --second-subscription-id 00000000-0000-0000-0000-000000000300
 ```
 
 2. Provision the targets, deploy the sample app, and register them in MAPPO:
@@ -78,14 +78,14 @@ That inventory is meant to feed MAPPO target import through:
 ```bash
 ./scripts/appservice_fleet_up.sh \
   --stack appservice-demo \
-  --api-base-url https://api.mappopoc.com
+  --api-base-url https://api.example.mappo.local
 ```
 
 2.5 Configure the ADO project runtime settings in MAPPO (no seeded demo defaults):
 
 ```bash
 ./scripts/project_configure_ado.sh \
-  --api-base-url https://api.mappopoc.com \
+  --api-base-url https://api.example.mappo.local \
   --ado-organization https://dev.azure.com/<org> \
   --ado-project <project> \
   --ado-pipeline-id <pipeline-id>
@@ -95,7 +95,7 @@ That inventory is meant to feed MAPPO target import through:
 
 ```bash
 ./scripts/release_source_configure_ado.sh \
-  --api-base-url https://api.mappopoc.com \
+  --api-base-url https://api.example.mappo.local \
   --pipeline-id <release-readiness-pipeline-id>
 ```
 
@@ -103,19 +103,19 @@ That inventory is meant to feed MAPPO target import through:
 
 ```bash
 ./scripts/ado_release_hook_configure.sh \
-  --organization https://dev.azure.com/pg123 \
-  --project demo-app-service \
+  --organization https://dev.azure.com/<org> \
+  --project <ado-project> \
   --pipeline-id <release-readiness-pipeline-id> \
-  --mappo-api-base-url https://api.mappopoc.com
+  --mappo-api-base-url https://api.example.mappo.local
 ```
 
 3. Generate an ADO demo release by opening and completing a release PR:
 
 ```bash
 ./scripts/ado_appservice_release_pr.sh \
-  --organization https://dev.azure.com/pg123 \
-  --project demo-app-service \
-  --repository demo-app-service \
+  --organization https://dev.azure.com/<org> \
+  --project <ado-project> \
+  --repository <ado-repository> \
   --version 2026.04.12.1
 ```
 
@@ -124,7 +124,7 @@ That inventory is meant to feed MAPPO target import through:
 ```bash
 ./scripts/appservice_fleet_down.sh \
   --stack appservice-demo \
-  --api-base-url https://api.mappopoc.com
+  --api-base-url https://api.example.mappo.local
 ```
 
 ## Maven helpers

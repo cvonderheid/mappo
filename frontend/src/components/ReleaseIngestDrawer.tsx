@@ -19,7 +19,7 @@ import type {
   ReleaseManifestIngestResponse,
 } from "@/lib/types";
 
-const DEFAULT_REPO = "cvonderheid/mappo-managed-app";
+const DEFAULT_REPO = "";
 const DEFAULT_PATH = "releases/releases.manifest.json";
 const DEFAULT_REF = "main";
 

@@ -1129,7 +1129,7 @@ export default function ProviderConnectionsConfigPage({
                     onChange={(event) =>
                       setDraft((current) => ({ ...current, organizationUrl: event.target.value }))
                     }
-                    placeholder="https://dev.azure.com/pg123/demo-app-service or https://pg123.visualstudio.com/demo-app-service/_git/demo-app-service"
+                    placeholder="https://dev.azure.com/<org>/<project> or https://<org>.visualstudio.com/<project>/_git/<repo>"
                   />
                   <p className="text-xs text-muted-foreground">
                     MAPPO derives the Azure DevOps account from this URL, verifies the access token against that account, and loads the Azure DevOps projects operators can choose later in Project → Config.
@@ -1187,7 +1187,7 @@ export default function ProviderConnectionsConfigPage({
                   ) : null}
                   {draft.personalAccessTokenMode === "secret_reference" ? (
                     <p className="text-xs text-muted-foreground">
-                      Use a named secret from <span className="font-medium text-foreground">Admin → Secret References</span> so operators do not have to type raw Key Vault secret names here.
+                      Use a named secret from <span className="font-medium text-foreground">Admin → Secret Inventory</span> so operators do not have to type raw Key Vault secret names here.
                     </p>
                   ) : null}
                 </div>
@@ -1195,7 +1195,7 @@ export default function ProviderConnectionsConfigPage({
                   <div className="space-y-1">
                     <div className="flex items-center gap-1">
                       <Label htmlFor="provider-connection-pat-secret-reference">Secret reference</Label>
-                      <FieldHelpTooltip content="Named Azure DevOps deployment API credential from Admin → Secret References. MAPPO still resolves the real secret value server-side." />
+                      <FieldHelpTooltip content="Named Azure DevOps deployment API credential from Admin → Secret Inventory. MAPPO still resolves the real secret value server-side." />
                     </div>
                     <Select
                       value={normalize(draft.personalAccessTokenSecretReferenceId) === "" ? "__none" : draft.personalAccessTokenSecretReferenceId}
@@ -1223,7 +1223,7 @@ export default function ProviderConnectionsConfigPage({
                     </Select>
                     {deploymentApiSecretReferences.length === 0 ? (
                       <p className="text-xs text-muted-foreground">
-                        No Azure DevOps API secret references exist yet. Create one in <span className="font-medium text-foreground">Admin → Secret References</span>.
+                        No Azure DevOps API secret references exist yet. Create one in <span className="font-medium text-foreground">Admin → Secret Inventory</span>.
                       </p>
                     ) : null}
                   </div>
@@ -1256,10 +1256,10 @@ export default function ProviderConnectionsConfigPage({
                       onChange={(event) =>
                         setDraft((current) => ({ ...current, personalAccessTokenKeyVaultSecret: event.target.value }))
                       }
-                      placeholder="mappo-ado-pg123-pat"
+                      placeholder="mappo-ado-org-pat"
                     />
                     <p className="text-xs text-muted-foreground">
-                      MAPPO will resolve this as <span className="font-mono text-foreground">kv:{normalize(draft.personalAccessTokenKeyVaultSecret) || "secret-name"}</span> using the Azure Key Vault configured on the backend runtime. To keep this linked to Admin → Secret References, choose <span className="font-medium text-foreground">Use secret reference</span> above instead.
+                      MAPPO will resolve this as <span className="font-mono text-foreground">kv:{normalize(draft.personalAccessTokenKeyVaultSecret) || "secret-name"}</span> using the Azure Key Vault configured on the backend runtime. To keep this linked to Admin → Secret Inventory, choose <span className="font-medium text-foreground">Use secret reference</span> above instead.
                     </p>
                   </div>
                 ) : null}

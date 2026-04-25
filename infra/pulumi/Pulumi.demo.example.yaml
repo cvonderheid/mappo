@@ -1,0 +1,14 @@
+# Example only. Do not commit real stack configuration or encrypted Pulumi secrets.
+# Create a real local stack with:
+#   cd infra/pulumi
+#   pulumi stack init <stack>
+#   pulumi config set mappo:defaultLocation eastus
+#   pulumi config set mappo:controlPlaneSubscriptionId <subscription-id>
+#   pulumi config set mappo:controlPlaneLocation <azure-region>
+#   pulumi config set mappo:controlPlanePostgresEnabled true
+#   pulumi config set --secret mappo:controlPlanePostgresAdminPassword <password>
+#   pulumi config set --secret mappo:managedAppReleaseWebhookSecret <secret>
+config:
+  mappo:defaultLocation: eastus
+  mappo:controlPlaneLocation: centralus
+  mappo:controlPlanePostgresEnabled: "true"

@@ -3,9 +3,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ADO_ENV_FILE="${ROOT_DIR}/.data/mappo-ado.env"
-ORGANIZATION="https://dev.azure.com/pg123"
-PROJECT="demo-app-service"
-REPOSITORY="demo-app-service"
+ORGANIZATION="${MAPPO_DEMO_ADO_ORGANIZATION:-}"
+PROJECT="${MAPPO_DEMO_ADO_PROJECT:-}"
+REPOSITORY="${MAPPO_DEMO_ADO_REPOSITORY:-}"
 TARGET_BRANCH="main"
 VERSION="$(date -u +%Y.%m.%d.%H%M)"
 DATA_MODEL_VERSION="1"
@@ -22,9 +22,9 @@ Create a release branch in the Azure App Service demo repo, update release metad
 open a PR to main, and optionally complete it so the ADO release-readiness pipeline fires.
 
 Options:
-  --organization <url|name>      Azure DevOps organization (default: https://dev.azure.com/pg123)
-  --project <name>               Azure DevOps project (default: demo-app-service)
-  --repository <name|id>         Azure DevOps repository (default: demo-app-service)
+  --organization <url|name>      Azure DevOps organization (or MAPPO_DEMO_ADO_ORGANIZATION)
+  --project <name>               Azure DevOps project (or MAPPO_DEMO_ADO_PROJECT)
+  --repository <name|id>         Azure DevOps repository (or MAPPO_DEMO_ADO_REPOSITORY)
   --target-branch <name>         Merge target branch (default: main)
   --version <value>              Demo release version (default: UTC timestamp)
   --data-model-version <value>   Demo data model version (default: 1)
@@ -142,8 +142,15 @@ if [[ -f "${ADO_ENV_FILE}" ]]; then
   # shellcheck disable=SC1090
   source "${ADO_ENV_FILE}"
   ADO_PAT="${ADO_PAT:-${AZURE_DEVOPS_EXT_PAT:-}}"
+  ORGANIZATION="${ORGANIZATION:-${MAPPO_DEMO_ADO_ORGANIZATION:-}}"
+  PROJECT="${PROJECT:-${MAPPO_DEMO_ADO_PROJECT:-}}"
+  REPOSITORY="${REPOSITORY:-${MAPPO_DEMO_ADO_REPOSITORY:-}}"
 fi
 
+if [[ -z "${ORGANIZATION}" || -z "${PROJECT}" || -z "${REPOSITORY}" ]]; then
+  echo "ado-appservice-release-pr: --organization, --project, and --repository are required unless MAPPO_DEMO_ADO_* env vars are set." >&2
+  exit 2
+fi
 ORGANIZATION="$(normalize_org "${ORGANIZATION}")"
 BRANCH_NAME="release/mappo-${VERSION//[^A-Za-z0-9._-]/-}"
 if [[ "${RELEASE_FILE}" != /* ]]; then

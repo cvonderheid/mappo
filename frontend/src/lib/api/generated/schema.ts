@@ -786,7 +786,7 @@ export interface components {
             mode?: "mappo_default" | "environment_variable" | "key_vault_secret";
             /**
              * @description Normalized backend secret reference MAPPO resolves at runtime.
-             * @example kv:mappo-ado-pg123-pat
+             * @example kv:mappo-ado-org-pat
              */
             backendRef?: string;
             /** @description Deployment connections currently using this secret reference. */
@@ -1047,7 +1047,7 @@ export interface components {
             secretRef?: string;
             /**
              * @description Optional provider repository filter.
-             * @example cvonderheid/mappo-managed-app
+             * @example owner/release-catalog
              */
             repoFilter?: string;
             /**
@@ -1144,7 +1144,7 @@ export interface components {
             enabled?: boolean;
             /**
              * @description Verified Azure DevOps account URL used for project discovery.
-             * @example https://dev.azure.com/pg123
+             * @example https://dev.azure.com/example-ado-org
              */
             organizationUrl?: string;
             /**
@@ -2864,12 +2864,12 @@ export interface operations {
                 customerName?: string;
                 /**
                  * @description Filter by tenant identifier.
-                 * @example abe468b2-18bb-4dd2-90b9-5b8982337eb7
+                 * @example 00000000-0000-0000-0000-000000000500
                  */
                 tenantId?: string;
                 /**
                  * @description Filter by subscription identifier.
-                 * @example c0d51042-7d0a-41f7-b270-151e4c4ea263
+                 * @example 00000000-0000-0000-0000-000000000100
                  */
                 subscriptionId?: string;
                 /**

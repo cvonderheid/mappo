@@ -12,6 +12,7 @@ BACKEND_APP_NAME=""
 FRONTEND_APP_NAME=""
 ACR_NAME=""
 IMAGE_TAG="$(date -u +"%Y%m%d%H%M%S")"
+ENV_FILE="${ROOT_DIR}/.data/mappo.env"
 AZURE_ENV_FILE="${ROOT_DIR}/.data/mappo-azure.env"
 DB_ENV_FILE="${ROOT_DIR}/.data/mappo-db.env"
 PUBLISHER_ACR_ENV_FILE="${ROOT_DIR}/.data/mappo-publisher-acr.env"
@@ -49,8 +50,9 @@ Options:
   --frontend-app-name <name>   Frontend Container App name (default: ca-mappo-ui-<stack>)
   --acr-name <name>            ACR name (default: reuse first ACR in runtime RG; otherwise deterministic from stack+subscription)
   --image-tag <tag>            Image tag (default: UTC timestamp)
-  --azure-env-file <path>      Azure env file (default: .data/mappo-azure.env)
-  --db-env-file <path>         DB env file (default: .data/mappo-db.env)
+  --env-file <path>            Consolidated env file (default: .data/mappo.env)
+  --azure-env-file <path>      Legacy Azure env file fallback (default: .data/mappo-azure.env)
+  --db-env-file <path>         Legacy DB env file fallback (default: .data/mappo-db.env)
   --publisher-acr-env-file <path>
                                Optional publisher ACR env file (default: .data/mappo-publisher-acr.env)
   --github-env-file <path>     Optional GitHub/webhook env file (default: .data/mappo-github.env)
@@ -106,6 +108,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --image-tag)
       IMAGE_TAG="${2:-}"
+      shift 2
+      ;;
+    --env-file)
+      ENV_FILE="${2:-}"
       shift 2
       ;;
     --azure-env-file)
@@ -225,14 +231,6 @@ resolve_containerapp_public_host() {
   printf '%s\n' "${fallback_fqdn}"
 }
 
-if [[ ! -f "${AZURE_ENV_FILE}" ]]; then
-  echo "runtime-aca-deploy: missing Azure env file: ${AZURE_ENV_FILE}" >&2
-  exit 1
-fi
-if [[ ! -f "${DB_ENV_FILE}" ]]; then
-  echo "runtime-aca-deploy: missing DB env file: ${DB_ENV_FILE}" >&2
-  exit 1
-fi
 if ! command -v az >/dev/null 2>&1; then
   echo "runtime-aca-deploy: Azure CLI is required." >&2
   exit 1
@@ -243,8 +241,20 @@ if ! az account show --only-show-errors >/dev/null 2>&1; then
 fi
 
 set -a
-source "${AZURE_ENV_FILE}"
-source "${DB_ENV_FILE}"
+if [[ -f "${ENV_FILE}" ]]; then
+  source "${ENV_FILE}"
+else
+  if [[ ! -f "${AZURE_ENV_FILE}" ]]; then
+    echo "runtime-aca-deploy: missing consolidated env file (${ENV_FILE}) and legacy Azure env file (${AZURE_ENV_FILE})." >&2
+    exit 1
+  fi
+  if [[ ! -f "${DB_ENV_FILE}" ]]; then
+    echo "runtime-aca-deploy: missing consolidated env file (${ENV_FILE}) and legacy DB env file (${DB_ENV_FILE})." >&2
+    exit 1
+  fi
+  source "${AZURE_ENV_FILE}"
+  source "${DB_ENV_FILE}"
+fi
 if [[ -f "${PUBLISHER_ACR_ENV_FILE}" ]]; then
   source "${PUBLISHER_ACR_ENV_FILE}"
 fi
@@ -311,6 +321,8 @@ fi
 if [[ -z "${FRONTEND_APP_NAME}" ]]; then
   FRONTEND_APP_NAME="ca-mappo-ui-${stack_token}"
 fi
+BACKEND_APP_NAME="$(printf "%s" "${BACKEND_APP_NAME}" | tr "[:upper:]" "[:lower:]" | cut -c1-32 | sed -E 's/-+$//')"
+FRONTEND_APP_NAME="$(printf "%s" "${FRONTEND_APP_NAME}" | tr "[:upper:]" "[:lower:]" | cut -c1-32 | sed -E 's/-+$//')"
 if [[ -z "${MIGRATION_JOB_NAME}" ]]; then
   MIGRATION_JOB_NAME="$(printf "job-mappo-db-%s" "${stack_token}" | cut -c1-32 | sed -E 's/-+$//')"
 fi

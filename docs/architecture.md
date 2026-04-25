@@ -73,10 +73,10 @@ Current implementation:
 - Control-plane data services are provisioned by Pulumi.
 - Runtime app deployment is driven by Maven + Azure CLI/Container Apps scripts under the `delivery` lifecycle.
 - Target fleets are provisioned separately from the MAPPO runtime.
-- The workload release catalog lives outside this repo in `/Users/cvonderheid/workspace/mappo-managed-app`.
+- The workload release catalog lives outside this repo in `../mappo-release-catalog`.
 
 ## Contracts that matter
-- Backend OpenAPI is authoritative: `/Users/cvonderheid/workspace/mappo/backend/target/openapi/openapi.json`
+- Backend OpenAPI is authoritative: `./backend/target/openapi/openapi.json`
 - Frontend generated types come from that OpenAPI artifact.
 - Publisher release manifests should describe release artifacts, not MAPPO-internal project routing.
 

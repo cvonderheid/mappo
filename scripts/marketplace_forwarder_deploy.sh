@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STACK="${PULUMI_STACK:-demo}"
 RESOURCE_GROUP=""
 LOCATION="eastus"
+LOCATION_EXPLICIT="false"
 FUNCTION_APP_NAME=""
 STORAGE_ACCOUNT_NAME=""
 RUNTIME="java"
@@ -26,8 +27,8 @@ Provision and deploy the MAPPO Marketplace Forwarder Azure Function App.
 
 Options:
   --stack <name>                Naming suffix seed (default: \$PULUMI_STACK or demo)
-  --resource-group <name>       Azure resource group (default: rg-mappo-marketplace-forwarder-<stack>)
-  --location <region>           Azure region (default: eastus)
+  --resource-group <name>       Azure resource group (default: MAPPO runtime resource group when available)
+  --location <region>           Azure region (default: MAPPO runtime location when available, otherwise eastus)
   --function-app-name <name>    Function App name (default: fa-mappo-marketplace-forwarder-<stack>-<subtoken>)
   --storage-account <name>      Storage account name (default: auto-derived)
   --subscription-id <id>        Optional subscription context override
@@ -53,6 +54,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --location)
       LOCATION="${2:-}"
+      LOCATION_EXPLICIT="true"
       shift 2
       ;;
     --function-app-name)
@@ -103,11 +105,15 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "${MAPPO_INGEST_ENDPOINT}" && -z "${MAPPO_API_BASE_URL}" && -f "${RUNTIME_ENV_FILE}" ]]; then
+if [[ -f "${RUNTIME_ENV_FILE}" ]]; then
   set -a
   source "${RUNTIME_ENV_FILE}"
   set +a
   MAPPO_API_BASE_URL="${MAPPO_API_BASE_URL:-${MAPPO_RUNTIME_BACKEND_URL:-}}"
+  RESOURCE_GROUP="${RESOURCE_GROUP:-${MAPPO_RUNTIME_RESOURCE_GROUP:-}}"
+  if [[ "${LOCATION_EXPLICIT}" != "true" && -n "${MAPPO_RUNTIME_LOCATION:-}" ]]; then
+    LOCATION="${MAPPO_RUNTIME_LOCATION}"
+  fi
 fi
 
 if [[ ! -f "${PACKAGE_ZIP}" ]]; then
@@ -156,7 +162,7 @@ if [[ -z "${stack_token}" ]]; then
 fi
 
 if [[ -z "${RESOURCE_GROUP}" ]]; then
-  RESOURCE_GROUP="rg-mappo-marketplace-forwarder-${stack_token}"
+  RESOURCE_GROUP="rg-mappo-runtime-${stack_token}"
 fi
 if [[ -z "${FUNCTION_APP_NAME}" ]]; then
   sub_token="$(printf "%s" "${SUBSCRIPTION_ID}" | tr -d '-' | cut -c1-8)"
@@ -168,7 +174,14 @@ az provider register --namespace Microsoft.Web --wait --only-show-errors >/dev/n
 
 if [[ -z "${STORAGE_ACCOUNT_NAME}" ]]; then
   suffix="$(LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c 6 || true)"
-  STORAGE_ACCOUNT_NAME="$(printf '%s' "st${FUNCTION_APP_NAME//-/}${suffix}" | tr '[:upper:]' '[:lower:]' | cut -c1-24)"
+  if [[ "${stack_token}" == "demo" ]]; then
+    STORAGE_ACCOUNT_NAME="$(printf '%s' "st${FUNCTION_APP_NAME//-/}${suffix}" | tr '[:upper:]' '[:lower:]' | cut -c1-24)"
+  else
+    sub_token="$(printf "%s" "${SUBSCRIPTION_ID}" | tr -d '-' | cut -c1-6)"
+    stack_alnum="$(printf "%s" "${stack_token}" | tr -cd 'a-z0-9')"
+    stack_tail="$(printf "%s" "${stack_alnum}" | tail -c 10)"
+    STORAGE_ACCOUNT_NAME="$(printf '%s' "stfwd${stack_tail}${sub_token}${suffix}" | tr '[:upper:]' '[:lower:]' | cut -c1-24)"
+  fi
 fi
 
 echo "marketplace-forwarder-deploy: resource_group=${RESOURCE_GROUP}"
