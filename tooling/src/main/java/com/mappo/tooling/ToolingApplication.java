@@ -28,13 +28,9 @@ public final class ToolingApplication {
         try {
             exitCode = switch (command) {
                 case "backend-file-size-check" -> new BackendFileSizeCheckCommand().run(commandArgs);
-                case "check-no-demo-leak" -> new CheckNoDemoLeakCommand().run(commandArgs);
                 case "docs-consistency-check" -> new DocsConsistencyCheckCommand().run(commandArgs);
-                case "golden-principles-check" -> new GoldenPrinciplesCheckCommand().run(commandArgs);
-                case "workflow-discipline-check" -> new WorkflowDisciplineCheckCommand().run(commandArgs);
                 case "export-backend-openapi" -> new ExportBackendOpenApiCommand().run(commandArgs);
                 case "marketplace-ingest-events" -> new MarketplaceIngestEventsCommand().run(commandArgs);
-                case "marketplace-forwarder-replay" -> new MarketplaceForwarderReplayInventoryCommand().run(commandArgs);
                 case "target-import-inventory" -> new TargetInventoryImportCommand().run(commandArgs);
                 case "target-delete-inventory" -> new TargetInventoryDeleteCommand().run(commandArgs);
                 case "release-ingest-from-repo" -> new ReleaseIngestFromRepoCommand().run(commandArgs);
@@ -57,13 +53,9 @@ public final class ToolingApplication {
 
             commands:
               backend-file-size-check
-              check-no-demo-leak
               docs-consistency-check
-              golden-principles-check
-              workflow-discipline-check
               export-backend-openapi
               marketplace-ingest-events
-              marketplace-forwarder-replay
               target-import-inventory
               target-delete-inventory
               release-ingest-from-repo

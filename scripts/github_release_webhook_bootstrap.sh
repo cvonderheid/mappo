@@ -3,9 +3,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-AZURE_ENV_FILE="${ROOT_DIR}/.data/mappo-azure.env"
-RUNTIME_ENV_FILE="${ROOT_DIR}/.data/mappo-runtime.env"
-GITHUB_ENV_FILE="${ROOT_DIR}/.data/mappo-github.env"
+AZURE_ENV_FILE="${ROOT_DIR}/.data/mappo.env"
+RUNTIME_ENV_FILE="${ROOT_DIR}/.data/mappo.env"
+GITHUB_ENV_FILE="${ROOT_DIR}/.data/mappo.env"
 RESOURCE_GROUP=""
 BACKEND_APP_NAME=""
 BACKEND_URL=""
@@ -23,9 +23,9 @@ Configure MAPPO's GitHub release-manifest webhook secret in the hosted backend a
 create the corresponding GitHub repository webhook.
 
 Options:
-  --azure-env-file <path>      Azure env file (default: .data/mappo-azure.env)
-  --runtime-env-file <path>    Runtime env file (default: .data/mappo-runtime.env)
-  --github-env-file <path>     GitHub env file (default: .data/mappo-github.env)
+  --azure-env-file <path>      Consolidated env file (default: .data/mappo.env)
+  --runtime-env-file <path>    Consolidated env file (default: .data/mappo.env)
+  --github-env-file <path>     Consolidated env file (default: .data/mappo.env)
   --resource-group <name>      Backend Container App resource group
   --backend-app-name <name>    Backend Container App name
   --backend-url <url>          Backend public base URL
@@ -36,6 +36,20 @@ Options:
   --dry-run                    Print actions only; do not mutate Azure or GitHub
   -h, --help                   Show help
 EOF
+}
+
+upsert_env_var() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+  mkdir -p "$(dirname "${file}")"
+  "${ROOT_DIR}/scripts/run_tooling.sh" \
+    azure-script-support upsert-export-line \
+    --env-file "${file}" \
+    --key "${key}" \
+    --value "${value}" \
+    >/dev/null
+  chmod 600 "${file}"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -97,7 +111,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ ! -f "${AZURE_ENV_FILE}" ]]; then
-  echo "github-release-webhook-bootstrap: missing Azure env file: ${AZURE_ENV_FILE}" >&2
+  echo "github-release-webhook-bootstrap: missing Consolidated env file: ${AZURE_ENV_FILE}" >&2
   exit 1
 fi
 if [[ ! -f "${RUNTIME_ENV_FILE}" ]]; then
@@ -155,14 +169,11 @@ if [[ -z "${WEBHOOK_SECRET}" ]]; then
   WEBHOOK_SECRET="$(openssl rand -hex 32)"
 fi
 
-mkdir -p "$(dirname "${GITHUB_ENV_FILE}")"
-cat > "${GITHUB_ENV_FILE}" <<EOF
-export MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET=${WEBHOOK_SECRET}
-EOF
+upsert_env_var "${GITHUB_ENV_FILE}" MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET "${WEBHOOK_SECRET}"
 
 echo "github-release-webhook-bootstrap: repository=${REPOSITORY}"
 echo "github-release-webhook-bootstrap: webhook_url=${WEBHOOK_URL}"
-echo "github-release-webhook-bootstrap: github_env_file=${GITHUB_ENV_FILE}"
+echo "github-release-webhook-bootstrap: env_file=${GITHUB_ENV_FILE}"
 
 if [[ "${DRY_RUN}" != "true" ]]; then
   az containerapp secret set \

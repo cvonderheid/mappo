@@ -36,7 +36,7 @@ source .data/mappo.env
 set +a
 ```
 
-The older `.data/mappo-*.env` files may still exist during cleanup, but new handoff documentation should point developers to `.data/mappo.env` as the single source of truth.
+`.data/mappo.env` is the single local/demo environment file. Legacy split files belong under `.data/archive/` only if you need to keep a temporary backup while migrating values.
 
 ## Publish artifacts only
 Use this when you want to publish runtime artifacts without mutating Azure.

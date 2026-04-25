@@ -41,7 +41,7 @@ Notes:
   - run the migration job
   - apply backend/frontend runtime updates
   - deploy the webhook forwarder
-- Azure rollout expects `.data/mappo-azure.env` and `.data/mappo-db.env` to already exist.
+- Azure rollout expects `.data/mappo.env` to exist. Copy `mappo.env.example` there and fill in local values.
 
 Contract workflow:
 

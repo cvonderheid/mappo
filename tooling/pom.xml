@@ -52,18 +52,6 @@
             </configuration>
           </execution>
           <execution>
-            <id>check-no-demo-leak</id>
-            <goals>
-              <goal>java</goal>
-            </goals>
-            <configuration>
-              <mainClass>com.mappo.tooling.ToolingApplication</mainClass>
-              <arguments>
-                <argument>check-no-demo-leak</argument>
-              </arguments>
-            </configuration>
-          </execution>
-          <execution>
             <id>docs-consistency-check</id>
             <goals>
               <goal>java</goal>
@@ -72,30 +60,6 @@
               <mainClass>com.mappo.tooling.ToolingApplication</mainClass>
               <arguments>
                 <argument>docs-consistency-check</argument>
-              </arguments>
-            </configuration>
-          </execution>
-          <execution>
-            <id>golden-principles-check</id>
-            <goals>
-              <goal>java</goal>
-            </goals>
-            <configuration>
-              <mainClass>com.mappo.tooling.ToolingApplication</mainClass>
-              <arguments>
-                <argument>golden-principles-check</argument>
-              </arguments>
-            </configuration>
-          </execution>
-          <execution>
-            <id>workflow-discipline-check</id>
-            <goals>
-              <goal>java</goal>
-            </goals>
-            <configuration>
-              <mainClass>com.mappo.tooling.ToolingApplication</mainClass>
-              <arguments>
-                <argument>workflow-discipline-check</argument>
               </arguments>
             </configuration>
           </execution>

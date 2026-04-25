@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RESOURCE_GROUP=""
 SUBSCRIPTION_ID=""
-RUNTIME_ENV_FILE="${ROOT_DIR}/.data/mappo-runtime.env"
+RUNTIME_ENV_FILE="${ROOT_DIR}/.data/mappo.env"
 WAIT_FOR_DELETE="false"
 
 usage() {
@@ -16,7 +16,7 @@ Delete MAPPO runtime ACA resource group created by runtime_aca_deploy.sh.
 Options:
   --resource-group <name>      Runtime resource group to delete
   --subscription-id <id>       Subscription context override
-  --runtime-env-file <path>    Read defaults from runtime env file (default: .data/mappo-runtime.env)
+  --runtime-env-file <path>    Read defaults from runtime env file (default: .data/mappo.env)
   --wait <bool>                true|false wait for full deletion (default: false)
   -h, --help                   Show help
 EOF

@@ -3,9 +3,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-AZURE_ENV_FILE="${ROOT_DIR}/.data/mappo-azure.env"
-RUNTIME_ENV_FILE="${ROOT_DIR}/.data/mappo-runtime.env"
-ADO_ENV_FILE="${ROOT_DIR}/.data/mappo-ado.env"
+AZURE_ENV_FILE="${ROOT_DIR}/.data/mappo.env"
+RUNTIME_ENV_FILE="${ROOT_DIR}/.data/mappo.env"
+ADO_ENV_FILE="${ROOT_DIR}/.data/mappo.env"
 ORGANIZATION="${MAPPO_DEMO_ADO_ORGANIZATION:-}"
 PROJECT="${MAPPO_DEMO_ADO_PROJECT:-}"
 PIPELINE_ID=""
@@ -27,9 +27,9 @@ Configure MAPPO's Azure DevOps release-readiness webhook secret in the hosted ba
 and optionally create the corresponding Azure DevOps service hook.
 
 Options:
-  --azure-env-file <path>       Azure env file (default: .data/mappo-azure.env)
-  --runtime-env-file <path>     Runtime env file (default: .data/mappo-runtime.env)
-  --ado-env-file <path>         Azure DevOps env file (default: .data/mappo-ado.env)
+  --azure-env-file <path>       Consolidated env file (default: .data/mappo.env)
+  --runtime-env-file <path>     Consolidated env file (default: .data/mappo.env)
+  --ado-env-file <path>         Consolidated env file (default: .data/mappo.env)
   --organization <url|name>     Azure DevOps organization (or MAPPO_DEMO_ADO_ORGANIZATION)
   --project <name>              Azure DevOps project (or MAPPO_DEMO_ADO_PROJECT)
   --pipeline-id <id>            ADO release-readiness pipeline ID
@@ -137,7 +137,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ ! -f "${AZURE_ENV_FILE}" ]]; then
-  echo "ado-release-webhook-bootstrap: missing Azure env file: ${AZURE_ENV_FILE}" >&2
+  echo "ado-release-webhook-bootstrap: missing Consolidated env file: ${AZURE_ENV_FILE}" >&2
   exit 1
 fi
 if [[ ! -f "${RUNTIME_ENV_FILE}" ]]; then

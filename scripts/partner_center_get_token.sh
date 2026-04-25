@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 resource="https://api.partnercenter.microsoft.com"
-env_file=""
+env_file="${ROOT_DIR}/.data/mappo.env"
 raw="false"
 
 usage() {
@@ -14,7 +14,7 @@ Acquire a Partner Center API access token via Azure CLI.
 
 Options:
   --resource <uri>     Token audience/resource (default: https://api.partnercenter.microsoft.com)
-  --env-file <path>    Write MAPPO_PARTNER_CENTER_ACCESS_TOKEN and expiry to file
+  --env-file <path>    Write MAPPO_PARTNER_CENTER_ACCESS_TOKEN and expiry to file (default: .data/mappo.env)
   --raw                Print only access token (for scripts)
   -h, --help           Show help
 EOF
@@ -68,11 +68,19 @@ if [[ -z "${token}" ]]; then
 fi
 
 if [[ -n "${env_file}" ]]; then
-  mkdir -p "$(dirname "${env_file}")"
-  cat > "${env_file}" <<EOF
-MAPPO_PARTNER_CENTER_ACCESS_TOKEN='${token}'
-MAPPO_PARTNER_CENTER_TOKEN_EXPIRES_ON='${expires_on}'
-EOF
+  "${ROOT_DIR}/scripts/run_tooling.sh" \
+    azure-script-support upsert-export-line \
+    --env-file "${env_file}" \
+    --key MAPPO_PARTNER_CENTER_ACCESS_TOKEN \
+    --value "${token}" \
+    >/dev/null
+  "${ROOT_DIR}/scripts/run_tooling.sh" \
+    azure-script-support upsert-export-line \
+    --env-file "${env_file}" \
+    --key MAPPO_PARTNER_CENTER_TOKEN_EXPIRES_ON \
+    --value "${expires_on}" \
+    >/dev/null
+  chmod 600 "${env_file}"
   echo "partner-center-get-token: wrote token env file: ${env_file}"
 fi
 

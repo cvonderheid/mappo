@@ -6,8 +6,8 @@ CLIENT_ID=""
 RESOURCE_GROUP=""
 FRONTEND_APP_NAME=""
 SUBSCRIPTION_ID=""
-EASYAUTH_ENV_FILE="${ROOT_DIR}/.data/mappo-easyauth.env"
-RUNTIME_ENV_FILE="${ROOT_DIR}/.data/mappo-runtime.env"
+EASYAUTH_ENV_FILE="${ROOT_DIR}/.data/mappo.env"
+RUNTIME_ENV_FILE="${ROOT_DIR}/.data/mappo.env"
 DELETE_ENV_FILE="true"
 YES="false"
 
@@ -22,9 +22,9 @@ Options:
   --resource-group <name>         Frontend app resource group (default from runtime env)
   --frontend-app-name <name>      Frontend Container App name (default from runtime env)
   --subscription-id <id>          Subscription for frontend app
-  --easyauth-env-file <path>      EasyAuth env file (default: .data/mappo-easyauth.env)
-  --runtime-env-file <path>       Runtime env file (default: .data/mappo-runtime.env)
-  --delete-env-file <bool>        Delete EasyAuth env file after cleanup (default: true)
+  --easyauth-env-file <path>      Consolidated env file (default: .data/mappo.env)
+  --runtime-env-file <path>       Consolidated env file (default: .data/mappo.env)
+  --delete-env-file <bool>        Delete Consolidated env file after cleanup (default: true)
   --yes                           Do not prompt
   -h, --help                      Show help
 EOF

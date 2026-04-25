@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IAC_DIR="${ROOT_DIR}/infra/pulumi"
 STACK="${PULUMI_STACK:-dev}"
-ENV_FILE_DEFAULT="${ROOT_DIR}/.data/mappo-db.env"
+ENV_FILE_DEFAULT="${ROOT_DIR}/.data/mappo.env"
 ENV_FILE="${ENV_FILE_DEFAULT}"
 
 usage() {

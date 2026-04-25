@@ -4,10 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 paths=(
-  ".data/mappo-azure.env"
-  ".data/mappo-db.env"
-  ".data/mappo-runtime.env"
-  ".data/mappo-easyauth.env"
+  ".data/mappo.env"
+  ".data/archive"
   ".data/mappo-target-inventory.json"
   ".data/mappo-target-inventory"*.json
   ".data/mappo-managedapp-sim-state.json"
@@ -20,7 +18,11 @@ for pattern in "${paths[@]}"; do
   matches=("${ROOT_DIR}/${pattern}")
   for abs in "${matches[@]}"; do
     if [[ -e "${abs}" ]]; then
-      rm -f "${abs}"
+      if [[ -d "${abs}" ]]; then
+        rm -rf "${abs}"
+      else
+        rm -f "${abs}"
+      fi
       rel="${abs#${ROOT_DIR}/}"
       echo "clean-slate-local: removed ${rel}"
       removed=$((removed + 1))

@@ -8,7 +8,7 @@ url=""
 body_file=""
 headers=()
 token="${MAPPO_PARTNER_CENTER_ACCESS_TOKEN:-}"
-token_env_file="${ROOT_DIR}/.data/mappo-partnercenter.env"
+token_env_file="${ROOT_DIR}/.data/mappo.env"
 
 usage() {
   cat <<EOF
@@ -22,7 +22,7 @@ Options:
   --body-file <path>         JSON request body file (for POST/PUT/PATCH)
   --header <name:value>      Additional header (repeatable)
   --token <bearer-token>     Override MAPPO_PARTNER_CENTER_ACCESS_TOKEN
-  --token-env-file <path>    Token env file used when token is absent (default: .data/mappo-partnercenter.env)
+  --token-env-file <path>    Consolidated env file used when token is absent (default: .data/mappo.env)
   -h, --help                 Show help
 EOF
 }

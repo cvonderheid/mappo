@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ADO_ENV_FILE="${ROOT_DIR}/.data/mappo-ado.env"
+ADO_ENV_FILE="${ROOT_DIR}/.data/mappo.env"
 ORGANIZATION="${MAPPO_DEMO_ADO_ORGANIZATION:-}"
 PROJECT="${MAPPO_DEMO_ADO_PROJECT:-}"
 PIPELINE_ID=""
@@ -28,8 +28,8 @@ Options:
   --endpoint-id <id>             MAPPO release source ID (default: ado-pipeline-default)
   --mappo-project-id <id>        MAPPO project ID (default: azure-appservice-ado-pipeline)
   --webhook-token <value>        Webhook token expected by MAPPO (default: MAPPO_AZURE_DEVOPS_WEBHOOK_SECRET)
-  --ado-pat <value>              Azure DevOps PAT (default: AZURE_DEVOPS_EXT_PAT or .data/mappo-ado.env)
-  --ado-env-file <path>          Optional env file to source first (default: .data/mappo-ado.env)
+  --ado-pat <value>              Azure DevOps PAT (default: AZURE_DEVOPS_EXT_PAT or .data/mappo.env)
+  --ado-env-file <path>          Optional env file to source first (default: .data/mappo.env)
   --replace-existing             Delete matching hook subscriptions before creating a new one
   --dry-run                      Print planned operations without calling Azure DevOps
   -h, --help                     Show help

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ADO_ENV_FILE="${ROOT_DIR}/.data/mappo-ado.env"
+ADO_ENV_FILE="${ROOT_DIR}/.data/mappo.env"
 ORGANIZATION="${MAPPO_DEMO_ADO_ORGANIZATION:-}"
 PROJECT="${MAPPO_DEMO_ADO_PROJECT:-}"
 REPOSITORY="${MAPPO_DEMO_ADO_REPOSITORY:-}"
@@ -29,8 +29,8 @@ Options:
   --version <value>              Demo release version (default: UTC timestamp)
   --data-model-version <value>   Demo data model version (default: 1)
   --release-file <path>          Repo file to update (default: /app/release.json)
-  --ado-pat <value>              Azure DevOps PAT (default: AZURE_DEVOPS_EXT_PAT or .data/mappo-ado.env)
-  --ado-env-file <path>          Optional env file to source first (default: .data/mappo-ado.env)
+  --ado-pat <value>              Azure DevOps PAT (default: AZURE_DEVOPS_EXT_PAT or .data/mappo.env)
+  --ado-env-file <path>          Optional env file to source first (default: .data/mappo.env)
   --no-complete                  Leave PR open instead of completing it
   --dry-run                      Print planned operations without calling Azure DevOps
   -h, --help                     Show help

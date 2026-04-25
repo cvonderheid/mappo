@@ -17,7 +17,7 @@ MAPPO_INGEST_ENDPOINT="${MAPPO_INGEST_ENDPOINT:-}"
 MAPPO_API_BASE_URL="${MAPPO_API_BASE_URL:-}"
 MAPPO_INGEST_TOKEN="${MAPPO_MARKETPLACE_INGEST_TOKEN:-${MAPPO_INGEST_TOKEN:-}}"
 TIMEOUT_SECONDS="15"
-RUNTIME_ENV_FILE="${ROOT_DIR}/.data/mappo-runtime.env"
+RUNTIME_ENV_FILE="${ROOT_DIR}/.data/mappo.env"
 
 usage() {
   cat <<EOF
@@ -37,7 +37,7 @@ Options:
   --mappo-api-base-url <url>    MAPPO API base URL (used when endpoint is omitted)
   --mappo-ingest-token <token>  x-mappo-ingest-token forwarded to MAPPO
   --timeout-seconds <seconds>   Forwarding timeout (default: 15)
-  --runtime-env-file <path>     Optional runtime env file fallback (default: .data/mappo-runtime.env)
+  --runtime-env-file <path>     Optional runtime env file fallback (default: .data/mappo.env)
   -h, --help                    Show help
 EOF
 }

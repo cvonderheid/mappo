@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="${ROOT_DIR}/.data/mappo-azure.env"
+ENV_FILE="${ROOT_DIR}/.data/mappo.env"
 SUBSCRIPTION_IDS=""
 
 usage() {
