@@ -244,10 +244,14 @@ if [[ -z "${APP_CLIENT_ID}" || -z "${APP_OBJECT_ID}" ]]; then
   exit 1
 fi
 
-mapfile -t redirect_uris < <(
+redirect_uris=()
+while IFS= read -r redirect_uri; do
+  if [[ -n "${redirect_uri}" ]]; then
+    redirect_uris+=("${redirect_uri}")
+  fi
+done < <(
   "${ROOT_DIR}/scripts/run_tooling.sh" \
     azure-script-support easyauth-redirect-uris \
-    --existing-json "$(az ad app show --id "${APP_CLIENT_ID}" --query 'web.redirectUris' -o json --only-show-errors)" \
     --callback-url "${callback_url}" \
     --extra-redirect-uris "${EXTRA_REDIRECT_URIS}"
 )

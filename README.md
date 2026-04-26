@@ -21,27 +21,22 @@ Deployment commands:
 ```bash
 export MAPPO_IMAGE_PREFIX="<acr-login-server>"
 
-# publish MAPPO runtime artifacts only
+# publish MAPPO runtime artifacts only; image tag defaults to the Maven project version
 ./mvnw deploy \
-  -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX" \
-  -Dmappo.image.tag="<image-tag>"
-
-# publish artifacts, then run the Azure rollout path
-./mvnw -Pazure deploy \
-  -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX" \
-  -Dmappo.image.tag="<image-tag>" \
-  -Dpulumi.stack="<stack>"
+  -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX"
 ```
 
 Notes:
 - `deploy` publishes backend, frontend, and Flyway images and packages the forwarder artifact, but does not mutate Azure runtime state.
-- `deploy -Pazure` then runs the Azure rollout path for this repo:
-  - `pulumi up`
-  - prepare/create the runtime migration job
-  - run the migration job
-  - apply backend/frontend runtime updates
-  - deploy the webhook forwarder
-- Azure rollout expects `.data/mappo.env` to exist. Copy `mappo.env.example` there and fill in local values.
+- Maven does not run Pulumi or mutate Azure. Infrastructure changes are applied directly from the relevant Pulumi project.
+- The Docker image tag defaults to the Maven project version in the root `pom.xml`. Override `-Dmappo.image.tag=...` only for an intentional one-off publish.
+
+Runtime infrastructure workflow:
+
+```bash
+cd infra/pulumi
+pulumi up --stack "<stack>"
+```
 
 Contract workflow:
 

@@ -34,10 +34,6 @@
     <docker.registry.password>${env.MAPPO_DOCKER_PASSWORD}</docker.registry.password>
     <docker.platforms>linux/amd64</docker.platforms>
     <mappo.image.tag>${project.version}</mappo.image.tag>
-    <pulumi.stack>demo</pulumi.stack>
-    <pulumi.dir>infra/pulumi</pulumi.dir>
-    <pulumi.demoFleetDir>infra/demo-fleet</pulumi.demoFleetDir>
-    <pulumi.appServiceFleetDir>infra/appservice-fleet</pulumi.appServiceFleetDir>
   </properties>
 
   <dependencyManagement>
@@ -63,12 +59,6 @@
     <module>infra/appservice-fleet</module>
     <module>delivery</module>
   </modules>
-
-  <profiles>
-    <profile>
-      <id>azure</id>
-    </profile>
-  </profiles>
 
   <build>
     <pluginManagement>
@@ -153,124 +143,6 @@
               <arguments>
                 <argument>-lc</argument>
                 <argument>prefix='${docker.image.prefix}'; username='${docker.registry.username}'; password='${docker.registry.password}'; if [[ -z "$prefix" || "$prefix" == *'${env.'* ]]; then echo "mappo deploy: set MAPPO_IMAGE_PREFIX or -Ddocker.image.prefix=&lt;registry-login-server&gt; before running mvn deploy." >&amp;2; exit 1; fi; if [[ -z "$username" || "$username" == *'${env.'* || -z "$password" || "$password" == *'${env.'* ]]; then echo "mappo deploy: set MAPPO_DOCKER_USERNAME and MAPPO_DOCKER_PASSWORD (or -Ddocker.registry.username/-Ddocker.registry.password) before running mvn deploy." >&amp;2; exit 1; fi</argument>
-              </arguments>
-            </configuration>
-          </execution>
-          <execution>
-            <id>pulumi-preview</id>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-            <configuration>
-              <executable>pulumi</executable>
-              <workingDirectory>${project.basedir}/${pulumi.dir}</workingDirectory>
-              <arguments>
-                <argument>preview</argument>
-                <argument>--stack</argument>
-                <argument>${pulumi.stack}</argument>
-                <argument>--non-interactive</argument>
-              </arguments>
-            </configuration>
-          </execution>
-          <execution>
-            <id>pulumi-up</id>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-            <configuration>
-              <executable>pulumi</executable>
-              <workingDirectory>${project.basedir}/${pulumi.dir}</workingDirectory>
-              <arguments>
-                <argument>up</argument>
-                <argument>--stack</argument>
-                <argument>${pulumi.stack}</argument>
-                <argument>--yes</argument>
-                <argument>--non-interactive</argument>
-              </arguments>
-            </configuration>
-          </execution>
-          <execution>
-            <id>pulumi-destroy</id>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-            <configuration>
-              <executable>pulumi</executable>
-              <workingDirectory>${project.basedir}/${pulumi.dir}</workingDirectory>
-              <arguments>
-                <argument>destroy</argument>
-                <argument>--stack</argument>
-                <argument>${pulumi.stack}</argument>
-                <argument>--yes</argument>
-                <argument>--non-interactive</argument>
-              </arguments>
-            </configuration>
-          </execution>
-          <execution>
-            <id>demo-fleet-pulumi-up</id>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-            <configuration>
-              <executable>pulumi</executable>
-              <workingDirectory>${project.basedir}/${pulumi.demoFleetDir}</workingDirectory>
-              <arguments>
-                <argument>up</argument>
-                <argument>--stack</argument>
-                <argument>${pulumi.stack}</argument>
-                <argument>--yes</argument>
-                <argument>--non-interactive</argument>
-              </arguments>
-            </configuration>
-          </execution>
-          <execution>
-            <id>demo-fleet-pulumi-destroy</id>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-            <configuration>
-              <executable>pulumi</executable>
-              <workingDirectory>${project.basedir}/${pulumi.demoFleetDir}</workingDirectory>
-              <arguments>
-                <argument>destroy</argument>
-                <argument>--stack</argument>
-                <argument>${pulumi.stack}</argument>
-                <argument>--yes</argument>
-                <argument>--non-interactive</argument>
-              </arguments>
-            </configuration>
-          </execution>
-          <execution>
-            <id>appservice-fleet-pulumi-up</id>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-            <configuration>
-              <executable>pulumi</executable>
-              <workingDirectory>${project.basedir}/${pulumi.appServiceFleetDir}</workingDirectory>
-              <arguments>
-                <argument>up</argument>
-                <argument>--stack</argument>
-                <argument>${pulumi.stack}</argument>
-                <argument>--yes</argument>
-                <argument>--non-interactive</argument>
-              </arguments>
-            </configuration>
-          </execution>
-          <execution>
-            <id>appservice-fleet-pulumi-destroy</id>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-            <configuration>
-              <executable>pulumi</executable>
-              <workingDirectory>${project.basedir}/${pulumi.appServiceFleetDir}</workingDirectory>
-              <arguments>
-                <argument>destroy</argument>
-                <argument>--stack</argument>
-                <argument>${pulumi.stack}</argument>
-                <argument>--yes</argument>
-                <argument>--non-interactive</argument>
               </arguments>
             </configuration>
           </execution>

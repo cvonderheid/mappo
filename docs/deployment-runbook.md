@@ -1,5 +1,8 @@
 # MAPPO Deployment Runbook
 
+For the final handoff cleanup and fresh Azure rebuild sequence, see
+[`docs/final-handoff-walkthrough.md`](./final-handoff-walkthrough.md).
+
 ## Local build and test
 ```bash
 ./mvnw clean install
@@ -39,7 +42,7 @@ set +a
 `.data/mappo.env` is the single local/demo environment file. Legacy split files belong under `.data/archive/` only if you need to keep a temporary backup while migrating values.
 
 ## Publish artifacts only
-Use this when you want to publish runtime artifacts without mutating Azure.
+Use Maven when you want to publish runtime artifacts. Maven must not run Pulumi or mutate Azure.
 
 Required environment:
 - `MAPPO_IMAGE_PREFIX`
@@ -48,34 +51,25 @@ Required environment:
 Command:
 ```bash
 ./mvnw deploy \
-  -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX" \
-  -Dmappo.image.tag="<image-tag>"
+  -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX"
 ```
 
-## Publish and roll out to Azure
-Use this when you want to publish artifacts and then apply the hosted runtime update.
+The image tag defaults to the Maven project version from the root `pom.xml`. Override `-Dmappo.image.tag=...` only for an intentional one-off publish.
+
+## Apply Azure infrastructure
+Use Pulumi directly when you want to apply hosted runtime infrastructure changes.
 
 Required environment:
-- `MAPPO_IMAGE_PREFIX`
-- `MAPPO_DOCKER_USERNAME`
-- `MAPPO_DOCKER_PASSWORD`
 - `PULUMI_CONFIG_PASSPHRASE`
 - Azure CLI already authenticated
 
 Command:
 ```bash
-./mvnw -Pazure deploy \
-  -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX" \
-  -Dmappo.image.tag="<image-tag>" \
-  -Dpulumi.stack="<stack>"
+cd infra/pulumi
+pulumi up --stack "<stack>"
 ```
 
-The `azure` profile performs:
-- Pulumi apply
-- runtime Container Apps prepare/apply
-- Flyway migration job execution
-- frontend/backend update
-- marketplace forwarder deployment
+Pulumi owns Azure resource creation and updates. Maven owns build/test/package/image publishing.
 
 MAPPO platform resources should live together in the runtime resource group:
 - managed Postgres from `infra/pulumi`

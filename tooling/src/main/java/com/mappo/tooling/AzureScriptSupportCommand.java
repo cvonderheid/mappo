@@ -61,7 +61,6 @@ final class AzureScriptSupportCommand {
             case "validate-tenant-map" -> runValidateTenantMap(commandArgs);
             case "inventory-stats" -> runInventoryStats(commandArgs);
             case "tenant-resolution-stats" -> runTenantResolutionStats(commandArgs);
-            case "aca-env-row" -> runAcaEnvRow(commandArgs);
             case "random-suffix" -> runRandomSuffix(commandArgs);
             case "job-execution-name" -> runJobExecutionName(commandArgs);
             case "easyauth-redirect-uris" -> runEasyAuthRedirectUris(commandArgs);
@@ -429,23 +428,6 @@ final class AzureScriptSupportCommand {
         return 0;
     }
 
-    private int runAcaEnvRow(Arguments args) {
-        Map<String, String> options = parseOptions(args);
-        String raw = requiredOption(options, "--json").trim();
-        JsonNode payload = raw.isEmpty() || "null".equals(raw) ? null : parseJsonNode(raw);
-        if (payload == null || payload.isNull()) {
-            System.out.println();
-            return 0;
-        }
-        System.out.println(String.join("\t",
-            text(payload, "name"),
-            text(payload, "resourceGroup"),
-            text(payload, "location"),
-            text(payload, "id")
-        ));
-        return 0;
-    }
-
     private int runRandomSuffix(Arguments args) {
         Map<String, String> options = parseOptions(args);
         int length = Integer.parseInt(options.getOrDefault("--length", "6"));
@@ -483,18 +465,9 @@ final class AzureScriptSupportCommand {
 
     private int runEasyAuthRedirectUris(Arguments args) {
         Map<String, String> options = parseOptions(args);
-        JsonNode existing = parseJsonNode(options.getOrDefault("--existing-json", "[]"));
         String callbackUrl = options.getOrDefault("--callback-url", "");
         String extraRedirectUris = options.getOrDefault("--extra-redirect-uris", "");
         LinkedHashSet<String> ordered = new LinkedHashSet<>();
-        if (existing.isArray()) {
-            for (JsonNode value : existing) {
-                String uri = value.asText("").trim();
-                if (!uri.isEmpty()) {
-                    ordered.add(uri);
-                }
-            }
-        }
         if (!callbackUrl.trim().isEmpty()) {
             ordered.add(callbackUrl.trim());
         }

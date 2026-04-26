@@ -492,19 +492,6 @@ CONTAINER_ENV_LOCATION="${LOCATION}"
 if az containerapp env show --name "${CONTAINER_ENV_NAME}" --resource-group "${RESOURCE_GROUP}" --only-show-errors >/dev/null 2>&1; then
   CONTAINER_ENV_ID="$(az containerapp env show --name "${CONTAINER_ENV_NAME}" --resource-group "${RESOURCE_GROUP}" --query id -o tsv)"
 else
-  fallback_env_row="$(
-    "${ROOT_DIR}/scripts/run_tooling.sh" \
-      azure-script-support aca-env-row \
-      --json "$(az containerapp env list --subscription "${SUBSCRIPTION_ID}" --query '[0]' -o json 2>/dev/null || echo 'null')"
-  )"
-  IFS=$'\t' read -r fallback_env_name fallback_env_rg fallback_env_location fallback_env_id <<< "${fallback_env_row}"
-  if [[ -n "${fallback_env_id}" ]]; then
-    CONTAINER_ENV_NAME="${fallback_env_name}"
-    CONTAINER_ENV_RG="${fallback_env_rg}"
-    CONTAINER_ENV_LOCATION="${fallback_env_location}"
-    CONTAINER_ENV_ID="${fallback_env_id}"
-    echo "runtime-aca-deploy: reusing existing ACA environment ${CONTAINER_ENV_NAME} (${CONTAINER_ENV_RG}, ${CONTAINER_ENV_LOCATION})."
-  else
   env_create_log="$(mktemp)"
   if ! az containerapp env create \
     --name "${CONTAINER_ENV_NAME}" \
@@ -513,25 +500,11 @@ else
     --only-show-errors \
     >"${env_create_log}" 2>&1; then
     if grep -Eq "MaxNumberOfRegionalEnvironmentsInSubExceeded|MaxNumberOfGlobalEnvironmentsInSubExceeded" "${env_create_log}"; then
-      fallback_env_row="$(
-        "${ROOT_DIR}/scripts/run_tooling.sh" \
-          azure-script-support aca-env-row \
-          --json "$(az containerapp env list --subscription "${SUBSCRIPTION_ID}" --query '[0]' -o json 2>/dev/null || echo 'null')"
-      )"
-      IFS=$'\t' read -r fallback_env_name fallback_env_rg fallback_env_location fallback_env_id <<< "${fallback_env_row}"
-      if [[ -n "${fallback_env_id}" ]]; then
-        CONTAINER_ENV_NAME="${fallback_env_name}"
-        CONTAINER_ENV_RG="${fallback_env_rg}"
-        CONTAINER_ENV_LOCATION="${fallback_env_location}"
-        CONTAINER_ENV_ID="${fallback_env_id}"
-        echo "runtime-aca-deploy: quota prevents creating a new ACA environment; reusing ${CONTAINER_ENV_NAME} (${CONTAINER_ENV_RG}, ${CONTAINER_ENV_LOCATION})." >&2
-        rm -f "${env_create_log}"
-      else
-        echo "runtime-aca-deploy: ACA environment quota exhausted and no existing environment found to reuse." >&2
-        cat "${env_create_log}" >&2
-        rm -f "${env_create_log}"
-        exit 1
-      fi
+      echo "runtime-aca-deploy: ACA environment quota prevents creating ${CONTAINER_ENV_NAME} in ${RESOURCE_GROUP}." >&2
+      echo "runtime-aca-deploy: not reusing an environment from another resource group because handoff deployments must keep MAPPO runtime resources together." >&2
+      cat "${env_create_log}" >&2
+      rm -f "${env_create_log}"
+      exit 1
     else
       cat "${env_create_log}" >&2
       rm -f "${env_create_log}"
@@ -540,7 +513,6 @@ else
   else
     rm -f "${env_create_log}"
     CONTAINER_ENV_ID="$(az containerapp env show --name "${CONTAINER_ENV_NAME}" --resource-group "${RESOURCE_GROUP}" --query id -o tsv)"
-  fi
   fi
 fi
 
