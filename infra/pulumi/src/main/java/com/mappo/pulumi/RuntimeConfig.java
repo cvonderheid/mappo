@@ -1,0 +1,45 @@
+package com.mappo.pulumi;
+
+import com.pulumi.core.Output;
+
+record RuntimeConfig(
+    boolean enabled,
+    boolean appsEnabled,
+    boolean easyAuthEnabled,
+    String subscriptionId,
+    String resourceNameSuffix,
+    String location,
+    String resourceGroupName,
+    String containerEnvironmentName,
+    String acrName,
+    String keyVaultName,
+    String redisName,
+    String managedIdentityName,
+    String backendAppName,
+    String frontendAppName,
+    String imageTag,
+    String corsOrigins,
+    int minReplicas,
+    int maxReplicas,
+    double backendCpu,
+    String backendMemory,
+    double frontendCpu,
+    String frontendMemory,
+    double migrationCpu,
+    String migrationMemory,
+    String tenantId,
+    String keyVaultAccessObjectId,
+    String tenantBySubscription,
+    Output<String> azureClientId,
+    Output<String> azureClientSecret,
+    Output<String> marketplaceIngestToken,
+    Output<String> publisherAcrServer,
+    Output<String> publisherAcrPullClientId,
+    Output<String> publisherAcrPullSecretName,
+    Output<String> publisherAcrPullClientSecret,
+    Output<String> githubReleaseWebhookSecret,
+    Output<String> githubReleaseToken,
+    Output<String> azureDevOpsPat,
+    Output<String> azureDevOpsWebhookSecret
+) {
+}

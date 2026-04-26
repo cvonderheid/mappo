@@ -1,3 +1,0 @@
-name: mappo-demo-fleet
-runtime: java
-description: Demo target fleet infrastructure (separate from MAPPO control-plane stack)

@@ -25,6 +25,8 @@
     <maven.surefire.plugin.version>3.5.4</maven.surefire.plugin.version>
     <maven.failsafe.plugin.version>3.5.4</maven.failsafe.plugin.version>
     <maven.deploy.skip>true</maven.deploy.skip>
+    <gmavenplus.plugin.version>4.2.1</gmavenplus.plugin.version>
+    <groovy.version>4.0.29</groovy.version>
     <spring.boot.maven.plugin.version>${spring.boot.version}</spring.boot.maven.plugin.version>
     <azure.functions.maven.plugin.version>1.40.0</azure.functions.maven.plugin.version>
     <testcontainers.jooq.codegen.maven.plugin.version>0.0.4</testcontainers.jooq.codegen.maven.plugin.version>
@@ -33,7 +35,7 @@
     <docker.registry.username>${env.MAPPO_DOCKER_USERNAME}</docker.registry.username>
     <docker.registry.password>${env.MAPPO_DOCKER_PASSWORD}</docker.registry.password>
     <docker.platforms>linux/amd64</docker.platforms>
-    <mappo.image.tag>${project.version}</mappo.image.tag>
+    <mappo.image.tag>${project.version}-nogit</mappo.image.tag>
   </properties>
 
   <dependencyManagement>
@@ -55,8 +57,8 @@
     <module>frontend</module>
     <module>integrations/marketplace-forwarder-function</module>
     <module>infra/pulumi</module>
-    <module>infra/demo-fleet</module>
-    <module>infra/appservice-fleet</module>
+    <module>infra/demo/targets-azure-delivery</module>
+    <module>infra/demo/targets-pipeline-delivery</module>
     <module>delivery</module>
   </modules>
 
@@ -126,6 +128,45 @@
         <configuration>
           <skip>true</skip>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.gmavenplus</groupId>
+        <artifactId>gmavenplus-plugin</artifactId>
+        <version>${gmavenplus.plugin.version}</version>
+        <dependencies>
+          <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy</artifactId>
+            <version>${groovy.version}</version>
+          </dependency>
+          <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-ant</artifactId>
+            <version>${groovy.version}</version>
+          </dependency>
+        </dependencies>
+        <executions>
+          <execution>
+            <id>resolve-image-git-revision</id>
+            <phase>initialize</phase>
+            <goals>
+              <goal>execute</goal>
+            </goals>
+            <configuration>
+              <scripts>
+                <script><![CDATA[
+                  def proc = ["git", "rev-parse", "--short=12", "HEAD"].execute(null, session.executionRootDirectory as File)
+                  proc.waitFor()
+                  def revision = proc.exitValue() == 0 ? proc.text.trim() : "nogit"
+                  def tag = "${project.version}-${revision}"
+                  project.properties.setProperty("mappo.git.revision", revision)
+                  project.properties.setProperty("mappo.image.tag", tag)
+                  log.info("MAPPO image tag: " + tag)
+                ]]></script>
+              </scripts>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>org.codehaus.mojo</groupId>

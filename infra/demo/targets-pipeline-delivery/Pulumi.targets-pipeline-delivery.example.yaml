@@ -1,0 +1,12 @@
+# Example only. Do not commit real tenant IDs or subscription IDs.
+config:
+  pipelineDeliveryTargets:defaultLocation: eastus
+  pipelineDeliveryTargets:targets:
+    - id: ado-target-01
+      tenantId: <tenant-id>
+      subscriptionId: <subscription-id>
+      targetGroup: canary
+      region: eastus
+      environment: prod
+      tier: gold
+      customerName: ADO Demo Customer A

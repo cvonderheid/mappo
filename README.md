@@ -21,7 +21,7 @@ Deployment commands:
 ```bash
 export MAPPO_IMAGE_PREFIX="<acr-login-server>"
 
-# publish MAPPO runtime artifacts only; image tag defaults to the Maven project version
+# publish MAPPO runtime artifacts only; image tag defaults to <project-version>-<git-sha>
 ./mvnw deploy \
   -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX"
 ```
@@ -29,7 +29,7 @@ export MAPPO_IMAGE_PREFIX="<acr-login-server>"
 Notes:
 - `deploy` publishes backend, frontend, and Flyway images and packages the forwarder artifact, but does not mutate Azure runtime state.
 - Maven does not run Pulumi or mutate Azure. Infrastructure changes are applied directly from the relevant Pulumi project.
-- The Docker image tag defaults to the Maven project version in the root `pom.xml`. Override `-Dmappo.image.tag=...` only for an intentional one-off publish.
+- The Docker image tag defaults to the Maven project version plus the 12-character Git commit, for example `1.0.0-SNAPSHOT-c9225249259d`. Override `-Dmappo.image.tag=...` only for an intentional one-off publish.
 
 Runtime infrastructure workflow:
 
@@ -65,15 +65,15 @@ Operational automation runs directly through `scripts/` and Pulumi:
   --github-path releases/releases.manifest.json \
   --github-ref main
 
-# demo fleet up/down lifecycle
-./scripts/demo_fleet_up.sh \
-  --stack demo-fleet \
-  --inventory-file .data/demo-fleet-target-inventory.json \
+# azure delivery demo targets up/down lifecycle
+./scripts/targets_azure_delivery_up.sh \
+  --stack targets-azure-delivery \
+  --inventory-file .data/targets-azure-delivery-inventory.json \
   --api-base-url "$MAPPO_API_BASE_URL"
 
-./scripts/demo_fleet_down.sh \
-  --stack demo-fleet \
-  --inventory-file .data/demo-fleet-target-inventory.json \
+./scripts/targets_azure_delivery_down.sh \
+  --stack targets-azure-delivery \
+  --inventory-file .data/targets-azure-delivery-inventory.json \
   --api-base-url "$MAPPO_API_BASE_URL"
 ```
 
@@ -85,7 +85,8 @@ Run backend locally:
 
 Pulumi IaC projects are now Java-based:
 - `./infra/pulumi`
-- `./infra/demo-fleet`
+- `./infra/demo/targets-azure-delivery`
+- `./infra/demo/targets-pipeline-delivery`
 
 ## Backend Stack
 

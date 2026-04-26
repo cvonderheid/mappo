@@ -27,10 +27,10 @@ Applied by the Azure delivery lifecycle:
 Applied by the Azure delivery lifecycle:
 - Azure Function App that forwards registration events into MAPPO
 
-### Target fleets
+### Demo targets
 Provisioned separately from the control plane:
-- demo target fleet for direct Azure rollout; this uses marketplace-style registration and deregistration events
-- app service target fleet for Azure DevOps pipeline experiments; this uses Pulumi inventory import/delete against MAPPO target APIs
+- direct Azure delivery demo targets; this uses marketplace-style registration and deregistration events
+- pipeline delivery demo targets for Azure DevOps pipeline experiments; this uses Pulumi inventory import/delete against MAPPO target APIs
 
 ## Current project shapes
 ### Azure Managed App Deployment Stack

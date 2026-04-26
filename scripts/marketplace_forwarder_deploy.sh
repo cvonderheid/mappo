@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+echo "$(basename "$0"): legacy forwarder deploy script; prefer Pulumi-owned runtime infrastructure and use this only for temporary package publication." >&2
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STACK="${PULUMI_STACK:-demo}"
 RESOURCE_GROUP=""

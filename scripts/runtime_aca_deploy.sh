@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+echo "$(basename "$0"): legacy runtime script; use infra/pulumi for MAPPO runtime infrastructure." >&2
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 STACK="${PULUMI_STACK:-demo}"

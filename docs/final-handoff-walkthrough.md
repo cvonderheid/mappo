@@ -28,7 +28,7 @@ Inventory captured from the active Azure CLI subscription:
 | `rg-mappo-runtime-demo` | Legacy MAPPO platform | Delete submitted during handoff cleanup. |
 | `rg-mappo-control-plane-c0d51042` | Legacy control plane | Delete submitted during handoff cleanup. |
 | `rg-mappo-marketplace-forwarder-demo` | Legacy forwarder | Delete submitted during handoff cleanup. |
-| `rg-mappo-demo-target-demo-target-01` | Demo target | Delete submitted during handoff cleanup. |
+| Legacy direct Azure delivery target resource groups | Demo target infrastructure | Delete submitted during handoff cleanup. |
 | `rg-mappo-dns-demo` | DNS | Keep unless intentionally retiring `mappopoc.com`. |
 | `DefaultResourceGroup-EUS` | Azure default | Leave alone unless manually reviewed. |
 | `DefaultResourceGroup-CUS` | Azure default | Leave alone unless manually reviewed. |
@@ -47,16 +47,16 @@ Subscription `1adaaa48-139a-477b-a8c8-0e6289d6d199`:
 
 | Resource group | Classification | Notes |
 | --- | --- | --- |
-| `rg-mappo-demo-fleet-demo-fleet-1adaaa48` | Demo fleet infrastructure | Delete submitted during handoff cleanup. |
-| `rg-mappo-demo-target-demo-target-02` | Demo target | Deleted during handoff cleanup. |
-| `rg-mappo-appservice-target-ado-target-01` | ADO App Service demo target | Deleted during handoff cleanup. |
+| `rg-mappo-targets-azure-delivery-targets-azure-delivery-1adaaa48` | Demo targets infrastructure | Delete submitted during handoff cleanup. |
+| Legacy direct Azure delivery target resource groups | Demo target infrastructure | Deleted during handoff cleanup. |
+| Legacy pipeline delivery target resource groups | ADO App Service demo target infrastructure | Deleted during handoff cleanup. |
 | `rg-mappo-runtime-demo` | Legacy runtime artifact | Deleted during handoff cleanup. |
 
 Subscription `597f46c7-2ce0-440e-962d-453e486f159d`:
 
 | Resource group | Classification | Notes |
 | --- | --- | --- |
-| `rg-mappo-appservice-target-ado-target-02` | ADO App Service demo target | Deleted during handoff cleanup. |
+| Legacy pipeline delivery target resource groups | ADO App Service demo target infrastructure | Deleted during handoff cleanup. |
 
 ## Cleanup Sequence
 
@@ -94,15 +94,13 @@ For Azure deployment, fill in at minimum:
 
 - `PULUMI_CONFIG_PASSPHRASE`
 - `AZURE_SUBSCRIPTION_ID`
-- `MAPPO_CONTROL_PLANE_SUBSCRIPTION_ID`
+- `MAPPO_RUNTIME_SUBSCRIPTION_ID`
 - `MAPPO_RUNTIME_LOCATION`
-- `MAPPO_IMAGE_PREFIX`
-- `MAPPO_DOCKER_USERNAME`
-- `MAPPO_DOCKER_PASSWORD`
 - `MAPPO_AZURE_TENANT_ID`
 - `MAPPO_AZURE_CLIENT_ID`
 - `MAPPO_AZURE_CLIENT_SECRET`
 - `MAPPO_MARKETPLACE_INGEST_TOKEN`
+- `MAPPO_AZURE_KEY_VAULT_ACCESS_OBJECT_ID` if a human/operator should be able to view Key Vault secrets
 
 Optional provider/demo values:
 
@@ -139,17 +137,46 @@ source .data/mappo.env
 set +a
 ```
 
-Publish runtime artifacts. Maven does not run Pulumi and does not mutate Azure.
-
-```bash
-./mvnw deploy \
-  -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX"
-```
-
-Apply infrastructure from Pulumi:
+Create the platform resources that Maven needs for artifact publishing. Keep
+apps disabled for this first Pulumi pass because the image tags do not exist in
+the new ACR yet.
 
 ```bash
 cd infra/pulumi
+pulumi stack select "$PULUMI_STACK" || pulumi stack init "$PULUMI_STACK"
+pulumi config set mappo:controlPlanePostgresEnabled true
+pulumi config set mappo:runtimeEnabled true
+pulumi config set mappo:runtimeAppsEnabled false
+pulumi config set mappo:runtimeSubscriptionId "$MAPPO_RUNTIME_SUBSCRIPTION_ID"
+pulumi config set mappo:runtimeLocation "$MAPPO_RUNTIME_LOCATION"
+pulumi config set mappo:azureTenantId "$MAPPO_AZURE_TENANT_ID"
+pulumi config set --secret mappo:azureClientId "$MAPPO_AZURE_CLIENT_ID"
+pulumi config set --secret mappo:azureClientSecret "$MAPPO_AZURE_CLIENT_SECRET"
+pulumi config set --secret mappo:marketplaceIngestToken "$MAPPO_MARKETPLACE_INGEST_TOKEN"
+if [[ -n "${MAPPO_AZURE_KEY_VAULT_ACCESS_OBJECT_ID:-}" ]]; then
+  pulumi config set mappo:keyVaultAccessObjectId "$MAPPO_AZURE_KEY_VAULT_ACCESS_OBJECT_ID"
+fi
+pulumi up --stack "$PULUMI_STACK"
+cd ../..
+```
+
+Publish runtime artifacts. Maven does not run Pulumi and does not mutate Azure.
+
+```bash
+export MAPPO_IMAGE_PREFIX="$(cd infra/pulumi && pulumi stack output runtimeAcrLoginServer --stack "$PULUMI_STACK")"
+export MAPPO_DOCKER_USERNAME="$(az acr credential show --name "$(cd infra/pulumi && pulumi stack output runtimeAcrName --stack "$PULUMI_STACK")" --query username -o tsv)"
+export MAPPO_DOCKER_PASSWORD="$(az acr credential show --name "$(cd infra/pulumi && pulumi stack output runtimeAcrName --stack "$PULUMI_STACK")" --query 'passwords[0].value' -o tsv)"
+export MAPPO_RUNTIME_IMAGE_TAG="$(./mvnw -q -N initialize help:evaluate -Dexpression=mappo.image.tag -DforceStdout)"
+
+./mvnw deploy -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX" -Dmappo.image.tag="$MAPPO_RUNTIME_IMAGE_TAG"
+```
+
+Enable runtime apps and EasyAuth from Pulumi:
+
+```bash
+cd infra/pulumi
+pulumi config set mappo:imageTag "$MAPPO_RUNTIME_IMAGE_TAG"
+pulumi config set mappo:runtimeAppsEnabled true
 pulumi up --stack "$PULUMI_STACK"
 cd ../..
 ```
@@ -158,7 +185,12 @@ Record outputs:
 
 ```bash
 printf '%s\n' "$PULUMI_STACK" > .data/current-handoff-stack
-./mvnw -q help:evaluate -Dexpression=project.version -DforceStdout > .data/current-handoff-tag
+printf '%s\n' "$MAPPO_RUNTIME_IMAGE_TAG" > .data/current-handoff-tag
+cd infra/pulumi
+pulumi stack output runtimeBackendUrl --stack "$PULUMI_STACK"
+pulumi stack output runtimeFrontendUrl --stack "$PULUMI_STACK"
+pulumi stack output runtimeKeyVaultUri --stack "$PULUMI_STACK"
+cd ../..
 ```
 
 ## Verification
@@ -166,7 +198,8 @@ printf '%s\n' "$PULUMI_STACK" > .data/current-handoff-stack
 After deployment, verify:
 
 ```bash
-source .data/mappo.env
+export MAPPO_API_BASE_URL="$(cd infra/pulumi && pulumi stack output runtimeBackendUrl --stack "$PULUMI_STACK")"
+export MAPPO_RUNTIME_FRONTEND_URL="$(cd infra/pulumi && pulumi stack output runtimeFrontendUrl --stack "$PULUMI_STACK")"
 
 curl -fsS "$MAPPO_API_BASE_URL/healthz"
 curl -fsS "$MAPPO_API_BASE_URL/api/v1/health"
@@ -174,7 +207,7 @@ curl -fsS "$MAPPO_API_BASE_URL/api/v1/health"
 
 In the UI:
 
-1. Open the frontend URL recorded in `.data/mappo.env`.
+1. Open `$MAPPO_RUNTIME_FRONTEND_URL`.
 2. Confirm Admin -> Secret Inventory loads.
 3. Confirm Admin -> Release Sources loads and webhook URLs match the new API base URL.
 4. Confirm Admin -> Deployment Connections loads.
@@ -184,23 +217,19 @@ In the UI:
 
 ## EasyAuth / Entra App Registration
 
-During cleanup, the stale EasyAuth app registration `mappo-ui-easyauth-demo`
-(`cea04ff0-519a-4555-be96-b5b2cc1212bc`) was deleted because it only referenced
-legacy frontend callback URLs.
+EasyAuth is Pulumi-owned when `mappo:runtimeAppsEnabled=true`.
 
-Current state:
+Pulumi creates:
 
-- EasyAuth is configured by `scripts/runtime_easyauth_configure.sh` after the
-  frontend Container App URL exists.
-- The script now replaces redirect URIs with the current frontend callback URL
-  plus explicit `MAPPO_EASYAUTH_EXTRA_REDIRECT_URIS`; it does not preserve stale
-  redirect URIs from older deployments.
-- Full Pulumi ownership is possible, but it should be done with a follow-up
-  runtime IaC change: either move the frontend Container App into Pulumi so the
-  callback URL is an output, or add a second Pulumi stack that consumes the
-  deployed frontend URL as config. The current `infra/pulumi` stack only owns
-  ARM control-plane resources and does not own the script-created runtime
-  Container Apps.
+- the Entra app registration
+- the app service principal
+- the app password used by Container Apps EasyAuth
+- the frontend callback redirect URI
+- the frontend Container Apps auth config
+
+Do not manually add stale callback URLs to the Entra app registration. If a
+frontend URL changes, rerun Pulumi so the redirect URI is reconciled from the
+current frontend app output.
 
 ## Post-Verification Cleanup
 

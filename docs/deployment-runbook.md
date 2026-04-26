@@ -54,7 +54,7 @@ Command:
   -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX"
 ```
 
-The image tag defaults to the Maven project version from the root `pom.xml`. Override `-Dmappo.image.tag=...` only for an intentional one-off publish.
+The image tag defaults to the Maven project version plus the 12-character Git commit, for example `1.0.0-SNAPSHOT-c9225249259d`. Override `-Dmappo.image.tag=...` only for an intentional one-off publish.
 
 ## Apply Azure infrastructure
 Use Pulumi directly when you want to apply hosted runtime infrastructure changes.
@@ -72,25 +72,26 @@ pulumi up --stack "<stack>"
 Pulumi owns Azure resource creation and updates. Maven owns build/test/package/image publishing.
 
 MAPPO platform resources should live together in the runtime resource group:
-- managed Postgres from `infra/pulumi`
+- managed Postgres from `infra/pulumi`, including a Pulumi-generated admin password for fresh stacks
 - backend and frontend Container Apps
-- Container Apps environment, unless Azure quota forces reuse of an existing environment
-- migration Container App job
+- Container Apps environment
+- backend Flyway init container for startup migrations
 - runtime ACR
-- Azure Managed Redis
+- Redis
 - MAPPO Azure Key Vault
 - marketplace forwarder Function App and its storage account
 
-Demo target resources remain separate and are owned by the demo fleet Pulumi stacks.
+Demo target resources remain separate and are owned by the Pulumi stacks under `infra/demo`.
 The default platform resource group name is `rg-mappo-runtime-<stack>`. Override it with `MAPPO_RUNTIME_RESOURCE_GROUP`, `MAPPO_CONTROL_PLANE_RESOURCE_GROUP`, or Pulumi config `mappo:controlPlaneResourceGroupName` when needed.
 
 ## External system secrets
 For the hosted Azure runtime, external system secrets should live in MAPPO's Azure Key Vault.
 
 Current runtime behavior:
-- `scripts/runtime_aca_deploy.sh` provisions or reuses a Key Vault in the runtime resource group
-- it grants the MAPPO Azure service principal `Key Vault Secrets User`
-- it injects `MAPPO_AZURE_KEY_VAULT_URL` into the backend container app
+- `infra/pulumi` provisions the runtime Key Vault in the runtime resource group
+- it grants the runtime managed identity access to secrets
+- it can also grant an operator/service-principal object id from `mappo:keyVaultAccessObjectId` or `MAPPO_AZURE_KEY_VAULT_ACCESS_OBJECT_ID`
+- it injects `MAPPO_AZURE_KEY_VAULT_URL` into the backend Container App
 
 Recommended usage:
 1. create a secret in the MAPPO Key Vault
@@ -120,8 +121,9 @@ Important files:
 - generated frontend schema: `./frontend/src/lib/api/generated/schema.ts`
 
 ## Publisher release flow
-The customer workload release catalog is managed in:
-- `../mappo-release-catalog`
+The customer workload release catalog is managed outside this repository. For
+the VECTR demo, the current local repo is:
+- `../mappo-managed-app`
 
 Typical operator/demo sequence:
 1. create/publish a new release in `mappo-release-catalog`

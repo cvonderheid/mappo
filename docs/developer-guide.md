@@ -5,8 +5,8 @@
 - `./frontend`: React UI
 - `./tooling`: repo checks and workflow helpers
 - `./infra/pulumi`: control-plane IaC
-- `./infra/demo-fleet`: demo target fleet IaC
-- `./infra/appservice-fleet`: app service target fleet IaC
+- `./infra/demo/targets-azure-delivery`: direct Azure delivery demo targets IaC
+- `./infra/demo/targets-pipeline-delivery`: pipeline delivery demo targets IaC
 - `./delivery`: Maven-driven rollout orchestration for the hosted runtime
 
 ## Development rules

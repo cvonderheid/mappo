@@ -1,0 +1,13 @@
+# Example only. Do not commit real tenant IDs, subscription IDs, or resource IDs.
+config:
+  azureDeliveryTargets:defaultLocation: eastus
+  azureDeliveryTargets:targets:
+    - id: demo-target-01
+      tenantId: <tenant-id>
+      subscriptionId: <subscription-id>
+      targetGroup: canary
+      region: centralus
+      environment: prod
+      tier: gold
+      customerName: Demo Customer A
+  azureDeliveryTargets:existingManagedEnvironmentIdsBySubscription: {}

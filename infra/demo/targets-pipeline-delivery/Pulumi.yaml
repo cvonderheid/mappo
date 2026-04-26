@@ -1,0 +1,3 @@
+name: mappo-targets-pipeline-delivery
+runtime: java
+description: Demo target infrastructure for pipeline delivery through Azure App Service

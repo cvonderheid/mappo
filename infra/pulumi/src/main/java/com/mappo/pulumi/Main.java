@@ -21,14 +21,24 @@ public final class Main {
 
     private void run() {
         ControlPlanePostgresResources controlPlanePostgres = createControlPlanePostgresResources();
+        RuntimeResources runtime = createRuntimeResources(controlPlanePostgres);
 
         InfrastructureExports.exportControlPlanePostgres(ctx, config.controlPlanePostgres(), controlPlanePostgres);
+        InfrastructureExports.exportRuntime(ctx, config.runtime(), runtime);
     }
 
     private ControlPlanePostgresResources createControlPlanePostgresResources() {
         return ControlPlanePostgresStack.create(
             config.controlPlanePostgres(),
             providers.get(config.controlPlanePostgres().subscriptionId())
+        );
+    }
+
+    private RuntimeResources createRuntimeResources(ControlPlanePostgresResources controlPlanePostgres) {
+        return RuntimeStack.create(
+            config.runtime(),
+            controlPlanePostgres,
+            providers.get(config.runtime().subscriptionId())
         );
     }
 }

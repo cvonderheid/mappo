@@ -75,7 +75,7 @@ const DEMO_PROJECTS = [
     deploymentFlow: "MAPPO triggers the deployment pipeline; the pipeline owns Azure credentials and deploys to the selected App Service target.",
     command: [
       "cd .",
-      "./scripts/appservice_fleet_up.sh --stack appservice-demo --api-base-url https://api.example.mappo.local",
+      "./scripts/targets_pipeline_delivery_up.sh --stack targets-pipeline-delivery --api-base-url https://api.example.mappo.local",
       "./scripts/ado_appservice_release_pr.sh --organization https://dev.azure.com/<org> --project <ado-project> --repository <ado-repository> --version <version>",
       "Open MAPPO -> Releases, then start deployment from the new ADO release",
     ].join("\n"),
@@ -517,7 +517,7 @@ export default function DemoPanel({
                       id="demo-container-app-name"
                       value={containerAppName}
                       onChange={(item) => setContainerAppName(item.target.value)}
-                      placeholder="ca-mappo-demo-target-01"
+                      placeholder="ca-mappo-azure-delivery-target-01"
                     />
                   </div>
                   <div className="space-y-1 lg:col-span-2">

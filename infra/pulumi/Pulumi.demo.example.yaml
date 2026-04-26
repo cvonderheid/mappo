@@ -6,9 +6,13 @@
 #   pulumi config set mappo:controlPlaneSubscriptionId <subscription-id>
 #   pulumi config set mappo:controlPlaneLocation <azure-region>
 #   pulumi config set mappo:controlPlanePostgresEnabled true
-#   pulumi config set --secret mappo:controlPlanePostgresAdminPassword <password>
-#   pulumi config set --secret mappo:managedAppReleaseWebhookSecret <secret>
+#   pulumi config set mappo:runtimeEnabled true
+#   pulumi config set mappo:runtimeAppsEnabled false
+#   pulumi config set mappo:runtimeSubscriptionId <subscription-id>
+# Pulumi generates the DB admin password for fresh stacks.
 config:
   mappo:defaultLocation: eastus
   mappo:controlPlaneLocation: centralus
   mappo:controlPlanePostgresEnabled: "true"
+  mappo:runtimeEnabled: "true"
+  mappo:runtimeAppsEnabled: "false"

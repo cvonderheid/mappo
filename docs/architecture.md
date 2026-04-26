@@ -72,7 +72,7 @@ Current implementation:
 ## Current hosting shape
 - Control-plane data services are provisioned by Pulumi.
 - Runtime app deployment is driven by Maven + Azure CLI/Container Apps scripts under the `delivery` lifecycle.
-- Target fleets are provisioned separately from the MAPPO runtime.
+- Demo targets are provisioned separately from the MAPPO runtime.
 - The workload release catalog lives outside this repo in `../mappo-release-catalog`.
 
 ## Contracts that matter

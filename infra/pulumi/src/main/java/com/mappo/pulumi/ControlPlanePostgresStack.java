@@ -17,6 +17,8 @@ import com.pulumi.azurenative.dbforpostgresql.inputs.StorageArgs;
 import com.pulumi.azurenative.resources.ResourceGroup;
 import com.pulumi.azurenative.resources.ResourceGroupArgs;
 import com.pulumi.core.Output;
+import com.pulumi.random.RandomPassword;
+import com.pulumi.random.RandomPasswordArgs;
 import com.pulumi.resources.CustomResourceOptions;
 import com.pulumi.resources.CustomTimeouts;
 import java.time.Duration;
@@ -29,13 +31,6 @@ final class ControlPlanePostgresStack {
         if (!config.enabled()) {
             return null;
         }
-        if (config.adminPassword() == null) {
-            throw new IllegalStateException(
-                "Managed Postgres provisioning requested without admin password. "
-                    + "Set mappo:controlPlanePostgresAdminPassword (secret)."
-            );
-        }
-
         String resourceNameSuffix = config.resourceNameSuffix();
         String resourceGroupName = PulumiSupport.normalizeName(
             config.resourceGroupName(),
@@ -49,6 +44,18 @@ final class ControlPlanePostgresStack {
         );
 
         CustomResourceOptions withProvider = CustomResourceOptions.builder().provider(provider).build();
+        Output<String> adminPassword = config.adminPassword();
+        if (adminPassword == null) {
+            RandomPassword generatedPassword = new RandomPassword(
+                "control-plane-postgres-password-" + resourceNameSuffix,
+                RandomPasswordArgs.builder()
+                    .length(32)
+                    .special(true)
+                    .overrideSpecial("_%@")
+                    .build()
+            );
+            adminPassword = generatedPassword.result();
+        }
 
         ResourceGroup resourceGroup = new ResourceGroup(
             "control-plane-rg-" + resourceNameSuffix,
@@ -72,7 +79,7 @@ final class ControlPlanePostgresStack {
                 .location(config.location())
                 .createMode("Create")
                 .administratorLogin(config.adminLogin())
-                .administratorLoginPassword(config.adminPassword())
+                .administratorLoginPassword(adminPassword)
                 .version(config.version())
                 .backup(BackupArgs.builder()
                     .backupRetentionDays(config.backupRetentionDays())
@@ -170,7 +177,7 @@ final class ControlPlanePostgresStack {
 
         Output<String> host = server.fullyQualifiedDomainName();
         Output<String> connectionUsername = Output.of(config.adminLogin());
-        Output<String> databaseUrl = Output.tuple(connectionUsername, config.adminPassword(), host, database.name())
+        Output<String> databaseUrl = Output.tuple(connectionUsername, adminPassword, host, database.name())
             .applyValue(tuple -> "postgresql+psycopg://"
                 + PulumiSupport.urlEncode(tuple.t1)
                 + ":"
@@ -190,7 +197,7 @@ final class ControlPlanePostgresStack {
             config.databaseName(),
             config.adminLogin(),
             connectionUsername,
-            config.adminPassword(),
+            adminPassword,
             databaseUrl
         );
     }

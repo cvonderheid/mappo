@@ -73,6 +73,21 @@ final class PulumiSupport {
         }
     }
 
+    static double doubleConfigWithEnvFallback(Config cfg, String configKey, String envKey, double defaultValue) {
+        Optional<String> raw = optionalConfigWithEnvFallback(cfg, configKey, envKey);
+        if (raw.isEmpty()) {
+            return defaultValue;
+        }
+        try {
+            return Double.parseDouble(raw.get());
+        } catch (NumberFormatException error) {
+            throw new IllegalArgumentException(
+                "Invalid decimal value for " + configKey + "/" + envKey + ": '" + raw.get() + "'.",
+                error
+            );
+        }
+    }
+
     static List<FirewallIpRange> parseFirewallIpRanges(Config cfg, String configKey, String envKey) {
         try {
             Optional<List<String>> parsed = cfg.getObject(configKey, TypeShape.list(String.class));
@@ -142,6 +157,16 @@ final class PulumiSupport {
             candidate = candidate.substring(0, maxLen);
         }
         candidate = trimTrailingDashes(candidate);
+        return candidate.isEmpty() ? fallback.substring(0, Math.min(maxLen, fallback.length())) : candidate;
+    }
+
+    static String normalizeCompactName(String value, String fallback, int maxLen) {
+        String source = Optional.ofNullable(value).orElse(fallback).toLowerCase(Locale.ROOT);
+        String normalized = source.replaceAll("[^a-z0-9]", "");
+        String candidate = normalized.isEmpty() ? fallback.replaceAll("[^a-z0-9]", "") : normalized;
+        if (candidate.length() > maxLen) {
+            candidate = candidate.substring(0, maxLen);
+        }
         return candidate.isEmpty() ? fallback.substring(0, Math.min(maxLen, fallback.length())) : candidate;
     }
 

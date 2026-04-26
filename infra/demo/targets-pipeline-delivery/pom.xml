@@ -7,15 +7,15 @@
     <groupId>com.mappo</groupId>
     <artifactId>mappo</artifactId>
     <version>1.0.0-SNAPSHOT</version>
-    <relativePath>../../pom.xml</relativePath>
+    <relativePath>../../../pom.xml</relativePath>
   </parent>
 
   <groupId>com.mappo.infra</groupId>
-  <artifactId>mappo-pulumi-infra</artifactId>
-  <name>mappo-pulumi-infra</name>
+  <artifactId>mappo-targets-pipeline-delivery</artifactId>
+  <name>mappo-targets-pipeline-delivery</name>
 
   <properties>
-    <mainClass>com.mappo.pulumi.Main</mainClass>
+    <mainClass>com.mappo.demo.pipelinedelivery.Main</mainClass>
   </properties>
 
   <dependencies>
@@ -26,14 +26,6 @@
     <dependency>
       <groupId>com.pulumi</groupId>
       <artifactId>azure-native</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.pulumi</groupId>
-      <artifactId>azuread</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.pulumi</groupId>
-      <artifactId>random</artifactId>
     </dependency>
     <dependency>
       <groupId>com.google.code.gson</groupId>
@@ -58,7 +50,7 @@
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
         <configuration>
-          <mainClass>${mainClass}</mainClass>
+          <mainClass>com.mappo.demo.pipelinedelivery.Main</mainClass>
         </configuration>
       </plugin>
     </plugins>
