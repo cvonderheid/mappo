@@ -1135,9 +1135,6 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
     selectedProviderConnectionRequiresVerification,
   ]);
 
-  const configComplete = project !== null && draftValidationIssues.length === 0;
-  const canPersist = project !== null && draftValidationIssues.length === 0;
-  const canCreateProject = createDraft.name.trim() !== "";
   const releaseSourceConfigured = selectedReleaseIngestEndpoint !== null;
   const hasAnyProjectSetup =
     releaseSourceConfigured ||
@@ -1160,6 +1157,37 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
     draft.runtime.path.trim() !== "/" ||
     draft.runtime.expectedStatus.trim() !== "200" ||
     draft.runtime.timeoutMs.trim() !== "5000";
+  const setupValidationIssues = useMemo(() => {
+    const issues: DraftValidationIssue[] = [...draftValidationIssues];
+    if (!releaseSourceConfigured) {
+      issues.push({
+        id: "release-source-required",
+        tab: "release-ingest",
+        fieldId: "release-ingest-endpoint-id",
+        message: "Release Source: choose the release source MAPPO should listen to for this project.",
+      });
+    }
+    if (!deploymentConfigured) {
+      issues.push({
+        id: "deployment-behavior-required",
+        tab: "deployment-driver",
+        fieldId: "deployment-method",
+        message: "Deployment Driver: choose how MAPPO should roll releases out for this project.",
+      });
+    }
+    if (!runtimeHealthConfigured) {
+      issues.push({
+        id: "runtime-health-required",
+        tab: "runtime-health",
+        fieldId: "runtime-path",
+        message: "Runtime Health: configure how MAPPO should verify deployed targets.",
+      });
+    }
+    return issues;
+  }, [deploymentConfigured, draftValidationIssues, releaseSourceConfigured, runtimeHealthConfigured]);
+  const configComplete = project !== null && setupValidationIssues.length === 0;
+  const canPersist = project !== null && draftValidationIssues.length === 0;
+  const canCreateProject = createDraft.name.trim() !== "";
   const activeSectionLabel =
     PROJECT_SECTIONS.find((section) => section.key === activeTab)?.label ?? "Project";
   const releaseSourceLabel = releaseSourceTypeLabel;
@@ -1189,6 +1217,11 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
 
   async function runValidation(scopes: ValidationScope[]): Promise<void> {
     if (!project?.id) {
+      return;
+    }
+    if (setupValidationIssues.length > 0) {
+      toast.warning("Validation has setup findings.");
+      focusValidationIssue(setupValidationIssues[0]);
       return;
     }
     setIsValidating(true);
@@ -1607,11 +1640,11 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {draftValidationIssues.length > 0 ? (
+          {setupValidationIssues.length > 0 ? (
             <div className="rounded-md border border-amber-400/60 bg-amber-500/10 p-3">
               <p className="mb-2 text-sm font-semibold text-amber-200">Inline validation</p>
               <ul className="space-y-1 text-xs text-amber-100">
-                {draftValidationIssues.map((issue) => (
+                {setupValidationIssues.map((issue) => (
                   <li key={issue.id} className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-amber-200/20 px-2 py-1">
                     <span>{issue.message}</span>
                     <Button
@@ -2579,11 +2612,15 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                     <dl className="space-y-1">
                       <div className="flex justify-between gap-3">
                         <dt className="text-muted-foreground">Provider</dt>
-                        <dd className="text-right text-foreground">{RELEASE_SYSTEM_LABELS[effectiveReleaseSystem]}</dd>
+                        <dd className="text-right text-foreground">
+                          {releaseSourceConfigured ? RELEASE_SYSTEM_LABELS[effectiveReleaseSystem] : "Not configured"}
+                        </dd>
                       </div>
                       <div className="flex justify-between gap-3">
                         <dt className="text-muted-foreground">Type</dt>
-                        <dd className="text-right text-foreground">{releaseSourceLabel}</dd>
+                        <dd className="text-right text-foreground">
+                          {releaseSourceConfigured ? releaseSourceLabel : "Not configured"}
+                        </dd>
                       </div>
                       <div className="flex justify-between gap-3">
                         <dt className="text-muted-foreground">Linked source</dt>
@@ -2599,11 +2636,15 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                     <dl className="space-y-1">
                       <div className="flex justify-between gap-3">
                         <dt className="text-muted-foreground">System</dt>
-                        <dd className="text-right text-foreground">{DEPLOYMENT_SYSTEM_LABELS[selectedDeploymentSystem]}</dd>
+                        <dd className="text-right text-foreground">
+                          {deploymentConfigured ? DEPLOYMENT_SYSTEM_LABELS[selectedDeploymentSystem] : "Not configured"}
+                        </dd>
                       </div>
                       <div className="flex justify-between gap-3">
                         <dt className="text-muted-foreground">Method</dt>
-                        <dd className="text-right text-foreground">{DEPLOYMENT_DRIVER_LABELS[draft.deploymentDriver]}</dd>
+                        <dd className="text-right text-foreground">
+                          {deploymentConfigured ? DEPLOYMENT_DRIVER_LABELS[draft.deploymentDriver] : "Not configured"}
+                        </dd>
                       </div>
                       {draft.deploymentDriver === "pipeline_trigger" ? (
                         <>
@@ -2650,20 +2691,20 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                       <div className="flex justify-between gap-3">
                         <dt className="text-muted-foreground">Runtime check</dt>
                         <dd className="text-right text-foreground">
-                          {RUNTIME_HEALTH_LABELS[draft.runtimeHealthProvider] ?? "HTTP endpoint"}
+                          {runtimeHealthConfigured ? (RUNTIME_HEALTH_LABELS[draft.runtimeHealthProvider] ?? "HTTP endpoint") : "Not configured"}
                         </dd>
                       </div>
                       <div className="flex justify-between gap-3">
                         <dt className="text-muted-foreground">Health path</dt>
-                        <dd className="text-right text-foreground">{draft.runtime.path || "/"}</dd>
+                        <dd className="text-right text-foreground">{runtimeHealthConfigured ? (draft.runtime.path || "/") : "Not configured"}</dd>
                       </div>
                       <div className="flex justify-between gap-3">
                         <dt className="text-muted-foreground">Expected status</dt>
-                        <dd className="text-right text-foreground">{draft.runtime.expectedStatus || "200"}</dd>
+                        <dd className="text-right text-foreground">{runtimeHealthConfigured ? (draft.runtime.expectedStatus || "200") : "Not configured"}</dd>
                       </div>
                       <div className="flex justify-between gap-3">
                         <dt className="text-muted-foreground">Timeout</dt>
-                        <dd className="text-right text-foreground">{draft.runtime.timeoutMs || "5000"} ms</dd>
+                        <dd className="text-right text-foreground">{runtimeHealthConfigured ? `${draft.runtime.timeoutMs || "5000"} ms` : "Not configured"}</dd>
                       </div>
                     </dl>
                   </div>

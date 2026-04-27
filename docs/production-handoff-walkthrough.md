@@ -218,24 +218,13 @@ cd ../..
 
 ## 6. Publish Runtime Images With Maven
 
-Read ACR outputs from the platform stack:
+Load the runtime deployment environment. This sources stable runtime settings
+from `.data/pulumi-runtime.env`, derives the current image tag from Maven/Git,
+reads ACR outputs from the platform stack, and creates a short-lived ACR token
+for Maven.
 
 ```bash
-export MAPPO_IMAGE_PREFIX="$(cd infra/pulumi && pulumi stack output runtimeAcrLoginServer --stack "$MAPPO_PLATFORM_STACK")"
-export MAPPO_RUNTIME_ACR_NAME="$(cd infra/pulumi && pulumi stack output runtimeAcrName --stack "$MAPPO_PLATFORM_STACK")"
-export MAPPO_RUNTIME_IMAGE_TAG="$(./mvnw -q -N initialize help:evaluate -Dexpression=mappo.image.tag -DforceStdout)"
-```
-
-Create an ephemeral ACR publish token for Maven. This is not a stored MAPPO
-secret; it is a short-lived token from the current Azure CLI login:
-
-```bash
-export MAPPO_DOCKER_USERNAME="00000000-0000-0000-0000-000000000000"
-export MAPPO_DOCKER_PASSWORD="$(az acr login \
-  --name "$MAPPO_RUNTIME_ACR_NAME" \
-  --expose-token \
-  --output tsv \
-  --query accessToken)"
+source scripts/source_runtime_deploy_env.sh
 ```
 
 Publish the images:
@@ -255,13 +244,15 @@ Maven publishes:
 
 Maven does not run Pulumi.
 
-Persist the image tag and platform stack reference into the runtime env file:
+Persist only the stable platform stack reference and runtime location into the
+runtime env file. Do not persist `MAPPO_RUNTIME_IMAGE_TAG`; it is derived from
+the current Maven project version and Git commit each time
+`scripts/source_runtime_deploy_env.sh` is sourced.
 
 ```bash
 perl -0pi -e 's|export MAPPO_PLATFORM_STACK=".*"|export MAPPO_PLATFORM_STACK="'"$MAPPO_PLATFORM_STACK"'"|' .data/pulumi-runtime.env
 perl -0pi -e 's|export MAPPO_RUNTIME_SUBSCRIPTION_ID=".*"|export MAPPO_RUNTIME_SUBSCRIPTION_ID="'"$MAPPO_RUNTIME_SUBSCRIPTION_ID"'"|' .data/pulumi-runtime.env
 perl -0pi -e 's|export MAPPO_RUNTIME_LOCATION=".*"|export MAPPO_RUNTIME_LOCATION="'"$MAPPO_RUNTIME_LOCATION"'"|' .data/pulumi-runtime.env
-perl -0pi -e 's|export MAPPO_RUNTIME_IMAGE_TAG=".*"|export MAPPO_RUNTIME_IMAGE_TAG="'"$MAPPO_RUNTIME_IMAGE_TAG"'"|' .data/pulumi-runtime.env
 ```
 
 Then edit `.data/pulumi-runtime.env` and fill the runtime-only secret:
@@ -310,9 +301,7 @@ export MAPPO_RUNTIME_STACK="${MAPPO_PLATFORM_STACK/platform/runtime}"
 Apply the runtime stack:
 
 ```bash
-set -a
-source .data/pulumi-runtime.env
-set +a
+source scripts/source_runtime_deploy_env.sh
 
 ./mvnw -pl infra/pulumi -DskipTests compile
 
@@ -465,33 +454,16 @@ For code-only changes, reuse the existing platform stack, publish new images,
 then update only the runtime app stack:
 
 ```bash
-set -a
-source .data/pulumi-platform.env
-set +a
-
 export MAPPO_PLATFORM_STACK=<existing-platform-stack>
 export MAPPO_RUNTIME_STACK=<existing-runtime-stack>
-export MAPPO_IMAGE_PREFIX="$(cd infra/pulumi && pulumi stack output runtimeAcrLoginServer --stack "$MAPPO_PLATFORM_STACK")"
-export MAPPO_RUNTIME_ACR_NAME="$(cd infra/pulumi && pulumi stack output runtimeAcrName --stack "$MAPPO_PLATFORM_STACK")"
-export MAPPO_RUNTIME_IMAGE_TAG="$(./mvnw -q -N initialize help:evaluate -Dexpression=mappo.image.tag -DforceStdout)"
 
-export MAPPO_DOCKER_USERNAME="00000000-0000-0000-0000-000000000000"
-export MAPPO_DOCKER_PASSWORD="$(az acr login \
-  --name "$MAPPO_RUNTIME_ACR_NAME" \
-  --expose-token \
-  --output tsv \
-  --query accessToken)"
+source scripts/source_runtime_deploy_env.sh
 
 ./mvnw deploy \
   -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX" \
   -Dmappo.image.tag="$MAPPO_RUNTIME_IMAGE_TAG"
 
 perl -0pi -e 's|export MAPPO_PLATFORM_STACK=".*"|export MAPPO_PLATFORM_STACK="'"$MAPPO_PLATFORM_STACK"'"|' .data/pulumi-runtime.env
-perl -0pi -e 's|export MAPPO_RUNTIME_IMAGE_TAG=".*"|export MAPPO_RUNTIME_IMAGE_TAG="'"$MAPPO_RUNTIME_IMAGE_TAG"'"|' .data/pulumi-runtime.env
-
-set -a
-source .data/pulumi-runtime.env
-set +a
 
 ./mvnw -pl infra/pulumi -DskipTests compile
 

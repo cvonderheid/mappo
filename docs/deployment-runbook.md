@@ -52,18 +52,14 @@ or mutate Azure.
 
 Required values:
 - `MAPPO_IMAGE_PREFIX`: ACR login server from the platform stack output
-- `MAPPO_RUNTIME_IMAGE_TAG`: normally the Maven project version plus Git hash
+- `MAPPO_RUNTIME_IMAGE_TAG`: derived by `scripts/source_runtime_deploy_env.sh`
+  from the Maven project version plus Git hash
 - `MAPPO_DOCKER_USERNAME`: `00000000-0000-0000-0000-000000000000` for ACR token auth
 - `MAPPO_DOCKER_PASSWORD`: short-lived token from `az acr login --expose-token`
 
 Command:
 ```bash
-export MAPPO_DOCKER_USERNAME="00000000-0000-0000-0000-000000000000"
-export MAPPO_DOCKER_PASSWORD="$(az acr login \
-  --name "$MAPPO_RUNTIME_ACR_NAME" \
-  --expose-token \
-  --output tsv \
-  --query accessToken)"
+source scripts/source_runtime_deploy_env.sh
 
 ./mvnw deploy \
   -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX" \
@@ -92,9 +88,7 @@ pulumi up --stack "<platform-stack>"
 
 Runtime app stack:
 ```bash
-set -a
-source .data/pulumi-runtime.env
-set +a
+source scripts/source_runtime_deploy_env.sh
 
 ./mvnw -pl infra/pulumi -DskipTests compile
 

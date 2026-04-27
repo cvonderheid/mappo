@@ -62,9 +62,7 @@ From the repository root, use `pulumi-runtime.env.example` as the template:
 
 ```bash
 cp pulumi-runtime.env.example .data/pulumi-runtime.env
-set -a
-source .data/pulumi-runtime.env
-set +a
+source scripts/source_runtime_deploy_env.sh
 
 ./mvnw -pl infra/pulumi -DskipTests compile
 
@@ -78,11 +76,11 @@ pulumi up --stack <runtime-stack> --yes
 Required runtime inputs:
 
 - `MAPPO_PLATFORM_STACK`
-- `MAPPO_RUNTIME_IMAGE_TAG`
 - `MAPPO_MARKETPLACE_INGEST_TOKEN`
 
-`MAPPO_AZURE_TENANT_ID` is optional. Pulumi derives it from `az login` when it
-is blank.
+`MAPPO_RUNTIME_IMAGE_TAG` is not stored in `.data/pulumi-runtime.env`; source
+`scripts/source_runtime_deploy_env.sh` to derive it from the current Maven
+project version and Git commit.
 
 The hosted backend uses the Pulumi-created managed identity through
 `DefaultAzureCredential`. Grant Azure RBAC to the platform output
