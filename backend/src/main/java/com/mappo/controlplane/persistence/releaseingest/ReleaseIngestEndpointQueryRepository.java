@@ -46,7 +46,7 @@ public class ReleaseIngestEndpointQueryRepository {
         Map<String, List<ReleaseIngestLinkedProjectRecord>> linkedProjectsByEndpointId = loadLinkedProjects(endpointIds(rows));
         List<ReleaseIngestEndpointRecord> records = new ArrayList<>(rows.size());
         for (Record row : rows) {
-            String endpointId = row.get(RELEASE_INGEST_ENDPOINTS.ID);
+            String endpointId = normalize(row.get(RELEASE_INGEST_ENDPOINTS.ID));
             records.add(toRecord(row, linkedProjectsByEndpointId.getOrDefault(endpointId, List.of())));
         }
         return records;
@@ -54,7 +54,8 @@ public class ReleaseIngestEndpointQueryRepository {
 
     public Optional<ReleaseIngestEndpointRecord> getEndpoint(String endpointId) {
         String normalizedEndpointId = normalize(endpointId);
-        if (normalizedEndpointId.isBlank()) {
+        Long parsedEndpointId = parseGeneratedId(normalizedEndpointId);
+        if (parsedEndpointId == null) {
             return Optional.empty();
         }
         Record row = dsl.select(
@@ -71,7 +72,7 @@ public class ReleaseIngestEndpointQueryRepository {
                 RELEASE_INGEST_ENDPOINTS.UPDATED_AT
             )
             .from(RELEASE_INGEST_ENDPOINTS)
-            .where(RELEASE_INGEST_ENDPOINTS.ID.eq(normalizedEndpointId))
+            .where(RELEASE_INGEST_ENDPOINTS.ID.eq(parsedEndpointId))
             .fetchOne();
         if (row == null) {
             return Optional.empty();
@@ -83,13 +84,14 @@ public class ReleaseIngestEndpointQueryRepository {
 
     public boolean exists(String endpointId) {
         String normalizedEndpointId = normalize(endpointId);
-        if (normalizedEndpointId.isBlank()) {
+        Long parsedEndpointId = parseGeneratedId(normalizedEndpointId);
+        if (parsedEndpointId == null) {
             return false;
         }
         return dsl.fetchExists(
             dsl.selectOne()
                 .from(RELEASE_INGEST_ENDPOINTS)
-                .where(RELEASE_INGEST_ENDPOINTS.ID.eq(normalizedEndpointId))
+                .where(RELEASE_INGEST_ENDPOINTS.ID.eq(parsedEndpointId))
         );
     }
 
@@ -107,7 +109,7 @@ public class ReleaseIngestEndpointQueryRepository {
                 PROJECTS.NAME
             )
             .from(PROJECTS)
-            .where(PROJECTS.RELEASE_INGEST_ENDPOINT_ID.in(endpointIds))
+            .where(PROJECTS.RELEASE_INGEST_ENDPOINT_ID.in(parsedGeneratedIds(endpointIds)))
             .orderBy(PROJECTS.NAME.asc(), PROJECTS.ID.asc())
             .fetch();
         for (Record row : rows) {
@@ -146,7 +148,7 @@ public class ReleaseIngestEndpointQueryRepository {
             ? ReleaseIngestProviderType.github
             : ReleaseIngestProviderType.valueOf(provider.getLiteral());
         return new ReleaseIngestEndpointRecord(
-            row.get(RELEASE_INGEST_ENDPOINTS.ID),
+            normalize(row.get(RELEASE_INGEST_ENDPOINTS.ID)),
             row.get(RELEASE_INGEST_ENDPOINTS.NAME),
             providerType,
             Boolean.TRUE.equals(row.get(RELEASE_INGEST_ENDPOINTS.ENABLED)),
@@ -163,5 +165,24 @@ public class ReleaseIngestEndpointQueryRepository {
 
     private String normalize(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private Long parseGeneratedId(String value) {
+        String normalized = normalize(value);
+        if (normalized.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(normalized);
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
+    private List<Long> parsedGeneratedIds(List<String> ids) {
+        return ids.stream()
+            .map(this::parseGeneratedId)
+            .filter(id -> id != null)
+            .toList();
     }
 }

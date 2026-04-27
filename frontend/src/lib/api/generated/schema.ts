@@ -1010,7 +1010,6 @@ export interface components {
             createdAt?: string;
         };
         ReleaseIngestEndpointCreateRequest: {
-            id: string;
             name: string;
             /** @enum {string} */
             provider: "github" | "azure_devops";
@@ -1023,8 +1022,8 @@ export interface components {
         };
         ReleaseIngestEndpointRecord: {
             /**
-             * @description Release source id.
-             * @example github-managed-app-default
+             * @description Database-generated release source id.
+             * @example 42
              */
             id?: string;
             /**
@@ -1104,7 +1103,6 @@ export interface components {
             createdReleaseIds?: string[];
         };
         ProviderConnectionCreateRequest: {
-            id: string;
             name: string;
             /** @enum {string} */
             provider: "github" | "azure_devops";
@@ -1125,8 +1123,8 @@ export interface components {
         };
         ProviderConnectionRecord: {
             /**
-             * @description Deployment connection id.
-             * @example ado-default
+             * @description Database-generated deployment connection id.
+             * @example 42
              */
             id?: string;
             /**
@@ -1179,7 +1177,6 @@ export interface components {
             projects?: components["schemas"]["ProviderConnectionAdoProjectRecord"][];
         };
         ProjectCreateRequest: {
-            id?: string;
             name: string;
             themeKey?: string;
             releaseIngestEndpointId?: string;

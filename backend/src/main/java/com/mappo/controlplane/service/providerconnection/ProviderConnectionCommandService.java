@@ -24,12 +24,12 @@ public class ProviderConnectionCommandService {
         ProviderConnectionAdoProjectDiscoveryResultRecord discoveryResult =
             providerConnectionDiscoveryService.validateForSave(mutation);
         ProviderConnectionMutationRecord verifiedMutation = applyDiscoveryResult(mutation, discoveryResult);
-        providerConnectionCommandRepository.createConnection(verifiedMutation);
+        String createdId = providerConnectionCommandRepository.createConnection(verifiedMutation);
         providerConnectionCommandRepository.replaceDiscoveredAdoProjects(
-            verifiedMutation.id(),
+            createdId,
             discoveryResult.projects()
         );
-        return providerConnectionCatalogService.getRequired(verifiedMutation.id());
+        return providerConnectionCatalogService.getRequired(createdId);
     }
 
     @Transactional

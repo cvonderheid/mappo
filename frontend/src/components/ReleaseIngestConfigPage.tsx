@@ -360,9 +360,9 @@ export default function ReleaseIngestConfigPage({
   const isAzureDevOpsProvider = draft.provider === "azure_devops";
   const webhookSecretRef = buildWebhookSecretRef(draft);
   const webhookUrlPreview =
-    draft.id.trim() === ""
+    editingId.trim() === ""
       ? ""
-      : `${apiBaseUrl.replace(/\/+$/, "")}${webhookPathFor(draft.id.trim(), draft.provider)}`;
+      : `${apiBaseUrl.replace(/\/+$/, "")}${webhookPathFor(editingId.trim(), draft.provider)}`;
 
   const sortedEndpoints = useMemo(() => {
     return [...endpoints].sort((left, right) => {
@@ -419,8 +419,8 @@ export default function ReleaseIngestConfigPage({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (draft.id.trim() === "" || draft.name.trim() === "") {
-      toast.error("Endpoint ID and name are required.");
+    if (draft.name.trim() === "") {
+      toast.error("Release source display name is required.");
       return;
     }
     if (draft.webhookSecretMode === "environment_variable" && webhookSecretRef === "") {
@@ -453,7 +453,6 @@ export default function ReleaseIngestConfigPage({
         toast.success(`Updated release source ${editingId}.`);
       } else {
         const createRequest: ReleaseIngestEndpointCreateRequest = {
-          id: draft.id.trim(),
           name: draft.name.trim(),
           provider: draft.provider,
           enabled: draft.enabled,
@@ -463,8 +462,8 @@ export default function ReleaseIngestConfigPage({
           pipelineIdFilter: draft.pipelineIdFilter.trim() || undefined,
           manifestPath: draft.manifestPath.trim() || undefined,
         };
-        await createReleaseIngestEndpoint(createRequest);
-        toast.success(`Created release source ${draft.id.trim()}.`);
+        const created = await createReleaseIngestEndpoint(createRequest);
+        toast.success(`Created release source ${created.name || created.id}.`);
       }
       setDrawerOpen(false);
       await loadEndpoints(true);
@@ -672,7 +671,7 @@ export default function ReleaseIngestConfigPage({
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} direction="top">
         <DrawerContent>
           <DrawerHeader>
-            <DrawerTitle>{editingId ? `Edit ${editingId}` : "New Release Source"}</DrawerTitle>
+            <DrawerTitle>{editingId ? `Edit ${draft.name || editingId}` : "New Release Source"}</DrawerTitle>
             <DrawerDescription>
               Configure how an external system notifies MAPPO about new releases. This is separate from Deployment Connections, which handle outbound API access.
             </DrawerDescription>
@@ -683,22 +682,6 @@ export default function ReleaseIngestConfigPage({
             className="space-y-3 px-4 pb-4"
           >
             <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1">
-                  <Label htmlFor="endpoint-id">Source ID</Label>
-                  <FieldHelpTooltip content="Stable key used in webhook URL paths. Use lowercase letters, numbers, and hyphens." />
-                </div>
-                <Input
-                  id="endpoint-id"
-                  value={draft.id}
-                  onChange={(event) => setDraft((current) => ({ ...current, id: event.target.value }))}
-                  disabled={Boolean(editingId)}
-                  placeholder="github-managed-app-default"
-                />
-                <p className="text-xs text-muted-foreground">
-                  This ID becomes part of the webhook URL MAPPO exposes for this release source.
-                </p>
-              </div>
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
                   <Label htmlFor="endpoint-name">Display name</Label>
@@ -826,7 +809,7 @@ export default function ReleaseIngestConfigPage({
                 </>
               ) : (
                 <p className="mt-1">
-                  Enter a <span className="font-medium text-foreground">Source ID</span> above and MAPPO will generate the webhook URL here.
+                  MAPPO will generate the webhook URL after this release source is created.
                 </p>
               )}
               {editingId && editingProvider && editingProvider !== draft.provider ? (

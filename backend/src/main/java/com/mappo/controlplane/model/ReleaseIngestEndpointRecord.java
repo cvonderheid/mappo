@@ -6,7 +6,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 public record ReleaseIngestEndpointRecord(
-    @Schema(description = "Release source id.", example = "github-managed-app-default")
+    @Schema(description = "Database-generated release source id.", example = "42")
     String id,
     @Schema(description = "Release source display name.", example = "GitHub Managed App Default")
     String name,

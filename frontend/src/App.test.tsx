@@ -361,7 +361,7 @@ describe("App", () => {
       {
         ...mockProjects[0],
         deploymentDriver: "azure_deployment_stack",
-        providerConnectionId: "ado-default",
+        providerConnectionId: "1",
         deploymentDriverConfig: {
           organization: "https://dev.azure.com/example-ado-org",
           project: "sample-app-service",

@@ -60,7 +60,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
             }
             """;
 
-        mockMvc.perform(post("/api/v1/release-ingest/endpoints/github-managed-app-default/webhooks/github")
+        mockMvc.perform(post("/api/v1/release-ingest/endpoints/{endpointId}/webhooks/github", githubReleaseEndpointId())
                 .contentType(APPLICATION_JSON)
                 .content(payload)
                 .header("x-github-event", "push")
@@ -105,7 +105,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
             }
             """;
 
-        mockMvc.perform(post("/api/v1/release-ingest/endpoints/github-managed-app-default/webhooks/github")
+        mockMvc.perform(post("/api/v1/release-ingest/endpoints/{endpointId}/webhooks/github", githubReleaseEndpointId())
                 .contentType(APPLICATION_JSON)
                 .content(payload)
                 .header("x-github-event", "push")
@@ -137,7 +137,7 @@ class ReleaseManifestWebhookIntegrationTests extends PostgresIntegrationTestBase
             }
             """;
 
-        mockMvc.perform(post("/api/v1/release-ingest/endpoints/github-managed-app-default/webhooks/github")
+        mockMvc.perform(post("/api/v1/release-ingest/endpoints/{endpointId}/webhooks/github", githubReleaseEndpointId())
                 .contentType(APPLICATION_JSON)
                 .content(payload)
                 .header("x-github-event", "push")

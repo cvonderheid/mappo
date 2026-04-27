@@ -10,7 +10,6 @@ import com.mappo.controlplane.model.ProviderConnectionRecord;
 import com.mappo.controlplane.model.SecretReferenceRecord;
 import com.mappo.controlplane.service.secretreference.SecretReferenceCatalogService;
 import com.mappo.controlplane.service.secretreference.SecretReferenceResolver;
-import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -19,20 +18,18 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ProviderConnectionMutationService {
 
-    private static final Pattern ID_PATTERN = Pattern.compile("^[a-z0-9](?:[a-z0-9-]{1,126}[a-z0-9])?$");
     private final SecretReferenceCatalogService secretReferenceCatalogService;
     private final SecretReferenceResolver secretReferenceResolver;
     private final ProviderConnectionProviderDescriptorRegistry providerDescriptorRegistry;
 
     public ProviderConnectionMutationRecord fromCreate(ProviderConnectionCreateRequest request) {
-        String id = requiredId(request.id());
         String name = requiredName(request.name());
         ProviderConnectionProviderType provider = requiredProvider(request.provider());
         boolean enabled = request.enabled() == null || Boolean.TRUE.equals(request.enabled());
         String organizationUrl = normalizeOrganizationUrl(request.organizationUrl(), provider);
         String personalAccessTokenRef = normalizePersonalAccessTokenRef(request.personalAccessTokenRef(), provider);
         return new ProviderConnectionMutationRecord(
-            id,
+            "",
             name,
             provider,
             enabled,
@@ -48,7 +45,7 @@ public class ProviderConnectionMutationService {
         if (patch == null) {
             return toMutation(current);
         }
-        String id = requiredId(current.id());
+        String id = normalize(current.id());
         String name = firstNonBlank(patch.name(), current.name());
         if (name.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "deployment connection name must not be blank");
@@ -87,24 +84,13 @@ public class ProviderConnectionMutationService {
 
     private ProviderConnectionMutationRecord toMutation(ProviderConnectionRecord connection) {
         return new ProviderConnectionMutationRecord(
-            requiredId(connection.id()),
+            normalize(connection.id()),
             requiredName(connection.name()),
             requiredProvider(connection.provider()),
             connection.enabled(),
             normalizeOrganizationUrl(connection.organizationUrl(), connection.provider()),
             normalizePersonalAccessTokenRef(connection.personalAccessTokenRef(), connection.provider())
         );
-    }
-
-    private String requiredId(String value) {
-        String normalized = normalize(value);
-        if (normalized.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "deployment connection id must not be blank");
-        }
-        if (!ID_PATTERN.matcher(normalized).matches()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "deployment connection id must match " + ID_PATTERN.pattern());
-        }
-        return normalized;
     }
 
     private String requiredName(String value) {

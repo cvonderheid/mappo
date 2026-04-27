@@ -23,8 +23,8 @@ public class ReleaseIngestEndpointCommandService {
     public ReleaseIngestEndpointRecord createEndpoint(ReleaseIngestEndpointCreateRequest request) {
         ReleaseIngestEndpointMutationRecord mutation = releaseIngestEndpointMutationService.fromCreate(request);
         validateForSave(mutation);
-        releaseIngestEndpointCommandRepository.createEndpoint(mutation);
-        return releaseIngestEndpointCatalogService.getRequired(mutation.id());
+        String createdId = releaseIngestEndpointCommandRepository.createEndpoint(mutation);
+        return releaseIngestEndpointCatalogService.getRequired(createdId);
     }
 
     @Transactional

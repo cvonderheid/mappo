@@ -7,7 +7,6 @@ import jakarta.validation.constraints.NotNull;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ProviderConnectionCreateRequest(
-    @NotBlank String id,
     @NotBlank String name,
     @NotNull ProviderConnectionProviderType provider,
     Boolean enabled,

@@ -555,8 +555,7 @@ export default function ProviderConnectionsConfigPage({
   );
 
   const canVerifyDraft =
-    normalize(draft.id) !== ""
-    && normalize(draft.name) !== ""
+    normalize(draft.name) !== ""
     && (!isAzureDevOpsScopeMissing(draft))
     && (
       (
@@ -633,7 +632,7 @@ export default function ProviderConnectionsConfigPage({
       throw new Error(AZURE_DEVOPS_SCOPE_REQUIRED_MESSAGE);
     }
     const request: ProviderConnectionVerifyRequest = {
-      id: normalize(draft.id) || undefined,
+      id: editingId || undefined,
       provider: draft.provider,
       organizationUrl: normalize(draft.organizationUrl) || undefined,
       personalAccessTokenRef: normalize(buildPersonalAccessTokenRef(draft)) || undefined,
@@ -688,11 +687,9 @@ export default function ProviderConnectionsConfigPage({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    const connectionId = normalize(draft.id);
     const name = normalize(draft.name);
-    const organizationUrl = normalize(draft.organizationUrl);
-    if (connectionId === "" || name === "") {
-      toast.error("Connection ID and name are required.");
+    if (name === "") {
+      toast.error("Deployment connection display name is required.");
       return;
     }
 
@@ -741,7 +738,6 @@ export default function ProviderConnectionsConfigPage({
         );
       } else {
         const createRequest: ProviderConnectionCreateRequest = {
-          id: connectionId,
           name,
           provider: effectiveDraft.provider,
           enabled: effectiveDraft.enabled,
@@ -750,20 +746,20 @@ export default function ProviderConnectionsConfigPage({
         };
         savedConnection = await createProviderConnection(createRequest);
         toast.success(
-          `Created and verified deployment connection ${connectionId}. MAPPO can access ${verifiedProjects.length} Azure DevOps project${verifiedProjects.length === 1 ? "" : "s"}.`
+          `Created and verified deployment connection ${savedConnection.name || savedConnection.id}. MAPPO can access ${verifiedProjects.length} Azure DevOps project${verifiedProjects.length === 1 ? "" : "s"}.`
         );
       }
       setDiscoveredProjectsByConnectionId((current) => ({
         ...current,
-        [savedConnection.id ?? connectionId]: verifiedProjects,
+        [savedConnection.id ?? editingId]: verifiedProjects,
       }));
       setDiscoveryErrorsByConnectionId((current) => ({
         ...current,
-        [savedConnection.id ?? connectionId]: "",
+        [savedConnection.id ?? editingId]: "",
       }));
       setVerifiedConnectionIds((current) => ({
         ...current,
-        [savedConnection.id ?? connectionId]: verifiedProjects.length > 0,
+        [savedConnection.id ?? editingId]: verifiedProjects.length > 0,
       }));
       setDrawerOpen(false);
       await loadConnections(true);
@@ -1034,27 +1030,13 @@ export default function ProviderConnectionsConfigPage({
       <Drawer direction="top" open={drawerOpen} onOpenChange={setDrawerOpen}>
         <DrawerContent className="glass-card">
           <DrawerHeader>
-            <DrawerTitle>{editingId ? `Edit ${editingId}` : "New Deployment Connection"}</DrawerTitle>
+            <DrawerTitle>{editingId ? `Edit ${draft.name || editingId}` : "New Deployment Connection"}</DrawerTitle>
             <DrawerDescription>
               Configure how MAPPO authenticates to an external deployment system, then verify that MAPPO can browse the Azure DevOps projects operators will select later.
             </DrawerDescription>
           </DrawerHeader>
           <div className="max-h-[72vh] overflow-y-auto px-4 pb-2">
             <form id="provider-connection-form" className="grid grid-cols-1 gap-3 sm:grid-cols-2" onSubmit={handleSubmit}>
-              <div className="space-y-1">
-                <div className="flex items-center gap-1">
-                  <Label htmlFor="provider-connection-id">Deployment connection ID</Label>
-                  <FieldHelpTooltip content="Stable key MAPPO stores for this deployment connection. Use lowercase letters, numbers, and hyphens." />
-                </div>
-                <Input
-                  id="provider-connection-id"
-                  value={draft.id}
-                  onChange={(event) => setDraft((current) => ({ ...current, id: event.target.value }))}
-                  disabled={Boolean(editingId)}
-                  placeholder="ado-default"
-                  required
-                />
-              </div>
               <div className="space-y-1">
                 <div className="flex items-center gap-1">
                   <Label htmlFor="provider-connection-name">Display name</Label>

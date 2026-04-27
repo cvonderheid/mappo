@@ -101,8 +101,8 @@ public class ProjectQueryRepository {
             row.get(PROJECTS.ID),
             row.get(PROJECTS.NAME),
             row.get(PROJECT_THEME_KEY),
-            row.get(PROJECTS.RELEASE_INGEST_ENDPOINT_ID),
-            row.get(PROJECTS.PROVIDER_CONNECTION_ID),
+            normalize(row.get(PROJECTS.RELEASE_INGEST_ENDPOINT_ID)),
+            normalize(row.get(PROJECTS.PROVIDER_CONNECTION_ID)),
             accessStrategyType,
             parseAccessStrategyConfig(accessStrategyType, row.get(PROJECTS.ACCESS_STRATEGY_CONFIG).data()),
             deploymentDriverType,
@@ -134,5 +134,9 @@ public class ProjectQueryRepository {
         String value
     ) {
         return runtimeHealthProviderConfigRegistry.parse(type, value);
+    }
+
+    private String normalize(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
     }
 }

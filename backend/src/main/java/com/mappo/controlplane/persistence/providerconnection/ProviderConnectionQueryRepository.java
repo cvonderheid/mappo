@@ -47,7 +47,7 @@ public class ProviderConnectionQueryRepository {
         Map<String, List<ProviderConnectionLinkedProjectRecord>> linkedProjectsByConnectionId = loadLinkedProjects(connectionIds(rows));
         List<ProviderConnectionRecord> records = new ArrayList<>(rows.size());
         for (Record row : rows) {
-            String connectionId = row.get(PROVIDER_CONNECTIONS.ID);
+            String connectionId = normalize(row.get(PROVIDER_CONNECTIONS.ID));
             records.add(toRecord(
                 row,
                 discoveredProjectsByConnectionId.getOrDefault(connectionId, List.of()),
@@ -59,7 +59,8 @@ public class ProviderConnectionQueryRepository {
 
     public Optional<ProviderConnectionRecord> getConnection(String connectionId) {
         String normalizedConnectionId = normalize(connectionId);
-        if (normalizedConnectionId.isBlank()) {
+        Long parsedConnectionId = parseGeneratedId(normalizedConnectionId);
+        if (parsedConnectionId == null) {
             return Optional.empty();
         }
         Record row = dsl.select(
@@ -73,7 +74,7 @@ public class ProviderConnectionQueryRepository {
                 PROVIDER_CONNECTIONS.UPDATED_AT
             )
             .from(PROVIDER_CONNECTIONS)
-            .where(PROVIDER_CONNECTIONS.ID.eq(normalizedConnectionId))
+            .where(PROVIDER_CONNECTIONS.ID.eq(parsedConnectionId))
             .fetchOne();
         if (row == null) {
             return Optional.empty();
@@ -87,13 +88,14 @@ public class ProviderConnectionQueryRepository {
 
     public boolean exists(String connectionId) {
         String normalizedConnectionId = normalize(connectionId);
-        if (normalizedConnectionId.isBlank()) {
+        Long parsedConnectionId = parseGeneratedId(normalizedConnectionId);
+        if (parsedConnectionId == null) {
             return false;
         }
         return dsl.fetchExists(
             dsl.selectOne()
                 .from(PROVIDER_CONNECTIONS)
-                .where(PROVIDER_CONNECTIONS.ID.eq(normalizedConnectionId))
+                .where(PROVIDER_CONNECTIONS.ID.eq(parsedConnectionId))
         );
     }
 
@@ -111,7 +113,7 @@ public class ProviderConnectionQueryRepository {
                 PROJECTS.NAME
             )
             .from(PROJECTS)
-            .where(PROJECTS.PROVIDER_CONNECTION_ID.in(connectionIds))
+            .where(PROJECTS.PROVIDER_CONNECTION_ID.in(parsedGeneratedIds(connectionIds)))
             .orderBy(PROJECTS.NAME.asc(), PROJECTS.ID.asc())
             .fetch();
         for (Record row : rows) {
@@ -148,7 +150,7 @@ public class ProviderConnectionQueryRepository {
                 PROVIDER_CONNECTION_ADO_PROJECTS.WEB_URL
             )
             .from(PROVIDER_CONNECTION_ADO_PROJECTS)
-            .where(PROVIDER_CONNECTION_ADO_PROJECTS.CONNECTION_ID.in(connectionIds))
+            .where(PROVIDER_CONNECTION_ADO_PROJECTS.CONNECTION_ID.in(parsedGeneratedIds(connectionIds)))
             .orderBy(
                 PROVIDER_CONNECTION_ADO_PROJECTS.PROJECT_NAME.asc(),
                 PROVIDER_CONNECTION_ADO_PROJECTS.PROJECT_ID.asc()
@@ -195,7 +197,7 @@ public class ProviderConnectionQueryRepository {
             ? ProviderConnectionProviderType.azure_devops
             : ProviderConnectionProviderType.valueOf(provider.getLiteral());
         return new ProviderConnectionRecord(
-            row.get(PROVIDER_CONNECTIONS.ID),
+            normalize(row.get(PROVIDER_CONNECTIONS.ID)),
             row.get(PROVIDER_CONNECTIONS.NAME),
             providerType,
             Boolean.TRUE.equals(row.get(PROVIDER_CONNECTIONS.ENABLED)),
@@ -210,5 +212,24 @@ public class ProviderConnectionQueryRepository {
 
     private String normalize(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private Long parseGeneratedId(String value) {
+        String normalized = normalize(value);
+        if (normalized.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(normalized);
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
+    private List<Long> parsedGeneratedIds(List<String> ids) {
+        return ids.stream()
+            .map(this::parseGeneratedId)
+            .filter(id -> id != null)
+            .toList();
     }
 }

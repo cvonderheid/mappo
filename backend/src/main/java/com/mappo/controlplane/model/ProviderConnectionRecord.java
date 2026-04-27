@@ -6,7 +6,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 public record ProviderConnectionRecord(
-    @Schema(description = "Deployment connection id.", example = "ado-default")
+    @Schema(description = "Database-generated deployment connection id.", example = "42")
     String id,
     @Schema(description = "Deployment connection display name.", example = "Azure DevOps Default Connection")
     String name,

@@ -33,7 +33,7 @@ class ReleaseIngestEndpointIntegrationTests extends PostgresIntegrationTestBase 
 
     @Test
     void patchEndpointRejectsProviderChanges() throws Exception {
-        mockMvc.perform(patch("/api/v1/release-ingest/endpoints/github-managed-app-default")
+        mockMvc.perform(patch("/api/v1/release-ingest/endpoints/{endpointId}", githubReleaseEndpointId())
                 .contentType(APPLICATION_JSON)
                 .content("""
                     {

@@ -19,10 +19,9 @@ public class ReleaseIngestEndpointCommandRepository {
 
     private final DSLContext dsl;
 
-    public void createEndpoint(ReleaseIngestEndpointMutationRecord mutation) {
+    public String createEndpoint(ReleaseIngestEndpointMutationRecord mutation) {
         try {
-            dsl.insertInto(RELEASE_INGEST_ENDPOINTS)
-                .set(RELEASE_INGEST_ENDPOINTS.ID, normalize(mutation.id()))
+            Long createdId = dsl.insertInto(RELEASE_INGEST_ENDPOINTS)
                 .set(RELEASE_INGEST_ENDPOINTS.NAME, normalize(mutation.name()))
                 .set(RELEASE_INGEST_ENDPOINTS.PROVIDER, requiredProvider(mutation))
                 .set(RELEASE_INGEST_ENDPOINTS.ENABLED, mutation.enabled())
@@ -32,13 +31,19 @@ public class ReleaseIngestEndpointCommandRepository {
                 .set(RELEASE_INGEST_ENDPOINTS.PIPELINE_ID_FILTER, optional(mutation.pipelineIdFilter()))
                 .set(RELEASE_INGEST_ENDPOINTS.MANIFEST_PATH, optional(mutation.manifestPath()))
                 .set(RELEASE_INGEST_ENDPOINTS.UPDATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
-                .execute();
+                .returningResult(RELEASE_INGEST_ENDPOINTS.ID)
+                .fetchOne(RELEASE_INGEST_ENDPOINTS.ID);
+            if (createdId == null) {
+                throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "release source was not created");
+            }
+            return String.valueOf(createdId);
         } catch (DataAccessException exception) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "release source already exists: " + normalize(mutation.id()));
+            throw new ApiException(HttpStatus.BAD_REQUEST, "release source already exists: " + normalize(mutation.name()));
         }
     }
 
     public void updateEndpoint(ReleaseIngestEndpointMutationRecord mutation) {
+        Long endpointId = requiredGeneratedId(mutation.id(), "release source");
         int updated = dsl.update(RELEASE_INGEST_ENDPOINTS)
             .set(RELEASE_INGEST_ENDPOINTS.NAME, normalize(mutation.name()))
             .set(RELEASE_INGEST_ENDPOINTS.PROVIDER, requiredProvider(mutation))
@@ -49,7 +54,7 @@ public class ReleaseIngestEndpointCommandRepository {
             .set(RELEASE_INGEST_ENDPOINTS.PIPELINE_ID_FILTER, optional(mutation.pipelineIdFilter()))
             .set(RELEASE_INGEST_ENDPOINTS.MANIFEST_PATH, optional(mutation.manifestPath()))
             .set(RELEASE_INGEST_ENDPOINTS.UPDATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
-            .where(RELEASE_INGEST_ENDPOINTS.ID.eq(normalize(mutation.id())))
+            .where(RELEASE_INGEST_ENDPOINTS.ID.eq(endpointId))
             .execute();
         if (updated <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "release source not found: " + normalize(mutation.id()));
@@ -58,8 +63,9 @@ public class ReleaseIngestEndpointCommandRepository {
 
     public void deleteEndpoint(String endpointId) {
         String normalizedEndpointId = normalize(endpointId);
+        Long parsedEndpointId = requiredGeneratedId(normalizedEndpointId, "release source");
         int deleted = dsl.deleteFrom(RELEASE_INGEST_ENDPOINTS)
-            .where(RELEASE_INGEST_ENDPOINTS.ID.eq(normalizedEndpointId))
+            .where(RELEASE_INGEST_ENDPOINTS.ID.eq(parsedEndpointId))
             .execute();
         if (deleted <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "release source not found: " + normalizedEndpointId);
@@ -78,6 +84,15 @@ public class ReleaseIngestEndpointCommandRepository {
     private String optional(String value) {
         String normalized = normalize(value);
         return normalized.isBlank() ? null : normalized;
+    }
+
+    private Long requiredGeneratedId(String value, String label) {
+        String normalized = normalize(value);
+        try {
+            return Long.valueOf(normalized);
+        } catch (NumberFormatException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, label + " not found: " + normalized);
+        }
     }
 
     private String normalize(Object value) {

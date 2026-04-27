@@ -5,15 +5,12 @@ import com.mappo.controlplane.domain.project.ProjectAccessStrategyType;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
 import com.mappo.controlplane.domain.project.ProjectReleaseArtifactSourceType;
 import com.mappo.controlplane.domain.project.ProjectRuntimeHealthProviderType;
-import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ProjectCreateRequest(
-    @Schema(requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-    String id,
     @NotBlank String name,
     String themeKey,
     String releaseIngestEndpointId,

@@ -35,7 +35,10 @@ public class ProjectConfigurationCommandService {
 
     @Transactional
     public ProjectDefinition createProject(ProjectCreateRequest request) {
-        ProjectConfigurationMutationRecord mutation = projectConfigurationMutationService.fromCreate(withGeneratedProjectId(request));
+        ProjectConfigurationMutationRecord mutation = projectConfigurationMutationService.fromCreate(
+            generatedProjectId(request),
+            request
+        );
         validateReleaseIngestEndpointReference(mutation.releaseIngestEndpointId());
         validateProviderConnectionReference(mutation.providerConnectionId());
         try {
@@ -99,24 +102,8 @@ public class ProjectConfigurationCommandService {
         return "pca-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
     }
 
-    private ProjectCreateRequest withGeneratedProjectId(ProjectCreateRequest request) {
-        String explicitId = normalize(request.id());
-        String generatedId = explicitId.isBlank() ? nextAvailableProjectId(request.name()) : explicitId;
-        return new ProjectCreateRequest(
-            generatedId,
-            request.name(),
-            request.themeKey(),
-            request.releaseIngestEndpointId(),
-            request.providerConnectionId(),
-            request.accessStrategy(),
-            request.accessStrategyConfig(),
-            request.deploymentDriver(),
-            request.deploymentDriverConfig(),
-            request.releaseArtifactSource(),
-            request.releaseArtifactSourceConfig(),
-            request.runtimeHealthProvider(),
-            request.runtimeHealthProviderConfig()
-        );
+    private String generatedProjectId(ProjectCreateRequest request) {
+        return nextAvailableProjectId(request.name());
     }
 
     private String nextAvailableProjectId(String projectName) {

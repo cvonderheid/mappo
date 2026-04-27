@@ -22,23 +22,28 @@ public class ProviderConnectionCommandRepository {
 
     private final DSLContext dsl;
 
-    public void createConnection(ProviderConnectionMutationRecord mutation) {
+    public String createConnection(ProviderConnectionMutationRecord mutation) {
         try {
-            dsl.insertInto(PROVIDER_CONNECTIONS)
-                .set(PROVIDER_CONNECTIONS.ID, normalize(mutation.id()))
+            Long createdId = dsl.insertInto(PROVIDER_CONNECTIONS)
                 .set(PROVIDER_CONNECTIONS.NAME, normalize(mutation.name()))
                 .set(PROVIDER_CONNECTIONS.PROVIDER, requiredProvider(mutation))
                 .set(PROVIDER_CONNECTIONS.ENABLED, mutation.enabled())
                 .set(PROVIDER_CONNECTIONS.ORGANIZATION_FILTER, optional(mutation.organizationUrl()))
                 .set(PROVIDER_CONNECTIONS.PERSONAL_ACCESS_TOKEN_REF, optional(mutation.personalAccessTokenRef()))
                 .set(PROVIDER_CONNECTIONS.UPDATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
-                .execute();
+                .returningResult(PROVIDER_CONNECTIONS.ID)
+                .fetchOne(PROVIDER_CONNECTIONS.ID);
+            if (createdId == null) {
+                throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "deployment connection was not created");
+            }
+            return String.valueOf(createdId);
         } catch (DataAccessException exception) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "deployment connection already exists: " + normalize(mutation.id()));
+            throw new ApiException(HttpStatus.BAD_REQUEST, "deployment connection already exists: " + normalize(mutation.name()));
         }
     }
 
     public void updateConnection(ProviderConnectionMutationRecord mutation) {
+        Long connectionId = requiredGeneratedId(mutation.id(), "deployment connection");
         int updated = dsl.update(PROVIDER_CONNECTIONS)
             .set(PROVIDER_CONNECTIONS.NAME, normalize(mutation.name()))
             .set(PROVIDER_CONNECTIONS.PROVIDER, requiredProvider(mutation))
@@ -46,7 +51,7 @@ public class ProviderConnectionCommandRepository {
             .set(PROVIDER_CONNECTIONS.ORGANIZATION_FILTER, optional(mutation.organizationUrl()))
             .set(PROVIDER_CONNECTIONS.PERSONAL_ACCESS_TOKEN_REF, optional(mutation.personalAccessTokenRef()))
             .set(PROVIDER_CONNECTIONS.UPDATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
-            .where(PROVIDER_CONNECTIONS.ID.eq(normalize(mutation.id())))
+            .where(PROVIDER_CONNECTIONS.ID.eq(connectionId))
             .execute();
         if (updated <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "deployment connection not found: " + normalize(mutation.id()));
@@ -55,8 +60,9 @@ public class ProviderConnectionCommandRepository {
 
     public void deleteConnection(String connectionId) {
         String normalizedConnectionId = normalize(connectionId);
+        Long parsedConnectionId = requiredGeneratedId(normalizedConnectionId, "deployment connection");
         int deleted = dsl.deleteFrom(PROVIDER_CONNECTIONS)
-            .where(PROVIDER_CONNECTIONS.ID.eq(normalizedConnectionId))
+            .where(PROVIDER_CONNECTIONS.ID.eq(parsedConnectionId))
             .execute();
         if (deleted <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "deployment connection not found: " + normalizedConnectionId);
@@ -65,15 +71,16 @@ public class ProviderConnectionCommandRepository {
 
     public void replaceDiscoveredAdoProjects(String connectionId, List<ProviderConnectionAdoProjectRecord> projects) {
         String normalizedConnectionId = normalize(connectionId);
+        Long parsedConnectionId = requiredGeneratedId(normalizedConnectionId, "deployment connection");
         dsl.deleteFrom(PROVIDER_CONNECTION_ADO_PROJECTS)
-            .where(PROVIDER_CONNECTION_ADO_PROJECTS.CONNECTION_ID.eq(normalizedConnectionId))
+            .where(PROVIDER_CONNECTION_ADO_PROJECTS.CONNECTION_ID.eq(parsedConnectionId))
             .execute();
         if (projects == null || projects.isEmpty()) {
             return;
         }
         for (ProviderConnectionAdoProjectRecord project : projects) {
             dsl.insertInto(PROVIDER_CONNECTION_ADO_PROJECTS)
-                .set(PROVIDER_CONNECTION_ADO_PROJECTS.CONNECTION_ID, normalizedConnectionId)
+                .set(PROVIDER_CONNECTION_ADO_PROJECTS.CONNECTION_ID, parsedConnectionId)
                 .set(PROVIDER_CONNECTION_ADO_PROJECTS.PROJECT_ID, normalize(project.id()))
                 .set(PROVIDER_CONNECTION_ADO_PROJECTS.PROJECT_NAME, normalize(project.name()))
                 .set(PROVIDER_CONNECTION_ADO_PROJECTS.WEB_URL, optional(project.webUrl()))
@@ -93,6 +100,15 @@ public class ProviderConnectionCommandRepository {
     private String optional(String value) {
         String normalized = normalize(value);
         return normalized.isBlank() ? null : normalized;
+    }
+
+    private Long requiredGeneratedId(String value, String label) {
+        String normalized = normalize(value);
+        try {
+            return Long.valueOf(normalized);
+        } catch (NumberFormatException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, label + " not found: " + normalized);
+        }
     }
 
     private String normalize(Object value) {

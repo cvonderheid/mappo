@@ -8,7 +8,6 @@ import com.mappo.controlplane.model.ReleaseIngestEndpointRecord;
 import com.mappo.controlplane.model.SecretReferenceRecord;
 import com.mappo.controlplane.service.secretreference.SecretReferenceCatalogService;
 import com.mappo.controlplane.service.secretreference.SecretReferenceResolver;
-import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -17,13 +16,11 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ReleaseIngestEndpointMutationService {
 
-    private static final Pattern ID_PATTERN = Pattern.compile("^[a-z0-9](?:[a-z0-9-]{1,126}[a-z0-9])?$");
     private final SecretReferenceCatalogService secretReferenceCatalogService;
     private final SecretReferenceResolver secretReferenceResolver;
     private final ReleaseIngestProviderDescriptorRegistry releaseIngestProviderDescriptorRegistry;
 
     public ReleaseIngestEndpointMutationRecord fromCreate(ReleaseIngestEndpointCreateRequest request) {
-        String id = requiredId(request.id());
         String name = requiredName(request.name());
         ReleaseIngestProviderType provider = requiredProvider(request.provider());
         boolean enabled = request.enabled() == null || Boolean.TRUE.equals(request.enabled());
@@ -33,7 +30,7 @@ public class ReleaseIngestEndpointMutationService {
         String pipelineIdFilter = normalize(request.pipelineIdFilter());
         String manifestPath = normalizeManifestPath(request.manifestPath(), provider);
         return new ReleaseIngestEndpointMutationRecord(
-            id,
+            "",
             name,
             provider,
             enabled,
@@ -52,7 +49,7 @@ public class ReleaseIngestEndpointMutationService {
         if (patch == null) {
             return toMutation(current);
         }
-        String id = requiredId(current.id());
+        String id = normalize(current.id());
         String name = firstNonBlank(patch.name(), current.name());
         if (name.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "release source name must not be blank");
@@ -91,7 +88,7 @@ public class ReleaseIngestEndpointMutationService {
 
     private ReleaseIngestEndpointMutationRecord toMutation(ReleaseIngestEndpointRecord endpoint) {
         return new ReleaseIngestEndpointMutationRecord(
-            requiredId(endpoint.id()),
+            normalize(endpoint.id()),
             requiredName(endpoint.name()),
             requiredProvider(endpoint.provider()),
             endpoint.enabled(),
@@ -101,17 +98,6 @@ public class ReleaseIngestEndpointMutationService {
             normalize(endpoint.pipelineIdFilter()),
             normalizeManifestPath(endpoint.manifestPath(), endpoint.provider())
         );
-    }
-
-    private String requiredId(String value) {
-        String normalized = normalize(value);
-        if (normalized.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "release source id must not be blank");
-        }
-        if (!ID_PATTERN.matcher(normalized).matches()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "release source id must match " + ID_PATTERN.pattern());
-        }
-        return normalized;
     }
 
     private String requiredName(String value) {

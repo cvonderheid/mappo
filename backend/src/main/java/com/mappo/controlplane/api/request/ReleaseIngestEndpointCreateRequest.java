@@ -7,7 +7,6 @@ import jakarta.validation.constraints.NotNull;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ReleaseIngestEndpointCreateRequest(
-    @NotBlank String id,
     @NotBlank String name,
     @NotNull ReleaseIngestProviderType provider,
     Boolean enabled,

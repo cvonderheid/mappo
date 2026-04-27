@@ -63,7 +63,7 @@ function githubReleaseContract(
         method: "POST",
         urlTemplate: `/api/v1/release-ingest/endpoints/${endpointId}/webhooks/github`,
         pathParams: [
-          { name: "endpointId", required: true, description: "Release Source ID configured in Admin -> Release Sources." },
+          { name: "endpointId", required: true, description: "MAPPO-generated release source id." },
         ],
         headers: [
           { name: "x-github-event", required: true, description: "MAPPO processes push events and acknowledges ping events." },
@@ -136,7 +136,7 @@ function azureDevOpsReleaseContract(input: ProjectFlowContractInput, endpointId:
         method: "POST",
         urlTemplate: `/api/v1/release-ingest/endpoints/${endpointId}/webhooks/ado`,
         pathParams: [
-          { name: "endpointId", required: true, description: "Release Source ID configured in Admin -> Release Sources." },
+          { name: "endpointId", required: true, description: "MAPPO-generated release source id." },
         ],
         queryParams: [
           { name: "token", required: false, description: "Webhook secret. MAPPO also accepts the secret as the Basic auth password." },

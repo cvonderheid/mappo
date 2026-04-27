@@ -105,68 +105,31 @@ abstract class PostgresIntegrationTestBase {
             "mappo.managed-app-release.webhook-secret"
         );
 
-        jdbcTemplate.update("""
-            INSERT INTO public.release_ingest_endpoints (
-              id,
-              name,
-              provider,
-              enabled,
-              secret_ref,
-              repo_filter,
-              branch_filter,
-              pipeline_id_filter,
-              manifest_path
-            )
-            VALUES
-              (
-                'github-managed-app-default',
-                'GitHub Managed App Default',
-                'github',
-                true,
-                ?,
-                'example-org/mappo-release-catalog',
-                'main',
-                NULL,
-                'releases/releases.manifest.json'
-              ),
-              (
-                'ado-pipeline-default',
-                'Azure DevOps Pipeline Default',
-                'azure_devops',
-                true,
-                ?,
-                NULL,
-                NULL,
-                NULL,
-                NULL
-              )
-            """,
+        Long githubEndpointId = insertReleaseIngestEndpoint(
+            "GitHub Managed App Default",
+            "github",
             "secret:" + githubWebhookSecretReferenceId,
-            "secret:" + adoWebhookSecretReferenceId
+            "example-org/mappo-release-catalog",
+            "main",
+            null,
+            "releases/releases.manifest.json"
         );
-
-        jdbcTemplate.update("""
-            INSERT INTO public.provider_connections (
-              id,
-              name,
-              provider,
-              enabled,
-              organization_filter,
-              personal_access_token_ref
-            )
-            VALUES (
-              'ado-default',
-              'Azure DevOps Default Connection',
-              'azure_devops',
-              true,
-              NULL,
-              ?
-            )
-            """,
+        Long adoEndpointId = insertReleaseIngestEndpoint(
+            "Azure DevOps Pipeline Default",
+            "azure_devops",
+            "secret:" + adoWebhookSecretReferenceId,
+            null,
+            null,
+            null,
+            null
+        );
+        Long adoConnectionId = insertProviderConnection(
+            "Azure DevOps Default Connection",
+            "azure_devops",
             "secret:" + adoRuntimePatSecretReferenceId
         );
 
-        jdbcTemplate.execute("""
+        jdbcTemplate.update("""
             INSERT INTO public.projects (
               id,
               name,
@@ -194,7 +157,7 @@ abstract class PostgresIntegrationTestBase {
                 '{"descriptor":"blob_uri_manifest","templateUriField":"templateUri"}'::jsonb,
                 'azure_container_app_http',
                 '{"path":"/health","expectedStatus":200,"timeoutMs":5000}'::jsonb,
-                'github-managed-app-default',
+                ?,
                 NULL,
                 'harbor-teal'
               ),
@@ -209,7 +172,7 @@ abstract class PostgresIntegrationTestBase {
                 '{"descriptor":"template_spec_release","versionRefField":"sourceVersionRef"}'::jsonb,
                 'azure_container_app_http',
                 '{"path":"/health","expectedStatus":200,"timeoutMs":5000}'::jsonb,
-                'github-managed-app-default',
+                ?,
                 NULL,
                 'vectr-signal'
               ),
@@ -224,11 +187,16 @@ abstract class PostgresIntegrationTestBase {
                 '{"sourceSystem":"azure_devops","descriptorPath":"pipelineInputs","versionField":"artifactVersion"}'::jsonb,
                 'http_endpoint',
                 '{"path":"/health","expectedStatus":200,"timeoutMs":5000}'::jsonb,
-                'ado-pipeline-default',
-                'ado-default',
+                ?,
+                ?,
                 'scalr-slate'
               )
-            """);
+            """,
+            githubEndpointId,
+            githubEndpointId,
+            adoEndpointId,
+            adoConnectionId
+        );
     }
 
     private String insertSecretReference(String name, String provider, String usage, String backendRef) {
@@ -243,6 +211,80 @@ abstract class PostgresIntegrationTestBase {
             provider,
             usage,
             backendRef
+        );
+        return id == null ? "" : String.valueOf(id);
+    }
+
+    private Long insertReleaseIngestEndpoint(
+        String name,
+        String provider,
+        String secretRef,
+        String repoFilter,
+        String branchFilter,
+        String pipelineIdFilter,
+        String manifestPath
+    ) {
+        Long id = jdbcTemplate.queryForObject(
+            """
+            INSERT INTO public.release_ingest_endpoints (
+              name,
+              provider,
+              enabled,
+              secret_ref,
+              repo_filter,
+              branch_filter,
+              pipeline_id_filter,
+              manifest_path
+            )
+            VALUES (?, ?::public.mappo_release_ingest_provider, true, ?, ?, ?, ?, ?)
+            RETURNING id
+            """,
+            Long.class,
+            name,
+            provider,
+            secretRef,
+            repoFilter,
+            branchFilter,
+            pipelineIdFilter,
+            manifestPath
+        );
+        return id == null ? 0L : id;
+    }
+
+    private Long insertProviderConnection(String name, String provider, String personalAccessTokenRef) {
+        Long id = jdbcTemplate.queryForObject(
+            """
+            INSERT INTO public.provider_connections (
+              name,
+              provider,
+              enabled,
+              organization_filter,
+              personal_access_token_ref
+            )
+            VALUES (?, ?::public.mappo_release_ingest_provider, true, NULL, ?)
+            RETURNING id
+            """,
+            Long.class,
+            name,
+            provider,
+            personalAccessTokenRef
+        );
+        return id == null ? 0L : id;
+    }
+
+    protected String githubReleaseEndpointId() {
+        return generatedIdByName("release_ingest_endpoints", "GitHub Managed App Default");
+    }
+
+    protected String adoProviderConnectionId() {
+        return generatedIdByName("provider_connections", "Azure DevOps Default Connection");
+    }
+
+    private String generatedIdByName(String tableName, String name) {
+        Long id = jdbcTemplate.queryForObject(
+            "SELECT id FROM public." + tableName + " WHERE name = ?",
+            Long.class,
+            name
         );
         return id == null ? "" : String.valueOf(id);
     }

@@ -34,8 +34,8 @@ public class ProjectConfigurationMutationService {
     private final ProjectReleaseArtifactSourceConfigRegistry releaseArtifactSourceConfigRegistry;
     private final ProjectRuntimeHealthProviderConfigRegistry runtimeHealthProviderConfigRegistry;
 
-    public ProjectConfigurationMutationRecord fromCreate(ProjectCreateRequest request) {
-        String id = requiredProjectId(request.id());
+    public ProjectConfigurationMutationRecord fromCreate(String projectId, ProjectCreateRequest request) {
+        String id = requiredProjectId(projectId);
         String name = requiredName(request.name());
         String themeKey = optionalThemeKey(request.themeKey());
         String releaseIngestEndpointId = optionalIdentifier(request.releaseIngestEndpointId());

@@ -42,8 +42,8 @@ public class ProjectCommandRepository {
             .set(PROJECTS.ID, normalize(mutation.id()))
             .set(PROJECTS.NAME, normalize(mutation.name()))
             .set(PROJECT_THEME_KEY, optionalThemeKey(mutation.themeKey()))
-            .set(PROJECTS.RELEASE_INGEST_ENDPOINT_ID, optionalIdentifier(mutation.releaseIngestEndpointId()))
-            .set(PROJECTS.PROVIDER_CONNECTION_ID, optionalIdentifier(mutation.providerConnectionId()))
+            .set(PROJECTS.RELEASE_INGEST_ENDPOINT_ID, optionalGeneratedId(mutation.releaseIngestEndpointId(), "release source"))
+            .set(PROJECTS.PROVIDER_CONNECTION_ID, optionalGeneratedId(mutation.providerConnectionId(), "deployment connection"))
             .set(PROJECTS.ACCESS_STRATEGY, requiredAccessStrategy(mutation))
             .set(PROJECTS.ACCESS_STRATEGY_CONFIG, jsonb(mutation.accessStrategyConfig()))
             .set(PROJECTS.DEPLOYMENT_DRIVER, requiredDeploymentDriver(mutation))
@@ -62,8 +62,8 @@ public class ProjectCommandRepository {
         int updated = dsl.update(PROJECTS)
             .set(PROJECTS.NAME, normalize(mutation.name()))
             .set(PROJECT_THEME_KEY, optionalThemeKey(mutation.themeKey()))
-            .set(PROJECTS.RELEASE_INGEST_ENDPOINT_ID, optionalIdentifier(mutation.releaseIngestEndpointId()))
-            .set(PROJECTS.PROVIDER_CONNECTION_ID, optionalIdentifier(mutation.providerConnectionId()))
+            .set(PROJECTS.RELEASE_INGEST_ENDPOINT_ID, optionalGeneratedId(mutation.releaseIngestEndpointId(), "release source"))
+            .set(PROJECTS.PROVIDER_CONNECTION_ID, optionalGeneratedId(mutation.providerConnectionId(), "deployment connection"))
             .set(PROJECTS.ACCESS_STRATEGY, requiredAccessStrategy(mutation))
             .set(PROJECTS.ACCESS_STRATEGY_CONFIG, jsonb(mutation.accessStrategyConfig()))
             .set(PROJECTS.DEPLOYMENT_DRIVER, requiredDeploymentDriver(mutation))
@@ -110,9 +110,16 @@ public class ProjectCommandRepository {
         return value == null ? "" : String.valueOf(value).trim();
     }
 
-    private String optionalIdentifier(String value) {
+    private Long optionalGeneratedId(String value, String label) {
         String normalized = normalize(value);
-        return normalized.isBlank() ? null : normalized;
+        if (normalized.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(normalized);
+        } catch (NumberFormatException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, label + " id must be database-generated");
+        }
     }
 
     private String optionalThemeKey(String value) {

@@ -32,6 +32,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
@@ -54,10 +55,7 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
 
     @Test
     void createAndPatchProjectProduceAuditEvents() throws Exception {
-        String projectId = "project-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
-
         Map<String, Object> createRequest = new LinkedHashMap<>();
-        createRequest.put("id", projectId);
         createRequest.put("name", "Custom ADO Project");
         createRequest.put("themeKey", "scalr-slate");
         createRequest.put("accessStrategy", "azure_workload_rbac");
@@ -65,13 +63,14 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
         createRequest.put("releaseArtifactSource", "external_deployment_inputs");
         createRequest.put("runtimeHealthProvider", "http_endpoint");
 
-        mockMvc.perform(post("/api/v1/projects")
+        MvcResult createResult = mockMvc.perform(post("/api/v1/projects")
                 .contentType(APPLICATION_JSON)
                 .content(objectMapper.writeValueAsBytes(createRequest)))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.id").value(projectId))
             .andExpect(jsonPath("$.deploymentDriver").value("pipeline_trigger"))
-            .andExpect(jsonPath("$.themeKey").value("scalr-slate"));
+            .andExpect(jsonPath("$.themeKey").value("scalr-slate"))
+            .andReturn();
+        String projectId = objectMapper.readTree(createResult.getResponse().getContentAsByteArray()).get("id").asText();
 
         Map<String, Object> patchRequest = new LinkedHashMap<>();
         patchRequest.put("name", "Custom ADO Project Updated");
@@ -115,19 +114,19 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
 
     @Test
     void validateTargetContractWarnsWhenProjectHasNoTargets() throws Exception {
-        String projectId = "project-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         Map<String, Object> createRequest = new LinkedHashMap<>();
-        createRequest.put("id", projectId);
         createRequest.put("name", "No Targets Yet");
         createRequest.put("accessStrategy", "azure_workload_rbac");
         createRequest.put("deploymentDriver", "pipeline_trigger");
         createRequest.put("releaseArtifactSource", "external_deployment_inputs");
         createRequest.put("runtimeHealthProvider", "http_endpoint");
 
-        mockMvc.perform(post("/api/v1/projects")
+        MvcResult createResult = mockMvc.perform(post("/api/v1/projects")
                 .contentType(APPLICATION_JSON)
                 .content(objectMapper.writeValueAsBytes(createRequest)))
-            .andExpect(status().isCreated());
+            .andExpect(status().isCreated())
+            .andReturn();
+        String projectId = objectMapper.readTree(createResult.getResponse().getContentAsByteArray()).get("id").asText();
 
         mockMvc.perform(post("/api/v1/projects/{projectId}/validate", projectId)
                 .contentType(APPLICATION_JSON)
@@ -143,21 +142,21 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
 
     @Test
     void deleteProjectRemovesProjectScopedTargetsReleasesAndEvents() throws Exception {
-        String projectId = "project-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         String targetId = "target-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
 
         Map<String, Object> createRequest = new LinkedHashMap<>();
-        createRequest.put("id", projectId);
         createRequest.put("name", "Delete Me");
         createRequest.put("accessStrategy", "azure_workload_rbac");
         createRequest.put("deploymentDriver", "azure_deployment_stack");
         createRequest.put("releaseArtifactSource", "blob_arm_template");
         createRequest.put("runtimeHealthProvider", "http_endpoint");
 
-        mockMvc.perform(post("/api/v1/projects")
+        MvcResult createResult = mockMvc.perform(post("/api/v1/projects")
                 .contentType(APPLICATION_JSON)
                 .content(objectMapper.writeValueAsBytes(createRequest)))
-            .andExpect(status().isCreated());
+            .andExpect(status().isCreated())
+            .andReturn();
+        String projectId = objectMapper.readTree(createResult.getResponse().getContentAsByteArray()).get("id").asText();
 
         Map<String, Object> onboardingEvent = new LinkedHashMap<>();
         onboardingEvent.put("eventId", "evt-" + targetId);
@@ -227,9 +226,9 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                     {
                       "organization": "https://dev.azure.com/example-ado-org",
                       "project": "sample-app-service",
-                      "providerConnectionId": "ado-default"
+                      "providerConnectionId": "%s"
                     }
-                    """))
+                    """.formatted(adoProviderConnectionId())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.projectId").value("azure-appservice-ado-pipeline"))
             .andExpect(jsonPath("$.organization").value("https://dev.azure.com/example-ado-org"))
@@ -246,9 +245,9 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                     {
                       "organization": "https://dev.azure.com/example-ado-org",
                       "project": "sample-app-service",
-                      "providerConnectionId": "ado-default"
+                      "providerConnectionId": "%s"
                     }
-                    """))
+                    """.formatted(adoProviderConnectionId())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.projectId").value("azure-appservice-ado-pipeline"))
             .andExpect(jsonPath("$.organization").value("https://dev.azure.com/example-ado-org"))
@@ -265,11 +264,11 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                     {
                       "organization": "https://dev.azure.com/example-ado-org",
                       "project": "sample-app-service",
-                      "providerConnectionId": "ado-default",
+                      "providerConnectionId": "%s",
                       "repositoryId": "repo-1",
                       "repository": "sample-app-service"
                     }
-                    """))
+                    """.formatted(adoProviderConnectionId())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.projectId").value("azure-appservice-ado-pipeline"))
             .andExpect(jsonPath("$.organization").value("https://dev.azure.com/example-ado-org"))
@@ -282,7 +281,9 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
 
     @Test
     void patchProviderConnectionPersistsPersonalAccessTokenRef() throws Exception {
-        mockMvc.perform(patch("/api/v1/provider-connections/{connectionId}", "ado-default")
+        String connectionId = adoProviderConnectionId();
+
+        mockMvc.perform(patch("/api/v1/provider-connections/{connectionId}", connectionId)
                 .contentType(APPLICATION_JSON)
                 .content("""
                     {
@@ -291,7 +292,7 @@ class ProjectConfigurationApiIntegrationTests extends PostgresIntegrationTestBas
                     }
                     """))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.id").value("ado-default"))
+            .andExpect(jsonPath("$.id").value(connectionId))
             .andExpect(jsonPath("$.organizationUrl").value("https://example-ado-org.visualstudio.com"))
             .andExpect(jsonPath("$.personalAccessTokenRef").value("mappo.azure-devops.personal-access-token"));
     }
