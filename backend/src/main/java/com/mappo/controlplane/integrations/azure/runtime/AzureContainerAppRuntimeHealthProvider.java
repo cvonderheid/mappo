@@ -37,9 +37,7 @@ class AzureContainerAppRuntimeHealthProvider implements RuntimeHealthProvider {
 
     @Override
     public boolean isConfigured() {
-        return !normalize(properties.getAzure().getTenantId()).isBlank()
-            && !normalize(properties.getAzure().getClientId()).isBlank()
-            && !normalize(properties.getAzure().getClientSecret()).isBlank();
+        return azureExecutorClient.isConfigured();
     }
 
     @Override

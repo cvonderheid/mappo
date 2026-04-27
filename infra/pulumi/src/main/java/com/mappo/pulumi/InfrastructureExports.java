@@ -7,73 +7,61 @@ final class InfrastructureExports {
     private InfrastructureExports() {
     }
 
-    static void exportControlPlanePostgres(
-        Context ctx,
-        ControlPlanePostgresConfig config,
-        ControlPlanePostgresResources postgres
-    ) {
-        ctx.export("controlPlanePostgresEnabled", config.enabled());
-        ctx.export(
-            "controlPlanePostgresSubscriptionId",
-            postgres == null ? Output.ofNullable(null) : Output.of(postgres.subscriptionId())
-        );
-        ctx.export(
-            "controlPlanePostgresResourceGroupName",
-            postgres == null ? Output.ofNullable(null) : postgres.resourceGroupName()
-        );
-        ctx.export(
-            "controlPlanePostgresServerName",
-            postgres == null ? Output.ofNullable(null) : postgres.serverName()
-        );
-        ctx.export(
-            "controlPlanePostgresHost",
-            postgres == null ? Output.ofNullable(null) : postgres.host()
-        );
-        ctx.export(
-            "controlPlanePostgresPort",
-            postgres == null ? Output.ofNullable(null) : Output.of(postgres.port())
-        );
-        ctx.export(
-            "controlPlanePostgresDatabase",
-            postgres == null ? Output.ofNullable(null) : Output.of(postgres.databaseName())
-        );
-        ctx.export(
-            "controlPlanePostgresAdmin",
-            postgres == null ? Output.ofNullable(null) : Output.of(postgres.adminLogin())
-        );
-        ctx.export(
-            "controlPlanePostgresConnectionUsername",
-            postgres == null ? Output.ofNullable(null) : postgres.connectionUsername()
-        );
-        ctx.export(
-            "controlPlanePostgresPassword",
-            postgres == null ? Output.ofNullable(null) : postgres.password()
-        );
-        ctx.export(
-            "controlPlaneDatabaseUrl",
-            postgres == null ? Output.ofNullable(null) : postgres.databaseUrl()
-        );
+    static void exportPlatform(Context ctx, InfrastructureConfig config, PlatformResources platform) {
+        ctx.export("stackKind", config.stackKind());
+        ctx.export("runtimeSubscriptionId", Output.of(config.runtime().subscriptionId()));
+        ctx.export("runtimeResourceGroupName", platform.resourceGroupName());
+        ctx.export("runtimeContainerEnvironmentName", platform.containerEnvironmentName());
+        ctx.export("runtimeContainerEnvironmentId", platform.containerEnvironmentId());
+        ctx.export("runtimeContainerEnvironmentDefaultDomain", platform.containerEnvironmentDefaultDomain());
+        ctx.export("runtimeAcrName", platform.acrName());
+        ctx.export("runtimeAcrLoginServer", platform.acrLoginServer());
+        ctx.export("runtimeKeyVaultName", platform.keyVaultName());
+        ctx.export("runtimeKeyVaultUri", platform.keyVaultUri());
+        ctx.export("runtimeRedisName", platform.redisName());
+        ctx.export("runtimeRedisHost", platform.redisHost());
+        ctx.export("runtimeRedisPort", platform.redisPort());
+        ctx.export("runtimeRedisPassword", platform.redisPassword());
+        ctx.export("runtimeManagedIdentityId", platform.managedIdentityId());
+        ctx.export("runtimeManagedIdentityClientId", platform.managedIdentityClientId());
+        ctx.export("runtimeManagedIdentityPrincipalId", platform.managedIdentityPrincipalId());
+        ctx.export("controlPlanePostgresEnabled", config.controlPlanePostgres().enabled());
+        ctx.export("controlPlanePostgresResourceGroupName", platform.controlPlanePostgresResourceGroupName());
+        ctx.export("controlPlanePostgresServerName", platform.controlPlanePostgresServerName());
+        ctx.export("controlPlanePostgresHost", platform.controlPlanePostgresHost());
+        ctx.export("controlPlanePostgresPort", platform.controlPlanePostgresPort());
+        ctx.export("controlPlanePostgresDatabase", platform.controlPlanePostgresDatabase());
+        ctx.export("controlPlanePostgresAdmin", platform.controlPlanePostgresAdmin());
+        ctx.export("controlPlanePostgresConnectionUsername", platform.controlPlanePostgresConnectionUsername());
+        ctx.export("controlPlanePostgresPassword", platform.controlPlanePostgresPassword());
+        ctx.export("controlPlaneDatabaseUrl", platform.controlPlaneDatabaseUrl());
     }
 
-    static void exportRuntime(Context ctx, RuntimeConfig config, RuntimeResources runtime) {
-        ctx.export("runtimeEnabled", config.enabled());
-        ctx.export("runtimeAppsEnabled", config.appsEnabled());
-        ctx.export("runtimeSubscriptionId", Output.of(config.subscriptionId()));
-        ctx.export("runtimeResourceGroupName", runtime == null ? Output.ofNullable(null) : runtime.resourceGroupName());
-        ctx.export("runtimeContainerEnvironmentName", runtime == null ? Output.ofNullable(null) : runtime.containerEnvironmentName());
-        ctx.export("runtimeContainerEnvironmentId", runtime == null ? Output.ofNullable(null) : runtime.containerEnvironmentId());
-        ctx.export("runtimeAcrName", runtime == null ? Output.ofNullable(null) : runtime.acrName());
-        ctx.export("runtimeAcrLoginServer", runtime == null ? Output.ofNullable(null) : runtime.acrLoginServer());
-        ctx.export("runtimeKeyVaultName", runtime == null ? Output.ofNullable(null) : runtime.keyVaultName());
-        ctx.export("runtimeKeyVaultUri", runtime == null ? Output.ofNullable(null) : runtime.keyVaultUri());
-        ctx.export("runtimeRedisName", runtime == null ? Output.ofNullable(null) : runtime.redisName());
-        ctx.export("runtimeRedisHost", runtime == null ? Output.ofNullable(null) : runtime.redisHost());
-        ctx.export("runtimeRedisPort", runtime == null ? Output.ofNullable(null) : runtime.redisPort());
-        ctx.export("runtimeBackendAppName", runtime == null ? Output.ofNullable(null) : runtime.backendAppName());
-        ctx.export("runtimeBackendUrl", runtime == null ? Output.ofNullable(null) : runtime.backendUrl());
-        ctx.export("runtimeFrontendAppName", runtime == null ? Output.ofNullable(null) : runtime.frontendAppName());
-        ctx.export("runtimeFrontendUrl", runtime == null ? Output.ofNullable(null) : runtime.frontendUrl());
-        ctx.export("runtimeEasyAuthApplicationClientId", runtime == null ? Output.ofNullable(null) : runtime.easyAuthApplicationClientId());
-        ctx.export("runtimeImageTag", Output.of(config.imageTag()));
+    static void exportRuntimeApps(
+        Context ctx,
+        InfrastructureConfig config,
+        PlatformResources platform,
+        RuntimeAppResources apps
+    ) {
+        ctx.export("stackKind", config.stackKind());
+        ctx.export("platformStack", Output.of(config.platformStack()));
+        ctx.export("runtimeSubscriptionId", Output.of(config.runtime().subscriptionId()));
+        ctx.export("runtimeResourceGroupName", platform.resourceGroupName());
+        ctx.export("runtimeContainerEnvironmentName", platform.containerEnvironmentName());
+        ctx.export("runtimeContainerEnvironmentId", platform.containerEnvironmentId());
+        ctx.export("runtimeContainerEnvironmentDefaultDomain", platform.containerEnvironmentDefaultDomain());
+        ctx.export("runtimeAcrName", platform.acrName());
+        ctx.export("runtimeAcrLoginServer", platform.acrLoginServer());
+        ctx.export("runtimeKeyVaultName", platform.keyVaultName());
+        ctx.export("runtimeKeyVaultUri", platform.keyVaultUri());
+        ctx.export("runtimeRedisName", platform.redisName());
+        ctx.export("runtimeRedisHost", platform.redisHost());
+        ctx.export("runtimeRedisPort", platform.redisPort());
+        ctx.export("runtimeBackendAppName", apps.backendAppName());
+        ctx.export("runtimeBackendUrl", apps.backendUrl());
+        ctx.export("runtimeFrontendAppName", apps.frontendAppName());
+        ctx.export("runtimeFrontendUrl", apps.frontendUrl());
+        ctx.export("runtimeEasyAuthApplicationClientId", apps.easyAuthApplicationClientId());
+        ctx.export("runtimeImageTag", Output.of(config.runtime().imageTag()));
     }
 }

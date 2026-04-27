@@ -3,8 +3,6 @@ package com.mappo.pulumi;
 import com.pulumi.core.Output;
 
 record RuntimeConfig(
-    boolean enabled,
-    boolean appsEnabled,
     boolean easyAuthEnabled,
     String subscriptionId,
     String resourceNameSuffix,
@@ -27,11 +25,15 @@ record RuntimeConfig(
     String frontendMemory,
     double migrationCpu,
     String migrationMemory,
+    String frontendCustomDomain,
+    String backendCustomDomain,
+    String frontendDnsZoneName,
+    String frontendDnsZoneResourceGroup,
+    boolean frontendCustomDomainCertificateEnabled,
+    boolean backendCustomDomainCertificateEnabled,
     String tenantId,
     String keyVaultAccessObjectId,
     String tenantBySubscription,
-    Output<String> azureClientId,
-    Output<String> azureClientSecret,
     Output<String> marketplaceIngestToken,
     Output<String> publisherAcrServer,
     Output<String> publisherAcrPullClientId,

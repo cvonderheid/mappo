@@ -5,7 +5,6 @@ import java.util.List;
 
 record ControlPlanePostgresConfig(
     boolean enabled,
-    String subscriptionId,
     String resourceNameSuffix,
     String location,
     String resourceGroupName,

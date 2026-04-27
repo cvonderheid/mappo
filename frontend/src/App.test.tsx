@@ -377,6 +377,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Project Settings")).toBeInTheDocument();
+      expect(screen.getAllByText("Managed App Demo").length).toBeGreaterThan(0);
     });
 
     fireEvent.click(screen.getByRole("button", { name: /Deployment\s+Azure/i }));

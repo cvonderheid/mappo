@@ -1180,7 +1180,7 @@ export interface components {
             projects?: components["schemas"]["ProviderConnectionAdoProjectRecord"][];
         };
         ProjectCreateRequest: {
-            id: string;
+            id?: string;
             name: string;
             themeKey?: string;
             releaseIngestEndpointId?: string;

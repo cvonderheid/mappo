@@ -12,6 +12,8 @@ import com.mappo.controlplane.service.providerconnection.ProviderConnectionCatal
 import com.mappo.controlplane.service.releaseingest.ReleaseIngestEndpointCatalogService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +35,7 @@ public class ProjectConfigurationCommandService {
 
     @Transactional
     public ProjectDefinition createProject(ProjectCreateRequest request) {
-        ProjectConfigurationMutationRecord mutation = projectConfigurationMutationService.fromCreate(request);
+        ProjectConfigurationMutationRecord mutation = projectConfigurationMutationService.fromCreate(withGeneratedProjectId(request));
         validateReleaseIngestEndpointReference(mutation.releaseIngestEndpointId());
         validateProviderConnectionReference(mutation.providerConnectionId());
         try {
@@ -95,6 +97,57 @@ public class ProjectConfigurationCommandService {
 
     private String newAuditId() {
         return "pca-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+    }
+
+    private ProjectCreateRequest withGeneratedProjectId(ProjectCreateRequest request) {
+        String explicitId = normalize(request.id());
+        String generatedId = explicitId.isBlank() ? nextAvailableProjectId(request.name()) : explicitId;
+        return new ProjectCreateRequest(
+            generatedId,
+            request.name(),
+            request.themeKey(),
+            request.releaseIngestEndpointId(),
+            request.providerConnectionId(),
+            request.accessStrategy(),
+            request.accessStrategyConfig(),
+            request.deploymentDriver(),
+            request.deploymentDriverConfig(),
+            request.releaseArtifactSource(),
+            request.releaseArtifactSourceConfig(),
+            request.runtimeHealthProvider(),
+            request.runtimeHealthProviderConfig()
+        );
+    }
+
+    private String nextAvailableProjectId(String projectName) {
+        String base = slugifyProjectId(projectName);
+        List<String> existingProjectIds = projectCatalogService.listProjects().stream()
+            .map(ProjectDefinition::id)
+            .toList();
+        for (int suffix = 0; suffix < 1000; suffix++) {
+            String candidate = suffix == 0 ? base : base + "-" + suffix;
+            if (!existingProjectIds.contains(candidate)) {
+                return candidate;
+            }
+        }
+        return base + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+    }
+
+    private String slugifyProjectId(String value) {
+        String normalized = normalize(value)
+            .toLowerCase(Locale.ROOT)
+            .replaceAll("[^a-z0-9]+", "-")
+            .replaceAll("^-+|-+$", "");
+        if (normalized.isBlank()) {
+            return "project";
+        }
+        if (normalized.length() > 80) {
+            normalized = normalized.substring(0, 80).replaceAll("-+$", "");
+        }
+        if (normalized.length() < 3) {
+            normalized = normalized + "-project";
+        }
+        return normalized.isBlank() ? "project" : normalized;
     }
 
     private void validateReleaseIngestEndpointReference(String endpointId) {

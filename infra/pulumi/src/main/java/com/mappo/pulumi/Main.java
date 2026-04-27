@@ -20,25 +20,33 @@ public final class Main {
     }
 
     private void run() {
-        ControlPlanePostgresResources controlPlanePostgres = createControlPlanePostgresResources();
-        RuntimeResources runtime = createRuntimeResources(controlPlanePostgres);
-
-        InfrastructureExports.exportControlPlanePostgres(ctx, config.controlPlanePostgres(), controlPlanePostgres);
-        InfrastructureExports.exportRuntime(ctx, config.runtime(), runtime);
+        if ("platform".equals(config.stackKind())) {
+            runPlatform();
+            return;
+        }
+        runRuntime();
     }
 
-    private ControlPlanePostgresResources createControlPlanePostgresResources() {
-        return ControlPlanePostgresStack.create(
+    private void runPlatform() {
+        ControlPlanePostgresResources controlPlanePostgres = ControlPlanePostgresStack.create(
             config.controlPlanePostgres(),
-            providers.get(config.controlPlanePostgres().subscriptionId())
+            providers.get(config.runtime().subscriptionId())
         );
-    }
-
-    private RuntimeResources createRuntimeResources(ControlPlanePostgresResources controlPlanePostgres) {
-        return RuntimeStack.create(
+        PlatformResources platform = RuntimeStack.createPlatform(
             config.runtime(),
             controlPlanePostgres,
             providers.get(config.runtime().subscriptionId())
         );
+        InfrastructureExports.exportPlatform(ctx, config, platform);
+    }
+
+    private void runRuntime() {
+        PlatformResources platform = PlatformStackReference.load(config.platformStack());
+        RuntimeAppResources apps = RuntimeStack.createApps(
+            config.runtime(),
+            platform,
+            providers.get(config.runtime().subscriptionId())
+        );
+        InfrastructureExports.exportRuntimeApps(ctx, config, platform, apps);
     }
 }

@@ -1,109 +1,115 @@
 # MAPPO Pulumi IaC (Java)
 
-This Pulumi project provisions the MAPPO platform runtime infrastructure:
+This Pulumi project supports two explicit stack kinds:
 
-- control-plane PostgreSQL
+- `platform`: source-code independent Azure infrastructure
+- `runtime`: source-code dependent Container Apps runtime
+
+Both stack kinds are implemented by the same Java Pulumi module. The stack kind
+is selected with `MAPPO_PULUMI_STACK_KIND` or Pulumi config `mappo:stackKind`.
+
+## Platform Stack
+
+The platform stack creates infrastructure that can exist before any MAPPO image
+has been built:
+
+- runtime resource group
+- Azure Database for PostgreSQL Flexible Server + `mappo` database
 - Container Apps environment
-- backend and frontend Container Apps
 - runtime ACR
 - Redis
 - Key Vault
 - managed identity
-- frontend EasyAuth Entra app registration and redirect URIs
 
-It does not provision target workloads. The target fleet lives in
-[`./infra/demo/targets-azure-delivery`](./infra/demo/targets-azure-delivery).
+From the repository root, use `pulumi-platform.env.example` as the template:
 
-## Runtime
+```bash
+cp pulumi-platform.env.example .data/pulumi-platform.env
+set -a
+source .data/pulumi-platform.env
+set +a
 
-- Pulumi runtime: `java`
-- Entry point: `com.mappo.pulumi.Main`
-- Build file: `infra/pulumi/pom.xml`
+./mvnw -pl infra/pulumi -DskipTests compile
 
-## What it creates
+cd infra/pulumi
+pulumi login --local
+pulumi stack init <platform-stack>
+pulumi preview --stack <platform-stack> --diff
+pulumi up --stack <platform-stack> --yes
+```
 
-- Optional control-plane persistence:
-  - Azure Database for PostgreSQL Flexible Server + `mappo` database
-  - generated admin password when no password is supplied
-- Optional runtime platform:
-  - shared runtime resource group
-  - Container Apps environment
-  - ACR
-  - Redis
-  - Key Vault
-  - backend Container App with Flyway init container
-  - frontend Container App
-  - EasyAuth Entra app registration and redirect URI management
+Important platform outputs:
 
-## Stack config contract
+- `runtimeAcrName`
+- `runtimeAcrLoginServer`
+- `runtimeResourceGroupName`
+- `runtimeKeyVaultName`
+- `runtimeKeyVaultUri`
+- `controlPlaneDatabaseUrl`
 
-Pulumi config namespace is `mappo`.
+## Runtime Stack
 
-Common optional keys:
-- `mappo:defaultLocation` (`eastus`)
-- `mappo:controlPlanePostgresEnabled` (`false`)
-- `mappo:controlPlaneSubscriptionId`
-- `mappo:controlPlaneLocation`
-- `mappo:runtimeEnabled` (`false`)
-- `mappo:runtimeAppsEnabled` (`false`)
-- `mappo:runtimeSubscriptionId`
-- `mappo:runtimeResourceGroupName`
-- `mappo:runtimeLocation`
-- `mappo:imageTag`
+The runtime stack consumes platform outputs through a Pulumi `StackReference` and
+creates app resources that depend on published MAPPO images:
 
-Required when `mappo:runtimeAppsEnabled=true`:
-- `mappo:azureTenantId`
-- `mappo:azureClientId` (secret)
-- `mappo:azureClientSecret` (secret)
-- `mappo:marketplaceIngestToken` (secret)
+- backend Container App
+- frontend Container App
+- backend Flyway init container
+- frontend EasyAuth Entra app registration and redirect URI
+- Container App env vars and secrets
 
-The runtime app phase expects Maven-published images to already exist in the
-Pulumi-created ACR:
-- `mappo-backend:<imageTag>`
-- `mappo-frontend:<imageTag>`
-- `mappo-flyway:<imageTag>`
+From the repository root, use `pulumi-runtime.env.example` as the template:
 
-Fresh stack sequence:
+```bash
+cp pulumi-runtime.env.example .data/pulumi-runtime.env
+set -a
+source .data/pulumi-runtime.env
+set +a
 
-1. Run Pulumi with `mappo:runtimeEnabled=true`, `mappo:controlPlanePostgresEnabled=true`, and `mappo:runtimeAppsEnabled=false`.
-2. Read `runtimeAcrLoginServer` from Pulumi outputs and publish artifacts with Maven.
-3. Set `mappo:imageTag` to the Maven image tag.
-4. Set `mappo:runtimeAppsEnabled=true`.
-5. Run Pulumi again to create/update Container Apps and EasyAuth.
+./mvnw -pl infra/pulumi -DskipTests compile
 
-## Commands
+cd infra/pulumi
+pulumi login --local
+pulumi stack init <runtime-stack>
+pulumi preview --stack <runtime-stack> --diff
+pulumi up --stack <runtime-stack> --yes
+```
 
-Compile only:
+Required runtime inputs:
+
+- `MAPPO_PLATFORM_STACK`
+- `MAPPO_RUNTIME_IMAGE_TAG`
+- `MAPPO_MARKETPLACE_INGEST_TOKEN`
+
+`MAPPO_AZURE_TENANT_ID` is optional. Pulumi derives it from `az login` when it
+is blank.
+
+The hosted backend uses the Pulumi-created managed identity through
+`DefaultAzureCredential`. Grant Azure RBAC to the platform output
+`runtimeManagedIdentityPrincipalId` for target subscriptions/resource groups
+that MAPPO should update directly.
+
+Advanced overrides such as explicit resource group names, PostgreSQL settings,
+runtime sizing, CORS, EasyAuth toggles, and operator Key Vault access IDs are
+available through Pulumi config or env fallback, but are intentionally omitted
+from the handoff templates.
+
+The runtime stack expects these images to exist in the platform ACR:
+
+- `mappo-backend:<MAPPO_RUNTIME_IMAGE_TAG>`
+- `mappo-frontend:<MAPPO_RUNTIME_IMAGE_TAG>`
+- `mappo-flyway:<MAPPO_RUNTIME_IMAGE_TAG>`
+
+## Compile
 
 ```bash
 ./mvnw -pl infra/pulumi -DskipTests compile
 ```
 
-Preview:
+## Target Workloads
 
-```bash
-cd infra/pulumi
-pulumi login --local
-pulumi stack select <stack> || pulumi stack init <stack>
-pulumi preview --stack <stack>
-```
+Target workloads are not part of the MAPPO platform/runtime stacks. Demo target
+provisioning lives under:
 
-Apply:
-
-```bash
-cd infra/pulumi
-pulumi up --stack <stack> --yes
-```
-
-Destroy:
-
-```bash
-cd infra/pulumi
-pulumi destroy --stack <stack> --yes
-```
-
-Target fleet provisioning:
-- [`./infra/demo/targets-azure-delivery/README.md`](./infra/demo/targets-azure-delivery/README.md)
-- [`./infra/demo/targets-pipeline-delivery/README.md`](./infra/demo/targets-pipeline-delivery/README.md)
-- [`./scripts/targets_azure_delivery_up.sh`](./scripts/targets_azure_delivery_up.sh)
-- [`./scripts/targets_pipeline_delivery_up.sh`](./scripts/targets_pipeline_delivery_up.sh)
+- [`../demo/targets-azure-delivery`](../demo/targets-azure-delivery)
+- [`../demo/targets-pipeline-delivery`](../demo/targets-pipeline-delivery)

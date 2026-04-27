@@ -4,5 +4,3 @@ description: MAPPO control-plane and edge infrastructure provisioning
 config:
   mappo:defaultLocation:
     value: eastus
-  mappo:controlPlanePostgresEnabled:
-    value: false

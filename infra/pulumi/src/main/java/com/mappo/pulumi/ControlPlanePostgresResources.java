@@ -3,7 +3,6 @@ package com.mappo.pulumi;
 import com.pulumi.core.Output;
 
 record ControlPlanePostgresResources(
-    String subscriptionId,
     Output<String> resourceGroupName,
     Output<String> serverName,
     Output<String> host,

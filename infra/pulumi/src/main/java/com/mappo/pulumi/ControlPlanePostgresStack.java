@@ -177,19 +177,14 @@ final class ControlPlanePostgresStack {
 
         Output<String> host = server.fullyQualifiedDomainName();
         Output<String> connectionUsername = Output.of(config.adminLogin());
-        Output<String> databaseUrl = Output.tuple(connectionUsername, adminPassword, host, database.name())
-            .applyValue(tuple -> "postgresql+psycopg://"
-                + PulumiSupport.urlEncode(tuple.t1)
-                + ":"
-                + PulumiSupport.urlEncode(tuple.t2)
-                + "@"
-                + tuple.t3
+        Output<String> databaseUrl = Output.tuple(host, database.name())
+            .applyValue(tuple -> "jdbc:postgresql://"
+                + tuple.t1
                 + ":5432/"
-                + tuple.t4
+                + tuple.t2
                 + "?sslmode=require");
 
         return new ControlPlanePostgresResources(
-            config.subscriptionId(),
             resourceGroup.name(),
             server.name(),
             host,

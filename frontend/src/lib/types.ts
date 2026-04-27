@@ -36,7 +36,8 @@ export type ProjectDefinition = Schemas["ProjectDefinition"] & {
   providerConnectionId?: string;
   themeKey?: string;
 };
-export type ProjectCreateRequest = Schemas["ProjectCreateRequest"] & {
+export type ProjectCreateRequest = Omit<Schemas["ProjectCreateRequest"], "id"> & {
+  id?: string;
   providerConnectionId?: string;
   themeKey?: string;
 };

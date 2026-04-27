@@ -34,4 +34,5 @@ test-results/
 
 # Local data
 .data/
+.data.orig/
 .tmp/

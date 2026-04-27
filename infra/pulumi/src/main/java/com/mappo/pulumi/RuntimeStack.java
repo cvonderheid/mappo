@@ -8,13 +8,18 @@ import com.pulumi.azuread.ApplicationRegistration;
 import com.pulumi.azuread.ApplicationRegistrationArgs;
 import com.pulumi.azuread.ServicePrincipal;
 import com.pulumi.azuread.ServicePrincipalArgs;
+import com.pulumi.azurenative.app.AppFunctions;
 import com.pulumi.azurenative.Provider;
 import com.pulumi.azurenative.app.ContainerApp;
 import com.pulumi.azurenative.app.ContainerAppArgs;
 import com.pulumi.azurenative.app.ContainerAppsAuthConfig;
 import com.pulumi.azurenative.app.ContainerAppsAuthConfigArgs;
+import com.pulumi.azurenative.app.ManagedCertificate;
+import com.pulumi.azurenative.app.ManagedCertificateArgs;
+import com.pulumi.azurenative.app.enums.BindingType;
 import com.pulumi.azurenative.app.ManagedEnvironment;
 import com.pulumi.azurenative.app.ManagedEnvironmentArgs;
+import com.pulumi.azurenative.app.enums.ManagedCertificateDomainControlValidation;
 import com.pulumi.azurenative.app.enums.ManagedServiceIdentityType;
 import com.pulumi.azurenative.app.enums.UnauthenticatedClientActionV2;
 import com.pulumi.azurenative.app.inputs.AuthPlatformArgs;
@@ -24,11 +29,13 @@ import com.pulumi.azurenative.app.inputs.AzureActiveDirectoryValidationArgs;
 import com.pulumi.azurenative.app.inputs.ConfigurationArgs;
 import com.pulumi.azurenative.app.inputs.ContainerArgs;
 import com.pulumi.azurenative.app.inputs.ContainerResourcesArgs;
+import com.pulumi.azurenative.app.inputs.CustomDomainArgs;
 import com.pulumi.azurenative.app.inputs.EnvironmentVarArgs;
 import com.pulumi.azurenative.app.inputs.GlobalValidationArgs;
 import com.pulumi.azurenative.app.inputs.IdentityProvidersArgs;
 import com.pulumi.azurenative.app.inputs.IngressArgs;
 import com.pulumi.azurenative.app.inputs.InitContainerArgs;
+import com.pulumi.azurenative.app.inputs.ManagedCertificatePropertiesArgs;
 import com.pulumi.azurenative.app.inputs.ManagedServiceIdentityArgs;
 import com.pulumi.azurenative.app.inputs.RegistryCredentialsArgs;
 import com.pulumi.azurenative.app.inputs.ScaleArgs;
@@ -39,6 +46,8 @@ import com.pulumi.azurenative.containerregistry.ContainerregistryFunctions;
 import com.pulumi.azurenative.containerregistry.Registry;
 import com.pulumi.azurenative.containerregistry.RegistryArgs;
 import com.pulumi.azurenative.containerregistry.inputs.ListRegistryCredentialsArgs;
+import com.pulumi.azurenative.dbforpostgresql.FirewallRule;
+import com.pulumi.azurenative.dbforpostgresql.FirewallRuleArgs;
 import com.pulumi.azurenative.keyvault.Secret;
 import com.pulumi.azurenative.keyvault.Vault;
 import com.pulumi.azurenative.keyvault.VaultArgs;
@@ -55,11 +64,16 @@ import com.pulumi.azurenative.redis.Redis;
 import com.pulumi.azurenative.redis.RedisArgs;
 import com.pulumi.azurenative.redis.RedisFunctions;
 import com.pulumi.azurenative.redis.inputs.ListRedisKeysArgs;
+import com.pulumi.azurenative.dns.RecordSet;
+import com.pulumi.azurenative.dns.RecordSetArgs;
+import com.pulumi.azurenative.dns.inputs.CnameRecordArgs;
+import com.pulumi.azurenative.dns.inputs.TxtRecordArgs;
 import com.pulumi.azurenative.resources.ResourceGroup;
 import com.pulumi.azurenative.resources.ResourceGroupArgs;
-import com.pulumi.core.Output;
 import com.pulumi.core.Either;
+import com.pulumi.core.Output;
 import com.pulumi.resources.CustomResourceOptions;
+import com.pulumi.resources.Resource;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -67,11 +81,7 @@ final class RuntimeStack {
     private RuntimeStack() {
     }
 
-    static RuntimeResources create(RuntimeConfig config, ControlPlanePostgresResources postgres, Provider provider) {
-        if (!config.enabled()) {
-            return null;
-        }
-
+    static PlatformResources createPlatform(RuntimeConfig config, ControlPlanePostgresResources postgres, Provider provider) {
         String suffix = config.resourceNameSuffix();
         CustomResourceOptions withProvider = CustomResourceOptions.builder().provider(provider).build();
 
@@ -109,6 +119,23 @@ final class RuntimeStack {
                 .build(),
             withProvider
         );
+
+        if (postgres != null) {
+            new FirewallRule(
+                "control-plane-postgres-fw-container-env-" + suffix,
+                FirewallRuleArgs.builder()
+                    .resourceGroupName(postgres.resourceGroupName())
+                    .serverName(postgres.serverName())
+                    .firewallRuleName("allow-container-apps-environment")
+                    .startIpAddress(environment.staticIp())
+                    .endIpAddress(environment.staticIp())
+                    .build(),
+                CustomResourceOptions.builder()
+                    .provider(provider)
+                    .dependsOn(environment)
+                    .build()
+            );
+        }
 
         Registry registry = new Registry(
             "runtime-acr-" + suffix,
@@ -198,51 +225,83 @@ final class RuntimeStack {
         writeKeyVaultSecret("runtime-db-password-" + suffix, keyVault, resourceGroupName, "mappo-db-admin-password", postgres == null ? null : postgres.password(), withProvider);
         writeKeyVaultSecret("runtime-redis-password-" + suffix, keyVault, resourceGroupName, "mappo-redis-primary-key", redisPassword, withProvider);
 
-        if (!config.appsEnabled()) {
-            return new RuntimeResources(
-                resourceGroupName,
-                environment.name(),
-                environment.id(),
-                registry.name(),
-                registry.loginServer(),
-                keyVault.name(),
-                keyVault.properties().applyValue(properties -> properties.vaultUri()),
-                redis.name(),
-                redis.hostName(),
-                redis.sslPort(),
-                Output.ofNullable(null),
-                Output.ofNullable(null),
-                Output.ofNullable(null),
-                Output.ofNullable(null),
-                Output.ofNullable(null)
-            );
-        }
+        return new PlatformResources(
+            resourceGroupName,
+            environment.name(),
+            environment.id(),
+            environment.defaultDomain(),
+            registry.name(),
+            registry.loginServer(),
+            keyVault.name(),
+            keyVault.properties().applyValue(properties -> properties.vaultUri()),
+            redis.name(),
+            redis.hostName(),
+            redis.sslPort(),
+            redisPassword,
+            managedIdentity.id(),
+            managedIdentity.clientId(),
+            managedIdentity.principalId(),
+            postgres == null ? Output.ofNullable(null) : postgres.resourceGroupName(),
+            postgres == null ? Output.ofNullable(null) : postgres.serverName(),
+            postgres == null ? Output.ofNullable(null) : postgres.host(),
+            postgres == null ? Output.ofNullable(null) : Output.of(postgres.port()),
+            postgres == null ? Output.ofNullable(null) : Output.of(postgres.databaseName()),
+            postgres == null ? Output.ofNullable(null) : Output.of(postgres.adminLogin()),
+            postgres == null ? Output.ofNullable(null) : postgres.connectionUsername(),
+            postgres == null ? Output.ofNullable(null) : postgres.password(),
+            postgres == null ? Output.ofNullable(null) : postgres.databaseUrl()
+        );
+    }
 
-        if (postgres == null) {
-            throw new IllegalStateException("Runtime app deployment requires managed Postgres outputs.");
-        }
+    static RuntimeAppResources createApps(RuntimeConfig config, PlatformResources platform, Provider provider) {
+        String suffix = config.resourceNameSuffix();
+        CustomResourceOptions withProvider = CustomResourceOptions.builder().provider(provider).build();
+        Output<String> resourceGroupName = platform.resourceGroupName();
 
         Output<String> acrUsername = ContainerregistryFunctions.listRegistryCredentials(ListRegistryCredentialsArgs.builder()
-                .registryName(registry.name())
+                .registryName(platform.acrName())
                 .resourceGroupName(resourceGroupName)
                 .build())
             .applyValue(credentials -> credentials.username().orElse(config.acrName()));
         Output<String> acrPassword = ContainerregistryFunctions.listRegistryCredentials(ListRegistryCredentialsArgs.builder()
-                .registryName(registry.name())
+                .registryName(platform.acrName())
                 .resourceGroupName(resourceGroupName)
                 .build())
             .applyValue(credentials -> credentials.passwords().getFirst().value().orElseThrow());
 
-        Output<String> backendImage = registry.loginServer().applyValue(loginServer -> loginServer + "/mappo-backend:" + config.imageTag());
-        Output<String> frontendImage = registry.loginServer().applyValue(loginServer -> loginServer + "/mappo-frontend:" + config.imageTag());
-        Output<String> flywayImage = registry.loginServer().applyValue(loginServer -> loginServer + "/mappo-flyway:" + config.imageTag());
+        Output<String> backendImage = platform.acrLoginServer().applyValue(loginServer -> loginServer + "/mappo-backend:" + config.imageTag());
+        Output<String> frontendImage = platform.acrLoginServer().applyValue(loginServer -> loginServer + "/mappo-frontend:" + config.imageTag());
+        Output<String> flywayImage = platform.acrLoginServer().applyValue(loginServer -> loginServer + "/mappo-flyway:" + config.imageTag());
+        Output<String> generatedBackendUrl = stableContainerAppUrl(config.backendAppName(), platform.containerEnvironmentDefaultDomain());
+        Output<String> backendUrl = publicUrl(config.backendCustomDomain(), generatedBackendUrl);
+        Output<String> frontendUrl = stableContainerAppUrl(config.frontendAppName(), platform.containerEnvironmentDefaultDomain());
+        Output<String> backendHost = stableContainerAppHost(config.backendAppName(), platform.containerEnvironmentDefaultDomain());
+        Output<String> frontendHost = stableContainerAppHost(config.frontendAppName(), platform.containerEnvironmentDefaultDomain());
+        ManagedCertificate backendCustomDomainCertificate = createCustomDomainCertificate(
+            config,
+            platform,
+            resourceGroupName,
+            "backend",
+            config.backendCustomDomain(),
+            config.backendCustomDomainCertificateEnabled(),
+            backendHost,
+            provider
+        );
+        ManagedCertificate frontendCustomDomainCertificate = createCustomDomainCertificate(
+            config,
+            platform,
+            resourceGroupName,
+            "frontend",
+            config.frontendCustomDomain(),
+            config.frontendCustomDomainCertificateEnabled(),
+            frontendHost,
+            provider
+        );
 
         List<SecretArgs> backendSecrets = new ArrayList<>();
-        addSecret(backendSecrets, "database-url", postgres.databaseUrl());
-        addSecret(backendSecrets, "database-password", postgres.password());
-        addSecret(backendSecrets, "redis-password", redisPassword);
-        addSecret(backendSecrets, "azure-client-id", config.azureClientId());
-        addSecret(backendSecrets, "azure-client-secret", config.azureClientSecret());
+        addSecret(backendSecrets, "database-url", platform.controlPlaneDatabaseUrl());
+        addSecret(backendSecrets, "database-password", platform.controlPlanePostgresPassword());
+        addSecret(backendSecrets, "redis-password", platform.redisPassword());
         addSecret(backendSecrets, "marketplace-ingest-token", config.marketplaceIngestToken());
         addSecret(backendSecrets, "registry-password", acrPassword);
         addSecret(backendSecrets, "publisher-acr-pull-client-secret", config.publisherAcrPullClientSecret());
@@ -252,25 +311,24 @@ final class RuntimeStack {
         addSecret(backendSecrets, "azure-devops-webhook-secret", config.azureDevOpsWebhookSecret());
 
         List<EnvironmentVarArgs> backendEnv = new ArrayList<>();
-        backendEnv.add(secretEnv("MAPPO_DATABASE_URL", "database-url"));
+        backendEnv.add(secretEnv("MAPPO_JDBC_DATABASE_URL", "database-url"));
         backendEnv.add(env("MAPPO_BACKEND_PORT", "8000"));
-        backendEnv.add(env("MAPPO_DB_USER", postgres.adminLogin()));
+        backendEnv.add(env("MAPPO_DB_USER", platform.controlPlanePostgresAdmin()));
         backendEnv.add(secretEnv("MAPPO_DB_PASSWORD", "database-password"));
         backendEnv.add(env("MAPPO_EXECUTION_MODE", "azure"));
         backendEnv.add(env("MAPPO_AZURE_TENANT_ID", config.tenantId()));
-        backendEnv.add(secretEnv("MAPPO_AZURE_CLIENT_ID", "azure-client-id"));
-        backendEnv.add(secretEnv("MAPPO_AZURE_CLIENT_SECRET", "azure-client-secret"));
+        backendEnv.add(env("MAPPO_AZURE_MANAGED_IDENTITY_CLIENT_ID", platform.managedIdentityClientId()));
         backendEnv.add(env("MAPPO_AZURE_TENANT_BY_SUBSCRIPTION", config.tenantBySubscription()));
         backendEnv.add(secretEnv("MAPPO_MARKETPLACE_INGEST_TOKEN", "marketplace-ingest-token"));
         backendEnv.add(env("MAPPO_RUN_RETENTION_DAYS", "90"));
         backendEnv.add(env("MAPPO_AUDIT_RETENTION_DAYS", "90"));
         backendEnv.add(env("MAPPO_REDIS_ENABLED", "true"));
-        backendEnv.add(env("MAPPO_REDIS_HOST", redis.hostName()));
-        backendEnv.add(env("MAPPO_REDIS_PORT", redis.sslPort().applyValue(String::valueOf)));
+        backendEnv.add(env("MAPPO_REDIS_HOST", platform.redisHost()));
+        backendEnv.add(env("MAPPO_REDIS_PORT", platform.redisPort().applyValue(String::valueOf)));
         backendEnv.add(env("MAPPO_REDIS_SSL_ENABLED", "true"));
         backendEnv.add(secretEnv("MAPPO_REDIS_PASSWORD", "redis-password"));
-        backendEnv.add(env("MAPPO_AZURE_KEY_VAULT_URL", keyVault.properties().applyValue(properties -> properties.vaultUri())));
-        backendEnv.add(env("MAPPO_CORS_ORIGINS", config.corsOrigins()));
+        backendEnv.add(env("MAPPO_AZURE_KEY_VAULT_URL", platform.keyVaultUri()));
+        backendEnv.add(env("MAPPO_CORS_ORIGINS", runtimeCorsOrigins(config, frontendUrl)));
         addOptionalSecretEnv(backendEnv, "MAPPO_PUBLISHER_ACR_PULL_CLIENT_SECRET", "publisher-acr-pull-client-secret", config.publisherAcrPullClientSecret());
         addOptionalSecretEnv(backendEnv, "MAPPO_MANAGED_APP_RELEASE_WEBHOOK_SECRET", "managed-app-release-webhook-secret", config.githubReleaseWebhookSecret());
         addOptionalSecretEnv(backendEnv, "MAPPO_MANAGED_APP_RELEASE_GITHUB_TOKEN", "managed-app-release-github-token", config.githubReleaseToken());
@@ -286,20 +344,20 @@ final class RuntimeStack {
                 .containerAppName(config.backendAppName())
                 .resourceGroupName(resourceGroupName)
                 .location(config.location())
-                .managedEnvironmentId(environment.id())
+                .managedEnvironmentId(platform.containerEnvironmentId())
                 .identity(ManagedServiceIdentityArgs.builder()
                     .type(ManagedServiceIdentityType.UserAssigned)
-                    .userAssignedIdentities(Output.all(managedIdentity.id()))
+                    .userAssignedIdentities(Output.all(platform.managedIdentityId()))
                     .build())
                 .configuration(ConfigurationArgs.builder()
                     .activeRevisionsMode("Single")
                     .secrets(backendSecrets)
                     .registries(List.of(RegistryCredentialsArgs.builder()
-                        .server(registry.loginServer())
+                        .server(platform.acrLoginServer())
                         .username(acrUsername)
                         .passwordSecretRef("registry-password")
                         .build()))
-                    .ingress(externalIngress(8000))
+                    .ingress(appIngress(8000, config.backendCustomDomain(), backendCustomDomainCertificate))
                     .build())
                 .template(TemplateArgs.builder()
                     .initContainers(List.of(InitContainerArgs.builder()
@@ -307,7 +365,7 @@ final class RuntimeStack {
                         .image(flywayImage)
                         .env(List.of(
                             secretEnv("FLYWAY_URL", "database-url"),
-                            env("FLYWAY_USER", postgres.adminLogin()),
+                            env("FLYWAY_USER", platform.controlPlanePostgresAdmin()),
                             secretEnv("FLYWAY_PASSWORD", "database-password"),
                             env("FLYWAY_CONNECT_RETRIES", "10")
                         ))
@@ -326,7 +384,6 @@ final class RuntimeStack {
             withProvider
         );
 
-        Output<String> backendUrl = backend.latestRevisionFqdn().applyValue(host -> "https://" + host);
         ApplicationRegistration easyAuthApp = null;
         ApplicationPassword easyAuthPassword = null;
         Output<String> easyAuthClientId = Output.ofNullable(null);
@@ -335,6 +392,7 @@ final class RuntimeStack {
                 "runtime-easyauth-app-" + suffix,
                 ApplicationRegistrationArgs.builder()
                     .displayName("mappo-ui-easyauth-" + suffix)
+                    .implicitIdTokenIssuanceEnabled(true)
                     .signInAudience("AzureADMyOrg")
                     .build()
             );
@@ -367,20 +425,20 @@ final class RuntimeStack {
                 .containerAppName(config.frontendAppName())
                 .resourceGroupName(resourceGroupName)
                 .location(config.location())
-                .managedEnvironmentId(environment.id())
+                .managedEnvironmentId(platform.containerEnvironmentId())
                 .identity(ManagedServiceIdentityArgs.builder()
                     .type(ManagedServiceIdentityType.UserAssigned)
-                    .userAssignedIdentities(Output.all(managedIdentity.id()))
+                    .userAssignedIdentities(Output.all(platform.managedIdentityId()))
                     .build())
                 .configuration(ConfigurationArgs.builder()
                     .activeRevisionsMode("Single")
                     .secrets(frontendSecrets)
                     .registries(List.of(RegistryCredentialsArgs.builder()
-                        .server(registry.loginServer())
+                        .server(platform.acrLoginServer())
                         .username(acrUsername)
                         .passwordSecretRef("registry-password")
                         .build()))
-                    .ingress(externalIngress(80))
+                    .ingress(appIngress(80, config.frontendCustomDomain(), frontendCustomDomainCertificate))
                     .build())
                 .template(TemplateArgs.builder()
                     .containers(List.of(ContainerArgs.builder()
@@ -396,14 +454,13 @@ final class RuntimeStack {
             withProvider
         );
 
-        Output<String> frontendUrl = frontend.latestRevisionFqdn().applyValue(host -> "https://" + host);
         if (config.easyAuthEnabled()) {
             new ApplicationRedirectUris(
                 "runtime-easyauth-redirects-" + suffix,
                 ApplicationRedirectUrisArgs.builder()
                     .applicationId(easyAuthApp.id())
                     .type("Web")
-                    .redirectUris(frontendUrl.applyValue(url -> List.of(url + "/.auth/login/aad/callback")))
+                    .redirectUris(frontendUrl.applyValue(url -> redirectUris(config, url)))
                     .build()
             );
             new ContainerAppsAuthConfig(
@@ -435,17 +492,7 @@ final class RuntimeStack {
             );
         }
 
-        return new RuntimeResources(
-            resourceGroupName,
-            environment.name(),
-            environment.id(),
-            registry.name(),
-            registry.loginServer(),
-            keyVault.name(),
-            keyVault.properties().applyValue(properties -> properties.vaultUri()),
-            redis.name(),
-            redis.hostName(),
-            redis.sslPort(),
+        return new RuntimeAppResources(
             backend.name(),
             backendUrl,
             frontend.name(),
@@ -476,6 +523,13 @@ final class RuntimeStack {
                 .permissions(secretPermissions)
                 .build());
         }
+        PulumiSupport.resolveActiveAzPrincipalObjectId()
+            .filter(objectId -> !objectId.equals(config.keyVaultAccessObjectId()))
+            .ifPresent(objectId -> policies.add(AccessPolicyEntryArgs.builder()
+                .tenantId(config.tenantId())
+                .objectId(objectId)
+                .permissions(secretPermissions)
+                .build()));
         return policies;
     }
 
@@ -485,6 +539,180 @@ final class RuntimeStack {
             .targetPort(targetPort)
             .traffic(List.of(TrafficWeightArgs.builder().latestRevision(true).weight(100).build()))
             .build();
+    }
+
+    private static IngressArgs appIngress(
+        int targetPort,
+        String customDomain,
+        ManagedCertificate customDomainCertificate
+    ) {
+        IngressArgs.Builder builder = IngressArgs.builder()
+            .external(true)
+            .targetPort(targetPort)
+            .traffic(List.of(TrafficWeightArgs.builder().latestRevision(true).weight(100).build()));
+        if (customDomainCertificate != null) {
+            builder.customDomains(List.of(CustomDomainArgs.builder()
+                .name(customDomain)
+                .bindingType(BindingType.SniEnabled)
+                .certificateId(customDomainCertificate.id())
+                .build()));
+        } else if (!customDomain.isBlank()) {
+            builder.customDomains(List.of(CustomDomainArgs.builder()
+                .name(customDomain)
+                .bindingType(BindingType.Disabled)
+                .build()));
+        }
+        return builder.build();
+    }
+
+    private static Output<String> stableContainerAppUrl(String appName, Output<String> environmentDefaultDomain) {
+        return stableContainerAppHost(appName, environmentDefaultDomain).applyValue(host -> "https://" + host);
+    }
+
+    private static Output<String> stableContainerAppHost(String appName, Output<String> environmentDefaultDomain) {
+        return environmentDefaultDomain.applyValue(domain -> appName + "." + domain);
+    }
+
+    private static Output<String> publicUrl(String customDomain, Output<String> generatedUrl) {
+        if (customDomain.isBlank()) {
+            return generatedUrl;
+        }
+        return Output.of("https://" + customDomain);
+    }
+
+    private static Output<String> runtimeCorsOrigins(RuntimeConfig config, Output<String> frontendUrl) {
+        if (config.frontendCustomDomain().isBlank()) {
+            return frontendUrl.applyValue(url -> appendOrigin(config.corsOrigins(), url));
+        }
+        return frontendUrl.applyValue(url -> appendOrigin(
+            appendOrigin(config.corsOrigins(), url),
+            "https://" + config.frontendCustomDomain()
+        ));
+    }
+
+    private static String appendOrigin(String existingOrigins, String origin) {
+        if (origin == null || origin.isBlank()) {
+            return existingOrigins == null ? "" : existingOrigins;
+        }
+        if (existingOrigins == null || existingOrigins.isBlank()) {
+            return origin;
+        }
+        for (String existingOrigin : existingOrigins.split(",")) {
+            if (existingOrigin.trim().equals(origin)) {
+                return existingOrigins;
+            }
+        }
+        return existingOrigins + "," + origin;
+    }
+
+    private static List<String> redirectUris(RuntimeConfig config, String frontendUrl) {
+        List<String> uris = new ArrayList<>();
+        uris.add(frontendUrl + "/.auth/login/aad/callback");
+        if (!config.frontendCustomDomain().isBlank()) {
+            uris.add("https://" + config.frontendCustomDomain() + "/.auth/login/aad/callback");
+        }
+        return uris;
+    }
+
+    private static ManagedCertificate createCustomDomainCertificate(
+        RuntimeConfig config,
+        PlatformResources platform,
+        Output<String> resourceGroupName,
+        String appRole,
+        String customDomain,
+        boolean certificateEnabled,
+        Output<String> appHost,
+        Provider provider
+    ) {
+        if (customDomain.isBlank()) {
+            return null;
+        }
+        if (config.frontendDnsZoneName().isBlank() || config.frontendDnsZoneResourceGroup().isBlank()) {
+            throw new IllegalStateException(
+                "Custom domains require MAPPO_FRONTEND_DNS_ZONE_NAME and MAPPO_FRONTEND_DNS_ZONE_RESOURCE_GROUP."
+            );
+        }
+
+        String relativeName = dnsRelativeName(customDomain, config.frontendDnsZoneName());
+        String verificationRelativeName = "@".equals(relativeName) ? "asuid" : "asuid." + relativeName;
+        Output<String> verificationId = AppFunctions.getCustomDomainVerificationId()
+            .applyValue(result -> result.value().orElseThrow());
+        CustomResourceOptions withProvider = CustomResourceOptions.builder().provider(provider).build();
+
+        RecordSet cnameRecord = new RecordSet(
+            customDomainResourceName("runtime-" + appRole + "-domain-cname-", config),
+            RecordSetArgs.builder()
+                .resourceGroupName(config.frontendDnsZoneResourceGroup())
+                .zoneName(config.frontendDnsZoneName())
+                .relativeRecordSetName(relativeName)
+                .recordType("CNAME")
+                .ttl(300.0)
+                .cnameRecord(CnameRecordArgs.builder().cname(appHost).build())
+                .metadata(PulumiSupport.linkedMapOfString("managedBy", "pulumi", "system", "mappo"))
+                .build(),
+            withProvider
+        );
+        RecordSet txtRecord = new RecordSet(
+            customDomainResourceName("runtime-" + appRole + "-domain-verification-", config),
+            RecordSetArgs.builder()
+                .resourceGroupName(config.frontendDnsZoneResourceGroup())
+                .zoneName(config.frontendDnsZoneName())
+                .relativeRecordSetName(verificationRelativeName)
+                .recordType("TXT")
+                .ttl(300.0)
+                .txtRecords(List.of(TxtRecordArgs.builder().value(verificationId.applyValue(List::of)).build()))
+                .metadata(PulumiSupport.linkedMapOfString("managedBy", "pulumi", "system", "mappo"))
+                .build(),
+            withProvider
+        );
+
+        if (!certificateEnabled) {
+            return null;
+        }
+
+        return new ManagedCertificate(
+            customDomainResourceName("runtime-" + appRole + "-domain-cert-", config),
+            ManagedCertificateArgs.builder()
+                .managedCertificateName(PulumiSupport.normalizeName(
+                    "mc-" + customDomain.replace(".", "-"),
+                    "mc-mappo",
+                    32
+                ))
+                .resourceGroupName(resourceGroupName)
+                .environmentName(platform.containerEnvironmentName())
+                .location(config.location())
+                .properties(ManagedCertificatePropertiesArgs.builder()
+                    .subjectName(customDomain)
+                    .domainControlValidation(ManagedCertificateDomainControlValidation.CNAME)
+                    .build())
+                .tags(PulumiSupport.linkedMapOfString("managedBy", "pulumi", "system", "mappo", "scope", "runtime-domain"))
+                .build(),
+            CustomResourceOptions.builder()
+                .provider(provider)
+                .dependsOn(new Resource[] {cnameRecord, txtRecord})
+                .build()
+        );
+    }
+
+    private static String customDomainResourceName(String prefix, RuntimeConfig config) {
+        return prefix + config.resourceNameSuffix();
+    }
+
+    private static String dnsRelativeName(String hostname, String zoneName) {
+        String normalizedHostname = stripTrailingDot(hostname.toLowerCase());
+        String normalizedZone = stripTrailingDot(zoneName.toLowerCase());
+        if (normalizedHostname.equals(normalizedZone)) {
+            return "@";
+        }
+        String suffix = "." + normalizedZone;
+        if (!normalizedHostname.endsWith(suffix)) {
+            throw new IllegalArgumentException("Custom domain " + hostname + " is not inside DNS zone " + zoneName + ".");
+        }
+        return normalizedHostname.substring(0, normalizedHostname.length() - suffix.length());
+    }
+
+    private static String stripTrailingDot(String value) {
+        return value.endsWith(".") ? value.substring(0, value.length() - 1) : value;
     }
 
     private static ContainerResourcesArgs resources(double cpu, String memory) {

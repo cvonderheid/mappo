@@ -1,7 +1,7 @@
 # MAPPO Deployment Runbook
 
-For the final handoff cleanup and fresh Azure rebuild sequence, see
-[`docs/final-handoff-walkthrough.md`](./final-handoff-walkthrough.md).
+For the clean first-run handoff path, see
+[`docs/production-handoff-walkthrough.md`](./production-handoff-walkthrough.md).
 
 ## Local build and test
 ```bash
@@ -14,6 +14,7 @@ Useful module-level commands:
 ./mvnw -pl backend test
 ./mvnw -pl frontend compile
 ./mvnw -pl frontend test
+./mvnw -pl infra/pulumi -DskipTests compile
 ```
 
 ## Local runtime
@@ -28,69 +29,108 @@ Current local runtime shape:
 - frontend runs in hot-reload mode
 
 ## Environment and secrets
-The consolidated environment template is:
+The local/demo environment template is:
 - `./mappo.env.example`
 
-For local/demo work, copy it to `.data/mappo.env`, fill in real values, then source it:
-```bash
-cp mappo.env.example .data/mappo.env
-set -a
-source .data/mappo.env
-set +a
-```
+Pulumi has separate templates because platform infrastructure and runtime apps
+are separate stacks:
+- `./pulumi-platform.env.example`
+- `./pulumi-runtime.env.example`
 
-`.data/mappo.env` is the single local/demo environment file. Legacy split files belong under `.data/archive/` only if you need to keep a temporary backup while migrating values.
+Create local copies under `.data/` and do not commit filled values:
+```bash
+mkdir -p .data
+cp mappo.env.example .data/mappo.env
+cp pulumi-platform.env.example .data/pulumi-platform.env
+cp pulumi-runtime.env.example .data/pulumi-runtime.env
+chmod 600 .data/mappo.env .data/pulumi-platform.env .data/pulumi-runtime.env
+```
 
 ## Publish artifacts only
-Use Maven when you want to publish runtime artifacts. Maven must not run Pulumi or mutate Azure.
+Use Maven when you want to publish runtime artifacts. Maven must not run Pulumi
+or mutate Azure.
 
-Required environment:
-- `MAPPO_IMAGE_PREFIX`
-- Docker credentials that can push to that registry
+Required values:
+- `MAPPO_IMAGE_PREFIX`: ACR login server from the platform stack output
+- `MAPPO_RUNTIME_IMAGE_TAG`: normally the Maven project version plus Git hash
+- `MAPPO_DOCKER_USERNAME`: `00000000-0000-0000-0000-000000000000` for ACR token auth
+- `MAPPO_DOCKER_PASSWORD`: short-lived token from `az acr login --expose-token`
 
 Command:
 ```bash
+export MAPPO_DOCKER_USERNAME="00000000-0000-0000-0000-000000000000"
+export MAPPO_DOCKER_PASSWORD="$(az acr login \
+  --name "$MAPPO_RUNTIME_ACR_NAME" \
+  --expose-token \
+  --output tsv \
+  --query accessToken)"
+
 ./mvnw deploy \
-  -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX"
+  -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX" \
+  -Dmappo.image.tag="$MAPPO_RUNTIME_IMAGE_TAG"
 ```
 
-The image tag defaults to the Maven project version plus the 12-character Git commit, for example `1.0.0-SNAPSHOT-c9225249259d`. Override `-Dmappo.image.tag=...` only for an intentional one-off publish.
+The image tag defaults to the Maven project version plus the 12-character Git
+commit, for example `1.0.0-SNAPSHOT-c9225249259d`. Override
+`-Dmappo.image.tag=...` only for an intentional one-off publish.
 
 ## Apply Azure infrastructure
-Use Pulumi directly when you want to apply hosted runtime infrastructure changes.
+Use Pulumi directly when you want to apply hosted Azure infrastructure changes.
 
-Required environment:
-- `PULUMI_CONFIG_PASSPHRASE`
-- Azure CLI already authenticated
-
-Command:
+Platform stack:
 ```bash
+set -a
+source .data/pulumi-platform.env
+set +a
+
+./mvnw -pl infra/pulumi -DskipTests compile
+
 cd infra/pulumi
-pulumi up --stack "<stack>"
+pulumi preview --stack "<platform-stack>" --diff
+pulumi up --stack "<platform-stack>"
 ```
 
-Pulumi owns Azure resource creation and updates. Maven owns build/test/package/image publishing.
+Runtime app stack:
+```bash
+set -a
+source .data/pulumi-runtime.env
+set +a
 
-MAPPO platform resources should live together in the runtime resource group:
-- managed Postgres from `infra/pulumi`, including a Pulumi-generated admin password for fresh stacks
-- backend and frontend Container Apps
+./mvnw -pl infra/pulumi -DskipTests compile
+
+cd infra/pulumi
+pulumi preview --stack "<runtime-stack>" --diff
+pulumi up --stack "<runtime-stack>"
+```
+
+Pulumi owns Azure resource creation and updates. Maven owns
+build/test/package/image publishing.
+
+Platform resources should live together in one runtime resource group:
+- managed Postgres, including a Pulumi-generated admin password for fresh stacks
 - Container Apps environment
-- backend Flyway init container for startup migrations
 - runtime ACR
 - Redis
 - MAPPO Azure Key Vault
-- marketplace forwarder Function App and its storage account
+- managed identity
 
-Demo target resources remain separate and are owned by the Pulumi stacks under `infra/demo`.
-The default platform resource group name is `rg-mappo-runtime-<stack>`. Override it with `MAPPO_RUNTIME_RESOURCE_GROUP`, `MAPPO_CONTROL_PLANE_RESOURCE_GROUP`, or Pulumi config `mappo:controlPlaneResourceGroupName` when needed.
+Runtime app resources are created by the runtime stack:
+- backend and frontend Container Apps
+- backend Flyway init container for startup migrations
+- frontend EasyAuth Entra app registration and redirect URI
+
+Demo target resources remain separate and are owned by the Pulumi stacks under
+`infra/demo`.
 
 ## External system secrets
-For the hosted Azure runtime, external system secrets should live in MAPPO's Azure Key Vault.
+For the hosted Azure runtime, external system secrets should live in MAPPO's
+Azure Key Vault.
 
 Current runtime behavior:
-- `infra/pulumi` provisions the runtime Key Vault in the runtime resource group
+- `infra/pulumi` provisions the runtime Key Vault in the platform resource group
 - it grants the runtime managed identity access to secrets
-- it can also grant an operator/service-principal object id from `mappo:keyVaultAccessObjectId` or `MAPPO_AZURE_KEY_VAULT_ACCESS_OBJECT_ID`
+- it can also grant an operator/service-principal object id from
+  `mappo:keyVaultAccessObjectId` or `MAPPO_AZURE_KEY_VAULT_ACCESS_OBJECT_ID`
 - it injects `MAPPO_AZURE_KEY_VAULT_URL` into the backend Container App
 
 Recommended usage:
@@ -101,7 +141,8 @@ Recommended usage:
 Current supported secret reference forms:
 - `kv:secret-name`
 - `env:VAR_NAME`
-- provider default backend secret refs (legacy/default path)
+- named MAPPO Secret References, stored as `secret:<reference-id>`
+- provider default backend secret refs for legacy/default paths
 
 ## OpenAPI and frontend client contract
 Backend OpenAPI export:
@@ -126,7 +167,7 @@ the VECTR demo, the current local repo is:
 - `../mappo-managed-app`
 
 Typical operator/demo sequence:
-1. create/publish a new release in `mappo-release-catalog`
+1. create/publish a new release in the managed-app release catalog repo
 2. push the repo changes
 3. in MAPPO, open the project's Releases page
 4. click `Check for new releases`

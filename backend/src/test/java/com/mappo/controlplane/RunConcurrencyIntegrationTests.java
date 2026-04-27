@@ -37,8 +37,6 @@ import org.springframework.web.context.WebApplicationContext;
 
 @SpringBootTest(properties = {
     "mappo.azure.tenant-id=00000000-0000-0000-0000-000000000001",
-    "mappo.azure.client-id=00000000-0000-0000-0000-000000000002",
-    "mappo.azure.client-secret=test-secret"
 })
 class RunConcurrencyIntegrationTests extends PostgresIntegrationTestBase {
 

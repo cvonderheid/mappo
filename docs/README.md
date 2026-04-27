@@ -3,11 +3,12 @@
 This directory is intentionally small. Only living documentation that matches the current codebase and hosted demo belongs here.
 
 ## Current docs
-- [`architecture.md`](./docs/architecture.md): system model, boundaries, deployment modes, and current hosted shape.
-- [`operator-guide.md`](./docs/operator-guide.md): how an operator should use MAPPO today.
-- [`deployment-runbook.md`](./docs/deployment-runbook.md): local build/test, local runtime, and Azure rollout commands.
-- [`demo-topology.md`](./docs/demo-topology.md): current hosted demo resources and boundary notes.
-- [`developer-guide.md`](./docs/developer-guide.md): repo layout, contracts, testing, and engineering workflow.
+- [`production-handoff-walkthrough.md`](./production-handoff-walkthrough.md): clean first-run handoff path for a new developer/operator.
+- [`architecture.md`](./architecture.md): system model, boundaries, deployment modes, and current hosted shape.
+- [`operator-guide.md`](./operator-guide.md): how an operator should use MAPPO today.
+- [`deployment-runbook.md`](./deployment-runbook.md): local build/test, local runtime, and Azure rollout commands.
+- [`demo-topology.md`](./demo-topology.md): current hosted demo resources and boundary notes.
+- [`developer-guide.md`](./developer-guide.md): repo layout, contracts, testing, and engineering workflow.
 
 ## What does not belong here
 - completed sprint plans

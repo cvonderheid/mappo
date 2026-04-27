@@ -1,18 +1,25 @@
 # Example only. Do not commit real stack configuration or encrypted Pulumi secrets.
-# Create a real local stack with:
+# Prefer the environment templates at the repository root:
+#   pulumi-platform.env.example
+#   pulumi-runtime.env.example
+#
+# Platform stack example:
 #   cd infra/pulumi
-#   pulumi stack init <stack>
-#   pulumi config set mappo:defaultLocation eastus
-#   pulumi config set mappo:controlPlaneSubscriptionId <subscription-id>
-#   pulumi config set mappo:controlPlaneLocation <azure-region>
-#   pulumi config set mappo:controlPlanePostgresEnabled true
-#   pulumi config set mappo:runtimeEnabled true
-#   pulumi config set mappo:runtimeAppsEnabled false
+#   pulumi stack init <platform-stack>
+#   pulumi config set mappo:stackKind platform
 #   pulumi config set mappo:runtimeSubscriptionId <subscription-id>
-# Pulumi generates the DB admin password for fresh stacks.
+#   pulumi config set mappo:runtimeLocation <azure-region>
+#
+# Runtime stack example:
+#   cd infra/pulumi
+#   pulumi stack init <runtime-stack>
+#   pulumi config set mappo:stackKind runtime
+#   pulumi config set mappo:platformStack <platform-stack-reference>
+#   pulumi config set mappo:imageTag <published-image-tag>
+#
+# Pulumi generates the DB admin password for fresh platform stacks.
 config:
   mappo:defaultLocation: eastus
-  mappo:controlPlaneLocation: centralus
+  mappo:stackKind: platform
+  mappo:runtimeLocation: centralus
   mappo:controlPlanePostgresEnabled: "true"
-  mappo:runtimeEnabled: "true"
-  mappo:runtimeAppsEnabled: "false"

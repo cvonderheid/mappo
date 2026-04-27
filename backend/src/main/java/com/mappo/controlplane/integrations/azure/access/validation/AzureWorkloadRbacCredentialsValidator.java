@@ -34,20 +34,18 @@ public class AzureWorkloadRbacCredentialsValidator implements ProjectCredentials
                 "Access strategy does not require MAPPO-managed Azure credentials."
             ));
         }
-        boolean runtimeConfigured = hasText(properties.getAzure().getTenantId())
-            && hasText(properties.getAzure().getClientId())
-            && hasText(properties.getAzure().getClientSecret());
+        boolean runtimeConfigured = hasText(properties.getAzure().getTenantId());
         if (runtimeConfigured) {
             return List.of(pass(
                 ProjectValidationScope.credentials,
                 "AZURE_CREDENTIALS_PRESENT",
-                "Azure service principal credentials are configured."
+                "Azure DefaultAzureCredential is configured for this runtime."
             ));
         }
         return List.of(fail(
             ProjectValidationScope.credentials,
             "AZURE_CREDENTIALS_MISSING",
-            "Azure service principal credentials are required but not fully configured (tenantId/clientId/clientSecret)."
+            "Azure runtime identity is not configured. Set MAPPO_AZURE_TENANT_ID or run MAPPO with managed identity in Azure."
         ));
     }
 

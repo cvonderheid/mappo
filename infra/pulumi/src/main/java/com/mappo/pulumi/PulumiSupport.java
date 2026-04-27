@@ -146,6 +146,18 @@ final class PulumiSupport {
             .orElse("00000000-0000-0000-0000-000000000000");
     }
 
+    static Optional<String> resolveActiveAzTenantId() {
+        return normalizeNullable(System.getenv("AZURE_TENANT_ID"))
+            .or(() -> normalizeNullable(System.getenv("ARM_TENANT_ID")))
+            .or(PulumiSupport::detectActiveAzTenantId);
+    }
+
+    static Optional<String> resolveActiveAzPrincipalObjectId() {
+        return normalizeNullable(System.getenv("AZURE_OBJECT_ID"))
+            .or(() -> normalizeNullable(System.getenv("ARM_OBJECT_ID")))
+            .or(PulumiSupport::detectActiveAzPrincipalObjectId);
+    }
+
     static String normalizeName(String value, String fallback, int maxLen) {
         String source = Optional.ofNullable(value).orElse(fallback).toLowerCase(Locale.ROOT);
         String normalized = NON_ALPHANUMERIC_DASH.matcher(source).replaceAll("-");
@@ -216,8 +228,25 @@ final class PulumiSupport {
     }
 
     private static Optional<String> detectActiveAzSubscriptionId() {
+        return detectActiveAzAccountValue("id");
+    }
+
+    private static Optional<String> detectActiveAzTenantId() {
+        return detectActiveAzAccountValue("tenantId");
+    }
+
+    private static Optional<String> detectActiveAzPrincipalObjectId() {
+        return detectAzCliValue("az", "ad", "signed-in-user", "show", "--query", "id", "-o", "tsv")
+            .or(() -> detectAzCliValue("az", "ad", "sp", "show", "--id", detectActiveAzAccountValue("user.name").orElse(""), "--query", "id", "-o", "tsv"));
+    }
+
+    private static Optional<String> detectActiveAzAccountValue(String query) {
+        return detectAzCliValue("az", "account", "show", "--query", query, "-o", "tsv");
+    }
+
+    private static Optional<String> detectAzCliValue(String... command) {
         try {
-            Process process = new ProcessBuilder("az", "account", "show", "--query", "id", "-o", "tsv")
+            Process process = new ProcessBuilder(command)
                 .redirectErrorStream(true)
                 .start();
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {

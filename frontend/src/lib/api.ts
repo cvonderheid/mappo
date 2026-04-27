@@ -138,7 +138,7 @@ export async function createProject(
   request: ProjectCreateRequest
 ): Promise<ProjectDefinition> {
   const { data, error, response } = await apiClient.POST("/api/v1/projects", {
-    body: request,
+    body: request as Parameters<typeof apiClient.POST>[1]["body"],
   });
   return requireData("Could not create project", { data, error, response });
 }

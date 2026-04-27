@@ -23,6 +23,7 @@ type ProjectFlowDiagramProps = {
   releaseSourceName: string;
   releaseSourceTypeLabel: string;
   releaseSourceRecord: ReleaseIngestEndpoint | null;
+  releaseSourceConfigured: boolean;
   deploymentSystem: "azure" | "azure_devops";
   deploymentMethodLabel: string;
   deploymentConnectionName: string;
@@ -30,9 +31,11 @@ type ProjectFlowDiagramProps = {
   repositoryName: string;
   pipelineName: string;
   branchName: string;
+  deploymentConfigured: boolean;
   targetCount: number;
   projectReleaseCount: number;
   targets: Target[];
+  runtimeHealthConfigured: boolean;
   runtimeHealthLabel: string;
   runtimeHealthPath: string;
   runtimeHealthExpectedStatus: string;
@@ -275,6 +278,7 @@ export default function ProjectFlowDiagram({
   releaseSourceName,
   releaseSourceTypeLabel,
   releaseSourceRecord,
+  releaseSourceConfigured,
   deploymentSystem,
   deploymentMethodLabel,
   deploymentConnectionName,
@@ -282,9 +286,11 @@ export default function ProjectFlowDiagram({
   repositoryName,
   pipelineName,
   branchName,
+  deploymentConfigured,
   targetCount,
   projectReleaseCount,
   targets,
+  runtimeHealthConfigured,
   runtimeHealthLabel,
   runtimeHealthPath,
   runtimeHealthExpectedStatus,
@@ -296,8 +302,12 @@ export default function ProjectFlowDiagram({
   const targetExamples = targets.slice(0, 2).map(targetLabel);
   const targetOverflow = targetCount - targetExamples.length;
 
-  const releaseDetails =
-    releaseSourceProvider === "github"
+  const releaseDetails = !releaseSourceConfigured
+    ? detailList([
+        { label: "Status", value: "Choose a release source" },
+        { label: "Expected input", value: releaseSourceProvider === "github" ? "Release manifest" : "Pipeline event" },
+      ])
+    : releaseSourceProvider === "github"
       ? detailList([
           { label: "Source", value: releaseSourceName },
           { label: "Type", value: releaseSourceTypeLabel },
@@ -327,8 +337,12 @@ export default function ProjectFlowDiagram({
           },
         ]);
 
-  const deploymentDetails =
-    deploymentSystem === "azure_devops"
+  const deploymentDetails = !deploymentConfigured
+    ? detailList([
+        { label: "Status", value: "Choose deployment behavior" },
+        { label: "Next step", value: "Select how MAPPO should roll releases out" },
+      ])
+    : deploymentSystem === "azure_devops"
       ? detailList([
           { label: "Method", value: deploymentMethodLabel },
           {
@@ -373,25 +387,32 @@ export default function ProjectFlowDiagram({
       value: targetOverflow > 0 ? `+${targetOverflow} more target${targetOverflow === 1 ? "" : "s"}` : "",
     },
   ]);
-  const runtimeDetails = detailList([
-    { label: "Check", value: runtimeHealthLabel },
-    { label: "Path", value: runtimeHealthPath || "/" },
-    { label: "Expected", value: runtimeHealthExpectedStatus || "200" },
-    { label: "Timeout", value: `${runtimeHealthTimeoutMs || "5000"} ms` },
-  ]);
+  const runtimeDetails = runtimeHealthConfigured
+    ? detailList([
+        { label: "Check", value: runtimeHealthLabel },
+        { label: "Path", value: runtimeHealthPath || "/" },
+        { label: "Expected", value: runtimeHealthExpectedStatus || "200" },
+        { label: "Timeout", value: `${runtimeHealthTimeoutMs || "5000"} ms` },
+      ])
+    : detailList([
+        { label: "Status", value: "Configure runtime health" },
+        { label: "Purpose", value: "MAPPO checks deployed targets after rollout" },
+      ]);
   const externalReleaseNode: StaticFlowNodeModel = {
     step: "00",
-    icon: providerIcon(releaseSourceProvider, "h-5 w-5"),
+    icon: releaseSourceConfigured ? providerIcon(releaseSourceProvider, "h-5 w-5") : <LuWorkflow className="h-5 w-5" />,
     eyebrow: "Outside MAPPO",
-    title: "Release performed",
+    title: releaseSourceConfigured ? "Release performed" : "Release system pending",
     details: detailList([
       {
         label: "Provider",
-        value: releaseSourceProvider === "github" ? "GitHub" : "Azure DevOps",
+        value: releaseSourceConfigured ? (releaseSourceProvider === "github" ? "GitHub" : "Azure DevOps") : "Not selected",
       },
       {
         label: "Result",
-        value: releaseSourceProvider === "github" ? "Release manifest is updated" : "Pipeline event is emitted",
+        value: releaseSourceConfigured
+          ? (releaseSourceProvider === "github" ? "Release manifest is updated" : "Pipeline event is emitted")
+          : "Select a release source first",
       },
     ]),
   };
@@ -399,9 +420,9 @@ export default function ProjectFlowDiagram({
     {
       section: "release-ingest",
       step: "01",
-      icon: providerIcon(releaseSourceProvider, "h-5 w-5"),
+      icon: releaseSourceConfigured ? providerIcon(releaseSourceProvider, "h-5 w-5") : <LuWorkflow className="h-5 w-5" />,
       eyebrow: "Release Source",
-      title: releaseSourceProvider === "github" ? "GitHub" : "Azure DevOps",
+      title: releaseSourceConfigured ? (releaseSourceProvider === "github" ? "GitHub" : "Azure DevOps") : "Not configured",
       details: releaseDetails,
     },
     {
@@ -424,9 +445,9 @@ export default function ProjectFlowDiagram({
     {
       section: "deployment-driver",
       step: "03",
-      icon: deploymentIcon(deploymentSystem, "h-5 w-5"),
+      icon: deploymentConfigured ? deploymentIcon(deploymentSystem, "h-5 w-5") : <LuWorkflow className="h-5 w-5" />,
       eyebrow: "Deployment",
-      title: deploymentSystem === "azure_devops" ? "Azure DevOps" : "Azure",
+      title: deploymentConfigured ? (deploymentSystem === "azure_devops" ? "Azure DevOps" : "Azure") : "Not configured",
       details: deploymentDetails,
     },
     {
@@ -442,7 +463,7 @@ export default function ProjectFlowDiagram({
       step: "05",
       icon: <LuActivity className="h-5 w-5" />,
       eyebrow: "Runtime Health",
-      title: "HTTP Check",
+      title: runtimeHealthConfigured ? "HTTP Check" : "Not configured",
       details: runtimeDetails,
     },
   ];
@@ -498,15 +519,15 @@ export default function ProjectFlowDiagram({
       <CardContent className="pt-0">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)_2.5rem_minmax(0,1fr)_2.5rem]">
           <StaticFlowNode {...externalReleaseNode} className="xl:col-start-1 xl:row-start-1" />
-          <FlowArrow className="xl:col-start-2 xl:row-start-1" contract={releaseContract} onOpenContract={setSelectedContract} />
+          <FlowArrow className="xl:col-start-2 xl:row-start-1" contract={releaseSourceConfigured ? releaseContract : undefined} onOpenContract={setSelectedContract} />
           {renderFlowNode(flowNodes[0], "xl:col-start-3 xl:row-start-1")}
           <FlowArrow className="xl:col-start-4 xl:row-start-1" />
           {renderFlowNode(flowNodes[1], "xl:col-start-5 xl:row-start-1")}
-          <FlowArrow className="xl:col-start-6 xl:row-start-1" contract={deploymentContract} onOpenContract={setSelectedContract} />
+          <FlowArrow className="xl:col-start-6 xl:row-start-1" contract={deploymentConfigured ? deploymentContract : undefined} onOpenContract={setSelectedContract} />
           {renderFlowNode(flowNodes[2], "xl:col-start-1 xl:row-start-2")}
           <FlowArrow className="xl:col-start-2 xl:row-start-2" />
           {renderFlowNode(flowNodes[3], "xl:col-start-3 xl:row-start-2")}
-          <FlowArrow className="xl:col-start-4 xl:row-start-2" contract={healthContract} onOpenContract={setSelectedContract} />
+          <FlowArrow className="xl:col-start-4 xl:row-start-2" contract={runtimeHealthConfigured ? healthContract : undefined} onOpenContract={setSelectedContract} />
           {renderFlowNode(flowNodes[4], "xl:col-start-5 xl:row-start-2")}
         </div>
         <p className="mt-3 text-xs text-muted-foreground">

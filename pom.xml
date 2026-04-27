@@ -183,7 +183,7 @@
               <executable>bash</executable>
               <arguments>
                 <argument>-lc</argument>
-                <argument>prefix='${docker.image.prefix}'; username='${docker.registry.username}'; password='${docker.registry.password}'; if [[ -z "$prefix" || "$prefix" == *'${env.'* ]]; then echo "mappo deploy: set MAPPO_IMAGE_PREFIX or -Ddocker.image.prefix=&lt;registry-login-server&gt; before running mvn deploy." >&amp;2; exit 1; fi; if [[ -z "$username" || "$username" == *'${env.'* || -z "$password" || "$password" == *'${env.'* ]]; then echo "mappo deploy: set MAPPO_DOCKER_USERNAME and MAPPO_DOCKER_PASSWORD (or -Ddocker.registry.username/-Ddocker.registry.password) before running mvn deploy." >&amp;2; exit 1; fi</argument>
+                <argument>prefix='${docker.image.prefix}'; username='${docker.registry.username}'; password='${docker.registry.password}'; if [[ -z "$prefix" || "$prefix" == *'${env.'* ]]; then echo "mappo deploy: set MAPPO_IMAGE_PREFIX or -Ddocker.image.prefix=&lt;registry-login-server&gt; before running mvn deploy." >&amp;2; exit 1; fi; if [[ -z "$username" || "$username" == *'${env.'* || -z "$password" || "$password" == *'${env.'* ]]; then echo "mappo deploy: run: export MAPPO_DOCKER_USERNAME=00000000-0000-0000-0000-000000000000; export MAPPO_DOCKER_PASSWORD=\\$(az acr login --name \\$MAPPO_RUNTIME_ACR_NAME --expose-token --output tsv --query accessToken)" >&amp;2; exit 1; fi</argument>
               </arguments>
             </configuration>
           </execution>

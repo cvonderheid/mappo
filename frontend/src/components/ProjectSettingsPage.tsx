@@ -399,15 +399,6 @@ function emptyProjectDraft(): ProjectDraft {
   });
 }
 
-function slugifyProjectId(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80);
-}
-
 function parseOptionalNumber(value: string): number | undefined {
   if (value.trim() === "") {
     return undefined;
@@ -509,7 +500,6 @@ function buildPatchRequest(draft: ProjectDraft): ProjectConfigurationPatchReques
 function buildCreateRequest(draft: ProjectDraft): ProjectCreateRequest {
   const patchPayload = buildPatchRequest(draft);
   return {
-    id: draft.id.trim(),
     name: draft.name.trim(),
     themeKey: patchPayload.themeKey,
     releaseIngestEndpointId: patchPayload.releaseIngestEndpointId,
@@ -1021,28 +1011,6 @@ export default function ProjectSettingsPage({
   ]);
 
   useEffect(() => {
-    if (draft.releaseIngestEndpointId.trim() !== "") {
-      return;
-    }
-    if (releaseIngestEndpointOptions.length !== 1) {
-      return;
-    }
-    const onlyEndpointId = (releaseIngestEndpointOptions[0]?.id ?? "").trim();
-    if (onlyEndpointId === "") {
-      return;
-    }
-    setDraft((current) => {
-      if (current.releaseIngestEndpointId.trim() !== "") {
-        return current;
-      }
-      return {
-        ...current,
-        releaseIngestEndpointId: onlyEndpointId,
-      };
-    });
-  }, [draft.releaseIngestEndpointId, releaseIngestEndpointOptions]);
-
-  useEffect(() => {
     if (draft.deploymentDriver === "pipeline_trigger" && selectedReleaseSystem !== "azure_devops") {
       setSelectedReleaseSystem("azure_devops");
     }
@@ -1169,7 +1137,29 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
 
   const configComplete = project !== null && draftValidationIssues.length === 0;
   const canPersist = project !== null && draftValidationIssues.length === 0;
-  const canCreateProject = createDraft.id.trim() !== "" && createDraft.name.trim() !== "";
+  const canCreateProject = createDraft.name.trim() !== "";
+  const releaseSourceConfigured = selectedReleaseIngestEndpoint !== null;
+  const hasAnyProjectSetup =
+    releaseSourceConfigured ||
+    draft.providerConnectionId.trim() !== "" ||
+    draft.driver.organization.trim() !== "" ||
+    draft.driver.project.trim() !== "" ||
+    draft.driver.repository.trim() !== "" ||
+    draft.driver.pipelineId.trim() !== "" ||
+    targetCount > 0 ||
+    projectReleaseCount > 0;
+  const deploymentConfigured = draft.deploymentDriver === "pipeline_trigger"
+    ? draft.providerConnectionId.trim() !== "" &&
+      draft.driver.organization.trim() !== "" &&
+      draft.driver.project.trim() !== "" &&
+      draft.driver.repository.trim() !== "" &&
+      draft.driver.pipelineId.trim() !== ""
+    : hasAnyProjectSetup;
+  const runtimeHealthConfigured =
+    hasAnyProjectSetup ||
+    draft.runtime.path.trim() !== "/" ||
+    draft.runtime.expectedStatus.trim() !== "200" ||
+    draft.runtime.timeoutMs.trim() !== "5000";
   const activeSectionLabel =
     PROJECT_SECTIONS.find((section) => section.key === activeTab)?.label ?? "Project";
   const releaseSourceLabel = releaseSourceTypeLabel;
@@ -1473,7 +1463,6 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
     setCreateDraft((current) => ({
       ...current,
       name,
-      id: slugifyProjectId(name),
     }));
   }
 
@@ -1695,6 +1684,7 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
             releaseSourceName={selectedReleaseIngestEndpoint?.name || selectedReleaseIngestEndpoint?.id || "No linked release source"}
             releaseSourceTypeLabel={releaseSourceTypeLabel}
             releaseSourceRecord={selectedReleaseIngestEndpoint}
+            releaseSourceConfigured={releaseSourceConfigured}
             deploymentSystem={selectedDeploymentSystem}
             deploymentMethodLabel={DEPLOYMENT_DRIVER_LABELS[draft.deploymentDriver]}
             deploymentConnectionName={selectedProviderConnection?.name || selectedProviderConnection?.id || ""}
@@ -1702,9 +1692,11 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
             repositoryName={draft.driver.repository.trim()}
             pipelineName={selectedPipelineName}
             branchName={draft.driver.branch.trim()}
+            deploymentConfigured={deploymentConfigured}
             targetCount={targetCount}
             projectReleaseCount={projectReleaseCount}
             targets={targets}
+            runtimeHealthConfigured={runtimeHealthConfigured}
             runtimeHealthLabel={RUNTIME_HEALTH_LABELS[draft.runtimeHealthProvider] ?? "HTTP endpoint"}
             runtimeHealthPath={draft.runtime.path}
             runtimeHealthExpectedStatus={draft.runtime.expectedStatus}

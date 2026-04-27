@@ -4,34 +4,43 @@ import com.pulumi.Config;
 import com.pulumi.core.Output;
 
 record InfrastructureConfig(
+    String stackKind,
+    String platformStack,
     ControlPlanePostgresConfig controlPlanePostgres,
     RuntimeConfig runtime
 ) {
     static InfrastructureConfig load(Config config, String stackName) {
+        String stackKind = PulumiSupport.optionalConfigWithEnvFallback(config, "stackKind", "MAPPO_PULUMI_STACK_KIND")
+            .orElse("platform")
+            .toLowerCase();
+        if (!"platform".equals(stackKind) && !"runtime".equals(stackKind)) {
+            throw new IllegalArgumentException("mappo:stackKind must be 'platform' or 'runtime'.");
+        }
+        String platformStack = PulumiSupport.optionalConfigWithEnvFallback(config, "platformStack", "MAPPO_PLATFORM_STACK")
+            .orElse("");
+
         String defaultLocation = config.get("defaultLocation").orElse("eastus");
         String runtimeSubscriptionId = PulumiSupport.optionalConfigWithEnvFallback(
             config,
             "runtimeSubscriptionId",
             "MAPPO_RUNTIME_SUBSCRIPTION_ID"
-        ).or(() -> PulumiSupport.optionalConfigWithEnvFallback(config, "controlPlaneSubscriptionId", "MAPPO_CONTROL_PLANE_SUBSCRIPTION_ID"))
-            .orElse(PulumiSupport.resolveDemoSubscriptionId(null));
+        ).orElse(PulumiSupport.resolveDemoSubscriptionId(null));
         String runtimeLocation = PulumiSupport.optionalConfigWithEnvFallback(
             config,
             "runtimeLocation",
             "MAPPO_RUNTIME_LOCATION"
         ).orElse(defaultLocation);
+        String azureTenantId = PulumiSupport.optionalConfigWithEnvFallback(config, "azureTenantId", "MAPPO_AZURE_TENANT_ID")
+            .or(PulumiSupport::resolveActiveAzTenantId)
+            .orElse("");
         String runtimeSuffix = PulumiSupport.stackScopedResourceSuffix(stackName, runtimeSubscriptionId);
+        String compactResourceToken = PulumiSupport.normalizeCompactName(runtimeSuffix, PulumiSupport.subscriptionKey(runtimeSubscriptionId), 40);
         String runtimeResourceGroupName = PulumiSupport.optionalConfigWithEnvFallback(
             config,
             "runtimeResourceGroupName",
             "MAPPO_RUNTIME_RESOURCE_GROUP"
         ).orElse("rg-mappo-runtime-" + PulumiSupport.stackKey(stackName));
 
-        String controlPlaneSubscriptionId = PulumiSupport.optionalConfigWithEnvFallback(
-            config,
-            "controlPlaneSubscriptionId",
-            "MAPPO_CONTROL_PLANE_SUBSCRIPTION_ID"
-        ).orElse(runtimeSubscriptionId);
         String controlPlaneLocation = config.get("controlPlaneLocation").orElse(runtimeLocation);
         String controlPlaneResourceGroupName = PulumiSupport.optionalConfigWithEnvFallback(
             config,
@@ -45,9 +54,8 @@ record InfrastructureConfig(
         ).orElse(null);
 
         ControlPlanePostgresConfig controlPlanePostgres = new ControlPlanePostgresConfig(
-            PulumiSupport.booleanConfigWithEnvFallback(config, "controlPlanePostgresEnabled", "MAPPO_CONTROL_PLANE_DB_ENABLED", false),
-            controlPlaneSubscriptionId,
-            PulumiSupport.stackScopedResourceSuffix(stackName, controlPlaneSubscriptionId),
+            PulumiSupport.booleanConfigWithEnvFallback(config, "controlPlanePostgresEnabled", "MAPPO_CONTROL_PLANE_DB_ENABLED", true),
+            runtimeSuffix,
             controlPlaneLocation,
             controlPlaneResourceGroupName,
             config.get("controlPlanePostgresServerNamePrefix").orElse("pg-mappo"),
@@ -67,8 +75,6 @@ record InfrastructureConfig(
         );
 
         RuntimeConfig runtime = new RuntimeConfig(
-            PulumiSupport.booleanConfigWithEnvFallback(config, "runtimeEnabled", "MAPPO_RUNTIME_ENABLED", false),
-            PulumiSupport.booleanConfigWithEnvFallback(config, "runtimeAppsEnabled", "MAPPO_RUNTIME_APPS_ENABLED", false),
             PulumiSupport.booleanConfigWithEnvFallback(config, "runtimeEasyAuthEnabled", "MAPPO_EASYAUTH_ENABLED", true),
             runtimeSubscriptionId,
             runtimeSuffix,
@@ -77,9 +83,9 @@ record InfrastructureConfig(
             PulumiSupport.optionalConfigWithEnvFallback(config, "runtimeContainerEnvironmentName", "MAPPO_RUNTIME_ENVIRONMENT")
                 .orElse(PulumiSupport.normalizeName("cae-mappo-runtime-" + PulumiSupport.stackKey(stackName), "cae-mappo-runtime", 32)),
             PulumiSupport.optionalConfigWithEnvFallback(config, "runtimeAcrName", "MAPPO_RUNTIME_ACR_NAME")
-                .orElse(PulumiSupport.normalizeCompactName("acrmappo" + PulumiSupport.stackKey(stackName) + runtimeSuffix, "acrmappo", 50)),
+                .orElse(PulumiSupport.normalizeCompactName("acrmappo" + compactResourceToken, "acrmappo", 50)),
             PulumiSupport.optionalConfigWithEnvFallback(config, "runtimeKeyVaultName", "MAPPO_RUNTIME_KEY_VAULT_NAME")
-                .orElse(PulumiSupport.normalizeCompactName("kvmappo" + PulumiSupport.stackKey(stackName) + runtimeSuffix, "kvmappo", 24)),
+                .orElse(PulumiSupport.normalizeCompactName("kvmappo" + compactResourceToken, "kvmappo", 24)),
             PulumiSupport.optionalConfigWithEnvFallback(config, "runtimeRedisName", "MAPPO_RUNTIME_REDIS_NAME")
                 .orElse(PulumiSupport.normalizeName("redis-mappo-" + PulumiSupport.stackKey(stackName), "redis-mappo", 63)),
             PulumiSupport.optionalConfigWithEnvFallback(config, "runtimeManagedIdentityName", "MAPPO_RUNTIME_MANAGED_IDENTITY_NAME")
@@ -99,11 +105,25 @@ record InfrastructureConfig(
             PulumiSupport.optionalConfigWithEnvFallback(config, "runtimeFrontendMemory", "MAPPO_RUNTIME_FRONTEND_MEMORY").orElse("1.0Gi"),
             PulumiSupport.doubleConfigWithEnvFallback(config, "runtimeMigrationCpu", "MAPPO_RUNTIME_MIGRATION_CPU", 0.5),
             PulumiSupport.optionalConfigWithEnvFallback(config, "runtimeMigrationMemory", "MAPPO_RUNTIME_MIGRATION_MEMORY").orElse("1.0Gi"),
-            PulumiSupport.optionalConfigWithEnvFallback(config, "azureTenantId", "MAPPO_AZURE_TENANT_ID").orElse(""),
+            PulumiSupport.optionalConfigWithEnvFallback(config, "frontendCustomDomain", "MAPPO_FRONTEND_CUSTOM_DOMAIN").orElse(""),
+            PulumiSupport.optionalConfigWithEnvFallback(config, "backendCustomDomain", "MAPPO_BACKEND_CUSTOM_DOMAIN").orElse(""),
+            PulumiSupport.optionalConfigWithEnvFallback(config, "frontendDnsZoneName", "MAPPO_FRONTEND_DNS_ZONE_NAME").orElse(""),
+            PulumiSupport.optionalConfigWithEnvFallback(config, "frontendDnsZoneResourceGroup", "MAPPO_FRONTEND_DNS_ZONE_RESOURCE_GROUP").orElse(""),
+            PulumiSupport.booleanConfigWithEnvFallback(
+                config,
+                "frontendCustomDomainCertificateEnabled",
+                "MAPPO_FRONTEND_CUSTOM_DOMAIN_CERTIFICATE_ENABLED",
+                false
+            ),
+            PulumiSupport.booleanConfigWithEnvFallback(
+                config,
+                "backendCustomDomainCertificateEnabled",
+                "MAPPO_BACKEND_CUSTOM_DOMAIN_CERTIFICATE_ENABLED",
+                false
+            ),
+            azureTenantId,
             PulumiSupport.optionalConfigWithEnvFallback(config, "keyVaultAccessObjectId", "MAPPO_AZURE_KEY_VAULT_ACCESS_OBJECT_ID").orElse(""),
             PulumiSupport.optionalConfigWithEnvFallback(config, "azureTenantBySubscription", "MAPPO_AZURE_TENANT_BY_SUBSCRIPTION").orElse(""),
-            PulumiSupport.optionalSecretConfigWithEnvFallback(config, "azureClientId", "MAPPO_AZURE_CLIENT_ID").orElse(null),
-            PulumiSupport.optionalSecretConfigWithEnvFallback(config, "azureClientSecret", "MAPPO_AZURE_CLIENT_SECRET").orElse(null),
             PulumiSupport.optionalSecretConfigWithEnvFallback(config, "marketplaceIngestToken", "MAPPO_MARKETPLACE_INGEST_TOKEN").orElse(null),
             PulumiSupport.optionalSecretConfigWithEnvFallback(config, "publisherAcrServer", "MAPPO_PUBLISHER_ACR_SERVER").orElse(null),
             PulumiSupport.optionalSecretConfigWithEnvFallback(config, "publisherAcrPullClientId", "MAPPO_PUBLISHER_ACR_PULL_CLIENT_ID").orElse(null),
@@ -115,24 +135,20 @@ record InfrastructureConfig(
             PulumiSupport.optionalSecretConfigWithEnvFallback(config, "azureDevOpsWebhookSecret", "MAPPO_AZURE_DEVOPS_WEBHOOK_SECRET").orElse(null)
         );
 
-        if (runtime.enabled() && runtime.tenantId().isBlank()) {
-            throw new IllegalStateException("Runtime infrastructure requires mappo:azureTenantId or MAPPO_AZURE_TENANT_ID.");
+        if (runtime.tenantId().isBlank()) {
+            throw new IllegalStateException(
+                "Pulumi stacks require an Azure tenant. Set mappo:azureTenantId/MAPPO_AZURE_TENANT_ID or run az login."
+            );
         }
-        if (runtime.appsEnabled()) {
-            if (controlPlanePostgres.adminPassword() == null && !controlPlanePostgres.enabled()) {
-                throw new IllegalStateException("Runtime apps require managed Postgres. Enable mappo:controlPlanePostgresEnabled.");
-            }
-            if (runtime.azureClientId() == null || runtime.azureClientSecret() == null) {
-                throw new IllegalStateException(
-                    "Runtime apps require MAPPO_AZURE_TENANT_ID, MAPPO_AZURE_CLIENT_ID, and MAPPO_AZURE_CLIENT_SECRET "
-                        + "as Pulumi config/env values."
-                );
+        if ("runtime".equals(stackKind)) {
+            if (platformStack.isBlank()) {
+                throw new IllegalStateException("Runtime stack requires mappo:platformStack or MAPPO_PLATFORM_STACK.");
             }
             if (runtime.marketplaceIngestToken() == null) {
-                throw new IllegalStateException("Runtime apps require mappo:marketplaceIngestToken or MAPPO_MARKETPLACE_INGEST_TOKEN.");
+                throw new IllegalStateException("Runtime stack requires mappo:marketplaceIngestToken or MAPPO_MARKETPLACE_INGEST_TOKEN.");
             }
         }
 
-        return new InfrastructureConfig(controlPlanePostgres, runtime);
+        return new InfrastructureConfig(stackKind, platformStack, controlPlanePostgres, runtime);
     }
 }
