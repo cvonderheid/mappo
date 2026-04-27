@@ -79,22 +79,33 @@ abstract class PostgresIntegrationTestBase {
               release_ingest_endpoints,
               provider_connections,
               secret_references
-            CASCADE
+            RESTART IDENTITY CASCADE
             """);
 
         seedIntegrationTestDefaults();
     }
 
     private void seedIntegrationTestDefaults() {
-        jdbcTemplate.execute("""
-            INSERT INTO public.secret_references (id, name, provider, usage, mode, backend_ref)
-            VALUES
-              ('ado-runtime-pat', 'Azure DevOps Runtime PAT', 'azure_devops', 'deployment_api_credential', 'mappo_default', 'mappo.azure-devops.personal-access-token'),
-              ('ado-webhook-secret', 'Azure DevOps Webhook Secret', 'azure_devops', 'webhook_verification', 'mappo_default', 'mappo.azure-devops.webhook-secret'),
-              ('github-release-webhook', 'GitHub Release Webhook Secret', 'github', 'webhook_verification', 'mappo_default', 'mappo.managed-app-release.webhook-secret')
-            """);
+        String adoRuntimePatSecretReferenceId = insertSecretReference(
+            "Azure DevOps Runtime PAT",
+            "azure_devops",
+            "deployment_api_credential",
+            "mappo.azure-devops.personal-access-token"
+        );
+        String adoWebhookSecretReferenceId = insertSecretReference(
+            "Azure DevOps Webhook Secret",
+            "azure_devops",
+            "webhook_verification",
+            "mappo.azure-devops.webhook-secret"
+        );
+        String githubWebhookSecretReferenceId = insertSecretReference(
+            "GitHub Release Webhook Secret",
+            "github",
+            "webhook_verification",
+            "mappo.managed-app-release.webhook-secret"
+        );
 
-        jdbcTemplate.execute("""
+        jdbcTemplate.update("""
             INSERT INTO public.release_ingest_endpoints (
               id,
               name,
@@ -112,7 +123,7 @@ abstract class PostgresIntegrationTestBase {
                 'GitHub Managed App Default',
                 'github',
                 true,
-                'secret:github-release-webhook',
+                ?,
                 'example-org/mappo-release-catalog',
                 'main',
                 NULL,
@@ -123,15 +134,18 @@ abstract class PostgresIntegrationTestBase {
                 'Azure DevOps Pipeline Default',
                 'azure_devops',
                 true,
-                'secret:ado-webhook-secret',
+                ?,
                 NULL,
                 NULL,
                 NULL,
                 NULL
               )
-            """);
+            """,
+            "secret:" + githubWebhookSecretReferenceId,
+            "secret:" + adoWebhookSecretReferenceId
+        );
 
-        jdbcTemplate.execute("""
+        jdbcTemplate.update("""
             INSERT INTO public.provider_connections (
               id,
               name,
@@ -146,9 +160,11 @@ abstract class PostgresIntegrationTestBase {
               'azure_devops',
               true,
               NULL,
-              'secret:ado-runtime-pat'
+              ?
             )
-            """);
+            """,
+            "secret:" + adoRuntimePatSecretReferenceId
+        );
 
         jdbcTemplate.execute("""
             INSERT INTO public.projects (
@@ -213,5 +229,21 @@ abstract class PostgresIntegrationTestBase {
                 'scalr-slate'
               )
             """);
+    }
+
+    private String insertSecretReference(String name, String provider, String usage, String backendRef) {
+        Long id = jdbcTemplate.queryForObject(
+            """
+            INSERT INTO public.secret_references (name, provider, usage, mode, backend_ref)
+            VALUES (?, ?, ?, 'mappo_default', ?)
+            RETURNING id
+            """,
+            Long.class,
+            name,
+            provider,
+            usage,
+            backendRef
+        );
+        return id == null ? "" : String.valueOf(id);
     }
 }

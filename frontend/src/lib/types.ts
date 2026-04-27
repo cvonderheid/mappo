@@ -138,7 +138,6 @@ export type SecretReference = {
   updatedAt?: string;
 };
 export type SecretReferenceCreateRequest = {
-  id: string;
   name: string;
   provider: SecretReferenceProvider;
   usage: SecretReferenceUsage;

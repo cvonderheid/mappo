@@ -9,7 +9,6 @@ import jakarta.validation.constraints.NotNull;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SecretReferenceCreateRequest(
-    @NotBlank String id,
     @NotBlank String name,
     @NotNull SecretReferenceProviderType provider,
     @NotNull SecretReferenceUsageType usage,

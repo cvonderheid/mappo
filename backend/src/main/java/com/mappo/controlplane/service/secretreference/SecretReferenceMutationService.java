@@ -9,18 +9,15 @@ import com.mappo.controlplane.domain.secretreference.SecretReferenceProviderType
 import com.mappo.controlplane.domain.secretreference.SecretReferenceUsageType;
 import com.mappo.controlplane.model.SecretReferenceRecord;
 import com.mappo.controlplane.service.providerconnection.ProviderConnectionSecretResolver;
-import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SecretReferenceMutationService {
 
-    private static final Pattern ID_PATTERN = Pattern.compile("^[a-z0-9](?:[a-z0-9-]{1,126}[a-z0-9])?$");
-
     public SecretReferenceMutationRecord fromCreate(SecretReferenceCreateRequest request) {
         return new SecretReferenceMutationRecord(
-            requiredId(request.id()),
+            "",
             requiredName(request.name()),
             requiredProvider(request.provider()),
             requiredUsage(request.usage()),
@@ -40,7 +37,7 @@ public class SecretReferenceMutationService {
             ? normalizeBackendRef(current.backendRef(), provider, usage, mode)
             : normalizeBackendRef(patch.backendRef(), provider, usage, mode);
         return new SecretReferenceMutationRecord(
-            requiredId(current.id()),
+            normalize(current.id()),
             requiredName(firstNonBlank(patch.name(), current.name())),
             requiredProvider(provider),
             requiredUsage(usage),
@@ -51,7 +48,7 @@ public class SecretReferenceMutationService {
 
     private SecretReferenceMutationRecord toMutation(SecretReferenceRecord current) {
         return new SecretReferenceMutationRecord(
-            requiredId(current.id()),
+            normalize(current.id()),
             requiredName(current.name()),
             requiredProvider(current.provider()),
             requiredUsage(current.usage()),
@@ -108,17 +105,6 @@ public class SecretReferenceMutationService {
             HttpStatus.BAD_REQUEST,
             "MAPPO does not have a built-in runtime secret for " + provider.name() + " " + usage.name() + "."
         );
-    }
-
-    private String requiredId(String value) {
-        String normalized = normalize(value);
-        if (normalized.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "secret reference id must not be blank");
-        }
-        if (!ID_PATTERN.matcher(normalized).matches()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "secret reference id must match " + ID_PATTERN.pattern());
-        }
-        return normalized;
     }
 
     private String requiredName(String value) {

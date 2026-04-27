@@ -21,8 +21,8 @@ public class SecretReferenceCommandService {
     @Transactional
     public SecretReferenceRecord createSecretReference(SecretReferenceCreateRequest request) {
         SecretReferenceMutationRecord mutation = secretReferenceMutationService.fromCreate(request);
-        secretReferenceCommandRepository.createSecretReference(mutation);
-        return secretReferenceCatalogService.getRequired(mutation.id());
+        String createdId = secretReferenceCommandRepository.createSecretReference(mutation);
+        return secretReferenceCatalogService.getRequired(createdId);
     }
 
     @Transactional

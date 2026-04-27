@@ -281,8 +281,8 @@ export default function SecretReferencesConfigPage({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (normalize(draft.id) === "" || normalize(draft.name) === "") {
-      toast.error("Secret reference ID and name are required.");
+    if (normalize(draft.name) === "") {
+      toast.error("Secret reference display name is required.");
       return;
     }
     if (draft.mode === "environment_variable" && normalize(draft.environmentVariable) === "") {
@@ -308,15 +308,14 @@ export default function SecretReferencesConfigPage({
         toast.success(`Updated secret reference ${editingId}.`);
       } else {
         const request: SecretReferenceCreateRequest = {
-          id: normalize(draft.id),
           name: normalize(draft.name),
           provider: draft.provider,
           usage: draft.usage,
           mode: draft.mode,
           backendRef: buildBackendRef(draft),
         };
-        await createSecretReference(request);
-        toast.success(`Created secret reference ${draft.id.trim()}.`);
+        const created = await createSecretReference(request);
+        toast.success(`Created secret reference ${created.name || created.id}.`);
       }
       setDrawerOpen(false);
       setDraft(emptyDraft());
@@ -559,25 +558,12 @@ export default function SecretReferencesConfigPage({
       <Drawer direction="top" open={drawerOpen} onOpenChange={setDrawerOpen}>
         <DrawerContent className="glass-card">
           <DrawerHeader>
-            <DrawerTitle>{editingId ? `Edit ${editingId}` : "New Secret Reference"}</DrawerTitle>
+            <DrawerTitle>{editingId ? `Edit ${draft.name || editingId}` : "New Secret Reference"}</DrawerTitle>
             <DrawerDescription>
               Define a named secret once, then select it from Deployment Connections and Release Sources. MAPPO still resolves the real value server-side.
             </DrawerDescription>
           </DrawerHeader>
           <form id="secret-reference-form" className="grid grid-cols-1 gap-3 px-4 sm:grid-cols-2" onSubmit={handleSubmit}>
-            <div className="space-y-1">
-              <div className="flex items-center gap-1">
-                <Label htmlFor="secret-reference-id">Secret reference ID</Label>
-                <FieldHelpTooltip content="Stable ID used internally when Deployment Connections or Release Sources select this secret reference." />
-              </div>
-              <Input
-                id="secret-reference-id"
-                value={draft.id}
-                disabled={editingId !== ""}
-                onChange={(event) => setDraft((current) => ({ ...current, id: event.target.value }))}
-                placeholder="ado-runtime-pat"
-              />
-            </div>
             <div className="space-y-1">
               <div className="flex items-center gap-1">
                 <Label htmlFor="secret-reference-name">Display name</Label>

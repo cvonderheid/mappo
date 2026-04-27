@@ -8,7 +8,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 public record SecretReferenceRecord(
-    @Schema(description = "Secret reference id.", example = "ado-runtime-pat")
+    @Schema(description = "Database-generated secret reference id.", example = "42")
     String id,
     @Schema(description = "Secret reference display name.", example = "Azure DevOps Runtime PAT")
     String name,

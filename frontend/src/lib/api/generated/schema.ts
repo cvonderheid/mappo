@@ -736,7 +736,6 @@ export interface components {
             inProgress?: boolean;
         };
         SecretReferenceCreateRequest: {
-            id: string;
             name: string;
             /** @enum {string} */
             provider: "azure_devops" | "github";
@@ -760,8 +759,8 @@ export interface components {
         };
         SecretReferenceRecord: {
             /**
-             * @description Secret reference id.
-             * @example ado-runtime-pat
+             * @description Database-generated secret reference id.
+             * @example 42
              */
             id?: string;
             /**

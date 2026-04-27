@@ -63,7 +63,8 @@ public class SecretReferenceQueryRepository {
 
     public Optional<SecretReferenceRecord> getSecretReference(String secretReferenceId) {
         String normalizedSecretReferenceId = normalize(secretReferenceId);
-        if (normalizedSecretReferenceId.isBlank()) {
+        Long parsedSecretReferenceId = parseSecretReferenceId(normalizedSecretReferenceId);
+        if (parsedSecretReferenceId == null) {
             return Optional.empty();
         }
         Record row = dsl.select(
@@ -77,7 +78,7 @@ public class SecretReferenceQueryRepository {
                 SECRET_REFERENCES.UPDATED_AT
             )
             .from(SECRET_REFERENCES)
-            .where(SECRET_REFERENCES.ID.eq(normalizedSecretReferenceId))
+            .where(SECRET_REFERENCES.ID.eq(parsedSecretReferenceId))
             .fetchOne();
         if (row == null) {
             return Optional.empty();
@@ -93,13 +94,14 @@ public class SecretReferenceQueryRepository {
 
     public boolean exists(String secretReferenceId) {
         String normalizedSecretReferenceId = normalize(secretReferenceId);
-        if (normalizedSecretReferenceId.isBlank()) {
+        Long parsedSecretReferenceId = parseSecretReferenceId(normalizedSecretReferenceId);
+        if (parsedSecretReferenceId == null) {
             return false;
         }
         return dsl.fetchExists(
             dsl.selectOne()
                 .from(SECRET_REFERENCES)
-                .where(SECRET_REFERENCES.ID.eq(normalizedSecretReferenceId))
+                .where(SECRET_REFERENCES.ID.eq(parsedSecretReferenceId))
         );
     }
 
@@ -213,6 +215,18 @@ public class SecretReferenceQueryRepository {
             return "";
         }
         return normalize(normalized.substring(SecretReferenceResolver.SECRET_REFERENCE_PREFIX.length()));
+    }
+
+    private Long parseSecretReferenceId(String value) {
+        String normalized = normalize(value);
+        if (normalized.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(normalized);
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 
     private String normalize(Object value) {
