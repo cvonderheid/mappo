@@ -58,7 +58,10 @@ creates app resources that depend on published MAPPO images:
 - frontend EasyAuth Entra app registration and redirect URI
 - Container App env vars and secrets
 
-From the repository root, use `pulumi-runtime.env.example` as the template:
+From the repository root, use `pulumi-runtime.env.example` as the template for
+runtime-only values. `scripts/source_runtime_deploy_env.sh` loads
+`.data/pulumi-platform.env` first, then `.data/pulumi-runtime.env`, so platform
+stack identity remains in one place.
 
 ```bash
 cp pulumi-runtime.env.example .data/pulumi-runtime.env
@@ -75,7 +78,7 @@ pulumi up --stack <runtime-stack> --yes
 
 Required runtime inputs:
 
-- `MAPPO_PLATFORM_STACK`
+- `MAPPO_PLATFORM_STACK` from `.data/pulumi-platform.env`
 - `MAPPO_MARKETPLACE_INGEST_TOKEN`
 
 `MAPPO_RUNTIME_IMAGE_TAG` is not stored in `.data/pulumi-runtime.env`; source

@@ -19,6 +19,11 @@ This walkthrough covers:
 Maven builds and publishes artifacts. Pulumi owns Azure infrastructure. Do not
 use Maven to create or update Azure resources.
 
+For the operator-facing project setup path, especially the Azure DevOps
+release-readiness pipeline plus Azure DevOps deployment pipeline flow, use
+[`azure-devops-pipeline-project-setup.md`](./azure-devops-pipeline-project-setup.md)
+as the project setup manual after the hosted runtime is available.
+
 ## Prerequisites
 
 Install:
@@ -121,7 +126,7 @@ MAPPO uses three local environment files during handoff:
 
 - `.data/mappo.env`: local runtime and demo helper values
 - `.data/pulumi-platform.env`: source-code independent Azure infrastructure
-- `.data/pulumi-runtime.env`: source-code dependent Container Apps runtime
+- `.data/pulumi-runtime.env`: runtime-only Container Apps settings
 
 Create the files from templates:
 
@@ -138,12 +143,15 @@ Fill `.data/pulumi-platform.env` first:
 ```bash
 export PULUMI_CONFIG_PASSPHRASE="<local-pulumi-passphrase>"
 export MAPPO_PULUMI_STACK_KIND="platform"
+export MAPPO_PLATFORM_STACK="platform-<timestamp-or-name>"
 export MAPPO_RUNTIME_SUBSCRIPTION_ID="<runtime-subscription-id>"
 export MAPPO_RUNTIME_LOCATION="<azure-region>"
 ```
 
 Notes:
 
+- `MAPPO_PLATFORM_STACK` is the Pulumi platform stack name. Use a stable value
+  for the walkthrough because later steps source this file repeatedly.
 - `MAPPO_RUNTIME_SUBSCRIPTION_ID` is the Azure subscription where the hosted
   MAPPO platform and runtime apps will be created.
 - `AZURE_SUBSCRIPTION_ID` is not required by this walkthrough.
@@ -185,10 +193,17 @@ The platform stack creates source-code independent Azure resources:
 - Key Vault
 - managed identity
 
-Use a clear stack name. For handoff testing, a timestamped stack is useful:
+Use a clear stack name. For handoff testing, a timestamped stack is useful.
+Write it into `.data/pulumi-platform.env` before sourcing the file so the value
+does not get reset later:
 
 ```bash
 export MAPPO_PLATFORM_STACK="platform-$(date -u +%Y%m%d%H%M%S)"
+if grep -q '^export MAPPO_PLATFORM_STACK=' .data/pulumi-platform.env; then
+  perl -0pi -e 's|export MAPPO_PLATFORM_STACK=".*"|export MAPPO_PLATFORM_STACK="'"$MAPPO_PLATFORM_STACK"'"|' .data/pulumi-platform.env
+else
+  printf '\nexport MAPPO_PLATFORM_STACK="%s"\n' "$MAPPO_PLATFORM_STACK" >> .data/pulumi-platform.env
+fi
 ```
 
 Initialize and apply the platform stack:
@@ -218,10 +233,11 @@ cd ../..
 
 ## 6. Publish Runtime Images With Maven
 
-Load the runtime deployment environment. This sources stable runtime settings
-from `.data/pulumi-runtime.env`, derives the current image tag from Maven/Git,
-reads ACR outputs from the platform stack, and creates a short-lived ACR token
-for Maven.
+Load the runtime deployment environment. This sources platform identity from
+`.data/pulumi-platform.env`, then runtime-only settings from
+`.data/pulumi-runtime.env`, derives the current image tag from Maven/Git, reads
+ACR outputs from the platform stack, and creates a short-lived ACR token for
+Maven.
 
 ```bash
 source scripts/source_runtime_deploy_env.sh
@@ -244,16 +260,9 @@ Maven publishes:
 
 Maven does not run Pulumi.
 
-Persist only the stable platform stack reference and runtime location into the
-runtime env file. Do not persist `MAPPO_RUNTIME_IMAGE_TAG`; it is derived from
-the current Maven project version and Git commit each time
-`scripts/source_runtime_deploy_env.sh` is sourced.
-
-```bash
-perl -0pi -e 's|export MAPPO_PLATFORM_STACK=".*"|export MAPPO_PLATFORM_STACK="'"$MAPPO_PLATFORM_STACK"'"|' .data/pulumi-runtime.env
-perl -0pi -e 's|export MAPPO_RUNTIME_SUBSCRIPTION_ID=".*"|export MAPPO_RUNTIME_SUBSCRIPTION_ID="'"$MAPPO_RUNTIME_SUBSCRIPTION_ID"'"|' .data/pulumi-runtime.env
-perl -0pi -e 's|export MAPPO_RUNTIME_LOCATION=".*"|export MAPPO_RUNTIME_LOCATION="'"$MAPPO_RUNTIME_LOCATION"'"|' .data/pulumi-runtime.env
-```
+Do not persist `MAPPO_RUNTIME_IMAGE_TAG`; it is derived from the current Maven
+project version and Git commit each time `scripts/source_runtime_deploy_env.sh`
+is sourced.
 
 Then edit `.data/pulumi-runtime.env` and fill the runtime-only secret:
 
@@ -276,10 +285,15 @@ export MAPPO_FRONTEND_CUSTOM_DOMAIN_CERTIFICATE_ENABLED="false"
 ```
 
 Container Apps custom domains are a two-step Azure workflow. The first runtime
-`pulumi up` creates DNS records and attaches the hostname. After that succeeds,
-set both custom-domain certificate flags to `"true"` and run the runtime
-`pulumi up` again to request the managed certificates and switch the hostname
-bindings to SNI.
+`pulumi up` must run with both custom-domain certificate flags set to `"false"`.
+That first pass creates DNS records and attaches the hostnames to the Container
+Apps. After that succeeds, set both custom-domain certificate flags to `"true"`
+and run the runtime `pulumi up` again to request the managed certificates and
+switch the hostname bindings to SNI.
+
+If Azure returns `RequireCustomHostnameInEnvironment`, the certificate flags
+were enabled before the hostname binding existed. Set both flags back to
+`"false"` and rerun the first runtime `pulumi up`.
 
 ## 7. Create The Pulumi Runtime App Stack
 
@@ -295,14 +309,13 @@ and creates source-code dependent resources:
 Use a matching runtime stack name:
 
 ```bash
+source scripts/source_runtime_deploy_env.sh
 export MAPPO_RUNTIME_STACK="${MAPPO_PLATFORM_STACK/platform/runtime}"
 ```
 
 Apply the runtime stack:
 
 ```bash
-source scripts/source_runtime_deploy_env.sh
-
 ./mvnw -pl infra/pulumi -DskipTests compile
 
 cd infra/pulumi
@@ -456,14 +469,13 @@ then update only the runtime app stack:
 ```bash
 export MAPPO_PLATFORM_STACK=<existing-platform-stack>
 export MAPPO_RUNTIME_STACK=<existing-runtime-stack>
+perl -0pi -e 's|export MAPPO_PLATFORM_STACK=".*"|export MAPPO_PLATFORM_STACK="'"$MAPPO_PLATFORM_STACK"'"|' .data/pulumi-platform.env
 
 source scripts/source_runtime_deploy_env.sh
 
 ./mvnw deploy \
   -Ddocker.image.prefix="$MAPPO_IMAGE_PREFIX" \
   -Dmappo.image.tag="$MAPPO_RUNTIME_IMAGE_TAG"
-
-perl -0pi -e 's|export MAPPO_PLATFORM_STACK=".*"|export MAPPO_PLATFORM_STACK="'"$MAPPO_PLATFORM_STACK"'"|' .data/pulumi-runtime.env
 
 ./mvnw -pl infra/pulumi -DskipTests compile
 

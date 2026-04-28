@@ -57,6 +57,11 @@ Required values:
 - `MAPPO_DOCKER_USERNAME`: `00000000-0000-0000-0000-000000000000` for ACR token auth
 - `MAPPO_DOCKER_PASSWORD`: short-lived token from `az acr login --expose-token`
 
+`scripts/source_runtime_deploy_env.sh` loads platform identity from
+`.data/pulumi-platform.env` and runtime-only settings from
+`.data/pulumi-runtime.env`. Do not duplicate platform stack, subscription,
+location, or Pulumi passphrase in the runtime env file.
+
 Command:
 ```bash
 source scripts/source_runtime_deploy_env.sh
