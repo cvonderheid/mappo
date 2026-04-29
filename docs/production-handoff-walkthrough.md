@@ -233,6 +233,25 @@ cd ../..
 
 ## 6. Publish Runtime Images With Maven
 
+Before publishing, confirm `.data/pulumi-platform.env` points at an existing
+platform stack. The `.data` files are local convenience files, not source of
+truth; the Pulumi stack list is source of truth for this checkout.
+
+```bash
+cd infra/pulumi
+pulumi login --local
+pulumi stack ls
+cd ../..
+```
+
+If `.data/pulumi-platform.env` points at an old stack, update it before
+sourcing the runtime deploy environment:
+
+```bash
+export MAPPO_PLATFORM_STACK="<existing-platform-stack-from-pulumi-stack-ls>"
+perl -0pi -e 's|export MAPPO_PLATFORM_STACK=".*"|export MAPPO_PLATFORM_STACK="'"$MAPPO_PLATFORM_STACK"'"|' .data/pulumi-platform.env
+```
+
 Load the runtime deployment environment. This sources platform identity from
 `.data/pulumi-platform.env`, then runtime-only settings from
 `.data/pulumi-runtime.env`, derives the current image tag from Maven/Git, reads
@@ -467,8 +486,13 @@ For code-only changes, reuse the existing platform stack, publish new images,
 then update only the runtime app stack:
 
 ```bash
-export MAPPO_PLATFORM_STACK=<existing-platform-stack>
-export MAPPO_RUNTIME_STACK=<existing-runtime-stack>
+cd infra/pulumi
+pulumi login --local
+pulumi stack ls
+cd ../..
+
+export MAPPO_PLATFORM_STACK=<existing-platform-stack-from-pulumi-stack-ls>
+export MAPPO_RUNTIME_STACK=<existing-runtime-stack-from-pulumi-stack-ls>
 perl -0pi -e 's|export MAPPO_PLATFORM_STACK=".*"|export MAPPO_PLATFORM_STACK="'"$MAPPO_PLATFORM_STACK"'"|' .data/pulumi-platform.env
 
 source scripts/source_runtime_deploy_env.sh

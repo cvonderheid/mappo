@@ -58,10 +58,10 @@ __mappo_runtime_deploy_load() {
   fi
 
   __mappo_source_env_file "$platform_env_file" || return 1
-  platform_stack="${MAPPO_PLATFORM_STACK:-$caller_platform_stack}"
-  platform_runtime_subscription_id="${MAPPO_RUNTIME_SUBSCRIPTION_ID:-$caller_runtime_subscription_id}"
-  platform_runtime_location="${MAPPO_RUNTIME_LOCATION:-$caller_runtime_location}"
-  platform_pulumi_passphrase="${PULUMI_CONFIG_PASSPHRASE:-$caller_pulumi_passphrase}"
+  platform_stack="${caller_platform_stack:-$MAPPO_PLATFORM_STACK}"
+  platform_runtime_subscription_id="${caller_runtime_subscription_id:-$MAPPO_RUNTIME_SUBSCRIPTION_ID}"
+  platform_runtime_location="${caller_runtime_location:-$MAPPO_RUNTIME_LOCATION}"
+  platform_pulumi_passphrase="${caller_pulumi_passphrase:-$PULUMI_CONFIG_PASSPHRASE}"
 
   __mappo_source_env_file "$runtime_env_file" || return 1
 
@@ -91,11 +91,15 @@ __mappo_runtime_deploy_load() {
   if ! image_prefix="$(cd "$root_dir/infra/pulumi" && pulumi stack output runtimeAcrLoginServer --stack "$MAPPO_PLATFORM_STACK")"; then
     echo "failed to read runtimeAcrLoginServer from platform stack $MAPPO_PLATFORM_STACK" >&2
     echo "check MAPPO_PLATFORM_STACK in $platform_env_file" >&2
+    echo "available local Pulumi stacks:" >&2
+    (cd "$root_dir/infra/pulumi" && pulumi stack ls 2>/dev/null || true) >&2
     return 1
   fi
   if ! acr_name="$(cd "$root_dir/infra/pulumi" && pulumi stack output runtimeAcrName --stack "$MAPPO_PLATFORM_STACK")"; then
     echo "failed to read runtimeAcrName from platform stack $MAPPO_PLATFORM_STACK" >&2
     echo "check MAPPO_PLATFORM_STACK in $platform_env_file" >&2
+    echo "available local Pulumi stacks:" >&2
+    (cd "$root_dir/infra/pulumi" && pulumi stack ls 2>/dev/null || true) >&2
     return 1
   fi
 
