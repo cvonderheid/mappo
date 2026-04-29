@@ -112,11 +112,8 @@ That inventory is meant to feed MAPPO target import through:
 3. Generate an ADO demo release by opening and completing a release PR:
 
 ```bash
-./scripts/ado_appservice_release_pr.sh \
-  --organization https://dev.azure.com/<org> \
-  --project <ado-project> \
-  --repository <ado-repository> \
-  --version 2026.04.12.1
+cd /Users/cvonderheid/workspace/demo-app-service
+./scripts/create_demo_release_pr.sh --version 2026.04.12.1
 ```
 
 4. Tear the targets down when needed:

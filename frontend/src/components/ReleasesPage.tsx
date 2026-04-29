@@ -7,14 +7,18 @@ import ReleaseIngestDrawer from "@/components/ReleaseIngestDrawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { listReleaseIngestEndpoints } from "@/lib/api";
 import type {
+  ProjectDefinition,
   Release,
+  ReleaseIngestEndpoint,
   ReleaseManifestIngestRequest,
   ReleaseManifestIngestResponse,
 } from "@/lib/types";
 
 type ReleasesPageProps = {
   selectedProjectId?: string;
+  selectedProject?: ProjectDefinition | null;
   releases: Release[];
   releaseIngestIsSubmitting: boolean;
   refreshKey: number;
@@ -36,6 +40,7 @@ function formatTimestamp(value: string | null | undefined): string {
 
 export default function ReleasesPage({
   selectedProjectId,
+  selectedProject,
   releases,
   releaseIngestIsSubmitting,
   refreshKey,
@@ -45,8 +50,43 @@ export default function ReleasesPage({
   const navigate = useNavigate();
   const [releaseIngestDrawerOpen, setReleaseIngestDrawerOpen] = useState(false);
   const [isCheckingReleases, setIsCheckingReleases] = useState(false);
+  const [releaseSources, setReleaseSources] = useState<ReleaseIngestEndpoint[]>([]);
 
   const latestRelease = useMemo(() => releases[0] ?? null, [releases]);
+  const linkedReleaseSources = useMemo(
+    () =>
+      releaseSources.filter((source) =>
+        source.linkedProjects?.some((project) => project.projectId === selectedProjectId)
+      ),
+    [releaseSources, selectedProjectId]
+  );
+  const releaseArtifactSource = selectedProject?.releaseArtifactSource ?? "blob_arm_template";
+  const isEventDrivenReleaseSource = releaseArtifactSource === "external_deployment_inputs";
+  const supportsManualReleaseCheck = !isEventDrivenReleaseSource;
+  const releaseSourceSummary = linkedReleaseSources
+    .map((source) => source.name || source.id)
+    .filter(Boolean)
+    .join(", ");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function refreshReleaseSources(): Promise<void> {
+      try {
+        const nextReleaseSources = await listReleaseIngestEndpoints();
+        if (!cancelled) {
+          setReleaseSources(nextReleaseSources);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          toast.error((error as Error).message);
+        }
+      }
+    }
+    void refreshReleaseSources();
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
 
   useEffect(() => {
     if (location.pathname !== "/releases") {
@@ -116,27 +156,48 @@ export default function ReleasesPage({
               sources for new versions.
             </CardDescription>
           </div>
-          <CardAction className="flex-wrap justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                void handleCheckForNewReleases();
-              }}
-              disabled={releaseIngestIsSubmitting || isCheckingReleases}
-            >
-              {releaseIngestIsSubmitting || isCheckingReleases ? "Checking..." : "Check for new releases"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setReleaseIngestDrawerOpen(true)}
-            >
-              Advanced
-            </Button>
-          </CardAction>
+          {supportsManualReleaseCheck ? (
+            <CardAction className="flex-wrap justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  void handleCheckForNewReleases();
+                }}
+                disabled={releaseIngestIsSubmitting || isCheckingReleases}
+              >
+                {releaseIngestIsSubmitting || isCheckingReleases ? "Checking..." : "Check for new releases"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setReleaseIngestDrawerOpen(true)}
+              >
+                Advanced
+              </Button>
+            </CardAction>
+          ) : null}
         </CardHeader>
         <CardContent className="space-y-2">
+          {isEventDrivenReleaseSource ? (
+            <div className="rounded-md border border-border/70 bg-background/40 p-3 text-sm text-muted-foreground">
+              Releases arrive automatically when the linked release source emits an event to MAPPO. For this
+              project, the release-readiness pipeline is the system of record; there is nothing for MAPPO to
+              poll manually.
+              {releaseSourceSummary ? (
+                <>
+                  {" "}
+                  Linked release source: <span className="font-medium text-foreground">{releaseSourceSummary}</span>.
+                </>
+              ) : null}
+            </div>
+          ) : null}
+          {linkedReleaseSources.length === 0 ? (
+            <div className="rounded-md border border-border/70 bg-background/40 p-3 text-sm text-muted-foreground">
+              This project is not linked to a release source yet. Configure one in{" "}
+              <span className="font-medium text-foreground">Project -&gt; Config -&gt; Release Source</span>.
+            </div>
+          ) : null}
           {latestRelease ? (
             <div className="rounded-md border border-border/70 bg-background/40 p-2 text-xs text-muted-foreground">
               Latest: <span className="font-medium text-foreground">{latestRelease.sourceVersion}</span>{" "}

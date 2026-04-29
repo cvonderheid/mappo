@@ -341,23 +341,27 @@ function draftFromUnknown(
     !Array.isArray(metadata.executionConfig)
       ? (metadata.executionConfig as Record<string, unknown>)
       : {};
+  const tags =
+    row.tags && typeof row.tags === "object" && !Array.isArray(row.tags)
+      ? (row.tags as Record<string, unknown>)
+      : {};
 
   return {
     eventId: normalize(row.eventId) || nextEventId(`evt-admin-bulk-${rowNumber}`),
     projectId: normalize(row.projectId) || defaultProjectId,
     targetId: normalize(row.targetId),
     displayName: normalize(row.displayName),
-    customerName: normalize(row.customerName),
+    customerName: firstNonBlank(row.customerName, metadata.customerName, tags.customer),
     tenantId: normalize(row.tenantId),
     subscriptionId: normalize(row.subscriptionId),
-    managedApplicationId: normalize(row.managedApplicationId),
-    managedResourceGroupId: normalize(row.managedResourceGroupId),
-    containerAppResourceId: normalize(row.containerAppResourceId),
-    containerAppName: normalize(row.containerAppName),
-    targetGroup: normalize(row.targetGroup) || "prod",
-    region: normalize(row.region) || "eastus",
-    environment: normalize(row.environment) || "prod",
-    tier: normalize(row.tier) || "standard",
+    managedApplicationId: firstNonBlank(row.managedApplicationId, metadata.managedApplicationId),
+    managedResourceGroupId: firstNonBlank(row.managedResourceGroupId, metadata.managedResourceGroupId),
+    containerAppResourceId: firstNonBlank(row.containerAppResourceId, metadata.containerAppResourceId),
+    containerAppName: firstNonBlank(row.containerAppName, metadata.containerAppName, executionConfig.targetAppName, executionConfig.appServiceName),
+    targetGroup: firstNonBlank(row.targetGroup, row.group, tags.targetGroup, tags.ring, tags.group) || "prod",
+    region: firstNonBlank(row.region, tags.region) || "eastus",
+    environment: firstNonBlank(row.environment, row.env, tags.environment, tags.env) || "prod",
+    tier: firstNonBlank(row.tier, tags.tier) || "standard",
     pipelineTargetResourceGroup:
       normalize(executionConfig.targetResourceGroup) || normalize(executionConfig.resourceGroup),
     pipelineTargetAppName:

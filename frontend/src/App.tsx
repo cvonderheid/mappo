@@ -30,6 +30,7 @@ import {
   adminDeleteTargetRegistration,
   adminIngestGithubReleaseManifest,
   adminIngestMarketplaceEvent,
+  adminRegisterOperatorTarget,
   createProject,
   adminUpdateTargetRegistration,
   createRun,
@@ -1225,6 +1226,25 @@ function AppShell() {
       await refreshRegistrationOptions();
     } catch (error) {
       setAdminErrorMessage((error as Error).message);
+      throw error;
+    } finally {
+      setAdminIsSubmitting(false);
+    }
+  }
+
+  async function handleAdminRegisterOperatorTarget(
+    request: MarketplaceEventIngestRequest
+  ): Promise<void> {
+    setAdminIsSubmitting(true);
+    try {
+      const result = await adminRegisterOperatorTarget(request);
+      setAdminResult(result);
+      setAdminErrorMessage("");
+      await refreshTargets();
+      await refreshRegistrationOptions();
+    } catch (error) {
+      setAdminErrorMessage((error as Error).message);
+      throw error;
     } finally {
       setAdminIsSubmitting(false);
     }
@@ -1586,7 +1606,7 @@ function AppShell() {
                     projects={projects}
                     releases={releases}
                     registrations={registrationOptions}
-                    onIngestMarketplaceEvent={handleAdminIngestMarketplaceEvent}
+                    onIngestMarketplaceEvent={handleAdminRegisterOperatorTarget}
                     onRefreshRegistrations={refreshRegistrationOptions}
                   />
                 }
@@ -1602,7 +1622,7 @@ function AppShell() {
                     selectedProjectId={selectedProjectId}
                     registrations={registrationOptions}
                     refreshKey={adminRefreshVersion}
-                    onIngestMarketplaceEvent={handleAdminIngestMarketplaceEvent}
+                    onIngestMarketplaceEvent={handleAdminRegisterOperatorTarget}
                     onUpdateTargetRegistration={handleAdminUpdateRegistration}
                     onDeleteTargetRegistration={handleAdminDeleteRegistration}
                     onRefreshRegistrations={refreshRegistrationOptions}
@@ -1634,6 +1654,7 @@ function AppShell() {
                 element={
                   <ReleasesPage
                     selectedProjectId={selectedProjectId}
+                    selectedProject={selectedProject}
                     releases={projectReleases}
                     releaseIngestIsSubmitting={releaseIngestIsSubmitting}
                     refreshKey={adminRefreshVersion}

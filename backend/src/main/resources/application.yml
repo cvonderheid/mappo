@@ -16,7 +16,7 @@ spring:
       idle-timeout: ${MAPPO_DB_POOL_IDLE_TIMEOUT_MS:600000}
       max-lifetime: ${MAPPO_DB_POOL_MAX_LIFETIME_MS:1800000}
   flyway:
-    enabled: true
+    enabled: false
     locations: classpath:db/migration
     baseline-on-migrate: false
   jooq:

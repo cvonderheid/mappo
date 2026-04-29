@@ -277,7 +277,7 @@ final class RuntimeStack {
         Output<String> frontendUrl = stableContainerAppUrl(config.frontendAppName(), platform.containerEnvironmentDefaultDomain());
         Output<String> backendHost = stableContainerAppHost(config.backendAppName(), platform.containerEnvironmentDefaultDomain());
         Output<String> frontendHost = stableContainerAppHost(config.frontendAppName(), platform.containerEnvironmentDefaultDomain());
-        ManagedCertificate backendCustomDomainCertificate = createCustomDomainCertificate(
+        CustomDomainBindingResources backendCustomDomain = createCustomDomainBindingResources(
             config,
             platform,
             resourceGroupName,
@@ -287,7 +287,7 @@ final class RuntimeStack {
             backendHost,
             provider
         );
-        ManagedCertificate frontendCustomDomainCertificate = createCustomDomainCertificate(
+        CustomDomainBindingResources frontendCustomDomain = createCustomDomainBindingResources(
             config,
             platform,
             resourceGroupName,
@@ -357,7 +357,7 @@ final class RuntimeStack {
                         .username(acrUsername)
                         .passwordSecretRef("registry-password")
                         .build()))
-                    .ingress(appIngress(8000, config.backendCustomDomain(), backendCustomDomainCertificate))
+                    .ingress(appIngress(8000, config.backendCustomDomain(), backendCustomDomain.certificate()))
                     .build())
                 .template(TemplateArgs.builder()
                     .initContainers(List.of(InitContainerArgs.builder()
@@ -381,7 +381,7 @@ final class RuntimeStack {
                     .build())
                 .tags(PulumiSupport.linkedMapOfString("managedBy", "pulumi", "system", "mappo", "scope", "runtime-api"))
                 .build(),
-            withProvider
+            resourceOptions(provider, backendCustomDomain.dependencies())
         );
 
         ApplicationRegistration easyAuthApp = null;
@@ -438,7 +438,7 @@ final class RuntimeStack {
                         .username(acrUsername)
                         .passwordSecretRef("registry-password")
                         .build()))
-                    .ingress(appIngress(80, config.frontendCustomDomain(), frontendCustomDomainCertificate))
+                    .ingress(appIngress(80, config.frontendCustomDomain(), frontendCustomDomain.certificate()))
                     .build())
                 .template(TemplateArgs.builder()
                     .containers(List.of(ContainerArgs.builder()
@@ -451,7 +451,7 @@ final class RuntimeStack {
                     .build())
                 .tags(PulumiSupport.linkedMapOfString("managedBy", "pulumi", "system", "mappo", "scope", "runtime-ui"))
                 .build(),
-            withProvider
+            resourceOptions(provider, frontendCustomDomain.dependencies())
         );
 
         if (config.easyAuthEnabled()) {
@@ -614,7 +614,21 @@ final class RuntimeStack {
         return uris;
     }
 
-    private static ManagedCertificate createCustomDomainCertificate(
+    private static CustomResourceOptions resourceOptions(Provider provider, Resource[] dependencies) {
+        CustomResourceOptions.Builder builder = CustomResourceOptions.builder().provider(provider);
+        if (dependencies.length > 0) {
+            builder.dependsOn(dependencies);
+        }
+        return builder.build();
+    }
+
+    private record CustomDomainBindingResources(ManagedCertificate certificate, Resource[] dependencies) {
+        private static CustomDomainBindingResources empty() {
+            return new CustomDomainBindingResources(null, new Resource[0]);
+        }
+    }
+
+    private static CustomDomainBindingResources createCustomDomainBindingResources(
         RuntimeConfig config,
         PlatformResources platform,
         Output<String> resourceGroupName,
@@ -625,7 +639,7 @@ final class RuntimeStack {
         Provider provider
     ) {
         if (customDomain.isBlank()) {
-            return null;
+            return CustomDomainBindingResources.empty();
         }
         if (config.frontendDnsZoneName().isBlank() || config.frontendDnsZoneResourceGroup().isBlank()) {
             throw new IllegalStateException(
@@ -666,11 +680,12 @@ final class RuntimeStack {
             withProvider
         );
 
+        Resource[] dependencies = new Resource[] {cnameRecord, txtRecord};
         if (!certificateEnabled) {
-            return null;
+            return new CustomDomainBindingResources(null, dependencies);
         }
 
-        return new ManagedCertificate(
+        ManagedCertificate certificate = new ManagedCertificate(
             customDomainResourceName("runtime-" + appRole + "-domain-cert-", config),
             ManagedCertificateArgs.builder()
                 .managedCertificateName(PulumiSupport.normalizeName(
@@ -692,6 +707,7 @@ final class RuntimeStack {
                 .dependsOn(new Resource[] {cnameRecord, txtRecord})
                 .build()
         );
+        return new CustomDomainBindingResources(certificate, dependencies);
     }
 
     private static String customDomainResourceName(String prefix, RuntimeConfig config) {

@@ -144,7 +144,7 @@ const DEPLOYMENT_SYSTEM_LABELS: Record<DeploymentSystem, string> = {
 
 const RELEASE_SOURCE_TYPE_LABELS: Record<ProjectDraft["releaseArtifactSource"], string> = {
   blob_arm_template: "Managed app release manifest",
-  external_deployment_inputs: "Webhook / Pipeline Event",
+  external_deployment_inputs: "Pipeline release event",
   template_spec_resource: "Template Spec release reference",
 };
 
@@ -1093,23 +1093,6 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
           fieldId: "driver-project-select",
           message: "Deployment Driver: choose an Azure DevOps project.",
         });
-      } else {
-        if (draft.driver.repository.trim() === "") {
-          issues.push({
-            id: "driver-repository-required",
-            tab: "deployment-driver",
-            fieldId: "driver-repository-select",
-            message: "Deployment Driver: choose an Azure DevOps repository.",
-          });
-        }
-        if (draft.driver.pipelineId.trim() === "") {
-          issues.push({
-            id: "driver-pipeline-id-required",
-            tab: "deployment-driver",
-            fieldId: "driver-pipeline-select",
-            message: "Deployment Driver: choose an Azure DevOps pipeline.",
-          });
-        }
       }
     }
     if (parseOptionalNumber(draft.runtime.expectedStatus) === undefined) {

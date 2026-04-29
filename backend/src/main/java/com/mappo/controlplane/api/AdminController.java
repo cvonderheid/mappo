@@ -65,6 +65,14 @@ public class AdminController {
         return marketplaceOnboardingCommandService.ingest(request);
     }
 
+    @PostMapping("/onboarding/operator-events")
+    @Operation(summary = "Register target from operator UI")
+    public EventIngestResultRecord ingestOperatorOnboardingEvent(
+        @Valid @RequestBody OnboardingEventRequest request
+    ) {
+        return marketplaceOnboardingCommandService.ingest(request);
+    }
+
     @GetMapping("/onboarding/events")
     @Operation(summary = "List onboarding events", description = "Primary paginated admin endpoint for onboarding-event history.")
     public MarketplaceEventPageRecord listMarketplaceEvents(

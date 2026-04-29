@@ -188,6 +188,10 @@ function releaseResultLabel(provider: ReleaseIngestProvider): string {
     : "Release manifest is updated";
 }
 
+function releaseSourceModeLabel(provider: ReleaseIngestProvider): string {
+  return provider === "azure_devops" ? "Pipeline release event" : "Release manifest webhook";
+}
+
 function buildReleaseSourceFlowNodes({
   endpoint,
   provider,
@@ -234,10 +238,10 @@ function buildReleaseSourceFlowNodes({
       step: "02",
       icon: <LuWorkflow className="h-5 w-5" />,
       eyebrow: "MAPPO endpoint",
-      title: endpoint.id || "Release source",
-      tone: "primary",
+      title: "Webhook receiver",
       details: [
         { label: "Webhook URL", value: webhookUrl },
+        { label: "Release source", value: endpoint.name || endpoint.id },
         { label: "Direction", value: "Inbound release notification" },
       ],
     },
@@ -273,7 +277,6 @@ function buildReleaseSourceFlowNodes({
       icon: <LuBoxes className="h-5 w-5" />,
       eyebrow: "Consumers",
       title: "Linked projects",
-      tone: selectedProjectLinked ? "success" : "default",
       details: [
         { label: "Count", value: linkedProjects.length },
         { label: "Projects", value: summarizeLinkedProjects(linkedProjects) },
@@ -563,7 +566,9 @@ export default function ReleaseIngestConfigPage({
                 <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="space-y-1">
                     <CardTitle>{endpoint.name || endpointId}</CardTitle>
-                    <p className="font-mono text-[11px] text-muted-foreground">{endpointId}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {releaseProviderLabel(provider)} · {releaseSourceModeLabel(provider)}
+                    </p>
                   </div>
                   <CardAction className="flex-wrap justify-end">
                     <Button type="button" variant="outline" onClick={() => void handleCopyWebhookUrl(endpoint)}>

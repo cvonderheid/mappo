@@ -387,6 +387,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/onboarding/operator-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register target from operator UI */
+        post: operations["ingestOperatorOnboardingEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/onboarding/forwarder-logs": {
         parameters: {
             query?: never;
@@ -1328,37 +1345,6 @@ export interface components {
             ref?: string;
             allowDuplicates?: boolean;
         };
-        ForwarderLogDetailsRequest: {
-            detail?: string;
-            backendResponse?: string;
-        };
-        ForwarderLogIngestRequest: {
-            logId: string;
-            /** @enum {string} */
-            level?: "info" | "warning" | "error";
-            message: string;
-            eventId?: string;
-            /** @enum {string} */
-            eventType?: "subscription_purchased" | "subscription_suspended" | "subscription_deleted" | "unknown";
-            targetId?: string;
-            /** Format: uuid */
-            tenantId?: string;
-            /** Format: uuid */
-            subscriptionId?: string;
-            functionAppName?: string;
-            forwarderRequestId?: string;
-            /** Format: int32 */
-            backendStatusCode?: number;
-            details?: components["schemas"]["ForwarderLogDetailsRequest"];
-            /** Format: date-time */
-            occurredAt?: string;
-        };
-        ForwarderLogIngestResultRecord: {
-            logId?: string;
-            /** @enum {string} */
-            status?: "applied" | "duplicate" | "rejected";
-            message?: string;
-        };
         OnboardingEventMetadataRequest: {
             source?: string;
             marketplacePayloadId?: string;
@@ -1400,6 +1386,37 @@ export interface components {
             status?: "applied" | "duplicate" | "rejected";
             message?: string;
             targetId?: string;
+        };
+        ForwarderLogDetailsRequest: {
+            detail?: string;
+            backendResponse?: string;
+        };
+        ForwarderLogIngestRequest: {
+            logId: string;
+            /** @enum {string} */
+            level?: "info" | "warning" | "error";
+            message: string;
+            eventId?: string;
+            /** @enum {string} */
+            eventType?: "subscription_purchased" | "subscription_suspended" | "subscription_deleted" | "unknown";
+            targetId?: string;
+            /** Format: uuid */
+            tenantId?: string;
+            /** Format: uuid */
+            subscriptionId?: string;
+            functionAppName?: string;
+            forwarderRequestId?: string;
+            /** Format: int32 */
+            backendStatusCode?: number;
+            details?: components["schemas"]["ForwarderLogDetailsRequest"];
+            /** Format: date-time */
+            occurredAt?: string;
+        };
+        ForwarderLogIngestResultRecord: {
+            logId?: string;
+            /** @enum {string} */
+            status?: "applied" | "duplicate" | "rejected";
+            message?: string;
         };
         SecretReferencePatchRequest: {
             name?: string;
@@ -2447,6 +2464,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ReleaseManifestIngestResultRecord"];
+                };
+            };
+        };
+    };
+    ingestOperatorOnboardingEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingEventRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["EventIngestResultRecord"];
                 };
             };
         };

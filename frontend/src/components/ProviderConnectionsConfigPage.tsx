@@ -275,6 +275,12 @@ function providerConnectionLabel(provider: ProviderConnectionProvider | string |
   return normalize(`${provider ?? "azure_devops"}`) === "azure_devops" ? "Azure DevOps" : `${provider ?? "Provider"}`;
 }
 
+function providerConnectionModeLabel(provider: ProviderConnectionProvider | string | null | undefined): string {
+  return normalize(`${provider ?? "azure_devops"}`) === "azure_devops"
+    ? "Deployment API credential"
+    : "External deployment access";
+}
+
 function providerConnectionIcon(provider: ProviderConnectionProvider | string | null | undefined, className: string) {
   if (normalize(`${provider ?? "azure_devops"}`) === "azure_devops") {
     return <VscAzureDevops className={className} />;
@@ -325,27 +331,6 @@ function verificationTitle({
   return "Needs verification";
 }
 
-function verificationTone({
-  isDiscovering,
-  isVerified,
-  error,
-}: {
-  isDiscovering: boolean;
-  isVerified: boolean;
-  error: string;
-}): AdminIntegrationFlowNode["tone"] {
-  if (isVerified) {
-    return "success";
-  }
-  if (isDiscovering) {
-    return "primary";
-  }
-  if (error) {
-    return "danger";
-  }
-  return "warning";
-}
-
 function buildDeploymentConnectionFlowNodes({
   connection,
   resolvedAccountUrl,
@@ -375,7 +360,7 @@ function buildDeploymentConnectionFlowNodes({
       icon: providerConnectionIcon(provider, "h-5 w-5"),
       eyebrow: "External account",
       title: resolvedAccountUrl || "Account scope not set",
-      tone: resolvedAccountUrl ? "muted" : "warning",
+      tone: resolvedAccountUrl ? "default" : "warning",
       details: [
         { label: "Provider", value: providerLabel },
         { label: "Purpose", value: "Account MAPPO can browse" },
@@ -395,10 +380,10 @@ function buildDeploymentConnectionFlowNodes({
       step: "02",
       icon: <LuWorkflow className="h-5 w-5" />,
       eyebrow: "API credential",
-      title: credentialSource,
+      title: "Server-side credential",
       details: [
         { label: "Direction", value: "MAPPO outbound API access" },
-        { label: "Secret value", value: "Resolved server-side" },
+        { label: "Source", value: credentialSource },
       ],
     },
     {
@@ -406,7 +391,7 @@ function buildDeploymentConnectionFlowNodes({
       icon: <LuActivity className="h-5 w-5" />,
       eyebrow: "Verification",
       title: verificationTitle({ isDiscovering, isVerified, error: discoveryError }),
-      tone: verificationTone({ isDiscovering, isVerified, error: discoveryError }),
+      tone: discoveryError ? "danger" : isDiscovering ? "muted" : isVerified ? "default" : "warning",
       details: [
         { label: "Check", value: "Azure DevOps API browse" },
         { label: "Result", value: discoveryError || describeDiscoveredProjectCount(discoveredProjects.length) },
@@ -417,7 +402,7 @@ function buildDeploymentConnectionFlowNodes({
       icon: <LuBoxes className="h-5 w-5" />,
       eyebrow: "Discovered scope",
       title: "Azure DevOps projects",
-      tone: discoveredProjects.length > 0 ? "success" : "muted",
+      tone: discoveredProjects.length > 0 ? "default" : "muted",
       details: [
         { label: "Count", value: discoveredProjects.length },
         { label: "Projects", value: summarizeDiscoveredProjects(discoveredProjects) },
@@ -427,8 +412,8 @@ function buildDeploymentConnectionFlowNodes({
       step: "05",
       icon: <LuBoxes className="h-5 w-5" />,
       eyebrow: "Consumers",
-      title: "Linked MAPPO projects",
-      tone: selectedProjectLinked ? "success" : "default",
+      title: linkedProjects.length > 0 ? "Linked MAPPO projects" : "No linked projects",
+      tone: selectedProjectLinked ? "default" : "muted",
       details: [
         { label: "Count", value: linkedProjects.length },
         { label: "Projects", value: summarizeLinkedProjects(linkedProjects) },
@@ -896,7 +881,9 @@ export default function ProviderConnectionsConfigPage({
                 <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="space-y-1">
                     <CardTitle>{connection.name || connectionId}</CardTitle>
-                    <p className="font-mono text-[11px] text-muted-foreground">{connectionId}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {providerConnectionLabel(connection.provider)} · {providerConnectionModeLabel(connection.provider)}
+                    </p>
                   </div>
                   <CardAction className="flex-wrap justify-end">
                     <Button
@@ -944,13 +931,13 @@ export default function ProviderConnectionsConfigPage({
                     <Badge variant="outline">
                       Provider: {providerConnectionLabel(connection.provider)}
                     </Badge>
-                    <Badge variant={connection.enabled ? "default" : "secondary"}>
+                    <Badge variant="outline">
                       {connection.enabled ? "Enabled" : "Disabled"}
                     </Badge>
                     {isDiscovering ? (
                       <Badge variant="secondary">Verifying...</Badge>
                     ) : isVerified ? (
-                      <Badge variant="default">Verified</Badge>
+                      <Badge variant="outline">Verified access</Badge>
                     ) : discoveryErrorsByConnectionId[connectionId] ? (
                       <Badge variant="destructive">Verification failed</Badge>
                     ) : null}
@@ -978,7 +965,7 @@ export default function ProviderConnectionsConfigPage({
                     </p>
                   ) : null}
                   {isVerified ? (
-                    <p className="rounded-md border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
+                    <p className="rounded-md border border-border/60 bg-background/40 px-3 py-2 text-xs text-muted-foreground">
                       Verified Azure DevOps access. MAPPO can browse {discoveredProjects.length} Azure DevOps project{discoveredProjects.length === 1 ? "" : "s"} through this deployment connection.
                     </p>
                   ) : null}
@@ -993,7 +980,7 @@ export default function ProviderConnectionsConfigPage({
                         return (
                           <Badge
                             key={`${connectionId}-${projectId}`}
-                            variant={selectedProjectLinked && projectId === selectedProjectId ? "default" : "secondary"}
+                            variant={selectedProjectLinked && projectId === selectedProjectId ? "outline" : "secondary"}
                           >
                             {label}
                           </Badge>

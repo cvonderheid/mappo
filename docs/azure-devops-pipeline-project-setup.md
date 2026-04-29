@@ -131,6 +131,11 @@ Create an Azure DevOps service hook for this pipeline:
 - **URL**: the MAPPO Release Source webhook URL from Step 3
 - **Secret/token**: the same value stored in `ado-release-webhook-secret`
 
+The MAPPO Azure DevOps Release Source must also filter to the same
+release-readiness pipeline ID. If this filter is blank or points at the
+deployment pipeline instead, MAPPO receives the webhook but records it as skipped
+with a message like `Ignored Azure DevOps webhook for non-configured pipeline 2`.
+
 For the demo scripts, this can be automated after the release-readiness pipeline exists:
 
 ```bash
@@ -258,14 +263,23 @@ To remove demo targets later:
 
 ## 9. Create A Demo Release
 
-For the current demo repo, create and merge a release PR with:
+For the current demo repo, create and merge a release PR from the workload repo:
 
 ```bash
-./scripts/ado_appservice_release_pr.sh \
-  --organization <ado-organization-url> \
-  --project <ado-project-name> \
-  --repository <ado-repository-name> \
-  --version <new-version>
+cd /Users/cvonderheid/workspace/demo-app-service
+./scripts/create_demo_release_pr.sh
+```
+
+The script infers Azure DevOps organization, project, and repository from the
+workload repo's `origin` remote. Pass `--version <new-version>` only when you
+need a specific version instead of the timestamp default.
+
+The script requires an Azure DevOps PAT with branch and pull-request access. Put
+it in the workload repo's uncommitted `.data/ado.env` file or export it before
+running the script:
+
+```bash
+export AZURE_DEVOPS_EXT_PAT="<ado-pat>"
 ```
 
 That script:
@@ -277,7 +291,15 @@ That script:
 5. lets Azure DevOps run the release-readiness pipeline
 6. lets the service hook notify MAPPO
 
+MAPPO does not create the release. The workload repo emits the release-ready
+signal; MAPPO receives it through the configured release source.
+
 After the service hook fires, open **Project -> Releases** in MAPPO and confirm the new release appears.
+
+Troubleshooting:
+
+- `create-demo-release-pr: --ado-pat or AZURE_DEVOPS_EXT_PAT is required.` means the workload repo is missing `.data/ado.env` and no PAT is exported.
+- `Ignored Azure DevOps webhook for non-configured pipeline <id>.` means the MAPPO Release Source pipeline filter does not match the release-readiness pipeline ID.
 
 ## 10. Start A Deployment
 

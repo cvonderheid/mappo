@@ -605,6 +605,21 @@ export async function adminIngestMarketplaceEvent(
   return requireData("Could not onboard targets from event", { data, error, response });
 }
 
+export async function adminRegisterOperatorTarget(
+  request: MarketplaceEventIngestRequest
+): Promise<MarketplaceEventIngestResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/admin/onboarding/operator-events`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  const data = await response.json().catch(() => undefined) as MarketplaceEventIngestResponse | undefined;
+  if (!response.ok || data === undefined) {
+    throw new Error(httpErrorMessage("Could not register target", response.status, data));
+  }
+  return data;
+}
+
 export async function adminUpdateTargetRegistration(
   targetId: string,
   request: UpdateTargetRegistrationRequest
