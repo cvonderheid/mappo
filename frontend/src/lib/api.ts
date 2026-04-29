@@ -103,7 +103,7 @@ export async function listTargetsPage(query: ListTargetsPageQuery = {}): Promise
       },
     },
   });
-  return requireData("Could not load fleet targets", { data, error, response });
+  return requireData("Could not load targets", { data, error, response });
 }
 
 export type TargetRuntimeHealthCheckResult = {

@@ -162,10 +162,9 @@ const SIDEBAR_NAVIGATION: SidebarNavigationGroup[] = [
     label: "Project",
     items: [
       { label: "Config", to: "/projects" },
-      { label: "Fleet", to: "/fleet" },
+      { label: "Targets", to: "/targets" },
       { label: "Deployments", to: "/deployments" },
       { label: "Releases", to: "/releases" },
-      { label: "Targets", to: "/targets" },
       { label: "Registration Events", to: "/onboarding" },
     ],
   },
@@ -240,18 +239,18 @@ function AppShell() {
   const selectedRunIdRef = useRef<string>("");
   const selectedProjectIdRef = useRef<string>("");
   const isDeploymentRouteRef = useRef<boolean>(false);
-  const isFleetRouteRef = useRef<boolean>(false);
+  const isTargetsRouteRef = useRef<boolean>(false);
   const isAdminRouteRef = useRef<boolean>(false);
   const previousRouteSectionRef = useRef<string | null>(null);
   const previousIsDeploymentRouteRef = useRef<boolean>(false);
-  const previousIsFleetRouteRef = useRef<boolean>(false);
+  const previousIsTargetsRouteRef = useRef<boolean>(false);
   const previousIsAdminRouteRef = useRef<boolean>(false);
   const isDeploymentRoute = useMemo(
     () => location.pathname.startsWith("/deployments"),
     [location.pathname]
   );
-  const isFleetRoute = useMemo(
-    () => location.pathname === "/fleet",
+  const isTargetsRoute = useMemo(
+    () => location.pathname === "/targets",
     [location.pathname]
   );
   const isAdminRoute = useMemo(
@@ -454,7 +453,7 @@ function AppShell() {
     selectedRunIdRef.current = selectedRunId;
     selectedProjectIdRef.current = selectedProjectId;
     isDeploymentRouteRef.current = isDeploymentRoute;
-    isFleetRouteRef.current = isFleetRoute;
+    isTargetsRouteRef.current = isTargetsRoute;
     isAdminRouteRef.current = isAdminRoute;
   }, [
     refreshRegistrationOptions,
@@ -466,7 +465,7 @@ function AppShell() {
     selectedRunId,
     isAdminRoute,
     isDeploymentRoute,
-    isFleetRoute,
+    isTargetsRoute,
   ]);
 
   useEffect(() => {
@@ -529,17 +528,17 @@ function AppShell() {
   }, [isDeploymentRoute, selectedProjectId]);
 
   useEffect(() => {
-    const wasFleetRoute = previousIsFleetRouteRef.current;
-    previousIsFleetRouteRef.current = isFleetRoute;
+    const wasTargetsRoute = previousIsTargetsRouteRef.current;
+    previousIsTargetsRouteRef.current = isTargetsRoute;
 
-    if (!selectedProjectId || !isFleetRoute || wasFleetRoute) {
+    if (!selectedProjectId || !isTargetsRoute || wasTargetsRoute) {
       return;
     }
 
     void refreshTargetsRef.current();
     void refreshReleasesRef.current();
     void refreshRunSummary();
-  }, [isFleetRoute, refreshRunSummary, selectedProjectId]);
+  }, [isTargetsRoute, refreshRunSummary, selectedProjectId]);
 
   useEffect(() => {
     const wasAdminRoute = previousIsAdminRouteRef.current;
@@ -557,8 +556,8 @@ function AppShell() {
   useEffect(() => {
     const currentRouteSection = isDeploymentRoute
       ? "deployments"
-      : isFleetRoute
-        ? "fleet"
+      : isTargetsRoute
+        ? "targets"
         : isAdminRoute
           ? "admin"
           : "other";
@@ -577,9 +576,10 @@ function AppShell() {
       return;
     }
 
-    if (currentRouteSection === "fleet") {
+    if (currentRouteSection === "targets") {
       void refreshTargetsRef.current();
       void refreshReleasesRef.current();
+      void refreshRegistrationOptionsRef.current();
       void refreshRunSummary();
       return;
     }
@@ -592,7 +592,7 @@ function AppShell() {
   }, [
     isAdminRoute,
     isDeploymentRoute,
-    isFleetRoute,
+    isTargetsRoute,
     refreshRunSummary,
     selectedProjectId,
   ]);
@@ -626,7 +626,7 @@ function AppShell() {
   }, [isAdminRoute, isDeploymentRoute]);
 
   useEffect(() => {
-    const intervalMs = isFleetRoute ? 30000 : 15000;
+    const intervalMs = isTargetsRoute ? 30000 : 15000;
     const intervalId = window.setInterval(() => {
       if (isDeploymentRouteRef.current) {
         void refreshTargetsRef.current();
@@ -637,8 +637,9 @@ function AppShell() {
         void refreshReleasesRef.current();
         return;
       }
-      if (isFleetRouteRef.current) {
+      if (isTargetsRouteRef.current) {
         void refreshTargetsRef.current();
+        void refreshRegistrationOptionsRef.current();
         void refreshReleasesRef.current();
         void refreshRunSummary();
         return;
@@ -651,7 +652,7 @@ function AppShell() {
     }, intervalMs);
 
     return () => window.clearInterval(intervalId);
-  }, [isFleetRoute, refreshRunSummary]);
+  }, [isTargetsRoute, refreshRunSummary]);
 
   useEffect(() => {
     if (liveTopics.length === 0) {
@@ -714,11 +715,17 @@ function AppShell() {
     });
 
     eventSource.addEventListener("admin-updated", () => {
-      if (isAdminRouteRef.current) {
-        scheduleRefresh("admin", () => {
-          void refreshRegistrationOptionsRef.current();
+      if (!isAdminRouteRef.current) {
+        return;
+      }
+      if (isTargetsRouteRef.current) {
+        scheduleRefresh("targets", () => {
+          void refreshTargetsRef.current();
         });
       }
+      scheduleRefresh("admin", () => {
+        void refreshRegistrationOptionsRef.current();
+      });
     });
 
     eventSource.addEventListener("connected", (event: MessageEvent<string>) => {
@@ -739,7 +746,10 @@ function AppShell() {
         refreshSelectedRun(selectedRunIdRef.current);
         return;
       }
-      if (isAdminRouteRef.current) {
+      if (isTargetsRouteRef.current) {
+        scheduleRefresh("targets", () => {
+          void refreshTargetsRef.current();
+        });
         scheduleRefresh("admin", () => {
           void refreshRegistrationOptionsRef.current();
         });
@@ -748,9 +758,9 @@ function AppShell() {
         });
         return;
       }
-      if (isFleetRouteRef.current) {
-        scheduleRefresh("targets", () => {
-          void refreshTargetsRef.current();
+      if (isAdminRouteRef.current) {
+        scheduleRefresh("admin", () => {
+          void refreshRegistrationOptionsRef.current();
         });
         scheduleRefresh("releases", () => {
           void refreshReleasesRef.current();
@@ -918,10 +928,6 @@ function AppShell() {
   const breadcrumbEntries = useMemo<BreadcrumbEntry[]>(() => {
     const path = location.pathname;
     const items: BreadcrumbEntry[] = [];
-    if (path.startsWith("/fleet")) {
-      items.push({ label: "Project", to: "/projects" }, { label: "Fleet" });
-      return items;
-    }
     if (path.startsWith("/deployments/")) {
       const runId = decodeURIComponent(path.split("/")[2] ?? "");
       items.push(
@@ -1474,17 +1480,8 @@ function AppShell() {
         <section className="min-w-0 space-y-4">
           <Suspense fallback={<RouteLoadingFallback />}>
             <Routes>
-              <Route path="/" element={<Navigate to="/fleet" replace />} />
-              <Route
-                path="/fleet"
-                element={
-                  <FleetTable
-                    latestRelease={latestRelease}
-                    refreshKey={targetsRefreshVersion}
-                    selectedProjectId={selectedProjectId}
-                  />
-                }
-              />
+              <Route path="/" element={<Navigate to="/targets" replace />} />
+              <Route path="/fleet" element={<Navigate to="/targets" replace />} />
               <Route
                 path="/projects"
                 element={
@@ -1614,20 +1611,27 @@ function AppShell() {
               <Route
                 path="/targets"
                 element={
-                  <TargetsPage
-                    adminErrorMessage={adminErrorMessage}
-                    adminIsSubmitting={adminIsSubmitting}
-                    adminResult={adminResult}
-                    projects={projects}
-                    selectedProjectId={selectedProjectId}
-                    registrations={registrationOptions}
-                    refreshKey={adminRefreshVersion}
-                    onIngestMarketplaceEvent={handleAdminRegisterOperatorTarget}
-                    onUpdateTargetRegistration={handleAdminUpdateRegistration}
-                    onDeleteTargetRegistration={handleAdminDeleteRegistration}
-                    onRefreshRegistrations={refreshRegistrationOptions}
-                    viewMode="targets"
-                  />
+                  <>
+                    <FleetTable
+                      latestRelease={latestRelease}
+                      refreshKey={targetsRefreshVersion}
+                      selectedProjectId={selectedProjectId}
+                    />
+                    <TargetsPage
+                      adminErrorMessage={adminErrorMessage}
+                      adminIsSubmitting={adminIsSubmitting}
+                      adminResult={adminResult}
+                      projects={projects}
+                      selectedProjectId={selectedProjectId}
+                      registrations={registrationOptions}
+                      refreshKey={adminRefreshVersion}
+                      onIngestMarketplaceEvent={handleAdminRegisterOperatorTarget}
+                      onUpdateTargetRegistration={handleAdminUpdateRegistration}
+                      onDeleteTargetRegistration={handleAdminDeleteRegistration}
+                      onRefreshRegistrations={refreshRegistrationOptions}
+                      viewMode="targets"
+                    />
+                  </>
                 }
               />
               <Route
@@ -1668,7 +1672,7 @@ function AppShell() {
                   <ManagedAppPage refreshKey={adminRefreshVersion} />
                 }
               />
-              <Route path="*" element={<Navigate to="/fleet" replace />} />
+              <Route path="*" element={<Navigate to="/targets" replace />} />
             </Routes>
           </Suspense>
         </section>

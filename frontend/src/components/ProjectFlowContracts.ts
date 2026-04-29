@@ -170,7 +170,7 @@ function azureDevOpsReleaseContract(input: ProjectFlowContractInput, endpointId:
     ],
     notes: [
       "The Azure DevOps release-ready path does not require releases.manifest.json.",
-      "MAPPO stores external deployment inputs such as artifactVersion and deployedBy from the event.",
+      "MAPPO stores pipeline release event inputs such as artifactVersion and deployedBy from the event.",
     ],
   };
 }

@@ -155,7 +155,7 @@ export default function TargetsPage({
     registration: TargetRegistrationRecord
   ): Promise<void> {
     const confirmed = window.confirm(
-      `Delete registered target ${registration.targetId}? This removes it from fleet and target registration state.`
+      `Delete registered target ${registration.targetId}? This removes it from target inventory and registration state.`
     );
     if (!confirmed) {
       return;

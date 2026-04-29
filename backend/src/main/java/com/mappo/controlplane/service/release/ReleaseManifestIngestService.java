@@ -156,7 +156,8 @@ public class ReleaseManifestIngestService {
         if (endpoint.provider() != ReleaseIngestProviderType.github) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "project %s is not linked to a GitHub release source".formatted(normalizedProjectId)
+                "project %s uses an event-driven release source; releases arrive from the external release event"
+                    .formatted(normalizedProjectId)
             );
         }
         return endpoint;

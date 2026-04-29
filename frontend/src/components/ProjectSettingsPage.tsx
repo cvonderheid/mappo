@@ -1786,7 +1786,7 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                   <Input id="release-source-type" value={releaseSourceTypeLabel} disabled />
                   <p className="text-xs text-muted-foreground">
                     {draft.deploymentDriver === "pipeline_trigger"
-                      ? "MAPPO learns about versions from an inbound webhook or pipeline event."
+                      ? "MAPPO learns about versions from an inbound Azure DevOps pipeline release event."
                       : "MAPPO reads deployable versions from the selected provider's release manifest."}
                   </p>
                 </div>

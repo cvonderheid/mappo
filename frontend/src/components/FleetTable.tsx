@@ -615,7 +615,7 @@ export default function FleetTable({ latestRelease, refreshKey, selectedProjectI
   return (
     <Card className="glass-card animate-fade-up [animation-delay:80ms] [animation-fill-mode:forwards]">
       <CardHeader className="flex-row items-start justify-between space-y-0">
-        <CardTitle>Fleet Targets</CardTitle>
+        <CardTitle>Target Inventory</CardTitle>
         <CardAction>
           <span
             className={`inline-flex min-w-[4.5rem] justify-end text-xs text-muted-foreground transition-opacity ${
@@ -667,7 +667,7 @@ export default function FleetTable({ latestRelease, refreshKey, selectedProjectI
             {loading ? (
               <TableRow>
                 <TableCell className="text-sm text-muted-foreground" colSpan={visibleColumnCount}>
-                  Loading fleet targets...
+                  Loading targets...
                 </TableCell>
               </TableRow>
             ) : errorMessage ? (

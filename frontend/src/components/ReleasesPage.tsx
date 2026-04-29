@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { listReleaseIngestEndpoints } from "@/lib/api";
+import { releaseSourceTypeLabel } from "@/lib/releases";
 import type {
   ProjectDefinition,
   Release,
@@ -137,6 +138,10 @@ export default function ReleasesPage({
       toast.error("Select a project before checking for new releases.");
       return;
     }
+    if (isEventDrivenReleaseSource) {
+      toast.info("Releases arrive from the external pipeline release event for this project.");
+      return;
+    }
     setIsCheckingReleases(true);
     try {
       await handleIngestManagedAppReleases({ projectId: selectedProjectId });
@@ -181,9 +186,9 @@ export default function ReleasesPage({
         <CardContent className="space-y-2">
           {isEventDrivenReleaseSource ? (
             <div className="rounded-md border border-border/70 bg-background/40 p-3 text-sm text-muted-foreground">
-              Releases arrive automatically when the linked release source emits an event to MAPPO. For this
-              project, the release-readiness pipeline is the system of record; there is nothing for MAPPO to
-              poll manually.
+              Releases arrive automatically when the linked release source emits a pipeline release event
+              to MAPPO. For this project, the release-readiness pipeline is the system of record; there is
+              nothing for MAPPO to poll manually.
               {releaseSourceSummary ? (
                 <>
                   {" "}
@@ -224,7 +229,7 @@ export default function ReleasesPage({
                         <p className="font-mono text-[11px] text-muted-foreground">{release.id}</p>
                       </div>
                       <Badge variant="outline" className="uppercase tracking-[0.06em]">
-                        {release.sourceType?.replaceAll("_", " ") ?? "unknown"}
+                        {releaseSourceTypeLabel(release.sourceType)}
                       </Badge>
                     </div>
                     <p className="mt-2 text-xs text-muted-foreground">{release.releaseNotes || "No notes."}</p>

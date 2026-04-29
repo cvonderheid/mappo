@@ -1,6 +1,7 @@
 import type { Release } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { releaseSourceTypeLabel } from "@/lib/releases";
 
 type ReleaseListProps = {
   releases: Release[];
@@ -40,7 +41,7 @@ export default function ReleaseList({
               <p className="text-sm font-semibold text-primary">{release.sourceVersion}</p>
               <p className="font-mono text-[11px] text-muted-foreground">{release.id}</p>
               <p className="mt-1 text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                {release.sourceType?.replaceAll("_", " ") ?? "unknown source"}
+                {releaseSourceTypeLabel(release.sourceType)}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">{release.releaseNotes}</p>
             </button>

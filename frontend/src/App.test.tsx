@@ -201,7 +201,7 @@ vi.mock("@/lib/live-updates", () => liveUpdatesMock);
 vi.mock("@/components/FleetTable", () => ({
   default: () => (
     <section>
-      <h2>Fleet Targets</h2>
+      <h2>Target Inventory</h2>
       <p>Demo Customer A</p>
     </section>
   ),
@@ -212,7 +212,7 @@ import App from "@/App";
 describe("App", () => {
   beforeEach(() => {
     vi.stubGlobal("EventSource", vi.fn());
-    window.history.replaceState({}, "", "/fleet");
+    window.history.replaceState({}, "", "/");
     apiMock.adminListForwarderLogs.mockReset();
     apiMock.adminListMarketplaceEvents.mockReset();
     apiMock.adminListReleaseWebhookDeliveries.mockReset();
@@ -261,18 +261,17 @@ describe("App", () => {
   });
 
   it("renders dashboard data from API", async () => {
-    const fleetView = render(<App />);
+    const targetsView = render(<App />);
 
     expect(screen.getByRole("heading", { name: /^MAPPO Control Plane$/i })).toBeInTheDocument();
     expect(screen.queryByText(/Attention Needed/i)).not.toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText("Fleet Targets")).toBeInTheDocument();
       expect(screen.getByText("Demo Customer A")).toBeInTheDocument();
       expect(screen.getByTestId("project-switcher-trigger")).toBeInTheDocument();
       expect(screen.getAllByText("Managed App Demo").length).toBeGreaterThan(0);
       expect(screen.getByRole("link", { name: /Config/i })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /Fleet/i })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /Fleet/i })).not.toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Deployments/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Targets/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Registration Events/i })).toBeInTheDocument();
@@ -282,7 +281,7 @@ describe("App", () => {
       expect(screen.getByRole("button", { name: /Deploy 2026.02.25.3/i })).toBeInTheDocument();
     });
 
-    fleetView.unmount();
+    targetsView.unmount();
     window.history.replaceState({}, "", "/deployments");
     render(<App />);
 
@@ -328,14 +327,15 @@ describe("App", () => {
     });
   });
 
-  it("does not open a live event stream on fleet routes", async () => {
+  it("redirects legacy fleet routes to targets", async () => {
+    window.history.replaceState({}, "", "/fleet");
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText("Fleet Targets")).toBeInTheDocument();
+      expect(screen.getByText("Demo Customer A")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Registered Targets" })).toBeInTheDocument();
+      expect(window.location.pathname).toBe("/targets");
     });
-
-    expect(liveUpdatesMock.createLiveUpdatesEventSource).not.toHaveBeenCalled();
   });
 
   it("opens project settings create drawer from project switcher", async () => {
@@ -408,11 +408,29 @@ describe("App", () => {
     });
   });
 
-  it("fetches runs immediately when navigating from fleet to deployments", async () => {
+  it("does not offer manifest polling for event-driven release sources", async () => {
+    apiMock.listProjects.mockResolvedValue([
+      {
+        ...mockProjects[0],
+        releaseArtifactSource: "external_deployment_inputs",
+      },
+    ]);
+    window.history.replaceState({}, "", "/releases");
+
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText("Fleet Targets")).toBeInTheDocument();
+      expect(screen.getByText(/pipeline release event/i)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Check for new releases/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Advanced$/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it("fetches runs immediately when navigating from targets to deployments", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Demo Customer A")).toBeInTheDocument();
     });
 
     apiMock.listRuns.mockClear();
