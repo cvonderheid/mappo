@@ -144,7 +144,7 @@ const DEPLOYMENT_SYSTEM_LABELS: Record<DeploymentSystem, string> = {
 
 const RELEASE_SOURCE_TYPE_LABELS: Record<ProjectDraft["releaseArtifactSource"], string> = {
   blob_arm_template: "Managed app release manifest",
-  external_deployment_inputs: "Webhook / Pipeline Event",
+  external_deployment_inputs: "Pipeline release event",
   template_spec_resource: "Template Spec release reference",
 };
 
@@ -1803,7 +1803,7 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
                   <Input id="release-source-type" value={releaseSourceTypeLabel} disabled />
                   <p className="text-xs text-muted-foreground">
                     {draft.deploymentDriver === "pipeline_trigger"
-                      ? "MAPPO learns about versions from an inbound webhook or pipeline event."
+                      ? "MAPPO learns about versions from an inbound Azure DevOps pipeline release event."
                       : "MAPPO reads deployable versions from the selected provider's release manifest."}
                   </p>
                 </div>

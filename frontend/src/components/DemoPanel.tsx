@@ -221,7 +221,7 @@ export default function DemoPanel({
     if (eventType === "subscription_purchased") {
       return knownTarget
         ? "Expected: target registration will be updated/upserted and kept active."
-        : "Expected: target will be registered in Fleet and Admin registration state.";
+        : "Expected: target will be registered in Targets and Admin registration state.";
     }
     if (eventType === "subscription_suspended") {
       return knownTarget
@@ -229,7 +229,7 @@ export default function DemoPanel({
         : "Expected: event will be rejected because target is not currently registered.";
     }
     return knownTarget
-      ? "Expected: target will be deregistered and removed from Fleet."
+      ? "Expected: target will be deregistered and removed from Targets."
       : "Expected: idempotent no-op (target already absent).";
   }, [eventType, registrationByTargetId, selectedRegistration, targetId]);
 

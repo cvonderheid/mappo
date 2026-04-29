@@ -7,8 +7,8 @@ export class AppShellPage {
     await this.page.goto("/");
   }
 
-  async openFleet(): Promise<void> {
-    await this.page.getByRole("link", { name: "Fleet" }).click();
+  async openTargets(): Promise<void> {
+    await this.page.getByRole("link", { name: "Targets" }).click();
   }
 
   async openDeployments(): Promise<void> {

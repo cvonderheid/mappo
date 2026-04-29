@@ -37,6 +37,22 @@ function sourceTypePriority(sourceType: string | null | undefined): number {
   return SOURCE_TYPE_PRIORITY[sourceType ?? ""] ?? Number.MAX_SAFE_INTEGER;
 }
 
+export function releaseSourceTypeLabel(sourceType: string | null | undefined): string {
+  if (sourceType === "external_deployment_inputs") {
+    return "Pipeline release event";
+  }
+  if (sourceType === "deployment_stack") {
+    return "Deployment stack";
+  }
+  if (sourceType === "template_spec") {
+    return "Template Spec";
+  }
+  if (sourceType === "bicep") {
+    return "Bicep";
+  }
+  return sourceType?.replaceAll("_", " ") ?? "unknown source";
+}
+
 function compareReleasePreference(left: Release, right: Release): number {
   const versionOrder = compareReleaseVersionsDesc(left.sourceVersion, right.sourceVersion);
   if (versionOrder !== 0) {

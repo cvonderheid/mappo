@@ -7,7 +7,9 @@ import ReleaseIngestDrawer from "@/components/ReleaseIngestDrawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { releaseSourceTypeLabel } from "@/lib/releases";
 import type {
+  ProjectDefinition,
   Release,
   ReleaseManifestIngestRequest,
   ReleaseManifestIngestResponse,
@@ -15,6 +17,7 @@ import type {
 
 type ReleasesPageProps = {
   selectedProjectId?: string;
+  selectedProject?: ProjectDefinition | null;
   releases: Release[];
   releaseIngestIsSubmitting: boolean;
   refreshKey: number;
@@ -36,6 +39,7 @@ function formatTimestamp(value: string | null | undefined): string {
 
 export default function ReleasesPage({
   selectedProjectId,
+  selectedProject,
   releases,
   releaseIngestIsSubmitting,
   refreshKey,
@@ -47,6 +51,8 @@ export default function ReleasesPage({
   const [isCheckingReleases, setIsCheckingReleases] = useState(false);
 
   const latestRelease = useMemo(() => releases[0] ?? null, [releases]);
+  const releaseSourceIsEventDriven =
+    selectedProject?.releaseArtifactSource === "external_deployment_inputs";
 
   useEffect(() => {
     if (location.pathname !== "/releases") {
@@ -97,6 +103,10 @@ export default function ReleasesPage({
       toast.error("Select a project before checking for new releases.");
       return;
     }
+    if (releaseSourceIsEventDriven) {
+      toast.info("Releases arrive from the external pipeline release event for this project.");
+      return;
+    }
     setIsCheckingReleases(true);
     try {
       await handleIngestManagedAppReleases({ projectId: selectedProjectId });
@@ -117,26 +127,36 @@ export default function ReleasesPage({
             </CardDescription>
           </div>
           <CardAction className="flex-wrap justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                void handleCheckForNewReleases();
-              }}
-              disabled={releaseIngestIsSubmitting || isCheckingReleases}
-            >
-              {releaseIngestIsSubmitting || isCheckingReleases ? "Checking..." : "Check for new releases"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setReleaseIngestDrawerOpen(true)}
-            >
-              Advanced
-            </Button>
+            {releaseSourceIsEventDriven ? null : (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    void handleCheckForNewReleases();
+                  }}
+                  disabled={releaseIngestIsSubmitting || isCheckingReleases}
+                >
+                  {releaseIngestIsSubmitting || isCheckingReleases ? "Checking..." : "Check for new releases"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setReleaseIngestDrawerOpen(true)}
+                >
+                  Advanced
+                </Button>
+              </>
+            )}
           </CardAction>
         </CardHeader>
         <CardContent className="space-y-2">
+          {releaseSourceIsEventDriven ? (
+            <div className="rounded-md border border-border/70 bg-background/40 p-3 text-sm text-muted-foreground">
+              This project uses a pipeline release event. New releases appear when the external
+              release-readiness pipeline sends MAPPO a release event.
+            </div>
+          ) : null}
           {latestRelease ? (
             <div className="rounded-md border border-border/70 bg-background/40 p-2 text-xs text-muted-foreground">
               Latest: <span className="font-medium text-foreground">{latestRelease.sourceVersion}</span>{" "}
@@ -163,7 +183,7 @@ export default function ReleasesPage({
                         <p className="font-mono text-[11px] text-muted-foreground">{release.id}</p>
                       </div>
                       <Badge variant="outline" className="uppercase tracking-[0.06em]">
-                        {release.sourceType?.replaceAll("_", " ") ?? "unknown"}
+                        {releaseSourceTypeLabel(release.sourceType)}
                       </Badge>
                     </div>
                     <p className="mt-2 text-xs text-muted-foreground">{release.releaseNotes || "No notes."}</p>

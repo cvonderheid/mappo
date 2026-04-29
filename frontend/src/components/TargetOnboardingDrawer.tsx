@@ -605,7 +605,7 @@ export default function TargetOnboardingDrawer({
                 <div className="space-y-1">
                   <div className="flex items-center gap-1">
                     <Label htmlFor="onboard-display-name">Display Name</Label>
-                    <FieldHelpTooltip content="Human-friendly target label shown in fleet and deployment views." />
+                    <FieldHelpTooltip content="Human-friendly target label shown in target and deployment views." />
                   </div>
                   <Input
                     id="onboard-display-name"

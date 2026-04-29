@@ -454,7 +454,7 @@ export default function ProjectFlowDiagram({
       section: "targets",
       step: "04",
       icon: <LuBoxes className="h-5 w-5" />,
-      eyebrow: "Target Fleet",
+      eyebrow: "Target Inventory",
       title: "Registered Targets",
       details: targetDetails,
     },

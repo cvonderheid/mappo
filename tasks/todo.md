@@ -1,15 +1,15 @@
 # MAPPO Active Backlog
 
 ## Operator UX Cleanup
-- Merge `Fleet` into `Targets`.
+- [x] Merge `Fleet` into `Targets`.
   - Keep one operator page named `Targets`.
   - Move useful Fleet filtering/table capabilities into Targets.
   - Remove `Fleet` from the left navigation.
-- Fix event-driven release-source behavior on Project -> Releases.
+- [x] Fix event-driven release-source behavior on Project -> Releases.
   - `Check for new releases` should only apply to manifest-backed/pollable sources.
   - Pipeline/webhook-driven sources should explain that releases arrive from the external event.
   - Remove incorrect GitHub-specific errors for Azure DevOps event sources.
-- Replace operator-facing `external_deployment_inputs` wording with `Pipeline release event` or equivalent.
+- [x] Replace operator-facing `external_deployment_inputs` wording with `Pipeline release event` or equivalent.
 - Audit all flow-card arrows and contract popovers.
   - Move the project-flow webhook/event contract so it appears between `Release Source` and `MAPPO`, not between `Outside MAPPO` and `Release Source`.
   - Only make arrows clickable when they show meaningful request, payload, probe, or contract details between the two connected steps.
