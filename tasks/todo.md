@@ -1,20 +1,41 @@
 # MAPPO Active Backlog
 
-## Next demo / operator UX
-- Finalize the engineering demo flow for both active projects:
-  - Direct Azure project (`VECTR: Azure Managed App Deployment Stack`): keep Pulumi as the source of target infrastructure, send marketplace-style registration/deregistration events, verify targets appear/disappear in MAPPO, create GitHub managed-app releases, and deploy directly through Azure.
-  - Done locally: App Service ADO project (`Azure App Service ADO Pipeline`) now has Pulumi inventory import/delete scripts instead of manual Bulk Import or marketplace-style offboarding events.
-  - Done locally: ADO release-readiness pipeline template, deployment pipeline template, release PR helper, release source config helper, and service hook config helper are in place.
-  - Done locally: Demo page is now a demo-only guide/status page with command snippets and the low-level event simulator under `Advanced`.
-  - Remaining live validation: commit/push `../sample-app-service` release pipeline files, create/update the actual ADO release-readiness pipeline, run `scripts/ado_release_webhook_bootstrap.sh` for the service hook/backend webhook secret, reconfigure the live `azure-appservice-ado-pipeline` project with ADO org `https://dev.azure.com/example-ado-org`, project `sample-app-service`, deployment pipeline id `1`, branch `main`, and pipeline-owned Azure credentials wording.
-  - Remaining live validation: run App Service fleet up/import, generate an ADO release PR, confirm MAPPO release creation, start an ADO pipeline deployment, and validate teardown removes active targets while preserving historical registration events.
+## Operator UX Cleanup
+- Merge `Fleet` into `Targets`.
+  - Keep one operator page named `Targets`.
+  - Move useful Fleet filtering/table capabilities into Targets.
+  - Remove `Fleet` from the left navigation.
+- Fix event-driven release-source behavior on Project -> Releases.
+  - `Check for new releases` should only apply to manifest-backed/pollable sources.
+  - Pipeline/webhook-driven sources should explain that releases arrive from the external event.
+  - Remove incorrect GitHub-specific errors for Azure DevOps event sources.
+- Replace operator-facing `external_deployment_inputs` wording with `Pipeline release event` or equivalent.
+- Audit all flow-card arrows and contract popovers.
+  - Move the project-flow webhook/event contract so it appears between `Release Source` and `MAPPO`, not between `Outside MAPPO` and `Release Source`.
+  - Only make arrows clickable when they show meaningful request, payload, probe, or contract details between the two connected steps.
+  - Ensure arrow direction and placement match the real operator/system flow.
+- Verify a brand-new project cannot show `Configuration complete` until release source, deployment behavior, and runtime health are meaningfully configured.
+- Polish Admin -> Release Sources and Admin -> Deployment Connections flow cards.
+  - Remove raw numeric IDs from operator-facing cards.
+  - Use status colors only for real status, not decorative emphasis.
+  - Keep card layout and action placement consistent with the rest of the app.
+- Improve deployment failure messaging for Azure DevOps pipeline failures.
+  - Point operators to the ADO run, service connection authorization, and Azure RBAC checks.
 - Rename or restructure the current `Managed App` page so project registration history and global integration plumbing are not mixed.
 
-## Data and configuration cleanup
-- Support first-class selectable secret references for multiple accounts of the same provider type.
+## Data And Configuration Cleanup
+- Confirm all operator-created records use system-generated IDs.
+  - Operators should not type database identifiers for projects, secret references, release sources, deployment connections, or targets.
+- Validate first-class selectable secret references with multiple accounts of the same provider type.
+- Decide whether imported targets need short operator-friendly generated names when the import payload omits `targetId`.
 
-## Pre-production work
-- Remove non-essential seeded data from Flyway migrations.
-- Cut a clean baseline migration before a production release.
-- Reevaluate string IDs versus numeric surrogate keys.
-- Continue backend package cleanup by bounded context.
+## Handoff Documentation
+- Update the Azure DevOps operator setup guide with the validated pipeline-to-pipeline walkthrough.
+  - Release-readiness pipeline emits the release event to MAPPO.
+  - MAPPO starts a separate deployment pipeline.
+  - The deployment pipeline owns its Azure service connection.
+  - MAPPO currently starts one pipeline run per selected target.
+- Document common ADO deployment failures.
+  - Old/deleted subscription on the service connection.
+  - Service connection not authorized for the pipeline.
+  - Service principal missing RBAC on the target subscription/resource group.

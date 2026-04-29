@@ -19,6 +19,8 @@ frontend/node_modules/
 dist/
 build/
 target/
+!backend/src/main/java/com/mappo/controlplane/persistence/target/
+!backend/src/main/java/com/mappo/controlplane/persistence/target/*.java
 backend/target/
 coverage/
 playwright-report/
