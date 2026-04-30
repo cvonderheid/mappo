@@ -86,6 +86,37 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
     }
 
     @Test
+    void createRunExplainsAzureDevOpsPipelineFailures() throws Exception {
+        configureAdoProjectForTest();
+        registerAdoTarget(
+            "target-ado-fail",
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "dddddddd-dddd-dddd-dddd-dddddddddddd",
+            Map.of(
+                "resourceGroup", "rg-target-ado-fail",
+                "appServiceName", "app-target-ado-fail"
+            )
+        );
+        String releaseId = createAdoRelease("2026.03.13.3");
+
+        String runId = createRun(releaseId, List.of("target-ado-fail"));
+        awaitTerminalRun(runId)
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("failed"))
+            .andExpect(jsonPath("$.targetRecords[0].status").value("FAILED"))
+            .andExpect(jsonPath("$.targetRecords[0].externalExecutionHandle.provider").value("azure_devops_pipeline"))
+            .andExpect(jsonPath("$.targetRecords[0].externalExecutionHandle.executionStatus").value("failed"))
+            .andExpect(jsonPath("$.targetRecords[0].externalExecutionHandle.executionUrl").value(containsString("_build/results")))
+            .andExpect(jsonPath("$.targetRecords[0].stages[2].error.code").value("ADO_PIPELINE_RUN_FAILED"))
+            .andExpect(jsonPath("$.targetRecords[0].stages[2].error.message").value(containsString("Open the Azure DevOps run")))
+            .andExpect(jsonPath("$.targetRecords[0].stages[2].error.message").value(containsString("service connection is authorized")))
+            .andExpect(jsonPath("$.targetRecords[0].stages[2].error.message").value(containsString("Azure RBAC")))
+            .andExpect(jsonPath("$.targetRecords[0].stages[2].error.details.error").value(containsString("Azure DevOps run: https://dev.azure.com/example-ado-org/sample-app-service/_build/results")))
+            .andExpect(jsonPath("$.targetRecords[0].stages[2].error.details.error").value(containsString("Check service connection authorization")))
+            .andExpect(jsonPath("$.targetRecords[0].stages[2].error.details.error").value(containsString("Check Azure RBAC")));
+    }
+
+    @Test
     void createRunFailsValidationWhenAppServiceExecutionConfigIsMissing() throws Exception {
         configureAdoProjectForTest();
         registerAdoTarget(
@@ -249,6 +280,17 @@ class AzureDevOpsPipelineExecutionIntegrationTests extends PostgresIntegrationTe
                     "stub-" + runId,
                     "inProgress",
                     "",
+                    "https://dev.azure.com/example-ado-org/sample-app-service/_build/results?buildId=" + runId + "&view=results",
+                    "https://dev.azure.com/example-ado-org/sample-app-service/_build/results?buildId=" + runId + "&view=logs",
+                    "https://dev.azure.com/example-ado-org/sample-app-service/_apis/pipelines/1/runs/" + runId
+                );
+            }
+            if (runId.contains("target-ado-fail")) {
+                return new AzureDevOpsPipelineRunRecord(
+                    runId,
+                    "stub-" + runId,
+                    "completed",
+                    "failed",
                     "https://dev.azure.com/example-ado-org/sample-app-service/_build/results?buildId=" + runId + "&view=results",
                     "https://dev.azure.com/example-ado-org/sample-app-service/_build/results?buildId=" + runId + "&view=logs",
                     "https://dev.azure.com/example-ado-org/sample-app-service/_apis/pipelines/1/runs/" + runId

@@ -15,6 +15,12 @@ import DataTablePagination from "@/components/DataTablePagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -30,17 +36,25 @@ import type {
   Release,
   Target,
   TargetPage,
+  TargetRegistrationRecord,
   TargetRuntimeStatus,
   TargetStage,
 } from "@/lib/types";
 
 type FleetTableProps = {
   latestRelease: Release | null;
+  registrations?: TargetRegistrationRecord[];
   refreshKey: number;
   selectedProjectId: string;
+  deletingTargetId?: string | null;
+  onAddTargets?: () => void;
+  onDeleteRegistration?: (registration: TargetRegistrationRecord) => void;
+  onEditRegistration?: (registration: TargetRegistrationRecord) => void;
+  onRefreshRegistrations?: () => Promise<void>;
 };
 
 type FleetRow = {
+  registration: TargetRegistrationRecord | null;
   targetId: string;
   customerName: string;
   tenantId: string;
@@ -144,12 +158,23 @@ function optionValues(values: string[], selectedValue: string): string[] {
   return [...uniqueValues].sort();
 }
 
-export default function FleetTable({ latestRelease, refreshKey, selectedProjectId }: FleetTableProps) {
+export default function FleetTable({
+  latestRelease,
+  registrations = [],
+  refreshKey,
+  selectedProjectId,
+  deletingTargetId,
+  onAddTargets,
+  onDeleteRegistration,
+  onEditRegistration,
+  onRefreshRegistrations,
+}: FleetTableProps) {
   const latestVersion = latestRelease?.sourceVersion ?? "";
   const [pageData, setPageData] = useState<TargetPage>(EMPTY_PAGE);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [checkingHealth, setCheckingHealth] = useState(false);
+  const [refreshingRegistrations, setRefreshingRegistrations] = useState(false);
   const [manualRefreshKey, setManualRefreshKey] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
   const [page, setPage] = useState(0);
@@ -168,6 +193,13 @@ export default function FleetTable({ latestRelease, refreshKey, selectedProjectI
   const [columnVisibility, setColumnVisibility] =
     usePersistentColumnVisibility("fleet-targets");
   const previousQuerySignatureRef = useRef<string>("");
+  const registrationByTargetId = useMemo(() => {
+    return new Map(
+      registrations
+        .filter((registration) => (registration.targetId ?? "").trim() !== "")
+        .map((registration) => [registration.targetId ?? "", registration])
+    );
+  }, [registrations]);
 
   const querySignature = useMemo(
     () =>
@@ -302,9 +334,22 @@ export default function FleetTable({ latestRelease, refreshKey, selectedProjectI
     }
   }
 
+  async function handleRefreshTargets(): Promise<void> {
+    setRefreshingRegistrations(true);
+    try {
+      await onRefreshRegistrations?.();
+      setManualRefreshKey((value) => value + 1);
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setRefreshingRegistrations(false);
+    }
+  }
+
   const rows = useMemo<FleetRow[]>(
     () =>
       (pageData.items ?? []).map((target: Target) => ({
+        registration: registrationByTargetId.get(target.id ?? "") ?? null,
         targetId: target.id ?? "unknown",
         customerName: target.customerName ?? "unknown",
         tenantId: target.tenantId ?? "unknown",
@@ -319,7 +364,7 @@ export default function FleetTable({ latestRelease, refreshKey, selectedProjectI
         lastDeploymentAt: target.lastDeploymentAt ?? "",
         latestStatus: targetLatestReleaseStatus(target, latestVersion),
       })),
-    [latestVersion, pageData.items]
+    [latestVersion, pageData.items, registrationByTargetId]
   );
 
   const columns = useMemo<ColumnDef<FleetRow>[]>(
@@ -386,8 +431,57 @@ export default function FleetTable({ latestRelease, refreshKey, selectedProjectI
           </div>
         ),
       },
+      {
+        id: "actions",
+        header: "Actions",
+        enableHiding: false,
+        enableSorting: false,
+        cell: ({ row }) => {
+          const registration = row.original.registration;
+          const isDeleting = deletingTargetId === row.original.targetId;
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 w-7 p-0 font-mono"
+                  aria-label={`Actions for ${row.original.targetId}`}
+                  disabled={!registration}
+                >
+                  ...
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  disabled={!registration}
+                  onSelect={() => {
+                    if (registration) {
+                      onEditRegistration?.(registration);
+                    }
+                  }}
+                >
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  disabled={!registration || isDeleting}
+                  onSelect={() => {
+                    if (registration) {
+                      onDeleteRegistration?.(registration);
+                    }
+                  }}
+                >
+                  {isDeleting ? "Deleting..." : "Delete"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        },
+      },
     ],
-    []
+    [deletingTargetId, onDeleteRegistration, onEditRegistration]
   );
 
   const table = useReactTable({
@@ -633,6 +727,22 @@ export default function FleetTable({ latestRelease, refreshKey, selectedProjectI
           >
             {checkingHealth ? "Checking..." : "Check health"}
           </Button>
+          {onAddTargets ? (
+            <Button type="button" size="sm" onClick={onAddTargets}>
+              Add Targets
+            </Button>
+          ) : null}
+          {onRefreshRegistrations ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={refreshingRegistrations}
+              onClick={() => void handleRefreshTargets()}
+            >
+              {refreshingRegistrations ? "Refreshing..." : "Refresh Targets"}
+            </Button>
+          ) : null}
           <ColumnVisibilityMenu table={table} />
           <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
             Clear filters

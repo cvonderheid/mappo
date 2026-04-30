@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { LuActivity, LuArrowDown, LuBoxes, LuMoveRight, LuWorkflow } from "react-icons/lu";
+import { LuActivity, LuArrowDown, LuBoxes, LuMoveLeft, LuMoveRight, LuWorkflow } from "react-icons/lu";
 import { SiGithub } from "react-icons/si";
 import { VscAzure, VscAzureDevops } from "react-icons/vsc";
 
@@ -227,7 +227,7 @@ function FlowArrow({
   onOpenContract,
 }: {
   className?: string;
-  direction?: "responsive" | "down" | "right";
+  direction?: "responsive" | "backward" | "down" | "right";
   contract?: FlowContract;
   onOpenContract?: (contract: FlowContract) => void;
 }) {
@@ -238,6 +238,12 @@ function FlowArrow({
       {direction === "responsive" ? (
         <>
           <LuMoveRight className="hidden h-5 w-5 xl:block" />
+          <LuArrowDown className="h-5 w-5 xl:hidden" />
+        </>
+      ) : null}
+      {direction === "backward" ? (
+        <>
+          <LuMoveLeft className="hidden h-5 w-5 xl:block" />
           <LuArrowDown className="h-5 w-5 xl:hidden" />
         </>
       ) : null}
@@ -517,18 +523,18 @@ export default function ProjectFlowDiagram({
         </div>
       </CardHeader>
       <CardContent className="pt-0">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)_2.5rem_minmax(0,1fr)_2.5rem]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)_2.5rem_minmax(0,1fr)]">
           <StaticFlowNode {...externalReleaseNode} className="xl:col-start-1 xl:row-start-1" />
-          <FlowArrow className="xl:col-start-2 xl:row-start-1" contract={releaseSourceConfigured ? releaseContract : undefined} onOpenContract={setSelectedContract} />
+          <FlowArrow className="xl:col-start-2 xl:row-start-1" />
           {renderFlowNode(flowNodes[0], "xl:col-start-3 xl:row-start-1")}
-          <FlowArrow className="xl:col-start-4 xl:row-start-1" />
+          <FlowArrow className="xl:col-start-4 xl:row-start-1" contract={releaseSourceConfigured ? releaseContract : undefined} onOpenContract={setSelectedContract} />
           {renderFlowNode(flowNodes[1], "xl:col-start-5 xl:row-start-1")}
-          <FlowArrow className="xl:col-start-6 xl:row-start-1" contract={deploymentConfigured ? deploymentContract : undefined} onOpenContract={setSelectedContract} />
-          {renderFlowNode(flowNodes[2], "xl:col-start-1 xl:row-start-2")}
-          <FlowArrow className="xl:col-start-2 xl:row-start-2" />
-          {renderFlowNode(flowNodes[3], "xl:col-start-3 xl:row-start-2")}
-          <FlowArrow className="xl:col-start-4 xl:row-start-2" contract={runtimeHealthConfigured ? healthContract : undefined} onOpenContract={setSelectedContract} />
-          {renderFlowNode(flowNodes[4], "xl:col-start-5 xl:row-start-2")}
+          <FlowArrow className="xl:col-start-5 xl:row-start-2" direction="down" contract={deploymentConfigured ? deploymentContract : undefined} onOpenContract={setSelectedContract} />
+          {renderFlowNode(flowNodes[2], "xl:col-start-5 xl:row-start-3")}
+          <FlowArrow className="xl:col-start-4 xl:row-start-3" direction="backward" />
+          {renderFlowNode(flowNodes[3], "xl:col-start-3 xl:row-start-3")}
+          <FlowArrow className="xl:col-start-2 xl:row-start-3" direction="backward" contract={runtimeHealthConfigured ? healthContract : undefined} onOpenContract={setSelectedContract} />
+          {renderFlowNode(flowNodes[4], "xl:col-start-1 xl:row-start-3")}
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
           Select a clickable arrow to inspect the request, payload, or probe contract between steps.

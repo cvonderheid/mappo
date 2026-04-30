@@ -293,7 +293,7 @@ function summarizeLinkedProjects(linkedProjects: LinkedProject[]): string {
     return "No linked projects";
   }
   const labels = linkedProjects.map((linked) =>
-    linked.projectDisplayName || linked.projectName || linked.projectId || "Project"
+    linked.projectDisplayName || linked.projectName || "Project"
   );
   const visible = labels.slice(0, 3).join(", ");
   const overflow = labels.length - 3;
@@ -304,10 +304,14 @@ function summarizeDiscoveredProjects(projects: ProviderConnectionAdoProject[]): 
   if (projects.length === 0) {
     return "No projects loaded";
   }
-  const labels = projects.map((project) => project.name || project.id || "Azure DevOps project");
+  const labels = projects.map((project) => project.name || "Azure DevOps project");
   const visible = labels.slice(0, 3).join(", ");
   const overflow = labels.length - 3;
   return overflow > 0 ? `${visible}, +${overflow} more` : visible;
+}
+
+function deploymentConnectionDisplayName(connection: ProviderConnection): string {
+  return connection.name?.trim() || "Unnamed deployment connection";
 }
 
 function verificationTitle({
@@ -354,6 +358,7 @@ function buildDeploymentConnectionFlowNodes({
 }): AdminIntegrationFlowNode[] {
   const provider = connection.provider ?? "azure_devops";
   const providerLabel = providerConnectionLabel(provider);
+  const displayName = deploymentConnectionDisplayName(connection);
   return [
     {
       step: "00",
@@ -371,8 +376,9 @@ function buildDeploymentConnectionFlowNodes({
       icon: providerConnectionIcon(provider, "h-5 w-5"),
       eyebrow: "Deployment system",
       title: providerLabel,
+      tone: connection.enabled === false ? "warning" : "default",
       details: [
-        { label: "Connection", value: connection.name || connection.id },
+        { label: "Connection", value: displayName },
         { label: "Status", value: connection.enabled ? "Enabled" : "Disabled" },
       ],
     },
@@ -402,7 +408,6 @@ function buildDeploymentConnectionFlowNodes({
       icon: <LuBoxes className="h-5 w-5" />,
       eyebrow: "Discovered scope",
       title: "Azure DevOps projects",
-      tone: discoveredProjects.length > 0 ? "default" : "muted",
       details: [
         { label: "Count", value: discoveredProjects.length },
         { label: "Projects", value: summarizeDiscoveredProjects(discoveredProjects) },
@@ -413,10 +418,10 @@ function buildDeploymentConnectionFlowNodes({
       icon: <LuBoxes className="h-5 w-5" />,
       eyebrow: "Consumers",
       title: linkedProjects.length > 0 ? "Linked MAPPO projects" : "No linked projects",
-      tone: selectedProjectLinked ? "default" : "muted",
       details: [
         { label: "Count", value: linkedProjects.length },
         { label: "Projects", value: summarizeLinkedProjects(linkedProjects) },
+        { label: "Selected project", value: selectedProjectLinked ? "Linked" : "Not linked" },
       ],
     },
   ];
@@ -719,7 +724,7 @@ export default function ProviderConnectionsConfigPage({
         };
         savedConnection = await patchProviderConnection(editingId, patchRequest);
         toast.success(
-          `Saved and verified deployment connection ${editingId}. MAPPO can access ${verifiedProjects.length} Azure DevOps project${verifiedProjects.length === 1 ? "" : "s"}.`
+          `Saved and verified deployment connection ${name}. MAPPO can access ${verifiedProjects.length} Azure DevOps project${verifiedProjects.length === 1 ? "" : "s"}.`
         );
       } else {
         const createRequest: ProviderConnectionCreateRequest = {
@@ -731,7 +736,7 @@ export default function ProviderConnectionsConfigPage({
         };
         savedConnection = await createProviderConnection(createRequest);
         toast.success(
-          `Created and verified deployment connection ${savedConnection.name || savedConnection.id}. MAPPO can access ${verifiedProjects.length} Azure DevOps project${verifiedProjects.length === 1 ? "" : "s"}.`
+          `Created and verified deployment connection ${deploymentConnectionDisplayName(savedConnection)}. MAPPO can access ${verifiedProjects.length} Azure DevOps project${verifiedProjects.length === 1 ? "" : "s"}.`
         );
       }
       setDiscoveredProjectsByConnectionId((current) => ({
@@ -781,7 +786,7 @@ export default function ProviderConnectionsConfigPage({
       setVerifiedConnectionIds((current) => ({ ...current, [connectionId]: true }));
       if (!options?.silent) {
         toast.success(
-          `Verified ${connection.name || connectionId}. Found ${projects.length} Azure DevOps project${projects.length === 1 ? "" : "s"}.`
+          `Verified ${deploymentConnectionDisplayName(connection)}. Found ${projects.length} Azure DevOps project${projects.length === 1 ? "" : "s"}.`
         );
       }
     } catch (error) {
@@ -802,14 +807,14 @@ export default function ProviderConnectionsConfigPage({
       return;
     }
     const confirmed = window.confirm(
-      `Delete deployment connection ${connectionId}? This fails if projects are still linked.`
+      `Delete deployment connection ${deploymentConnectionDisplayName(connection)}? This fails if projects are still linked.`
     );
     if (!confirmed) {
       return;
     }
     try {
       await deleteProviderConnection(connectionId);
-      toast.success(`Deleted deployment connection ${connectionId}.`);
+      toast.success(`Deleted deployment connection ${deploymentConnectionDisplayName(connection)}.`);
       await loadConnections(true);
     } catch (error) {
       toast.error((error as Error).message);
@@ -880,7 +885,7 @@ export default function ProviderConnectionsConfigPage({
               <Card key={connectionId || connection.name} className="border border-border/70 bg-card/70">
                 <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="space-y-1">
-                    <CardTitle>{connection.name || connectionId}</CardTitle>
+                    <CardTitle>{deploymentConnectionDisplayName(connection)}</CardTitle>
                     <p className="text-sm text-muted-foreground">
                       {providerConnectionLabel(connection.provider)} · {providerConnectionModeLabel(connection.provider)}
                     </p>
@@ -976,7 +981,7 @@ export default function ProviderConnectionsConfigPage({
                     ) : (
                       linkedProjects.map((linked) => {
                         const projectId = linked.projectId ?? "unknown";
-                        const label = linked.projectDisplayName || linked.projectName || projectId;
+                        const label = linked.projectDisplayName || linked.projectName || "Project";
                         return (
                           <Badge
                             key={`${connectionId}-${projectId}`}
@@ -994,7 +999,7 @@ export default function ProviderConnectionsConfigPage({
                       {discoveredProjects.length ? (
                         discoveredProjects.map((project) => (
                           <Badge key={`${connectionId}-${project.id}`} variant="outline">
-                            {project.name || project.id}
+                            {project.name || "Azure DevOps project"}
                           </Badge>
                         ))
                       ) : (
@@ -1017,7 +1022,7 @@ export default function ProviderConnectionsConfigPage({
       <Drawer direction="top" open={drawerOpen} onOpenChange={setDrawerOpen}>
         <DrawerContent className="glass-card">
           <DrawerHeader>
-            <DrawerTitle>{editingId ? `Edit ${draft.name || editingId}` : "New Deployment Connection"}</DrawerTitle>
+            <DrawerTitle>{editingId ? `Edit ${draft.name.trim() || "deployment connection"}` : "New Deployment Connection"}</DrawerTitle>
             <DrawerDescription>
               Configure how MAPPO authenticates to an external deployment system, then verify that MAPPO can browse the Azure DevOps projects operators will select later.
             </DrawerDescription>

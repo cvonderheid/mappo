@@ -124,9 +124,9 @@ class AzureDevOpsPipelineTriggerExecutor implements DeploymentDriver {
         if (!run.succeeded()) {
             throw deploymentFailure(
                 "ADO_PIPELINE_RUN_FAILED",
-                "Azure DevOps pipeline run finished with status " + run.executionStatus() + ".",
+                adoRunFailureMessage(run),
                 null,
-                "runId=%s state=%s result=%s".formatted(run.runId(), run.state(), run.result()),
+                adoRunFailureDetail(run),
                 correlationId,
                 run
             );
@@ -297,6 +297,24 @@ class AzureDevOpsPipelineTriggerExecutor implements DeploymentDriver {
             correlationId,
             "",
             handle
+        );
+    }
+
+    private String adoRunFailureMessage(AzureDevOpsPipelineRunRecord run) {
+        return "Azure DevOps pipeline run %s finished with status %s. Open the Azure DevOps run and inspect the failed stage/job logs. If the pipeline failed while deploying to Azure, verify the pipeline's Azure service connection is authorized for this pipeline and its service principal has the required Azure RBAC on the target subscription or resource group.".formatted(
+            firstNonBlank(run.runName(), run.runId(), "unknown"),
+            firstNonBlank(run.executionStatus(), "failed")
+        );
+    }
+
+    private String adoRunFailureDetail(AzureDevOpsPipelineRunRecord run) {
+        return String.join(
+            "\n",
+            "Azure DevOps run: " + firstNonBlank(run.webUrl(), run.runId(), "unknown"),
+            "Logs: " + firstNonBlank(run.logsUrl(), "open the Azure DevOps run and select the failed stage/job logs"),
+            "State/result: state=%s result=%s".formatted(run.state(), run.result()),
+            "Check service connection authorization: the Azure DevOps deployment pipeline must be authorized to use its Azure service connection.",
+            "Check Azure RBAC: the service principal behind that service connection needs the required role assignments on the target subscription or resource group."
         );
     }
 

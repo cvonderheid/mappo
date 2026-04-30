@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockTargets = [
@@ -199,10 +199,17 @@ const liveUpdatesMock = vi.hoisted(() => ({
 vi.mock("@/lib/live-updates", () => liveUpdatesMock);
 
 vi.mock("@/components/FleetTable", () => ({
-  default: () => (
+  default: ({ onAddTargets, onRefreshRegistrations }: {
+    onAddTargets?: () => void;
+    onRefreshRegistrations?: () => Promise<void>;
+  }) => (
     <section>
       <h2>Target Inventory</h2>
       <p>Demo Customer A</p>
+      {onAddTargets ? <button type="button" onClick={onAddTargets}>Add Targets</button> : null}
+      {onRefreshRegistrations ? (
+        <button type="button" onClick={() => void onRefreshRegistrations()}>Refresh Targets</button>
+      ) : null}
     </section>
   ),
 }));
@@ -229,6 +236,7 @@ describe("App", () => {
     apiMock.resumeRun.mockReset();
     apiMock.retryFailed.mockReset();
     apiMock.listProjectAudit.mockReset();
+    apiMock.listProjectAudit.mockResolvedValue({ items: [], page: { page: 0, size: 1, totalItems: 0, totalPages: 0 } });
     apiMock.listProviderConnections.mockResolvedValue([]);
     apiMock.listProjects.mockResolvedValue(mockProjects);
     apiMock.listReleases.mockResolvedValue(mockReleases);
@@ -311,8 +319,9 @@ describe("App", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Registered Targets" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Target Inventory" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Onboard Targets/i })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Add Targets/i })).toBeInTheDocument();
       expect(screen.getByText(/Refresh Targets/i)).toBeInTheDocument();
     });
 
@@ -333,7 +342,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Demo Customer A")).toBeInTheDocument();
-      expect(screen.getByRole("heading", { name: "Registered Targets" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Target Inventory" })).toBeInTheDocument();
       expect(window.location.pathname).toBe("/targets");
     });
   });
@@ -354,6 +363,48 @@ describe("App", () => {
       expect(screen.getByText("Project Settings")).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "New Project" })).toBeInTheDocument();
     });
+  });
+
+  it("keeps project configuration incomplete until setup has been saved after creation", async () => {
+    apiMock.listProjects.mockResolvedValue([
+      {
+        ...mockProjects[0],
+        releaseIngestEndpointId: "rel-src-1",
+        deploymentDriver: "azure_deployment_stack",
+        deploymentDriverConfig: {
+          supportsPreview: true,
+          previewMode: "arm_what_if",
+          supportsExternalExecutionHandle: false,
+        },
+        runtimeHealthProvider: "azure_container_app_http",
+        runtimeHealthProviderConfig: {
+          path: "/health",
+          expectedStatus: 200,
+          timeoutMs: 5000,
+        },
+      },
+    ]);
+    apiMock.listReleaseIngestEndpoints.mockResolvedValue([
+      {
+        id: "rel-src-1",
+        name: "GitHub release source",
+        provider: "github",
+        enabled: true,
+      },
+    ]);
+    apiMock.listProjectAudit.mockResolvedValue({
+      items: [],
+      page: { page: 0, size: 1, totalItems: 0, totalPages: 0 },
+    });
+    window.history.replaceState({}, "", "/projects");
+
+    render(<App />);
+
+    const checklistItem = await screen.findByText("Configuration complete");
+    const checklistCard = checklistItem.closest("div");
+
+    expect(checklistCard).not.toBeNull();
+    expect(within(checklistCard as HTMLElement).getByText("Needs attention")).toBeInTheDocument();
   });
 
   it("hides Azure DevOps controls for MAPPO Azure API projects", async () => {

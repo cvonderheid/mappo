@@ -129,7 +129,6 @@ function lazyWithRouteReload<T extends ComponentType<any>>(loader: () => Promise
 
 const DemoPanel = lazyWithRouteReload(() => import("@/components/DemoPanel"));
 const DeploymentsPage = lazyWithRouteReload(() => import("@/components/DeploymentsPage"));
-const FleetTable = lazyWithRouteReload(() => import("@/components/FleetTable"));
 const ManagedAppPage = lazyWithRouteReload(() => import("@/components/ManagedAppPage"));
 const ProviderConnectionsConfigPage = lazyWithRouteReload(() => import("@/components/ProviderConnectionsConfigPage"));
 const ProjectSwitcherMenu = lazyWithRouteReload(() => import("@/components/ProjectSwitcherMenu"));
@@ -1611,27 +1610,22 @@ function AppShell() {
               <Route
                 path="/targets"
                 element={
-                  <>
-                    <FleetTable
-                      latestRelease={latestRelease}
-                      refreshKey={targetsRefreshVersion}
-                      selectedProjectId={selectedProjectId}
-                    />
-                    <TargetsPage
-                      adminErrorMessage={adminErrorMessage}
-                      adminIsSubmitting={adminIsSubmitting}
-                      adminResult={adminResult}
-                      projects={projects}
-                      selectedProjectId={selectedProjectId}
-                      registrations={registrationOptions}
-                      refreshKey={adminRefreshVersion}
-                      onIngestMarketplaceEvent={handleAdminRegisterOperatorTarget}
-                      onUpdateTargetRegistration={handleAdminUpdateRegistration}
-                      onDeleteTargetRegistration={handleAdminDeleteRegistration}
-                      onRefreshRegistrations={refreshRegistrationOptions}
-                      viewMode="targets"
-                    />
-                  </>
+                  <TargetsPage
+                    adminErrorMessage={adminErrorMessage}
+                    adminIsSubmitting={adminIsSubmitting}
+                    adminResult={adminResult}
+                    projects={projects}
+                    latestRelease={latestRelease}
+                    selectedProjectId={selectedProjectId}
+                    registrations={registrationOptions}
+                    refreshKey={adminRefreshVersion}
+                    targetRefreshKey={targetsRefreshVersion}
+                    onIngestMarketplaceEvent={handleAdminRegisterOperatorTarget}
+                    onUpdateTargetRegistration={handleAdminUpdateRegistration}
+                    onDeleteTargetRegistration={handleAdminDeleteRegistration}
+                    onRefreshRegistrations={refreshRegistrationOptions}
+                    viewMode="targets"
+                  />
                 }
               />
               <Route
@@ -1642,6 +1636,7 @@ function AppShell() {
                     adminIsSubmitting={adminIsSubmitting}
                     adminResult={adminResult}
                     projects={projects}
+                    latestRelease={latestRelease}
                     selectedProjectId={selectedProjectId}
                     registrations={registrationOptions}
                     refreshKey={adminRefreshVersion}

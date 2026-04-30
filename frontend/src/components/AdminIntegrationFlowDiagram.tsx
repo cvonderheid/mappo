@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { LuArrowDown, LuMoveRight } from "react-icons/lu";
+import { LuArrowDown, LuMoveLeft, LuMoveRight } from "react-icons/lu";
 
 import { cn } from "@/lib/utils";
 
@@ -36,7 +36,7 @@ function nodeToneClass(tone: AdminIntegrationFlowNode["tone"]): string {
     case "warning":
       return "border-amber-400/50 bg-amber-500/10";
     default:
-      return "border-border/70 bg-gradient-to-br from-background/70 via-background/40 to-background/20";
+      return "border-border/70 bg-background/50";
   }
 }
 
@@ -51,7 +51,7 @@ function iconToneClass(tone: AdminIntegrationFlowNode["tone"]): string {
     case "warning":
       return "border-amber-400/40 bg-amber-500/15 text-amber-200";
     default:
-      return "border-primary/30 bg-primary/10 text-primary";
+      return "border-border/70 bg-background/60 text-foreground";
   }
 }
 
@@ -107,13 +107,26 @@ function FlowNode({ node, className }: { node: AdminIntegrationFlowNode; classNa
 
 function FlowArrow({
   className,
+  direction = "responsive",
 }: {
   className?: string;
+  direction?: "responsive" | "backward" | "down";
 }) {
   const arrowIcon = (
     <>
-      <LuMoveRight className="hidden h-5 w-5 xl:block" />
-      <LuArrowDown className="h-5 w-5 xl:hidden" />
+      {direction === "responsive" ? (
+        <>
+          <LuMoveRight className="hidden h-5 w-5 xl:block" />
+          <LuArrowDown className="h-5 w-5 xl:hidden" />
+        </>
+      ) : null}
+      {direction === "backward" ? (
+        <>
+          <LuMoveLeft className="hidden h-5 w-5 xl:block" />
+          <LuArrowDown className="h-5 w-5 xl:hidden" />
+        </>
+      ) : null}
+      {direction === "down" ? <LuArrowDown className="h-5 w-5" /> : null}
     </>
   );
 
@@ -133,7 +146,7 @@ export default function AdminIntegrationFlowDiagram({
 }) {
   return (
     <>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)_2.5rem_minmax(0,1fr)_2.5rem]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)_2.5rem_minmax(0,1fr)]">
         {nodes[0] ? <FlowNode node={nodes[0]} className="xl:col-start-1 xl:row-start-1" /> : null}
         {nodes[1] ? (
           <FlowArrow className="xl:col-start-2 xl:row-start-1" />
@@ -144,17 +157,17 @@ export default function AdminIntegrationFlowDiagram({
         ) : null}
         {nodes[2] ? <FlowNode node={nodes[2]} className="xl:col-start-5 xl:row-start-1" /> : null}
         {nodes[3] ? (
-          <FlowArrow className="xl:col-start-6 xl:row-start-1" />
+          <FlowArrow className="xl:col-start-5 xl:row-start-2" direction="down" />
         ) : null}
-        {nodes[3] ? <FlowNode node={nodes[3]} className="xl:col-start-1 xl:row-start-2" /> : null}
+        {nodes[3] ? <FlowNode node={nodes[3]} className="xl:col-start-5 xl:row-start-3" /> : null}
         {nodes[4] ? (
-          <FlowArrow className="xl:col-start-2 xl:row-start-2" />
+          <FlowArrow className="xl:col-start-4 xl:row-start-3" direction="backward" />
         ) : null}
-        {nodes[4] ? <FlowNode node={nodes[4]} className="xl:col-start-3 xl:row-start-2" /> : null}
+        {nodes[4] ? <FlowNode node={nodes[4]} className="xl:col-start-3 xl:row-start-3" /> : null}
         {nodes[5] ? (
-          <FlowArrow className="xl:col-start-4 xl:row-start-2" />
+          <FlowArrow className="xl:col-start-2 xl:row-start-3" direction="backward" />
         ) : null}
-        {nodes[5] ? <FlowNode node={nodes[5]} className="xl:col-start-5 xl:row-start-2" /> : null}
+        {nodes[5] ? <FlowNode node={nodes[5]} className="xl:col-start-1 xl:row-start-3" /> : null}
       </div>
     </>
   );

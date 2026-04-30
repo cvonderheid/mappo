@@ -704,6 +704,9 @@ function TargetRecordCard({ record }: { record: TargetExecutionRecord }) {
                   Error code: {stage.error.code}
                 </p>
                 <p className="mt-1">{stage.error.message}</p>
+                {isAzureDevOpsPipelineError(stage.error.code) ? (
+                  <AzureDevOpsPipelineFailureGuidance record={record} />
+                ) : null}
                 {stage.error.details ? (
                   <AzureErrorSummary details={stage.error.details} />
                 ) : null}
@@ -786,6 +789,45 @@ function AzureErrorSummary({
       {deploymentName ? <p>deployment: {deploymentName}</p> : null}
       {operationId ? <p>operation-id: {operationId}</p> : null}
       {resourceId ? <p className="break-all">resource-id: {resourceId}</p> : null}
+    </div>
+  );
+}
+
+function isAzureDevOpsPipelineError(code: string | null | undefined): boolean {
+  return (code ?? "").startsWith("ADO_PIPELINE_");
+}
+
+function AzureDevOpsPipelineFailureGuidance({ record }: { record: TargetExecutionRecord }) {
+  const handle = record.externalExecutionHandle;
+  const runUrl = asNonEmptyString(handle?.executionUrl);
+  const logsUrl = asNonEmptyString(handle?.logsUrl);
+  const executionName = asNonEmptyString(handle?.executionName) ?? asNonEmptyString(handle?.executionId);
+  const executionStatus = asNonEmptyString(handle?.executionStatus);
+
+  return (
+    <div className="mt-2 space-y-2 rounded-md border border-destructive/40 bg-background/50 p-2 text-[11px] text-foreground">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-semibold">Azure DevOps run</span>
+        {executionName ? <Badge variant="outline">{executionName}</Badge> : null}
+        {executionStatus ? <Badge variant="destructive">{executionStatus}</Badge> : null}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {runUrl ? (
+          <a className="text-primary underline-offset-2 hover:underline" href={runUrl} target="_blank" rel="noreferrer">
+            Open run
+          </a>
+        ) : null}
+        {logsUrl ? (
+          <a className="text-primary underline-offset-2 hover:underline" href={logsUrl} target="_blank" rel="noreferrer">
+            Open logs
+          </a>
+        ) : null}
+      </div>
+      <ul className="list-disc space-y-1 pl-4 text-muted-foreground">
+        <li>Inspect the failed Azure DevOps stage or job in the run logs.</li>
+        <li>Confirm the deployment pipeline is authorized to use its Azure service connection.</li>
+        <li>Confirm that service connection's service principal has the required Azure RBAC on the target subscription or resource group.</li>
+      </ul>
     </div>
   );
 }

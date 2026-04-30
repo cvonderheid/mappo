@@ -2,7 +2,8 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
-import { EventsDataTable, RegistrationsDataTable } from "@/components/AdminTables";
+import { EventsDataTable } from "@/components/AdminTables";
+import FleetTable from "@/components/FleetTable";
 import TargetOnboardingDrawer from "@/components/TargetOnboardingDrawer";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import type {
   MarketplaceEventIngestRequest,
   MarketplaceEventIngestResponse,
   ProjectDefinition,
+  Release,
   TargetRegistrationRecord,
   UpdateTargetRegistrationRequest,
 } from "@/lib/types";
@@ -31,9 +33,11 @@ type TargetsPageProps = {
   adminIsSubmitting: boolean;
   adminResult: MarketplaceEventIngestResponse | null;
   projects: ProjectDefinition[];
+  latestRelease: Release | null;
   selectedProjectId: string;
   registrations: TargetRegistrationRecord[];
   refreshKey: number;
+  targetRefreshKey?: number;
   onIngestMarketplaceEvent: (
     request: MarketplaceEventIngestRequest,
     ingestToken?: string
@@ -56,9 +60,11 @@ export default function TargetsPage({
   adminIsSubmitting,
   adminResult: _adminResult,
   projects,
+  latestRelease,
   selectedProjectId,
   registrations,
   refreshKey,
+  targetRefreshKey = refreshKey,
   onIngestMarketplaceEvent,
   onUpdateTargetRegistration,
   onDeleteTargetRegistration,
@@ -261,39 +267,18 @@ export default function TargetsPage({
       ) : null}
 
       {viewMode === "targets" ? (
-        <RegistrationsDataTable
-          refreshKey={refreshKey}
-          projectId={selectedProjectId}
-          title="Registered Targets"
-          description="Manage the deploy destinations MAPPO can roll out to for this project."
-          cardAction={
-            <>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => {
-                  setOnboardingDrawerOpen(true);
-                }}
-              >
-                Add Targets
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={isRefreshingSnapshot}
-                onClick={() => void handleRefreshRegistrations()}
-              >
-                {isRefreshingSnapshot ? "Refreshing..." : "Refresh Targets"}
-              </Button>
-            </>
-          }
-          cardClassName="glass-card animate-fade-up [animation-delay:120ms] [animation-fill-mode:forwards]"
+        <FleetTable
+          latestRelease={latestRelease}
+          registrations={registrations}
+          refreshKey={targetRefreshKey}
+          selectedProjectId={selectedProjectId}
+          deletingTargetId={deletingTargetId}
+          onAddTargets={() => setOnboardingDrawerOpen(true)}
           onEditRegistration={openEditDrawer}
           onDeleteRegistration={(registration) => {
             void handleDeleteRegistration(registration);
           }}
-          deletingTargetId={deletingTargetId}
+          onRefreshRegistrations={handleRefreshRegistrations}
         />
       ) : (
         <EventsDataTable

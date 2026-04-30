@@ -10,16 +10,16 @@
   - Pipeline/webhook-driven sources should explain that releases arrive from the external event.
   - Remove incorrect GitHub-specific errors for Azure DevOps event sources.
 - [x] Replace operator-facing `external_deployment_inputs` wording with `Pipeline release event` or equivalent.
-- Audit all flow-card arrows and contract popovers.
+- [x] Audit all flow-card arrows and contract popovers.
   - Move the project-flow webhook/event contract so it appears between `Release Source` and `MAPPO`, not between `Outside MAPPO` and `Release Source`.
   - Only make arrows clickable when they show meaningful request, payload, probe, or contract details between the two connected steps.
   - Ensure arrow direction and placement match the real operator/system flow.
-- Verify a brand-new project cannot show `Configuration complete` until release source, deployment behavior, and runtime health are meaningfully configured.
-- Polish Admin -> Release Sources and Admin -> Deployment Connections flow cards.
+- [x] Verify a brand-new project cannot show `Configuration complete` until release source, deployment behavior, and runtime health are meaningfully configured.
+- [x] Polish Admin -> Release Sources and Admin -> Deployment Connections flow cards.
   - Remove raw numeric IDs from operator-facing cards.
   - Use status colors only for real status, not decorative emphasis.
   - Keep card layout and action placement consistent with the rest of the app.
-- Improve deployment failure messaging for Azure DevOps pipeline failures.
+- [x] Improve deployment failure messaging for Azure DevOps pipeline failures.
   - Point operators to the ADO run, service connection authorization, and Azure RBAC checks.
 - Rename or restructure the current `Managed App` page so project registration history and global integration plumbing are not mixed.
 

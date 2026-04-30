@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
+  listProjectAudit,
   listProviderConnections,
   listReleaseIngestEndpoints,
 } from "@/lib/api";
@@ -538,6 +539,7 @@ export default function ProjectSettingsPage({
   const [isValidating, setIsValidating] = useState(false);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [hasPersistedConfigurationUpdate, setHasPersistedConfigurationUpdate] = useState(false);
   const [isDiscoveringBranches, setIsDiscoveringBranches] = useState(false);
   const [isDiscoveringRepositories, setIsDiscoveringRepositories] = useState(false);
   const [isDiscoveringPipelines, setIsDiscoveringPipelines] = useState(false);
@@ -604,6 +606,30 @@ export default function ProjectSettingsPage({
     void refreshReleaseIngestEndpointOptions(true);
     void refreshProviderConnectionOptions(true);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const projectId = project?.id?.trim() ?? "";
+    if (projectId === "") {
+      setHasPersistedConfigurationUpdate(false);
+      return;
+    }
+    setHasPersistedConfigurationUpdate(false);
+    void listProjectAudit(projectId, { page: 0, size: 1, action: "updated" })
+      .then((page) => {
+        if (!cancelled) {
+          setHasPersistedConfigurationUpdate((page.items ?? []).length > 0);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHasPersistedConfigurationUpdate(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [project?.id]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -1119,27 +1145,40 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
   ]);
 
   const releaseSourceConfigured = selectedReleaseIngestEndpoint !== null;
-  const hasAnyProjectSetup =
-    releaseSourceConfigured ||
-    draft.providerConnectionId.trim() !== "" ||
-    draft.driver.organization.trim() !== "" ||
-    draft.driver.project.trim() !== "" ||
-    draft.driver.repository.trim() !== "" ||
-    draft.driver.pipelineId.trim() !== "" ||
-    targetCount > 0 ||
-    projectReleaseCount > 0;
   const deploymentConfigured = draft.deploymentDriver === "pipeline_trigger"
     ? draft.providerConnectionId.trim() !== "" &&
       draft.driver.organization.trim() !== "" &&
       draft.driver.project.trim() !== "" &&
       draft.driver.repository.trim() !== "" &&
       draft.driver.pipelineId.trim() !== ""
-    : hasAnyProjectSetup;
+    : draft.deploymentDriver === "azure_deployment_stack" || draft.deploymentDriver === "azure_template_spec";
   const runtimeHealthConfigured =
-    hasAnyProjectSetup ||
-    draft.runtime.path.trim() !== "/" ||
-    draft.runtime.expectedStatus.trim() !== "200" ||
-    draft.runtime.timeoutMs.trim() !== "5000";
+    draft.runtime.path.trim() !== "" &&
+    parseOptionalNumber(draft.runtime.expectedStatus) !== undefined &&
+    parseOptionalNumber(draft.runtime.timeoutMs) !== undefined;
+  const persistedDriverConfig = asRecord(project?.deploymentDriverConfig);
+  const persistedRuntimeConfig = asRecord(project?.runtimeHealthProviderConfig);
+  const persistedRuntimeExpectedStatus =
+    readStringField(persistedRuntimeConfig, "expectedStatus") ||
+    asNumberString(persistedRuntimeConfig.expectedStatus);
+  const persistedRuntimeTimeoutMs =
+    readStringField(persistedRuntimeConfig, "timeoutMs") ||
+    asNumberString(persistedRuntimeConfig.timeoutMs);
+  const persistedReleaseSourceConfigured = (project?.releaseIngestEndpointId ?? "").trim() !== "";
+  const persistedDeploymentConfigured = hasPersistedConfigurationUpdate && (
+    project?.deploymentDriver === "pipeline_trigger"
+      ? (project.providerConnectionId ?? "").trim() !== "" &&
+        readStringField(persistedDriverConfig, "organization") !== "" &&
+        readStringField(persistedDriverConfig, "project") !== "" &&
+        readStringField(persistedDriverConfig, "repository") !== "" &&
+        readStringField(persistedDriverConfig, "pipelineId") !== ""
+      : project?.deploymentDriver === "azure_deployment_stack" || project?.deploymentDriver === "azure_template_spec"
+  );
+  const persistedRuntimeHealthConfigured =
+    hasPersistedConfigurationUpdate &&
+    readStringField(persistedRuntimeConfig, "path") !== "" &&
+    parseOptionalNumber(persistedRuntimeExpectedStatus) !== undefined &&
+    parseOptionalNumber(persistedRuntimeTimeoutMs) !== undefined;
   const setupValidationIssues = useMemo(() => {
     const issues: DraftValidationIssue[] = [...draftValidationIssues];
     if (!releaseSourceConfigured) {
@@ -1168,7 +1207,11 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
     }
     return issues;
   }, [deploymentConfigured, draftValidationIssues, releaseSourceConfigured, runtimeHealthConfigured]);
-  const configComplete = project !== null && setupValidationIssues.length === 0;
+  const configComplete =
+    project !== null &&
+    persistedReleaseSourceConfigured &&
+    persistedDeploymentConfigured &&
+    persistedRuntimeHealthConfigured;
   const canPersist = project !== null && draftValidationIssues.length === 0;
   const canCreateProject = createDraft.name.trim() !== "";
   const activeSectionLabel =
@@ -1190,6 +1233,7 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
     setIsSaving(true);
     try {
       await onPatchProject(project.id, buildPatchRequest(draft));
+      setHasPersistedConfigurationUpdate(true);
       toast.success("Project configuration saved.");
     } catch (error) {
       toast.error((error as Error).message);
@@ -1460,6 +1504,7 @@ function normalizeDiscoveryError(message: string, providerLabel: string): string
       toast.success(`Created project ${created.name ?? created.id}.`);
       setCreateDrawerOpen(false);
       setCreateDraft(emptyProjectDraft());
+      setHasPersistedConfigurationUpdate(false);
     } catch (error) {
       toast.error((error as Error).message);
     } finally {

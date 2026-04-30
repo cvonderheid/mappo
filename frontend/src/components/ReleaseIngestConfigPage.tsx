@@ -176,10 +176,14 @@ function summarizeLinkedProjects(linkedProjects: LinkedProject[]): string {
   if (linkedProjects.length === 0) {
     return "No linked projects";
   }
-  const labels = linkedProjects.map((linked) => linked.projectName || linked.projectId || "Project");
+  const labels = linkedProjects.map((linked) => linked.projectName || "Project");
   const visible = labels.slice(0, 3).join(", ");
   const overflow = labels.length - 3;
   return overflow > 0 ? `${visible}, +${overflow} more` : visible;
+}
+
+function releaseSourceDisplayName(endpoint: ReleaseIngestEndpoint): string {
+  return endpoint.name?.trim() || "Unnamed release source";
 }
 
 function releaseResultLabel(provider: ReleaseIngestProvider): string {
@@ -212,13 +216,13 @@ function buildReleaseSourceFlowNodes({
   const hasRoutingFilters = Boolean(
     endpoint.repoFilter || endpoint.branchFilter || endpoint.pipelineIdFilter || endpoint.manifestPath
   );
+  const displayName = releaseSourceDisplayName(endpoint);
   return [
     {
       step: "00",
       icon: releaseProviderIcon(provider, "h-5 w-5"),
       eyebrow: "Outside MAPPO",
       title: "Release performed",
-      tone: "muted",
       details: [
         { label: "Provider", value: providerLabel },
         { label: "Result", value: releaseResultLabel(provider) },
@@ -229,8 +233,9 @@ function buildReleaseSourceFlowNodes({
       icon: releaseProviderIcon(provider, "h-5 w-5"),
       eyebrow: "Provider",
       title: providerLabel,
+      tone: enabled ? "default" : "warning",
       details: [
-        { label: "Source", value: endpoint.name || endpoint.id },
+        { label: "Source", value: displayName },
         { label: "Status", value: enabled ? "Enabled" : "Disabled" },
       ],
     },
@@ -241,7 +246,7 @@ function buildReleaseSourceFlowNodes({
       title: "Webhook receiver",
       details: [
         { label: "Webhook URL", value: webhookUrl },
-        { label: "Release source", value: endpoint.name || endpoint.id },
+        { label: "Release source", value: displayName },
         { label: "Direction", value: "Inbound release notification" },
       ],
     },
@@ -260,7 +265,6 @@ function buildReleaseSourceFlowNodes({
       icon: <LuWorkflow className="h-5 w-5" />,
       eyebrow: "Routing filters",
       title: hasRoutingFilters ? "Filters configured" : "No routing filters",
-      tone: hasRoutingFilters ? "default" : "muted",
       details: provider === "azure_devops"
         ? [
             { label: "Branch", value: endpoint.branchFilter || "Any branch" },
@@ -280,6 +284,7 @@ function buildReleaseSourceFlowNodes({
       details: [
         { label: "Count", value: linkedProjects.length },
         { label: "Projects", value: summarizeLinkedProjects(linkedProjects) },
+        { label: "Selected project", value: selectedProjectLinked ? "Linked" : "Not linked" },
       ],
     },
   ];
@@ -453,7 +458,7 @@ export default function ReleaseIngestConfigPage({
           manifestPath: draft.manifestPath.trim() || undefined,
         };
         await patchReleaseIngestEndpoint(editingId, patchRequest);
-        toast.success(`Updated release source ${editingId}.`);
+        toast.success(`Updated release source ${draft.name.trim()}.`);
       } else {
         const createRequest: ReleaseIngestEndpointCreateRequest = {
           name: draft.name.trim(),
@@ -466,7 +471,7 @@ export default function ReleaseIngestConfigPage({
           manifestPath: draft.manifestPath.trim() || undefined,
         };
         const created = await createReleaseIngestEndpoint(createRequest);
-        toast.success(`Created release source ${created.name || created.id}.`);
+        toast.success(`Created release source ${releaseSourceDisplayName(created)}.`);
       }
       setDrawerOpen(false);
       await loadEndpoints(true);
@@ -483,14 +488,14 @@ export default function ReleaseIngestConfigPage({
       return;
     }
     const confirmed = window.confirm(
-      `Delete release source ${endpointId}? This fails if projects are still linked.`
+      `Delete release source ${releaseSourceDisplayName(endpoint)}? This fails if projects are still linked.`
     );
     if (!confirmed) {
       return;
     }
     try {
       await deleteReleaseIngestEndpoint(endpointId);
-      toast.success(`Deleted release source ${endpointId}.`);
+      toast.success(`Deleted release source ${releaseSourceDisplayName(endpoint)}.`);
       await loadEndpoints(true);
     } catch (error) {
       toast.error((error as Error).message);
@@ -565,21 +570,22 @@ export default function ReleaseIngestConfigPage({
               <Card key={endpointId || endpoint.name} className="border border-border/70 bg-card/70">
                 <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="space-y-1">
-                    <CardTitle>{endpoint.name || endpointId}</CardTitle>
+                    <CardTitle>{releaseSourceDisplayName(endpoint)}</CardTitle>
                     <p className="text-xs text-muted-foreground">
                       {releaseProviderLabel(provider)} · {releaseSourceModeLabel(provider)}
                     </p>
                   </div>
                   <CardAction className="flex-wrap justify-end">
-                    <Button type="button" variant="outline" onClick={() => void handleCopyWebhookUrl(endpoint)}>
+                    <Button type="button" variant="outline" size="sm" onClick={() => void handleCopyWebhookUrl(endpoint)}>
                       Copy Webhook URL
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => openEditDrawer(endpoint)}>
+                    <Button type="button" variant="outline" size="sm" onClick={() => openEditDrawer(endpoint)}>
                       Edit
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
+                      size="sm"
                       className="border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => void handleDelete(endpoint)}
                     >
@@ -656,7 +662,7 @@ export default function ReleaseIngestConfigPage({
                               key={`${endpointId}-${linkedProjectId}`}
                               variant={isSelected ? "default" : "secondary"}
                             >
-                              {linked.projectName || linkedProjectId}
+                              {linked.projectName || "Project"}
                             </Badge>
                           );
                         })
@@ -676,7 +682,7 @@ export default function ReleaseIngestConfigPage({
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} direction="top">
         <DrawerContent>
           <DrawerHeader>
-            <DrawerTitle>{editingId ? `Edit ${draft.name || editingId}` : "New Release Source"}</DrawerTitle>
+            <DrawerTitle>{editingId ? `Edit ${draft.name.trim() || "release source"}` : "New Release Source"}</DrawerTitle>
             <DrawerDescription>
               Configure how an external system notifies MAPPO about new releases. This is separate from Deployment Connections, which handle outbound API access.
             </DrawerDescription>
