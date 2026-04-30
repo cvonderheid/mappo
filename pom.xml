@@ -59,7 +59,6 @@
     <module>infra/pulumi</module>
     <module>infra/demo/targets-azure-delivery</module>
     <module>infra/demo/targets-pipeline-delivery</module>
-    <module>delivery</module>
   </modules>
 
   <build>

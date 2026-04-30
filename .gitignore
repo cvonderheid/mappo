@@ -2,6 +2,7 @@
 .DS_Store
 .idea/
 .vscode/
+*.iml
 
 # Python
 __pycache__/
@@ -14,6 +15,7 @@ __pycache__/
 # Node
 node_modules/
 frontend/node_modules/
+*.tsbuildinfo
 
 # Build outputs
 dist/
@@ -29,6 +31,10 @@ test-results/
 .playwright-cli/*.yml
 .playwright-cli/*.yaml
 .playwright-cli/*.png
+frontend/vite.config.js
+frontend/vite.config.d.ts
+frontend/vitest.config.js
+frontend/vitest.config.d.ts
 
 # Local env
 .env
