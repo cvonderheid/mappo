@@ -160,8 +160,9 @@ export default function TargetsPage({
   async function handleDeleteRegistration(
     registration: TargetRegistrationRecord
   ): Promise<void> {
+    const targetLabel = registration.displayName ?? registration.customerName ?? "this target";
     const confirmed = window.confirm(
-      `Delete registered target ${registration.targetId}? This removes it from target inventory and registration state.`
+      `Delete registered target ${targetLabel}? This removes it from target inventory and registration state.`
     );
     if (!confirmed) {
       return;
@@ -170,7 +171,7 @@ export default function TargetsPage({
     setDeletingTargetId(registration.targetId ?? "");
     try {
       await onDeleteTargetRegistration(registration.targetId ?? "");
-      toast.success(`Deleted target ${registration.targetId}.`);
+      toast.success(`Deleted target ${targetLabel}.`);
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
@@ -225,7 +226,7 @@ export default function TargetsPage({
     setEditIsSubmitting(true);
     try {
       await onUpdateTargetRegistration(editingTargetId, request);
-      toast.success(`Updated target ${editingTargetId}.`);
+      toast.success(`Updated target ${editDisplayName.trim() || "registration"}.`);
       setEditDrawerOpen(false);
     } catch (error) {
       toast.error((error as Error).message);
@@ -305,10 +306,6 @@ export default function TargetsPage({
               className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
               onSubmit={handleUpdateRegistration}
             >
-              <div className="space-y-1">
-                <Label htmlFor="edit-target-id">Target ID</Label>
-                <Input id="edit-target-id" value={editingTargetId} disabled />
-              </div>
               <div className="space-y-1">
                 <Label htmlFor="edit-display-name">Display Name</Label>
                 <Input

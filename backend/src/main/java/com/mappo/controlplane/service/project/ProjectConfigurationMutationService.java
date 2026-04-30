@@ -45,10 +45,10 @@ public class ProjectConfigurationMutationService {
         ProjectReleaseArtifactSourceType releaseArtifactSource = required(request.releaseArtifactSource(), "releaseArtifactSource");
         ProjectRuntimeHealthProviderType runtimeHealthProvider = required(request.runtimeHealthProvider(), "runtimeHealthProvider");
 
-        Map<String, Object> accessConfig = merge(defaultAccessConfig(accessStrategy), request.accessStrategyConfig());
-        Map<String, Object> driverConfig = merge(defaultDriverConfig(deploymentDriver), request.deploymentDriverConfig());
-        Map<String, Object> sourceConfig = merge(defaultReleaseSourceConfig(releaseArtifactSource), request.releaseArtifactSourceConfig());
-        Map<String, Object> runtimeConfig = merge(defaultRuntimeHealthConfig(runtimeHealthProvider), request.runtimeHealthProviderConfig());
+        Map<String, Object> accessConfig = merge(defaultAccessConfig(accessStrategy), requestConfigToMap(request.accessStrategyConfig()));
+        Map<String, Object> driverConfig = merge(defaultDriverConfig(deploymentDriver), requestConfigToMap(request.deploymentDriverConfig()));
+        Map<String, Object> sourceConfig = merge(defaultReleaseSourceConfig(releaseArtifactSource), requestConfigToMap(request.releaseArtifactSourceConfig()));
+        Map<String, Object> runtimeConfig = merge(defaultRuntimeHealthConfig(runtimeHealthProvider), requestConfigToMap(request.runtimeHealthProviderConfig()));
 
         validateTypedConfig(accessStrategy, accessConfig);
         validateTypedConfig(deploymentDriver, driverConfig);
@@ -110,25 +110,25 @@ public class ProjectConfigurationMutationService {
             patchRequest.accessStrategy() == null
                 ? jsonUtil.toMap(current.accessStrategyConfig())
                 : defaultAccessConfig(accessStrategy),
-            patchRequest.accessStrategyConfig()
+            requestConfigToMap(patchRequest.accessStrategyConfig())
         );
         Map<String, Object> driverConfig = merge(
             patchRequest.deploymentDriver() == null
                 ? jsonUtil.toMap(current.deploymentDriverConfig())
                 : defaultDriverConfig(deploymentDriver),
-            patchRequest.deploymentDriverConfig()
+            requestConfigToMap(patchRequest.deploymentDriverConfig())
         );
         Map<String, Object> sourceConfig = merge(
             patchRequest.releaseArtifactSource() == null
                 ? jsonUtil.toMap(current.releaseArtifactSourceConfig())
                 : defaultReleaseSourceConfig(releaseArtifactSource),
-            patchRequest.releaseArtifactSourceConfig()
+            requestConfigToMap(patchRequest.releaseArtifactSourceConfig())
         );
         Map<String, Object> runtimeConfig = merge(
             patchRequest.runtimeHealthProvider() == null
                 ? jsonUtil.toMap(current.runtimeHealthProviderConfig())
                 : defaultRuntimeHealthConfig(runtimeHealthProvider),
-            patchRequest.runtimeHealthProviderConfig()
+            requestConfigToMap(patchRequest.runtimeHealthProviderConfig())
         );
 
         validateTypedConfig(accessStrategy, accessConfig);
@@ -244,6 +244,20 @@ public class ProjectConfigurationMutationService {
             merged.put(key, value);
         });
         return merged;
+    }
+
+    private Map<String, Object> requestConfigToMap(Object value) {
+        Map<String, Object> raw = jsonUtil.toMap(value);
+        if (raw.isEmpty()) {
+            return raw;
+        }
+        Map<String, Object> filtered = new LinkedHashMap<>();
+        raw.forEach((key, fieldValue) -> {
+            if (fieldValue != null) {
+                filtered.put(key, fieldValue);
+            }
+        });
+        return filtered;
     }
 
     private Map<String, Object> defaultAccessConfig(ProjectAccessStrategyType type) {

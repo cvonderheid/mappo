@@ -50,6 +50,10 @@ Release webhook secrets follow the same model as Deployment Connections:
 - prefer Azure Key Vault secret references
 - use backend env vars only when you intentionally run without Key Vault
 
+### Forwarder Logs
+Use this page to inspect global inbound forwarder delivery diagnostics.
+Project-scoped target registration history lives under Project -> Registration Events.
+
 ## Project screens
 ### Config
 Use this page to tie global release/deployment plumbing to one project.

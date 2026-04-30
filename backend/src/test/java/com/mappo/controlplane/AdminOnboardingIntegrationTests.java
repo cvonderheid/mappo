@@ -1,5 +1,6 @@
 package com.mappo.controlplane;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
@@ -32,6 +34,38 @@ class AdminOnboardingIntegrationTests extends PostgresIntegrationTestBase {
     @BeforeEach
     void setupMockMvc() {
         mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+    }
+
+    @Test
+    void onboardingWithoutTargetIdUsesGeneratedTargetId() throws Exception {
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("eventId", "evt-admin-generated-001");
+        event.put("eventType", "subscription_purchased");
+        event.put("tenantId", "11111111-1111-1111-1111-111111111111");
+        event.put("subscriptionId", "22222222-2222-2222-2222-222222222222");
+        event.put("displayName", "Generated Target");
+        event.put("containerAppResourceId", "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-generated/providers/Microsoft.App/containerApps/ca-generated");
+        event.put("managedResourceGroupId", "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-generated");
+        event.put("containerAppName", "ca-generated");
+        event.put("customerName", "Generated Customer");
+        event.put("tags", Map.of("ring", "canary", "region", "eastus", "tier", "gold", "environment", "prod"));
+        event.put("metadata", Map.of("source", "marketplace-forwarder", "marketplacePayloadId", "mp-generated-001"));
+
+        MvcResult result = mockMvc.perform(post("/api/v1/admin/onboarding/events")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(event)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.eventId").value("evt-admin-generated-001"))
+            .andExpect(jsonPath("$.status").value("applied"))
+            .andReturn();
+        String generatedTargetId = objectMapper.readTree(result.getResponse().getContentAsByteArray()).get("targetId").asText();
+
+        assertThat(generatedTargetId).matches("tgt-[0-9a-f]{16}");
+
+        mockMvc.perform(get("/api/v1/targets/page").queryParam("targetId", generatedTargetId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items[0].id").value(generatedTargetId))
+            .andExpect(jsonPath("$.items[0].customerName").value("Generated Customer"));
     }
 
     @Test

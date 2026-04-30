@@ -7,7 +7,6 @@ import com.mappo.controlplane.domain.project.ProjectReleaseArtifactSourceType;
 import com.mappo.controlplane.domain.project.ProjectRuntimeHealthProviderType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ProjectCreateRequest(
@@ -16,12 +15,12 @@ public record ProjectCreateRequest(
     String releaseIngestEndpointId,
     String providerConnectionId,
     @NotNull ProjectAccessStrategyType accessStrategy,
-    Map<String, Object> accessStrategyConfig,
+    ProjectAccessStrategyConfigRequest accessStrategyConfig,
     @NotNull ProjectDeploymentDriverType deploymentDriver,
-    Map<String, Object> deploymentDriverConfig,
+    ProjectDeploymentDriverConfigRequest deploymentDriverConfig,
     @NotNull ProjectReleaseArtifactSourceType releaseArtifactSource,
-    Map<String, Object> releaseArtifactSourceConfig,
+    ProjectReleaseArtifactSourceConfigRequest releaseArtifactSourceConfig,
     @NotNull ProjectRuntimeHealthProviderType runtimeHealthProvider,
-    Map<String, Object> runtimeHealthProviderConfig
+    ProjectRuntimeHealthProviderConfigRequest runtimeHealthProviderConfig
 ) {
 }

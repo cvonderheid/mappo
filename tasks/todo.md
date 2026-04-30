@@ -21,10 +21,10 @@
   - Keep card layout and action placement consistent with the rest of the app.
 - [x] Improve deployment failure messaging for Azure DevOps pipeline failures.
   - Point operators to the ADO run, service connection authorization, and Azure RBAC checks.
-- Rename or restructure the current `Managed App` page so project registration history and global integration plumbing are not mixed.
+- [x] Rename or restructure the current `Managed App` page so project registration history and global integration plumbing are not mixed.
 
 ## Data And Configuration Cleanup
-- Confirm all operator-created records use system-generated IDs.
+- [x] Confirm all operator-created records use system-generated IDs.
   - Operators should not type database identifiers for projects, secret references, release sources, deployment connections, or targets.
 - Validate first-class selectable secret references with multiple accounts of the same provider type.
 - Decide whether imported targets need short operator-friendly generated names when the import payload omits `targetId`.

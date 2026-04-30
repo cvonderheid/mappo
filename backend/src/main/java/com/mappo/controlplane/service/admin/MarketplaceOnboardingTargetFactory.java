@@ -9,6 +9,9 @@ import com.mappo.controlplane.jooq.enums.MappoSimulatedFailureMode;
 import com.mappo.controlplane.model.command.TargetRegistrationUpsertCommand;
 import com.mappo.controlplane.model.command.TargetUpsertCommand;
 import com.mappo.controlplane.service.project.ProjectCatalogService;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -91,22 +94,36 @@ public class MarketplaceOnboardingTargetFactory {
         if (!targetId.isBlank()) {
             return targetId;
         }
-        String displayName = normalize(request.displayName());
-        if (!displayName.isBlank()) {
-            return normalizeId(displayName);
-        }
-        String managedAppId = normalize(request.managedApplicationId());
-        if (!managedAppId.isBlank()) {
-            int idx = managedAppId.lastIndexOf("/");
-            if (idx >= 0 && idx < managedAppId.length() - 1) {
-                return normalizeId(managedAppId.substring(idx + 1));
+        return generatedTargetId(request);
+    }
+
+    private String generatedTargetId(OnboardingEventRequest request) {
+        String material = String.join(
+            "|",
+            normalize(request.projectId()),
+            normalize(request.tenantId()),
+            normalize(request.subscriptionId()),
+            normalize(request.managedApplicationId()),
+            normalize(request.managedResourceGroupId()),
+            normalize(request.containerAppResourceId()),
+            normalize(request.containerAppName()),
+            normalize(request.marketplacePayloadId())
+        );
+        return "tgt-" + sha256Hex(material).substring(0, 16);
+    }
+
+    private String sha256Hex(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder out = new StringBuilder(bytes.length * 2);
+            for (byte b : bytes) {
+                out.append("%02x".formatted(b & 0xff));
             }
+            return out.toString();
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 digest is unavailable", exception);
         }
-        String containerAppName = normalize(request.containerAppName());
-        if (!containerAppName.isBlank()) {
-            return normalizeId(containerAppName);
-        }
-        return "target-" + Math.abs((normalize(request.subscriptionId()) + "-" + normalize(request.tenantId())).hashCode());
     }
 
     private String normalizeId(String value) {

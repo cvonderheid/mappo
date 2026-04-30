@@ -1193,6 +1193,16 @@ export interface components {
             organizationUrl?: string;
             projects?: components["schemas"]["ProviderConnectionAdoProjectRecord"][];
         };
+        /** @description Typed access-strategy configuration. The selected accessStrategy determines which fields are used. */
+        ProjectAccessStrategyConfigRequest: {
+            authModel?: string;
+            requiresAzureCredential?: boolean;
+            requiresTargetExecutionMetadata?: boolean;
+            azureServiceConnectionName?: string;
+            managingTenantId?: string;
+            managingPrincipalClientId?: string;
+            requiresDelegation?: boolean;
+        };
         ProjectCreateRequest: {
             name: string;
             themeKey?: string;
@@ -1200,24 +1210,46 @@ export interface components {
             providerConnectionId?: string;
             /** @enum {string} */
             accessStrategy: "simulator" | "azure_workload_rbac" | "lighthouse_delegated_access";
-            accessStrategyConfig?: {
-                [key: string]: unknown;
-            };
+            accessStrategyConfig?: components["schemas"]["ProjectAccessStrategyConfigRequest"];
             /** @enum {string} */
             deploymentDriver: "azure_deployment_stack" | "azure_template_spec" | "pipeline_trigger";
-            deploymentDriverConfig?: {
-                [key: string]: unknown;
-            };
+            deploymentDriverConfig?: components["schemas"]["ProjectDeploymentDriverConfigRequest"];
             /** @enum {string} */
             releaseArtifactSource: "blob_arm_template" | "template_spec_resource" | "external_deployment_inputs";
-            releaseArtifactSourceConfig?: {
-                [key: string]: unknown;
-            };
+            releaseArtifactSourceConfig?: components["schemas"]["ProjectReleaseArtifactSourceConfigRequest"];
             /** @enum {string} */
             runtimeHealthProvider: "azure_container_app_http" | "http_endpoint";
-            runtimeHealthProviderConfig?: {
-                [key: string]: unknown;
-            };
+            runtimeHealthProviderConfig?: components["schemas"]["ProjectRuntimeHealthProviderConfigRequest"];
+        };
+        /** @description Typed deployment-driver configuration. The selected deploymentDriver determines which fields are used. */
+        ProjectDeploymentDriverConfigRequest: {
+            supportsPreview?: boolean;
+            previewMode?: string;
+            supportsExternalExecutionHandle?: boolean;
+            pipelineSystem?: string;
+            organization?: string;
+            project?: string;
+            repository?: string;
+            pipelineId?: string;
+            branch?: string;
+            supportsExternalLogs?: boolean;
+        };
+        /** @description Typed release-artifact-source configuration. The selected releaseArtifactSource determines which fields are used. */
+        ProjectReleaseArtifactSourceConfigRequest: {
+            descriptor?: string;
+            templateUriField?: string;
+            versionRefField?: string;
+            sourceSystem?: string;
+            descriptorPath?: string;
+            versionField?: string;
+        };
+        /** @description Typed runtime-health-provider configuration. The selected runtimeHealthProvider determines how the fields are interpreted. */
+        ProjectRuntimeHealthProviderConfigRequest: {
+            path?: string;
+            /** Format: int32 */
+            expectedStatus?: number;
+            /** Format: int64 */
+            timeoutMs?: number;
         };
         ProjectAccessStrategyConfig: unknown;
         ProjectDefinition: {
@@ -1454,24 +1486,16 @@ export interface components {
             providerConnectionId?: string;
             /** @enum {string} */
             accessStrategy?: "simulator" | "azure_workload_rbac" | "lighthouse_delegated_access";
-            accessStrategyConfig?: {
-                [key: string]: unknown;
-            };
+            accessStrategyConfig?: components["schemas"]["ProjectAccessStrategyConfigRequest"];
             /** @enum {string} */
             deploymentDriver?: "azure_deployment_stack" | "azure_template_spec" | "pipeline_trigger";
-            deploymentDriverConfig?: {
-                [key: string]: unknown;
-            };
+            deploymentDriverConfig?: components["schemas"]["ProjectDeploymentDriverConfigRequest"];
             /** @enum {string} */
             releaseArtifactSource?: "blob_arm_template" | "template_spec_resource" | "external_deployment_inputs";
-            releaseArtifactSourceConfig?: {
-                [key: string]: unknown;
-            };
+            releaseArtifactSourceConfig?: components["schemas"]["ProjectReleaseArtifactSourceConfigRequest"];
             /** @enum {string} */
             runtimeHealthProvider?: "azure_container_app_http" | "http_endpoint";
-            runtimeHealthProviderConfig?: {
-                [key: string]: unknown;
-            };
+            runtimeHealthProviderConfig?: components["schemas"]["ProjectRuntimeHealthProviderConfigRequest"];
         };
         TargetRegistrationMetadataRequest: {
             containerAppName?: string;

@@ -5,7 +5,6 @@ import com.mappo.controlplane.domain.project.ProjectAccessStrategyType;
 import com.mappo.controlplane.domain.project.ProjectDeploymentDriverType;
 import com.mappo.controlplane.domain.project.ProjectReleaseArtifactSourceType;
 import com.mappo.controlplane.domain.project.ProjectRuntimeHealthProviderType;
-import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ProjectConfigurationPatchRequest(
@@ -14,12 +13,12 @@ public record ProjectConfigurationPatchRequest(
     String releaseIngestEndpointId,
     String providerConnectionId,
     ProjectAccessStrategyType accessStrategy,
-    Map<String, Object> accessStrategyConfig,
+    ProjectAccessStrategyConfigRequest accessStrategyConfig,
     ProjectDeploymentDriverType deploymentDriver,
-    Map<String, Object> deploymentDriverConfig,
+    ProjectDeploymentDriverConfigRequest deploymentDriverConfig,
     ProjectReleaseArtifactSourceType releaseArtifactSource,
-    Map<String, Object> releaseArtifactSourceConfig,
+    ProjectReleaseArtifactSourceConfigRequest releaseArtifactSourceConfig,
     ProjectRuntimeHealthProviderType runtimeHealthProvider,
-    Map<String, Object> runtimeHealthProviderConfig
+    ProjectRuntimeHealthProviderConfigRequest runtimeHealthProviderConfig
 ) {
 }

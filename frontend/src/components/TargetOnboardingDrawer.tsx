@@ -39,7 +39,7 @@ type DriverType =
 type BulkPreviewRow = {
   rowNumber: number;
   eventId: string;
-  targetId: string;
+  targetLabel: string;
   projectId: string;
   errors: string[];
   request: MarketplaceEventIngestRequest | null;
@@ -50,7 +50,6 @@ type BulkPreviewRow = {
 type OnboardingDraft = {
   eventId: string;
   projectId: string;
-  targetId: string;
   displayName: string;
   customerName: string;
   tenantId: string;
@@ -109,7 +108,6 @@ function createDefaultDraft(projectId: string): OnboardingDraft {
   return {
     eventId: nextEventId(),
     projectId: projectId || "",
-    targetId: "",
     displayName: "",
     customerName: "",
     tenantId: "",
@@ -220,8 +218,8 @@ function validateDraft(
   ) {
     errors.push("Subscription ID must be a valid GUID.");
   }
-  if (normalize(draft.displayName) === "" && normalize(draft.targetId) === "") {
-    errors.push("Provide either Display Name or Target ID.");
+  if (normalize(draft.displayName) === "") {
+    errors.push("Display Name is required.");
   }
 
   const driver = resolveDriver(project);
@@ -301,7 +299,6 @@ function buildRequest(
     subscriptionId: normalize(draft.subscriptionId),
     projectId: normalize(draft.projectId),
     displayName: normalize(draft.displayName) || undefined,
-    targetId: normalize(draft.targetId) || undefined,
     managedApplicationId: normalize(draft.managedApplicationId) || undefined,
     managedResourceGroupId: normalize(draft.managedResourceGroupId) || undefined,
     containerAppResourceId: normalize(draft.containerAppResourceId) || undefined,
@@ -349,7 +346,6 @@ function draftFromUnknown(
   return {
     eventId: normalize(row.eventId) || nextEventId(`evt-admin-bulk-${rowNumber}`),
     projectId: normalize(row.projectId) || defaultProjectId,
-    targetId: normalize(row.targetId),
     displayName: normalize(row.displayName),
     customerName: firstNonBlank(row.customerName, metadata.customerName, tags.customer),
     tenantId: normalize(row.tenantId),
@@ -470,7 +466,7 @@ export default function TargetOnboardingDrawer({
       singleValidation.executionConfig
     );
     await onIngestMarketplaceEvent(request, normalize(draft.ingestToken) || undefined);
-    toast.success(`Registered target ${request.targetId ?? request.displayName ?? request.eventId}.`);
+    toast.success(`Registered target ${request.displayName ?? request.eventId}.`);
     resetSingleDraft();
     await onRefreshRegistrations();
     setDrawerOpen(false);
@@ -501,7 +497,7 @@ export default function TargetOnboardingDrawer({
       return {
         rowNumber: index + 1,
         eventId: entryDraft.eventId,
-        targetId: normalize(entryDraft.targetId) || normalize(entryDraft.displayName) || "(auto)",
+        targetLabel: normalize(entryDraft.displayName) || "(missing)",
         projectId: normalize(entryDraft.projectId) || "(missing)",
         errors: validation.errors,
         request,
@@ -752,18 +748,6 @@ export default function TargetOnboardingDrawer({
                           </div>
                           <div className="space-y-1">
                             <div className="flex items-center gap-1">
-                              <Label htmlFor="onboard-target-id">Target ID</Label>
-                              <FieldHelpTooltip content="Stable target key inside MAPPO. Leave blank to let MAPPO generate one from the target metadata." />
-                            </div>
-                            <Input
-                              id="onboard-target-id"
-                              value={draft.targetId}
-                              onChange={(event) => updateDraft("targetId", event.target.value)}
-                              placeholder="Optional"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1">
                               <Label htmlFor="onboard-target-group">Target Group</Label>
                               <FieldHelpTooltip content="Deployment cohort tag such as canary or prod. Used when operators scope deployment runs." />
                             </div>
@@ -921,7 +905,7 @@ export default function TargetOnboardingDrawer({
                         <tr key={`${row.rowNumber}-${row.eventId}`} className="border-t border-border/60">
                           <td className="px-2 py-1">{row.rowNumber}</td>
                           <td className="px-2 py-1">{row.projectId}</td>
-                          <td className="px-2 py-1">{row.targetId}</td>
+                          <td className="px-2 py-1">{row.targetLabel}</td>
                           <td className="px-2 py-1">
                             <Badge variant={row.state === "failed" || row.state === "invalid" ? "destructive" : row.state === "applied" ? "default" : "secondary"}>
                               {row.state}

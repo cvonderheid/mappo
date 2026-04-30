@@ -56,6 +56,7 @@ type FleetTableProps = {
 type FleetRow = {
   registration: TargetRegistrationRecord | null;
   targetId: string;
+  targetLabel: string;
   customerName: string;
   tenantId: string;
   subscriptionId: string;
@@ -348,28 +349,32 @@ export default function FleetTable({
 
   const rows = useMemo<FleetRow[]>(
     () =>
-      (pageData.items ?? []).map((target: Target) => ({
-        registration: registrationByTargetId.get(target.id ?? "") ?? null,
-        targetId: target.id ?? "unknown",
-        customerName: target.customerName ?? "unknown",
-        tenantId: target.tenantId ?? "unknown",
-        subscriptionId: target.subscriptionId ?? "unknown",
-        targetGroup: target.tags?.ring ?? "unassigned",
-        region: target.tags?.region ?? "unknown",
-        tier: target.tags?.tier ?? "unknown",
-        version: target.lastDeployedRelease ?? "unknown",
-        runtimeStatus: targetRuntimeStatus(target),
-        runtimeCheckedAt: target.runtimeCheckedAt ?? "",
-        lastDeploymentStatus: targetLastDeploymentTone(target),
-        lastDeploymentAt: target.lastDeploymentAt ?? "",
-        latestStatus: targetLatestReleaseStatus(target, latestVersion),
-      })),
+      (pageData.items ?? []).map((target: Target) => {
+        const registration = registrationByTargetId.get(target.id ?? "") ?? null;
+        return {
+          registration,
+          targetId: target.id ?? "unknown",
+          targetLabel: registration?.displayName ?? target.customerName ?? target.id ?? "unknown",
+          customerName: target.customerName ?? "unknown",
+          tenantId: target.tenantId ?? "unknown",
+          subscriptionId: target.subscriptionId ?? "unknown",
+          targetGroup: target.tags?.ring ?? "unassigned",
+          region: target.tags?.region ?? "unknown",
+          tier: target.tags?.tier ?? "unknown",
+          version: target.lastDeployedRelease ?? "unknown",
+          runtimeStatus: targetRuntimeStatus(target),
+          runtimeCheckedAt: target.runtimeCheckedAt ?? "",
+          lastDeploymentStatus: targetLastDeploymentTone(target),
+          lastDeploymentAt: target.lastDeploymentAt ?? "",
+          latestStatus: targetLatestReleaseStatus(target, latestVersion),
+        };
+      }),
     [latestVersion, pageData.items, registrationByTargetId]
   );
 
   const columns = useMemo<ColumnDef<FleetRow>[]>(
     () => [
-      { accessorKey: "targetId", header: "Target" },
+      { accessorKey: "targetLabel", header: "Target" },
       { accessorKey: "customerName", header: "Customer" },
       { accessorKey: "tenantId", header: "Tenant" },
       { accessorKey: "subscriptionId", header: "Subscription" },
@@ -447,7 +452,7 @@ export default function FleetTable({
                   variant="outline"
                   size="sm"
                   className="h-7 w-7 p-0 font-mono"
-                  aria-label={`Actions for ${row.original.targetId}`}
+                  aria-label={`Actions for ${row.original.targetLabel}`}
                   disabled={!registration}
                 >
                   ...
@@ -523,7 +528,7 @@ export default function FleetTable({
   }
 
   function renderFilterCell(columnId: string): ReactNode {
-    if (columnId === "targetId") {
+    if (columnId === "targetLabel") {
       return (
         <Input
           value={targetIdFilter}

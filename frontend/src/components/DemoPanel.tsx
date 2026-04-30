@@ -86,6 +86,10 @@ function nextEventId(): string {
   return `evt-demo-${Date.now()}`;
 }
 
+function registrationLabel(registration: TargetRegistrationRecord): string {
+  return registration.displayName ?? registration.customerName ?? registration.targetId ?? "Registered target";
+}
+
 export default function DemoPanel({
   adminErrorMessage,
   adminIsSubmitting,
@@ -100,7 +104,6 @@ export default function DemoPanel({
   const [eventId, setEventId] = useState(nextEventId());
   const [eventType, setEventType] = useState<DemoEventType>("subscription_purchased");
   const [selectedRegistrationTargetId, setSelectedRegistrationTargetId] = useState("__manual__");
-  const [targetId, setTargetId] = useState("");
   const [tenantId, setTenantId] = useState("");
   const [subscriptionId, setSubscriptionId] = useState("");
   const [managedApplicationId, setManagedApplicationId] = useState("");
@@ -135,7 +138,6 @@ export default function DemoPanel({
       : registrationByTargetId.get(selectedRegistrationTargetId) ?? null;
 
   const hasLocator =
-    targetId.trim() !== "" ||
     managedApplicationId.trim() !== "" ||
     containerAppResourceId.trim() !== "" ||
     containerAppName.trim() !== "";
@@ -214,10 +216,7 @@ export default function DemoPanel({
   }, [refreshDemoStatus]);
 
   const expectedOutcome = useMemo(() => {
-    const knownTarget =
-      targetId.trim() !== ""
-        ? registrationByTargetId.has(targetId.trim())
-        : selectedRegistration !== null;
+    const knownTarget = selectedRegistration !== null;
     if (eventType === "subscription_purchased") {
       return knownTarget
         ? "Expected: target registration will be updated/upserted and kept active."
@@ -231,7 +230,7 @@ export default function DemoPanel({
     return knownTarget
       ? "Expected: target will be deregistered and removed from Targets."
       : "Expected: idempotent no-op (target already absent).";
-  }, [eventType, registrationByTargetId, selectedRegistration, targetId]);
+  }, [eventType, selectedRegistration]);
 
   function applyRegistrationPreset(targetKey: string): void {
     setSelectedRegistrationTargetId(targetKey);
@@ -242,7 +241,6 @@ export default function DemoPanel({
     if (!registration) {
       return;
     }
-    setTargetId(registration.targetId ?? "");
     setTenantId(registration.tenantId ?? "");
     setSubscriptionId(registration.subscriptionId ?? "");
     setManagedApplicationId(registration.managedApplicationId ?? "");
@@ -279,8 +277,8 @@ export default function DemoPanel({
       healthStatus: eventType === "subscription_suspended" ? "degraded" : "registered",
       lastDeployedRelease: "unknown",
     };
-    if (targetId.trim() !== "") {
-      request.targetId = targetId.trim();
+    if (selectedRegistration?.targetId) {
+      request.targetId = selectedRegistration.targetId;
     }
     if (managedApplicationId.trim() !== "") {
       request.managedApplicationId = managedApplicationId.trim();
@@ -456,7 +454,7 @@ export default function DemoPanel({
                             key={registration.targetId ?? "unknown"}
                             value={registration.targetId ?? "unknown"}
                           >
-                            {registration.targetId ?? "unknown"}
+                            {registrationLabel(registration)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -471,15 +469,6 @@ export default function DemoPanel({
                       onChange={(item) => setEventId(item.target.value)}
                       placeholder="evt-demo-123"
                       required
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="demo-target-id">Target ID (optional)</Label>
-                    <Input
-                      id="demo-target-id"
-                      value={targetId}
-                      onChange={(item) => setTargetId(item.target.value)}
-                      placeholder="mappo-ma-target-01"
                     />
                   </div>
                   <div className="space-y-1">
@@ -636,9 +625,6 @@ export default function DemoPanel({
             Event {adminResult.eventId}: <strong>{adminResult.status}</strong>
           </p>
           <p className="mt-1 text-xs">{adminResult.message}</p>
-          {adminResult.targetId ? (
-            <p className="mt-1 font-mono text-xs text-primary">target: {adminResult.targetId}</p>
-          ) : null}
         </div>
       ) : null}
 

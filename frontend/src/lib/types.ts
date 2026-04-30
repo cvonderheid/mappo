@@ -36,14 +36,13 @@ export type ProjectDefinition = Schemas["ProjectDefinition"] & {
   providerConnectionId?: string;
   themeKey?: string;
 };
-export type ProjectCreateRequest = Schemas["ProjectCreateRequest"] & {
-  providerConnectionId?: string;
-  themeKey?: string;
-};
-export type ProjectConfigurationPatchRequest = Schemas["ProjectConfigurationPatchRequest"] & {
-  providerConnectionId?: string;
-  themeKey?: string;
-};
+
+export type ProjectAccessStrategyConfigRequest = Schemas["ProjectAccessStrategyConfigRequest"];
+export type ProjectDeploymentDriverConfigRequest = Schemas["ProjectDeploymentDriverConfigRequest"];
+export type ProjectReleaseArtifactSourceConfigRequest = Schemas["ProjectReleaseArtifactSourceConfigRequest"];
+export type ProjectRuntimeHealthProviderConfigRequest = Schemas["ProjectRuntimeHealthProviderConfigRequest"];
+export type ProjectCreateRequest = Schemas["ProjectCreateRequest"];
+export type ProjectConfigurationPatchRequest = Schemas["ProjectConfigurationPatchRequest"];
 export type ProjectConfigurationAuditAction =
   NonNullable<Schemas["ProjectConfigurationAuditRecord"]["action"]>;
 export type ProjectConfigurationAuditRecord = Schemas["ProjectConfigurationAuditRecord"];

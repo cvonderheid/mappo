@@ -284,7 +284,7 @@ describe("App", () => {
       expect(screen.getByRole("link", { name: /Targets/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Registration Events/i })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Releases/i })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /^Managed App$/i })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /^Forwarder Logs$/i })).toBeInTheDocument();
       expect(screen.getByText(/New release 2026.02.25.3 is available/i)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Deploy 2026.02.25.3/i })).toBeInTheDocument();
     });
@@ -344,6 +344,16 @@ describe("App", () => {
       expect(screen.getByText("Demo Customer A")).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Target Inventory" })).toBeInTheDocument();
       expect(window.location.pathname).toBe("/targets");
+    });
+  });
+
+  it("redirects legacy managed app route to forwarder logs", async () => {
+    window.history.replaceState({}, "", "/managed-app");
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Forwarder Logs" })).toBeInTheDocument();
+      expect(window.location.pathname).toBe("/forwarder-logs");
     });
   });
 

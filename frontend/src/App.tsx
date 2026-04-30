@@ -129,7 +129,7 @@ function lazyWithRouteReload<T extends ComponentType<any>>(loader: () => Promise
 
 const DemoPanel = lazyWithRouteReload(() => import("@/components/DemoPanel"));
 const DeploymentsPage = lazyWithRouteReload(() => import("@/components/DeploymentsPage"));
-const ManagedAppPage = lazyWithRouteReload(() => import("@/components/ManagedAppPage"));
+const ForwarderLogsPage = lazyWithRouteReload(() => import("@/components/ForwarderLogsPage"));
 const ProviderConnectionsConfigPage = lazyWithRouteReload(() => import("@/components/ProviderConnectionsConfigPage"));
 const ProjectSwitcherMenu = lazyWithRouteReload(() => import("@/components/ProjectSwitcherMenu"));
 const ProjectSettingsPage = lazyWithRouteReload(() => import("@/components/ProjectSettingsPage"));
@@ -173,7 +173,7 @@ const SIDEBAR_NAVIGATION: SidebarNavigationGroup[] = [
       { label: "Secret Inventory", to: "/secret-references" },
       { label: "Deployment Connections", to: "/deployment-connections" },
       { label: "Release Sources", to: "/release-sources" },
-      { label: "Managed App", to: "/managed-app" },
+      { label: "Forwarder Logs", to: "/forwarder-logs" },
     ],
   },
   {
@@ -260,7 +260,7 @@ function AppShell() {
       location.pathname === "/secret-references" ||
       location.pathname === "/deployment-connections" ||
       location.pathname === "/release-sources" ||
-      location.pathname === "/managed-app",
+      location.pathname === "/forwarder-logs",
     [location.pathname]
   );
   const isGlobalScopeRoute = useMemo(
@@ -268,7 +268,7 @@ function AppShell() {
       location.pathname === "/release-sources" ||
       location.pathname === "/secret-references" ||
       location.pathname === "/deployment-connections" ||
-      location.pathname === "/managed-app" ||
+      location.pathname === "/forwarder-logs" ||
       location.pathname === "/demo",
     [location.pathname]
   );
@@ -968,8 +968,8 @@ function AppShell() {
       items.push({ label: "Project", to: "/projects" }, { label: "Registration Events" });
       return items;
     }
-    if (path.startsWith("/managed-app")) {
-      items.push({ label: "Admin" }, { label: "Managed App" });
+    if (path.startsWith("/forwarder-logs")) {
+      items.push({ label: "Admin" }, { label: "Forwarder Logs" });
       return items;
     }
     if (path.startsWith("/demo")) {
@@ -1662,11 +1662,12 @@ function AppShell() {
                 }
               />
               <Route
-                path="/managed-app"
+                path="/forwarder-logs"
                 element={
-                  <ManagedAppPage refreshKey={adminRefreshVersion} />
+                  <ForwarderLogsPage refreshKey={adminRefreshVersion} />
                 }
               />
+              <Route path="/managed-app" element={<Navigate to="/forwarder-logs" replace />} />
               <Route path="*" element={<Navigate to="/targets" replace />} />
             </Routes>
           </Suspense>

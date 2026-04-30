@@ -35,9 +35,13 @@ import type {
   ProjectAdoPipelineDiscoveryResult,
   ProjectAdoRepository,
   ProjectAdoRepositoryDiscoveryResult,
+  ProjectAccessStrategyConfigRequest,
   ProjectConfigurationPatchRequest,
   ProjectCreateRequest,
   ProjectDefinition,
+  ProjectDeploymentDriverConfigRequest,
+  ProjectReleaseArtifactSourceConfigRequest,
+  ProjectRuntimeHealthProviderConfigRequest,
   ProviderConnection,
   ReleaseIngestEndpoint,
   ProjectValidationRequest,
@@ -430,7 +434,7 @@ function buildPatchRequest(draft: ProjectDraft): ProjectConfigurationPatchReques
     requiresTargetExecutionMetadata = true;
   }
 
-  const accessStrategyConfig: Record<string, unknown> = {
+  const accessStrategyConfig: ProjectAccessStrategyConfigRequest = {
     authModel,
     requiresAzureCredential,
     requiresTargetExecutionMetadata,
@@ -443,7 +447,7 @@ function buildPatchRequest(draft: ProjectDraft): ProjectConfigurationPatchReques
     accessStrategyConfig.managingPrincipalClientId = draft.access.managingPrincipalClientId.trim();
   }
 
-  const deploymentDriverConfig: Record<string, unknown> = {
+  const deploymentDriverConfig: ProjectDeploymentDriverConfigRequest = {
     supportsExternalExecutionHandle: draft.driver.supportsExternalExecutionHandle,
     supportsExternalLogs: draft.driver.supportsExternalLogs,
     supportsPreview: draft.driver.supportsPreview,
@@ -460,7 +464,7 @@ function buildPatchRequest(draft: ProjectDraft): ProjectConfigurationPatchReques
     deploymentDriverConfig.branch = draft.driver.branch.trim() || undefined;
   }
 
-  const releaseArtifactSourceConfig: Record<string, unknown> = {};
+  const releaseArtifactSourceConfig: ProjectReleaseArtifactSourceConfigRequest = {};
   if (effectiveReleaseArtifactSource === "blob_arm_template") {
     releaseArtifactSourceConfig.templateUriField = DEFAULT_TEMPLATE_URI_FIELD;
   }
@@ -473,7 +477,7 @@ function buildPatchRequest(draft: ProjectDraft): ProjectConfigurationPatchReques
     releaseArtifactSourceConfig.versionRefField = DEFAULT_TEMPLATE_SPEC_VERSION_FIELD;
   }
 
-  const runtimeHealthProviderConfig: Record<string, unknown> = {
+  const runtimeHealthProviderConfig: ProjectRuntimeHealthProviderConfigRequest = {
     path: draft.runtime.path.trim() || "/",
     expectedStatus: parseOptionalNumber(draft.runtime.expectedStatus),
     timeoutMs: parseOptionalNumber(draft.runtime.timeoutMs),
