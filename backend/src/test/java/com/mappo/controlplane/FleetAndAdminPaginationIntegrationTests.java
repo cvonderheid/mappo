@@ -14,7 +14,7 @@ import com.mappo.controlplane.jooq.enums.MappoRuntimeProbeStatus;
 import com.mappo.controlplane.model.TargetRuntimeProbeRecord;
 import com.mappo.controlplane.model.command.ReleaseWebhookDeliveryCommand;
 import com.mappo.controlplane.persistence.release.ReleaseWebhookRepository;
-import com.mappo.controlplane.persistence.target.TargetCommandRepository;
+import com.mappo.controlplane.persistence.targets.TargetCommandRepository;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;

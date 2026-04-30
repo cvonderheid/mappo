@@ -11,7 +11,7 @@ import com.mappo.controlplane.model.query.TargetRegistrationPageQuery;
 import com.mappo.controlplane.persistence.admin.ForwarderLogPageRepository;
 import com.mappo.controlplane.persistence.admin.MarketplaceEventPageRepository;
 import com.mappo.controlplane.persistence.release.ReleaseWebhookRepository;
-import com.mappo.controlplane.persistence.target.TargetRegistrationPageRepository;
+import com.mappo.controlplane.persistence.targets.TargetRegistrationPageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

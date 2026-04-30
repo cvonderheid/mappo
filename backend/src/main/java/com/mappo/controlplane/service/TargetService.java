@@ -3,7 +3,7 @@ package com.mappo.controlplane.service;
 import com.mappo.controlplane.model.TargetPageRecord;
 import com.mappo.controlplane.model.TargetRuntimeProbeRefreshResultRecord;
 import com.mappo.controlplane.model.query.TargetPageQuery;
-import com.mappo.controlplane.persistence.target.TargetPageQueryRepository;
+import com.mappo.controlplane.persistence.targets.TargetPageQueryRepository;
 import com.mappo.controlplane.service.runtime.TargetRuntimeProbeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

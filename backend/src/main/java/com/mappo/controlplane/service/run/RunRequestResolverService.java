@@ -5,7 +5,7 @@ import com.mappo.controlplane.api.request.RunCreateRequest;
 import com.mappo.controlplane.model.ReleaseRecord;
 import com.mappo.controlplane.model.TargetRecord;
 import com.mappo.controlplane.model.command.CreateRunCommand;
-import com.mappo.controlplane.persistence.target.TargetRecordQueryRepository;
+import com.mappo.controlplane.persistence.targets.TargetRecordQueryRepository;
 import com.mappo.controlplane.service.ReleaseService;
 import com.mappo.controlplane.service.project.ProjectExecutionCapabilityResolver;
 import java.util.List;

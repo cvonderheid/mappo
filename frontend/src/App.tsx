@@ -127,19 +127,19 @@ function lazyWithRouteReload<T extends ComponentType<any>>(loader: () => Promise
   });
 }
 
-const DemoPanel = lazyWithRouteReload(() => import("@/components/DemoPanel"));
-const DeploymentsPage = lazyWithRouteReload(() => import("@/components/DeploymentsPage"));
-const ForwarderLogsPage = lazyWithRouteReload(() => import("@/components/ForwarderLogsPage"));
-const ProviderConnectionsConfigPage = lazyWithRouteReload(() => import("@/components/ProviderConnectionsConfigPage"));
+const DemoPanel = lazyWithRouteReload(() => import("@/routes/DemoPanel"));
+const DeploymentsPage = lazyWithRouteReload(() => import("@/routes/DeploymentsPage"));
+const ForwarderLogsPage = lazyWithRouteReload(() => import("@/routes/ForwarderLogsPage"));
+const ProviderConnectionsConfigPage = lazyWithRouteReload(() => import("@/routes/ProviderConnectionsConfigPage"));
 const ProjectSwitcherMenu = lazyWithRouteReload(() => import("@/components/ProjectSwitcherMenu"));
-const ProjectSettingsPage = lazyWithRouteReload(() => import("@/components/ProjectSettingsPage"));
-const ReleaseIngestConfigPage = lazyWithRouteReload(() => import("@/components/ReleaseIngestConfigPage"));
-const SecretReferencesConfigPage = lazyWithRouteReload(() => import("@/components/SecretReferencesConfigPage"));
-const ReleasesPage = lazyWithRouteReload(() => import("@/components/ReleasesPage"));
+const ProjectSettingsPage = lazyWithRouteReload(() => import("@/routes/ProjectSettingsPage"));
+const ReleaseIngestConfigPage = lazyWithRouteReload(() => import("@/routes/ReleaseIngestConfigPage"));
+const SecretReferencesConfigPage = lazyWithRouteReload(() => import("@/routes/SecretReferencesConfigPage"));
+const ReleasesPage = lazyWithRouteReload(() => import("@/routes/ReleasesPage"));
 const RunDetailPanel = lazyWithRouteReload(() =>
   import("@/components/RunPanels").then((module) => ({ default: module.RunDetailPanel }))
 );
-const TargetsPage = lazyWithRouteReload(() => import("@/components/TargetsPage"));
+const TargetsPage = lazyWithRouteReload(() => import("@/routes/TargetsPage"));
 
 type SidebarNavigationItem = {
   label: string;

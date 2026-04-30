@@ -1,4 +1,4 @@
-package com.mappo.controlplane.persistence.target;
+package com.mappo.controlplane.persistence.targets;
 import com.mappo.controlplane.persistence.support.AdminCommandSupport;
 
 import static com.mappo.controlplane.jooq.Tables.TARGET_REGISTRATIONS;

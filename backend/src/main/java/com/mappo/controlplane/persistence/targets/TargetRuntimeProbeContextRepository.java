@@ -1,4 +1,4 @@
-package com.mappo.controlplane.persistence.target;
+package com.mappo.controlplane.persistence.targets;
 
 import static com.mappo.controlplane.jooq.Tables.PROJECTS;
 import static com.mappo.controlplane.jooq.Tables.TARGET_EXECUTION_CONFIG_ENTRIES;
