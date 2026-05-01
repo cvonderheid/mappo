@@ -131,13 +131,13 @@ const DemoPanel = lazyWithRouteReload(() => import("@/routes/DemoPanel"));
 const DeploymentsPage = lazyWithRouteReload(() => import("@/routes/DeploymentsPage"));
 const ForwarderLogsPage = lazyWithRouteReload(() => import("@/routes/ForwarderLogsPage"));
 const ProviderConnectionsConfigPage = lazyWithRouteReload(() => import("@/routes/ProviderConnectionsConfigPage"));
-const ProjectSwitcherMenu = lazyWithRouteReload(() => import("@/components/ProjectSwitcherMenu"));
+const ProjectSwitcherMenu = lazyWithRouteReload(() => import("@/features/project/ProjectSwitcherMenu"));
 const ProjectSettingsPage = lazyWithRouteReload(() => import("@/routes/ProjectSettingsPage"));
 const ReleaseIngestConfigPage = lazyWithRouteReload(() => import("@/routes/ReleaseIngestConfigPage"));
 const SecretReferencesConfigPage = lazyWithRouteReload(() => import("@/routes/SecretReferencesConfigPage"));
 const ReleasesPage = lazyWithRouteReload(() => import("@/routes/ReleasesPage"));
 const RunDetailPanel = lazyWithRouteReload(() =>
-  import("@/components/RunPanels").then((module) => ({ default: module.RunDetailPanel }))
+  import("@/features/deployments/RunPanels").then((module) => ({ default: module.RunDetailPanel }))
 );
 const TargetsPage = lazyWithRouteReload(() => import("@/routes/TargetsPage"));
 

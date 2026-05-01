@@ -198,7 +198,7 @@ const liveUpdatesMock = vi.hoisted(() => ({
 
 vi.mock("@/lib/live-updates", () => liveUpdatesMock);
 
-vi.mock("@/components/FleetTable", () => ({
+vi.mock("@/features/targets/FleetTable", () => ({
   default: ({ onAddTargets, onRefreshRegistrations }: {
     onAddTargets?: () => void;
     onRefreshRegistrations?: () => Promise<void>;

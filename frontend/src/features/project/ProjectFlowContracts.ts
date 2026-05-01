@@ -1,4 +1,4 @@
-import type { FlowContract } from "@/components/FlowContractDetails";
+import type { FlowContract } from "@/features/project/FlowContractDetails";
 import type { ReleaseIngestEndpoint } from "@/lib/types";
 
 type ProjectFlowContractInput = {

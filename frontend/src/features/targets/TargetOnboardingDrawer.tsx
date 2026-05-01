@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import FieldHelpTooltip from "@/components/FieldHelpTooltip";
+import FieldHelpTooltip from "@/features/shared/FieldHelpTooltip";
 import {
   Accordion,
   AccordionContent,

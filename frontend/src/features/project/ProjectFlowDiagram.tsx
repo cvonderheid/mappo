@@ -3,8 +3,8 @@ import { LuActivity, LuArrowDown, LuBoxes, LuMoveLeft, LuMoveRight, LuWorkflow }
 import { SiGithub } from "react-icons/si";
 import { VscAzure, VscAzureDevops } from "react-icons/vsc";
 
-import { FlowContractDrawer, type FlowContract } from "@/components/FlowContractDetails";
-import { buildProjectFlowContracts } from "@/components/ProjectFlowContracts";
+import { FlowContractDrawer, type FlowContract } from "@/features/project/FlowContractDetails";
+import { buildProjectFlowContracts } from "@/features/project/ProjectFlowContracts";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";

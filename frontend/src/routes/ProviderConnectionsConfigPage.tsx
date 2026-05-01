@@ -1,42 +1,39 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { LuActivity, LuBoxes, LuWorkflow } from "react-icons/lu";
-import { VscAzureDevops } from "react-icons/vsc";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import AdminIntegrationFlowDiagram, {
-  type AdminIntegrationFlowNode,
-} from "@/components/AdminIntegrationFlowDiagram";
-import FieldHelpTooltip from "@/components/FieldHelpTooltip";
-import { Badge } from "@/components/ui/badge";
+import ProviderConnectionCard from "@/features/admin/provider-connections/ProviderConnectionCard";
+import ProviderConnectionDrawer from "@/features/admin/provider-connections/ProviderConnectionDrawer";
+import {
+  AZURE_DEVOPS_SCOPE_REQUIRED_MESSAGE,
+  buildDraftSignature,
+  buildPersonalAccessTokenRef,
+  deploymentConnectionDisplayName,
+  emptyDraft,
+  isAzureDevOpsScopeMissing,
+  isUsableAzureDevOpsConnection,
+  normalize,
+  normalizeDeploymentConnectionError,
+  resolveConnectionAccountUrl,
+  toDraft,
+  type DraftVerificationResult,
+  type ProviderConnectionDraft,
+} from "@/features/admin/provider-connections/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   createProviderConnection,
   deleteProviderConnection,
   discoverProviderConnectionAdoProjects,
-  listSecretReferences,
   listProviderConnections,
+  listSecretReferences,
   patchProviderConnection,
   verifyProviderConnectionAdoProjects,
 } from "@/lib/api";
 import type {
-  ProviderConnectionAdoProject,
   ProviderConnection,
+  ProviderConnectionAdoProject,
   ProviderConnectionCreateRequest,
   ProviderConnectionPatchRequest,
-  ProviderConnectionProvider,
   ProviderConnectionVerifyRequest,
   SecretReference,
 } from "@/lib/types";
@@ -45,416 +42,25 @@ type ProviderConnectionsConfigPageProps = {
   selectedProjectId: string;
 };
 
-type ProviderConnectionDraft = {
-  id: string;
-  name: string;
-  provider: ProviderConnectionProvider;
-  enabled: boolean;
-  organizationUrl: string;
-  personalAccessTokenMode: "backend_default" | "environment_variable" | "key_vault_secret" | "secret_reference";
-  personalAccessTokenEnvVar: string;
-  personalAccessTokenKeyVaultSecret: string;
-  personalAccessTokenSecretReferenceId: string;
-};
-
-type LinkedProject = NonNullable<ProviderConnection["linkedProjects"]>[number];
-
-const DEFAULT_AZURE_DEVOPS_PAT_REF = "mappo.azure-devops.personal-access-token";
-
-const AZURE_DEVOPS_SCOPE_REQUIRED_MESSAGE =
-  "Paste any Azure DevOps project or repository URL from the Azure DevOps account MAPPO should browse. The access token proves MAPPO can authenticate; the URL tells MAPPO which Azure DevOps account to browse so it can load the projects operators choose later.";
-
-function normalizeDeploymentConnectionError(message: string): string {
-  const trimmed = normalize(
-    message
-      .replace(/^discoverProviderConnectionAdoProjects failed \(\d+\):\s*/i, "")
-      .replace(/^verifyProviderConnectionAdoProjects failed \(\d+\):\s*/i, "")
-      .replace(/^patchProviderConnection failed \(\d+\):\s*/i, "")
-      .replace(/^createProviderConnection failed \(\d+\):\s*/i, "")
-  );
-  const normalized = trimmed.toLowerCase();
-  if (
-    normalized.includes("project or repo url is required")
-    || normalized.includes("azure devops url is required")
-    || normalized.includes("account url is required")
-  ) {
-    return AZURE_DEVOPS_SCOPE_REQUIRED_MESSAGE;
-  }
-  if (normalized.includes("pat could not be resolved")) {
-    return "MAPPO could not resolve the Azure DevOps API credential for this deployment connection. Use the MAPPO backend secret, a named secret reference, a backend environment variable, or an Azure Key Vault secret that actually exists, then verify the connection again.";
-  }
-  if (normalized.includes("no accessible azure devops projects were returned")) {
-    return "MAPPO authenticated to Azure DevOps, but that access token could not see any Azure DevOps projects in the selected account. Confirm the URL is correct and that the token can read at least one project.";
-  }
-  return trimmed;
-}
-
-function deriveAzureDevOpsAccountUrl(value: string): string {
-  const normalized = normalize(value);
-  if (normalized === "") {
-    return "";
-  }
-  try {
-    const parsed = new URL(normalized);
-    const host = parsed.hostname.toLowerCase();
-    if (host === "dev.azure.com") {
-      const [organization] = parsed.pathname.split("/").filter(Boolean);
-      return organization ? `${parsed.protocol}//${parsed.host}/${organization}` : "";
-    }
-    if (host.endsWith(".visualstudio.com")) {
-      return `${parsed.protocol}//${parsed.host}`;
-    }
-    return "";
-  } catch {
-    return "";
-  }
-}
-
-function resolveConnectionAccountUrl(connection: ProviderConnection | null | undefined): string {
-  const persisted = normalize(connection?.organizationUrl ?? "");
-  if (persisted !== "") {
-    return deriveAzureDevOpsAccountUrl(persisted) || persisted;
-  }
-  for (const project of connection?.discoveredProjects ?? []) {
-    const derived = deriveAzureDevOpsAccountUrl(project.webUrl ?? "");
-    if (derived !== "") {
-      return derived;
-    }
-  }
-  return "";
-}
-
-function emptyDraft(): ProviderConnectionDraft {
-  return {
-    id: "",
-    name: "",
-    provider: "azure_devops",
-    enabled: true,
-    organizationUrl: "",
-    personalAccessTokenMode: "backend_default",
-    personalAccessTokenEnvVar: "",
-    personalAccessTokenKeyVaultSecret: "",
-    personalAccessTokenSecretReferenceId: "",
-  };
-}
-
-function parsePersonalAccessTokenRef(
-  value: string | undefined
-): Pick<
-  ProviderConnectionDraft,
-  "personalAccessTokenMode" | "personalAccessTokenEnvVar" | "personalAccessTokenKeyVaultSecret" | "personalAccessTokenSecretReferenceId"
-> {
-  const normalized = normalize(value ?? "");
-  if (normalized.startsWith("secret:")) {
-    return {
-      personalAccessTokenMode: "secret_reference",
-      personalAccessTokenEnvVar: "",
-      personalAccessTokenKeyVaultSecret: "",
-      personalAccessTokenSecretReferenceId: normalize(normalized.slice("secret:".length)),
-    };
-  }
-  if (normalized.startsWith("env:")) {
-    return {
-      personalAccessTokenMode: "environment_variable",
-      personalAccessTokenEnvVar: normalize(normalized.slice("env:".length)),
-      personalAccessTokenKeyVaultSecret: "",
-      personalAccessTokenSecretReferenceId: "",
-    };
-  }
-  if (normalized.startsWith("kv:")) {
-    return {
-      personalAccessTokenMode: "key_vault_secret",
-      personalAccessTokenEnvVar: "",
-      personalAccessTokenKeyVaultSecret: normalize(normalized.slice("kv:".length)),
-      personalAccessTokenSecretReferenceId: "",
-    };
-  }
-  return {
-    personalAccessTokenMode: "backend_default",
-    personalAccessTokenEnvVar: "",
-    personalAccessTokenKeyVaultSecret: "",
-    personalAccessTokenSecretReferenceId: "",
-  };
-}
-
-function toDraft(connection: ProviderConnection): ProviderConnectionDraft {
-  const tokenReference = parsePersonalAccessTokenRef(connection.personalAccessTokenRef);
-  return {
-    id: connection.id ?? "",
-    name: connection.name ?? "",
-    provider: (connection.provider ?? "azure_devops") as ProviderConnectionProvider,
-    enabled: connection.enabled ?? true,
-    organizationUrl: resolveConnectionAccountUrl(connection) || (connection.organizationUrl ?? ""),
-    ...tokenReference,
-  };
-}
-
-function normalize(value: string): string {
-  return value.trim();
-}
-
-function maskedSecretRef(value: string): string {
-  const normalized = normalize(value);
-  if (normalized.startsWith("literal:")) {
-    return "literal:(hidden)";
-  }
-  return normalized;
-}
-
-function isUsableAzureDevOpsConnection(connection: ProviderConnection | null | undefined): boolean {
-  return (
-    (connection?.provider ?? "").toLowerCase() === "azure_devops"
-    && (connection?.enabled ?? true)
-    && resolveConnectionAccountUrl(connection) !== ""
-    && (connection?.discoveredProjects?.length ?? 0) > 0
-  );
-}
-
-function buildPersonalAccessTokenRef(draft: ProviderConnectionDraft): string {
-  if (draft.personalAccessTokenMode === "secret_reference") {
-    const secretReferenceId = normalize(draft.personalAccessTokenSecretReferenceId);
-    return secretReferenceId === "" ? "" : `secret:${secretReferenceId}`;
-  }
-  if (draft.personalAccessTokenMode === "environment_variable") {
-    const envVarName = normalize(draft.personalAccessTokenEnvVar);
-    return envVarName === "" ? "" : `env:${envVarName}`;
-  }
-  if (draft.personalAccessTokenMode === "key_vault_secret") {
-    const secretName = normalize(draft.personalAccessTokenKeyVaultSecret);
-    return secretName === "" ? "" : `kv:${secretName}`;
-  }
-  return DEFAULT_AZURE_DEVOPS_PAT_REF;
-}
-
-function isAzureDevOpsScopeMissing(draft: ProviderConnectionDraft): boolean {
-  return draft.provider === "azure_devops" && draft.enabled && normalize(draft.organizationUrl) === "";
-}
-
-function buildDraftSignature(draft: ProviderConnectionDraft): string {
-  return [
-    normalize(draft.provider),
-    draft.enabled ? "enabled" : "disabled",
-    normalize(draft.organizationUrl),
-    normalize(buildPersonalAccessTokenRef(draft)),
-  ].join("|");
-}
-
-function deriveDraftAccountUrl(draft: ProviderConnectionDraft): string {
-  return deriveAzureDevOpsAccountUrl(normalize(draft.organizationUrl));
-}
-
-function describePersonalAccessTokenSource(
-  connection: ProviderConnection,
-  secretReferenceLookup: Record<string, SecretReference>
-): string {
-  const normalized = normalize(connection.personalAccessTokenRef ?? DEFAULT_AZURE_DEVOPS_PAT_REF);
-  if (normalized === DEFAULT_AZURE_DEVOPS_PAT_REF) {
-    return "MAPPO runtime secret";
-  }
-  if (normalized.startsWith("secret:")) {
-    const secretReferenceId = normalize(normalized.slice("secret:".length));
-    return `Secret reference (${secretReferenceLookup[secretReferenceId]?.name || secretReferenceId})`;
-  }
-  if (normalized.startsWith("env:")) {
-    return `Environment variable (${normalize(normalized.slice("env:".length))})`;
-  }
-  if (normalized.startsWith("kv:")) {
-    return `Azure Key Vault secret (${normalize(normalized.slice("kv:".length))})`;
-  }
-  return maskedSecretRef(normalized);
-}
-
-function describeDiscoveredProjectCount(count: number): string {
-  if (count <= 0) {
-    return "No Azure DevOps projects verified yet";
-  }
-  return `${count} Azure DevOps project${count === 1 ? "" : "s"} available`;
-}
-
-function providerConnectionLabel(provider: ProviderConnectionProvider | string | null | undefined): string {
-  return normalize(`${provider ?? "azure_devops"}`) === "azure_devops" ? "Azure DevOps" : `${provider ?? "Provider"}`;
-}
-
-function providerConnectionModeLabel(provider: ProviderConnectionProvider | string | null | undefined): string {
-  return normalize(`${provider ?? "azure_devops"}`) === "azure_devops"
-    ? "Deployment API credential"
-    : "External deployment access";
-}
-
-function providerConnectionIcon(provider: ProviderConnectionProvider | string | null | undefined, className: string) {
-  if (normalize(`${provider ?? "azure_devops"}`) === "azure_devops") {
-    return <VscAzureDevops className={className} />;
-  }
-  return <LuWorkflow className={className} />;
-}
-
-function summarizeLinkedProjects(linkedProjects: LinkedProject[]): string {
-  if (linkedProjects.length === 0) {
-    return "No linked projects";
-  }
-  const labels = linkedProjects.map((linked) =>
-    linked.projectDisplayName || linked.projectName || "Project"
-  );
-  const visible = labels.slice(0, 3).join(", ");
-  const overflow = labels.length - 3;
-  return overflow > 0 ? `${visible}, +${overflow} more` : visible;
-}
-
-function summarizeDiscoveredProjects(projects: ProviderConnectionAdoProject[]): string {
-  if (projects.length === 0) {
-    return "No projects loaded";
-  }
-  const labels = projects.map((project) => project.name || "Azure DevOps project");
-  const visible = labels.slice(0, 3).join(", ");
-  const overflow = labels.length - 3;
-  return overflow > 0 ? `${visible}, +${overflow} more` : visible;
-}
-
-function deploymentConnectionDisplayName(connection: ProviderConnection): string {
-  return connection.name?.trim() || "Unnamed deployment connection";
-}
-
-function verificationTitle({
-  isDiscovering,
-  isVerified,
-  error,
-}: {
-  isDiscovering: boolean;
-  isVerified: boolean;
-  error: string;
-}): string {
-  if (isDiscovering) {
-    return "Verification running";
-  }
-  if (isVerified) {
-    return "Access verified";
-  }
-  if (error) {
-    return "Verification failed";
-  }
-  return "Needs verification";
-}
-
-function buildDeploymentConnectionFlowNodes({
-  connection,
-  resolvedAccountUrl,
-  credentialSource,
-  isDiscovering,
-  isVerified,
-  discoveryError,
-  discoveredProjects,
-  linkedProjects,
-  selectedProjectLinked,
-}: {
-  connection: ProviderConnection;
-  resolvedAccountUrl: string;
-  credentialSource: string;
-  isDiscovering: boolean;
-  isVerified: boolean;
-  discoveryError: string;
-  discoveredProjects: ProviderConnectionAdoProject[];
-  linkedProjects: LinkedProject[];
-  selectedProjectLinked: boolean;
-}): AdminIntegrationFlowNode[] {
-  const provider = connection.provider ?? "azure_devops";
-  const providerLabel = providerConnectionLabel(provider);
-  const displayName = deploymentConnectionDisplayName(connection);
-  return [
-    {
-      step: "00",
-      icon: providerConnectionIcon(provider, "h-5 w-5"),
-      eyebrow: "External account",
-      title: resolvedAccountUrl || "Account scope not set",
-      tone: resolvedAccountUrl ? "default" : "warning",
-      details: [
-        { label: "Provider", value: providerLabel },
-        { label: "Purpose", value: "Account MAPPO can browse" },
-      ],
-    },
-    {
-      step: "01",
-      icon: providerConnectionIcon(provider, "h-5 w-5"),
-      eyebrow: "Deployment system",
-      title: providerLabel,
-      tone: connection.enabled === false ? "warning" : "default",
-      details: [
-        { label: "Connection", value: displayName },
-        { label: "Status", value: connection.enabled ? "Enabled" : "Disabled" },
-      ],
-    },
-    {
-      step: "02",
-      icon: <LuWorkflow className="h-5 w-5" />,
-      eyebrow: "API credential",
-      title: "Server-side credential",
-      details: [
-        { label: "Direction", value: "MAPPO outbound API access" },
-        { label: "Source", value: credentialSource },
-      ],
-    },
-    {
-      step: "03",
-      icon: <LuActivity className="h-5 w-5" />,
-      eyebrow: "Verification",
-      title: verificationTitle({ isDiscovering, isVerified, error: discoveryError }),
-      tone: discoveryError ? "danger" : isDiscovering ? "muted" : isVerified ? "default" : "warning",
-      details: [
-        { label: "Check", value: "Azure DevOps API browse" },
-        { label: "Result", value: discoveryError || describeDiscoveredProjectCount(discoveredProjects.length) },
-      ],
-    },
-    {
-      step: "04",
-      icon: <LuBoxes className="h-5 w-5" />,
-      eyebrow: "Discovered scope",
-      title: "Azure DevOps projects",
-      details: [
-        { label: "Count", value: discoveredProjects.length },
-        { label: "Projects", value: summarizeDiscoveredProjects(discoveredProjects) },
-      ],
-    },
-    {
-      step: "05",
-      icon: <LuBoxes className="h-5 w-5" />,
-      eyebrow: "Consumers",
-      title: linkedProjects.length > 0 ? "Linked MAPPO projects" : "No linked projects",
-      details: [
-        { label: "Count", value: linkedProjects.length },
-        { label: "Projects", value: summarizeLinkedProjects(linkedProjects) },
-        { label: "Selected project", value: selectedProjectLinked ? "Linked" : "Not linked" },
-      ],
-    },
-  ];
-}
-
-type DraftVerificationResult = {
-  effectiveDraft: ProviderConnectionDraft;
-  projects: ProviderConnectionAdoProject[];
-  normalizedOrganizationUrl: string;
-  verifiedSignature: string;
-};
-
 export default function ProviderConnectionsConfigPage({
   selectedProjectId,
 }: ProviderConnectionsConfigPageProps) {
   const [connections, setConnections] = useState<ProviderConnection[]>([]);
   const [secretReferences, setSecretReferences] = useState<SecretReference[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [errorMessage, setErrorMessage] = useState<string>("");
-  const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
-  const [editingId, setEditingId] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingId, setEditingId] = useState("");
   const [draft, setDraft] = useState<ProviderConnectionDraft>(emptyDraft);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [isVerifyingDraft, setIsVerifyingDraft] = useState<boolean>(false);
-  const [draftVerifiedSignature, setDraftVerifiedSignature] = useState<string>("");
-  const [draftVerificationError, setDraftVerificationError] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVerifyingDraft, setIsVerifyingDraft] = useState(false);
+  const [draftVerifiedSignature, setDraftVerifiedSignature] = useState("");
+  const [draftVerificationError, setDraftVerificationError] = useState("");
   const [draftDiscoveredProjects, setDraftDiscoveredProjects] = useState<ProviderConnectionAdoProject[]>([]);
-  const [draftNormalizedOrganizationUrl, setDraftNormalizedOrganizationUrl] = useState<string>("");
+  const [draftNormalizedOrganizationUrl, setDraftNormalizedOrganizationUrl] = useState("");
   const [discoveringConnectionIds, setDiscoveringConnectionIds] = useState<Record<string, boolean>>({});
-  const [discoveredProjectsByConnectionId, setDiscoveredProjectsByConnectionId] = useState<
-    Record<string, ProviderConnectionAdoProject[]>
-  >({});
+  const [discoveredProjectsByConnectionId, setDiscoveredProjectsByConnectionId] = useState<Record<string, ProviderConnectionAdoProject[]>>({});
   const [discoveryErrorsByConnectionId, setDiscoveryErrorsByConnectionId] = useState<Record<string, string>>({});
   const [verifiedConnectionIds, setVerifiedConnectionIds] = useState<Record<string, boolean>>({});
 
@@ -475,10 +81,9 @@ export default function ProviderConnectionsConfigPage({
         const next: Record<string, ProviderConnectionAdoProject[]> = {};
         for (const connection of payload) {
           const connectionId = normalize(connection.id ?? "");
-          if (connectionId === "") {
-            continue;
+          if (connectionId !== "") {
+            next[connectionId] = [...(connection.discoveredProjects ?? [])];
           }
-          next[connectionId] = [...(connection.discoveredProjects ?? [])];
         }
         return next;
       });
@@ -486,10 +91,9 @@ export default function ProviderConnectionsConfigPage({
         const next: Record<string, boolean> = {};
         for (const connection of payload) {
           const connectionId = normalize(connection.id ?? "");
-          if (connectionId === "") {
-            continue;
+          if (connectionId !== "") {
+            next[connectionId] = isUsableAzureDevOpsConnection(connection);
           }
-          next[connectionId] = isUsableAzureDevOpsConnection(connection);
         }
         return next;
       });
@@ -506,16 +110,18 @@ export default function ProviderConnectionsConfigPage({
     void loadConnections();
   }, [loadConnections]);
 
-  const sortedConnections = useMemo(() => {
-    return [...connections].sort((left, right) => {
-      const leftName = `${left.name ?? left.id ?? ""}`.toLowerCase();
-      const rightName = `${right.name ?? right.id ?? ""}`.toLowerCase();
-      if (leftName !== rightName) {
-        return leftName.localeCompare(rightName);
-      }
-      return `${left.id ?? ""}`.localeCompare(`${right.id ?? ""}`);
-    });
-  }, [connections]);
+  const sortedConnections = useMemo(
+    () =>
+      [...connections].sort((left, right) => {
+        const leftName = `${left.name ?? left.id ?? ""}`.toLowerCase();
+        const rightName = `${right.name ?? right.id ?? ""}`.toLowerCase();
+        if (leftName !== rightName) {
+          return leftName.localeCompare(rightName);
+        }
+        return `${left.id ?? ""}`.localeCompare(`${right.id ?? ""}`);
+      }),
+    [connections]
+  );
 
   const secretReferenceLookup = useMemo(() => {
     const lookup: Record<string, SecretReference> = {};
@@ -546,20 +152,11 @@ export default function ProviderConnectionsConfigPage({
 
   const canVerifyDraft =
     normalize(draft.name) !== ""
-    && (!isAzureDevOpsScopeMissing(draft))
+    && !isAzureDevOpsScopeMissing(draft)
     && (
-      (
-        draft.personalAccessTokenMode !== "environment_variable"
-        || normalize(draft.personalAccessTokenEnvVar) !== ""
-      )
-      && (
-        draft.personalAccessTokenMode !== "key_vault_secret"
-        || normalize(draft.personalAccessTokenKeyVaultSecret) !== ""
-      )
-      && (
-        draft.personalAccessTokenMode !== "secret_reference"
-        || normalize(draft.personalAccessTokenSecretReferenceId) !== ""
-      )
+      (draft.personalAccessTokenMode !== "environment_variable" || normalize(draft.personalAccessTokenEnvVar) !== "")
+      && (draft.personalAccessTokenMode !== "key_vault_secret" || normalize(draft.personalAccessTokenKeyVaultSecret) !== "")
+      && (draft.personalAccessTokenMode !== "secret_reference" || normalize(draft.personalAccessTokenSecretReferenceId) !== "")
     );
   const canSaveDraft = canVerifyDraft;
 
@@ -578,8 +175,7 @@ export default function ProviderConnectionsConfigPage({
     const nextDraft = toDraft(connection);
     const connectionId = normalize(connection.id ?? "");
     setDraft(nextDraft);
-    const alreadyVerified = Boolean(verifiedConnectionIds[connectionId]);
-    setDraftVerifiedSignature(alreadyVerified ? buildDraftSignature(nextDraft) : "");
+    setDraftVerifiedSignature(Boolean(verifiedConnectionIds[connectionId]) ? buildDraftSignature(nextDraft) : "");
     setDraftVerificationError(discoveryErrorsByConnectionId[connectionId] ?? "");
     setDraftDiscoveredProjects(discoveredProjectsByConnectionId[connectionId] ?? connection.discoveredProjects ?? []);
     setDraftNormalizedOrganizationUrl(resolveConnectionAccountUrl(connection));
@@ -608,14 +204,7 @@ export default function ProviderConnectionsConfigPage({
     if (draftVerifiedSignature !== "") {
       setDraftVerifiedSignature("");
     }
-  }, [
-    drawerOpen,
-    draft,
-    draftDiscoveredProjects.length,
-    draftNormalizedOrganizationUrl,
-    draftVerificationError,
-    draftVerifiedSignature,
-  ]);
+  }, [drawerOpen, draft, draftDiscoveredProjects.length, draftNormalizedOrganizationUrl, draftVerificationError, draftVerifiedSignature]);
 
   async function verifyDraft(): Promise<DraftVerificationResult> {
     if (isAzureDevOpsScopeMissing(draft)) {
@@ -637,10 +226,7 @@ export default function ProviderConnectionsConfigPage({
       );
     }
     const normalizedOrganizationUrl = normalize(response.organizationUrl ?? "");
-    const effectiveDraft = {
-      ...draft,
-      organizationUrl: normalizedOrganizationUrl || draft.organizationUrl,
-    };
+    const effectiveDraft = { ...draft, organizationUrl: normalizedOrganizationUrl || draft.organizationUrl };
     return {
       effectiveDraft,
       projects,
@@ -675,7 +261,7 @@ export default function ProviderConnectionsConfigPage({
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const name = normalize(draft.name);
     if (name === "") {
@@ -739,6 +325,7 @@ export default function ProviderConnectionsConfigPage({
           `Created and verified deployment connection ${deploymentConnectionDisplayName(savedConnection)}. MAPPO can access ${verifiedProjects.length} Azure DevOps project${verifiedProjects.length === 1 ? "" : "s"}.`
         );
       }
+
       setDiscoveredProjectsByConnectionId((current) => ({
         ...current,
         [savedConnection.id ?? editingId]: verifiedProjects,
@@ -762,10 +349,7 @@ export default function ProviderConnectionsConfigPage({
     }
   }
 
-  async function handleDiscoverProjects(
-    connection: ProviderConnection,
-    options?: { silent?: boolean }
-  ): Promise<void> {
+  async function handleDiscoverProjects(connection: ProviderConnection): Promise<void> {
     const connectionId = normalize(connection.id ?? "");
     if (connectionId === "") {
       return;
@@ -784,18 +368,14 @@ export default function ProviderConnectionsConfigPage({
       }
       setDiscoveredProjectsByConnectionId((current) => ({ ...current, [connectionId]: projects }));
       setVerifiedConnectionIds((current) => ({ ...current, [connectionId]: true }));
-      if (!options?.silent) {
-        toast.success(
-          `Verified ${deploymentConnectionDisplayName(connection)}. Found ${projects.length} Azure DevOps project${projects.length === 1 ? "" : "s"}.`
-        );
-      }
+      toast.success(
+        `Verified ${deploymentConnectionDisplayName(connection)}. Found ${projects.length} Azure DevOps project${projects.length === 1 ? "" : "s"}.`
+      );
     } catch (error) {
       const message = normalizeDeploymentConnectionError((error as Error).message);
       setDiscoveryErrorsByConnectionId((current) => ({ ...current, [connectionId]: message }));
       setVerifiedConnectionIds((current) => ({ ...current, [connectionId]: false }));
-      if (!options?.silent) {
-        toast.error(message);
-      }
+      toast.error(message);
     } finally {
       setDiscoveringConnectionIds((current) => ({ ...current, [connectionId]: false }));
     }
@@ -806,10 +386,7 @@ export default function ProviderConnectionsConfigPage({
     if (connectionId === "") {
       return;
     }
-    const confirmed = window.confirm(
-      `Delete deployment connection ${deploymentConnectionDisplayName(connection)}? This fails if projects are still linked.`
-    );
-    if (!confirmed) {
+    if (!window.confirm(`Delete deployment connection ${deploymentConnectionDisplayName(connection)}? This fails if projects are still linked.`)) {
       return;
     }
     try {
@@ -847,461 +424,67 @@ export default function ProviderConnectionsConfigPage({
           </CardAction>
         </CardHeader>
         <CardContent className="space-y-3">
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading deployment connections...</p>
-          ) : null}
+          {isLoading ? <p className="text-sm text-muted-foreground">Loading deployment connections...</p> : null}
           {!isLoading && sortedConnections.length === 0 ? (
             <p className="text-sm text-muted-foreground">No deployment connections configured yet.</p>
           ) : null}
           {sortedConnections.map((connection) => {
             const connectionId = normalize(connection.id ?? "");
-            const linkedProjects = connection.linkedProjects ?? [];
-            const selectedProjectLinked = linkedProjects.some(
-              (linked) => normalize(linked.projectId ?? "") === selectedProjectId
-            );
+            const discoveredProjects = discoveredProjectsByConnectionId[connectionId] ?? connection.discoveredProjects ?? [];
+            const discoveryError = discoveryErrorsByConnectionId[connectionId] ?? "";
             const isDiscovering = Boolean(discoveringConnectionIds[connectionId]);
             const isVerified = Boolean(verifiedConnectionIds[connectionId]);
-            const discoveredProjects = discoveredProjectsByConnectionId[connectionId] ?? connection.discoveredProjects ?? [];
             const hasDiscoveryState =
               Object.prototype.hasOwnProperty.call(discoveredProjectsByConnectionId, connectionId)
               || discoveredProjects.length > 0
               || isVerified
-              || Boolean(discoveryErrorsByConnectionId[connectionId]);
-            const resolvedAccountUrl = resolveConnectionAccountUrl(connection);
-            const discoveryError = discoveryErrorsByConnectionId[connectionId] ?? "";
-            const credentialSource = describePersonalAccessTokenSource(connection, secretReferenceLookup);
-            const flowNodes = buildDeploymentConnectionFlowNodes({
-              connection,
-              resolvedAccountUrl,
-              credentialSource,
-              isDiscovering,
-              isVerified,
-              discoveryError,
-              discoveredProjects,
-              linkedProjects,
-              selectedProjectLinked,
-            });
+              || Boolean(discoveryError);
             return (
-              <Card key={connectionId || connection.name} className="border border-border/70 bg-card/70">
-                <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="space-y-1">
-                    <CardTitle>{deploymentConnectionDisplayName(connection)}</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      {providerConnectionLabel(connection.provider)} · {providerConnectionModeLabel(connection.provider)}
-                    </p>
-                  </div>
-                  <CardAction className="flex-wrap justify-end">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        void handleDiscoverProjects(connection);
-                      }}
-                      disabled={connectionId === "" || isDiscovering}
-                    >
-                      {isDiscovering
-                        ? "Verifying..."
-                        : hasDiscoveryState
-                          ? "Re-verify access"
-                          : "Verify / refresh access"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openEditDrawer(connection)}
-                      disabled={connectionId === ""}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="border-destructive/60 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      onClick={() => {
-                        void handleDelete(connection);
-                      }}
-                      disabled={connectionId === ""}
-                    >
-                      Delete
-                    </Button>
-                  </CardAction>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <AdminIntegrationFlowDiagram nodes={flowNodes} />
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline">
-                      Provider: {providerConnectionLabel(connection.provider)}
-                    </Badge>
-                    <Badge variant="outline">
-                      {connection.enabled ? "Enabled" : "Disabled"}
-                    </Badge>
-                    {isDiscovering ? (
-                      <Badge variant="secondary">Verifying...</Badge>
-                    ) : isVerified ? (
-                      <Badge variant="outline">Verified access</Badge>
-                    ) : discoveryErrorsByConnectionId[connectionId] ? (
-                      <Badge variant="destructive">Verification failed</Badge>
-                    ) : null}
-                    <span className="text-xs text-muted-foreground">
-                      {describeDiscoveredProjectCount(discoveredProjects.length)}
-                    </span>
-                  </div>
-                  <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
-                    <p>
-                      Azure DevOps account scope:{" "}
-                      <span className="font-mono text-foreground">
-                        {resolvedAccountUrl || "not configured"}
-                      </span>
-                    </p>
-                    <p>
-                      API credential source:{" "}
-                      <span className="font-medium text-foreground">
-                        {credentialSource}
-                      </span>
-                    </p>
-                  </div>
-                  {resolvedAccountUrl === "" ? (
-                    <p className="rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                      This deployment connection still needs verification. Edit it, paste any Azure DevOps project or repository URL from the Azure DevOps account MAPPO should browse, then verify the connection.
-                    </p>
-                  ) : null}
-                  {isVerified ? (
-                    <p className="rounded-md border border-border/60 bg-background/40 px-3 py-2 text-xs text-muted-foreground">
-                      Verified Azure DevOps access. MAPPO can browse {discoveredProjects.length} Azure DevOps project{discoveredProjects.length === 1 ? "" : "s"} through this deployment connection.
-                    </p>
-                  ) : null}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-muted-foreground">MAPPO projects using this connection:</span>
-                    {linkedProjects.length === 0 ? (
-                      <Badge variant="secondary">none</Badge>
-                    ) : (
-                      linkedProjects.map((linked) => {
-                        const projectId = linked.projectId ?? "unknown";
-                        const label = linked.projectDisplayName || linked.projectName || "Project";
-                        return (
-                          <Badge
-                            key={`${connectionId}-${projectId}`}
-                            variant={selectedProjectLinked && projectId === selectedProjectId ? "outline" : "secondary"}
-                          >
-                            {label}
-                          </Badge>
-                        );
-                      })
-                    )}
-                  </div>
-                  {hasDiscoveryState ? (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-muted-foreground">Azure DevOps projects MAPPO can browse:</span>
-                      {discoveredProjects.length ? (
-                        discoveredProjects.map((project) => (
-                          <Badge key={`${connectionId}-${project.id}`} variant="outline">
-                            {project.name || "Azure DevOps project"}
-                          </Badge>
-                        ))
-                      ) : (
-                        <Badge variant="secondary">none</Badge>
-                      )}
-                    </div>
-                  ) : null}
-                  {discoveryError ? (
-                    <p className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive-foreground">
-                      {discoveryError}
-                    </p>
-                  ) : null}
-                </CardContent>
-              </Card>
+              <ProviderConnectionCard
+                key={connectionId || connection.name}
+                connection={connection}
+                selectedProjectId={selectedProjectId}
+                isDiscovering={isDiscovering}
+                isVerified={isVerified}
+                discoveredProjects={discoveredProjects}
+                discoveryError={discoveryError}
+                hasDiscoveryState={hasDiscoveryState}
+                secretReferenceLookup={secretReferenceLookup}
+                onDiscover={(item) => {
+                  void handleDiscoverProjects(item);
+                }}
+                onEdit={openEditDrawer}
+                onDelete={(item) => {
+                  void handleDelete(item);
+                }}
+              />
             );
           })}
         </CardContent>
       </Card>
 
-      <Drawer direction="top" open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <DrawerContent className="glass-card">
-          <DrawerHeader>
-            <DrawerTitle>{editingId ? `Edit ${draft.name.trim() || "deployment connection"}` : "New Deployment Connection"}</DrawerTitle>
-            <DrawerDescription>
-              Configure how MAPPO authenticates to an external deployment system, then verify that MAPPO can browse the Azure DevOps projects operators will select later.
-            </DrawerDescription>
-          </DrawerHeader>
-          <div className="max-h-[72vh] overflow-y-auto px-4 pb-2">
-            <form id="provider-connection-form" className="grid grid-cols-1 gap-3 sm:grid-cols-2" onSubmit={handleSubmit}>
-              <div className="space-y-1">
-                <div className="flex items-center gap-1">
-                  <Label htmlFor="provider-connection-name">Display name</Label>
-                  <FieldHelpTooltip content="Friendly name operators will pick later in Project → Config when they choose how MAPPO talks to this deployment system." />
-                </div>
-                <Input
-                  id="provider-connection-name"
-                  value={draft.name}
-                  onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
-                  placeholder="Azure DevOps Default"
-                  required
-                />
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-1">
-                  <Label htmlFor="provider-connection-provider">Deployment system</Label>
-                  <FieldHelpTooltip content="External deployment system MAPPO will call through this connection." />
-                </div>
-                <Select
-                  value={draft.provider}
-                  onValueChange={(value) =>
-                    setDraft((current) => ({
-                      ...current,
-                      provider: value as ProviderConnectionProvider,
-                      personalAccessTokenMode: "backend_default",
-                      personalAccessTokenEnvVar: "",
-                      personalAccessTokenKeyVaultSecret: "",
-                      personalAccessTokenSecretReferenceId: "",
-                    }))
-                  }
-                >
-                  <SelectTrigger id="provider-connection-provider">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="azure_devops">Azure DevOps</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="provider-connection-enabled">Enabled</Label>
-                <Select
-                  value={draft.enabled ? "enabled" : "disabled"}
-                  onValueChange={(value) =>
-                    setDraft((current) => ({ ...current, enabled: value === "enabled" }))
-                  }
-                >
-                  <SelectTrigger id="provider-connection-enabled">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="enabled">Enabled</SelectItem>
-                    <SelectItem value="disabled">Disabled</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-3 rounded-md border border-border/60 bg-background/40 p-3 sm:col-span-2">
-                <div>
-                  <p className="text-sm font-medium text-foreground">Azure DevOps account scope</p>
-                  <p className="text-xs text-muted-foreground">
-                    Tell MAPPO which Azure DevOps account it should browse. Azure DevOps PATs do not tell MAPPO which account to inspect, so paste any project or repository URL from that account and MAPPO will derive the account automatically.
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="provider-connection-organization-url">Example Azure DevOps project or repository URL</Label>
-                    <FieldHelpTooltip content="Paste any Azure DevOps project or repository URL from the account this deployment connection should browse. MAPPO derives the Azure DevOps account automatically from that URL and verifies that the access token can read projects there." />
-                  </div>
-                  <Input
-                    id="provider-connection-organization-url"
-                    value={draft.organizationUrl}
-                    onChange={(event) =>
-                      setDraft((current) => ({ ...current, organizationUrl: event.target.value }))
-                    }
-                    placeholder="https://dev.azure.com/<org>/<project> or https://<org>.visualstudio.com/<project>/_git/<repo>"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    MAPPO derives the Azure DevOps account from this URL, verifies the access token against that account, and loads the Azure DevOps projects operators can choose later in Project → Config.
-                  </p>
-                  {deriveDraftAccountUrl(draft) !== "" ? (
-                    <p className="text-xs text-muted-foreground">
-                      Derived Azure DevOps account scope:{" "}
-                      <span className="font-mono text-foreground">{deriveDraftAccountUrl(draft)}</span>
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-              <div className="space-y-3 rounded-md border border-border/60 bg-background/40 p-3 sm:col-span-2">
-                <div>
-                  <p className="text-sm font-medium text-foreground">Azure DevOps API credential</p>
-                  <p className="text-xs text-muted-foreground">
-                    Choose how MAPPO resolves the Azure DevOps access token for this deployment connection. Save and verify performs a real Azure DevOps API call before operators can use this connection in a project.
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="provider-connection-pat-mode">Azure DevOps access token source</Label>
-                    <FieldHelpTooltip content="How MAPPO resolves the Azure DevOps access token for this deployment connection. Save and verify performs a real Azure DevOps API call so MAPPO can prove the credential works before operators use this connection in a project." />
-                  </div>
-                  <Select
-                    value={draft.personalAccessTokenMode}
-                  onValueChange={(value) =>
-                    setDraft((current) => ({
-                      ...current,
-                      personalAccessTokenMode: value as ProviderConnectionDraft["personalAccessTokenMode"],
-                      personalAccessTokenSecretReferenceId:
-                        value === "secret_reference" ? current.personalAccessTokenSecretReferenceId : "",
-                      personalAccessTokenEnvVar:
-                        value === "environment_variable" ? current.personalAccessTokenEnvVar : "",
-                      personalAccessTokenKeyVaultSecret:
-                        value === "key_vault_secret" ? current.personalAccessTokenKeyVaultSecret : "",
-                    }))
-                    }
-                  >
-                    <SelectTrigger id="provider-connection-pat-mode">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="backend_default">Use MAPPO backend secret</SelectItem>
-                      <SelectItem value="secret_reference">Use secret reference</SelectItem>
-                      <SelectItem value="environment_variable">Use backend environment variable</SelectItem>
-                      <SelectItem value="key_vault_secret">Use Azure Key Vault secret</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {draft.personalAccessTokenMode === "backend_default" ? (
-                    <p className="text-xs text-muted-foreground">
-                      MAPPO will use the Azure DevOps access token already configured on the backend runtime at{" "}
-                      <span className="font-mono text-foreground">{DEFAULT_AZURE_DEVOPS_PAT_REF}</span>.
-                    </p>
-                  ) : null}
-                  {draft.personalAccessTokenMode === "secret_reference" ? (
-                    <p className="text-xs text-muted-foreground">
-                      Use a named secret from <span className="font-medium text-foreground">Admin → Secret Inventory</span> so operators do not have to type raw Key Vault secret names here.
-                    </p>
-                  ) : null}
-                </div>
-                {draft.personalAccessTokenMode === "secret_reference" ? (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1">
-                      <Label htmlFor="provider-connection-pat-secret-reference">Secret reference</Label>
-                      <FieldHelpTooltip content="Named Azure DevOps deployment API credential from Admin → Secret Inventory. MAPPO still resolves the real secret value server-side." />
-                    </div>
-                    <Select
-                      value={normalize(draft.personalAccessTokenSecretReferenceId) === "" ? "__none" : draft.personalAccessTokenSecretReferenceId}
-                      onValueChange={(value) =>
-                        setDraft((current) => ({
-                          ...current,
-                          personalAccessTokenSecretReferenceId: value === "__none" ? "" : value,
-                        }))
-                      }
-                    >
-                      <SelectTrigger id="provider-connection-pat-secret-reference">
-                        <SelectValue placeholder="Select secret reference" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none">Select secret reference</SelectItem>
-                        {deploymentApiSecretReferences.map((secretReference) => (
-                          <SelectItem key={secretReference.id ?? secretReference.name} value={secretReference.id ?? ""}>
-                            {secretReference.name || secretReference.id}
-                            {" ("}
-                            {secretReference.id}
-                            {")"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {deploymentApiSecretReferences.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">
-                        No Azure DevOps API secret references exist yet. Create one in <span className="font-medium text-foreground">Admin → Secret Inventory</span>.
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-                {draft.personalAccessTokenMode === "environment_variable" ? (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1">
-                      <Label htmlFor="provider-connection-pat-env-var">Backend environment variable</Label>
-                      <FieldHelpTooltip content="Name of the environment variable on the MAPPO backend runtime that contains the Azure DevOps access token." />
-                    </div>
-                    <Input
-                      id="provider-connection-pat-env-var"
-                      value={draft.personalAccessTokenEnvVar}
-                      onChange={(event) =>
-                        setDraft((current) => ({ ...current, personalAccessTokenEnvVar: event.target.value }))
-                      }
-                      placeholder="MAPPO_AZURE_DEVOPS_PERSONAL_ACCESS_TOKEN"
-                    />
-                  </div>
-                ) : null}
-                {draft.personalAccessTokenMode === "key_vault_secret" ? (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1">
-                      <Label htmlFor="provider-connection-pat-key-vault-secret">Azure Key Vault secret name</Label>
-                      <FieldHelpTooltip content="Name of the secret in MAPPO's Azure Key Vault that stores the Azure DevOps access token. Enter only the secret name, not the secret value." />
-                    </div>
-                    <Input
-                      id="provider-connection-pat-key-vault-secret"
-                      value={draft.personalAccessTokenKeyVaultSecret}
-                      onChange={(event) =>
-                        setDraft((current) => ({ ...current, personalAccessTokenKeyVaultSecret: event.target.value }))
-                      }
-                      placeholder="mappo-ado-org-pat"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      MAPPO will resolve this as <span className="font-mono text-foreground">kv:{normalize(draft.personalAccessTokenKeyVaultSecret) || "secret-name"}</span> using the Azure Key Vault configured on the backend runtime. To keep this linked to Admin → Secret Inventory, choose <span className="font-medium text-foreground">Use secret reference</span> above instead.
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-              <div className="rounded-md border border-border/60 bg-background/40 p-3 text-xs text-muted-foreground sm:col-span-2">
-              <p className="font-medium text-foreground">Preview Azure DevOps access</p>
-                <p className="mt-1">
-                  Save and verify performs this check automatically. Use Preview only if you want to confirm the Azure DevOps account scope and the projects MAPPO can browse before you save the deployment connection.
-                </p>
-                {draftNormalizedOrganizationUrl ? (
-                  <p className="mt-2">
-                    Verified Azure DevOps account scope:{" "}
-                    <span className="font-mono text-foreground">{draftNormalizedOrganizationUrl}</span>
-                  </p>
-                ) : null}
-                {draftDiscoveredProjects.length > 0 ? (
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Azure DevOps projects MAPPO can browse:</span>
-                    {draftDiscoveredProjects.map((project) => (
-                      <Badge key={`draft-${project.id}`} variant="secondary">
-                        {project.name}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : null}
-                {draftVerificationError ? (
-                  <p className="mt-2 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                    {draftVerificationError}
-                  </p>
-                ) : null}
-                {draftVerifiedSignature !== "" ? (
-                  <p className="mt-2 text-emerald-300">
-                    Preview passed. Save and verify will persist this Azure DevOps account and the Azure DevOps projects MAPPO discovered.
-                  </p>
-                ) : null}
-              </div>
-            </form>
-          </div>
-          <DrawerFooter className="flex-row justify-end gap-2">
-            <DrawerClose asChild>
-              <Button type="button" variant="outline">
-                Cancel
-              </Button>
-            </DrawerClose>
-              <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                void handleVerifyDraft();
-              }}
-              disabled={isSubmitting || isVerifyingDraft || !canVerifyDraft}
-            >
-              {isVerifyingDraft ? "Previewing..." : "Preview access"}
-            </Button>
-            <Button
-              form="provider-connection-form"
-              type="submit"
-              disabled={isSubmitting || isVerifyingDraft || !canSaveDraft}
-            >
-              {isSubmitting
-                ? "Saving..."
-                : editingId
-                  ? "Save and verify connection"
-                  : "Create and verify connection"}
-            </Button>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
+      <ProviderConnectionDrawer
+        open={drawerOpen}
+        editingId={editingId}
+        draft={draft}
+        deploymentApiSecretReferences={deploymentApiSecretReferences}
+        draftDiscoveredProjects={draftDiscoveredProjects}
+        draftNormalizedOrganizationUrl={draftNormalizedOrganizationUrl}
+        draftVerificationError={draftVerificationError}
+        draftVerifiedSignature={draftVerifiedSignature}
+        isSubmitting={isSubmitting}
+        isVerifyingDraft={isVerifyingDraft}
+        canVerifyDraft={canVerifyDraft}
+        canSaveDraft={canSaveDraft}
+        onOpenChange={setDrawerOpen}
+        onDraftChange={(updater) => setDraft((current) => updater(current))}
+        onSubmit={(event) => {
+          void handleSubmit(event);
+        }}
+        onVerify={() => {
+          void handleVerifyDraft();
+        }}
+      />
     </div>
   );
 }

@@ -7,12 +7,12 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 
-import DataTablePagination from "@/components/DataTablePagination";
+import DataTablePagination from "@/features/shared/DataTablePagination";
 import type { Release, RunDetail, RunSummary, TargetExecutionRecord } from "@/lib/types";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import ColumnVisibilityMenu from "@/components/ColumnVisibilityMenu";
+import ColumnVisibilityMenu from "@/features/shared/ColumnVisibilityMenu";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu,

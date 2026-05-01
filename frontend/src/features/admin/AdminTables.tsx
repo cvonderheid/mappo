@@ -9,8 +9,8 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 
-import ColumnVisibilityMenu from "@/components/ColumnVisibilityMenu";
-import DataTablePagination from "@/components/DataTablePagination";
+import ColumnVisibilityMenu from "@/features/shared/ColumnVisibilityMenu";
+import DataTablePagination from "@/features/shared/DataTablePagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

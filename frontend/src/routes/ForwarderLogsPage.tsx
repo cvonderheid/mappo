@@ -1,4 +1,4 @@
-import { ForwarderLogsDataTable } from "@/components/AdminTables";
+import { ForwarderLogsDataTable } from "@/features/admin/AdminTables";
 
 type ForwarderLogsPageProps = {
   refreshKey: number;

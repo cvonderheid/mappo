@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
-import { ReleaseWebhookDeliveriesDataTable } from "@/components/AdminTables";
-import ReleaseIngestDrawer from "@/components/ReleaseIngestDrawer";
+import { ReleaseWebhookDeliveriesDataTable } from "@/features/admin/AdminTables";
+import ReleaseIngestDrawer from "@/features/releases/ReleaseIngestDrawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

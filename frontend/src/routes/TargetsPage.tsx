@@ -2,9 +2,9 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
-import { EventsDataTable } from "@/components/AdminTables";
-import FleetTable from "@/components/FleetTable";
-import TargetOnboardingDrawer from "@/components/TargetOnboardingDrawer";
+import { EventsDataTable } from "@/features/admin/AdminTables";
+import FleetTable from "@/features/targets/FleetTable";
+import TargetOnboardingDrawer from "@/features/targets/TargetOnboardingDrawer";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import {

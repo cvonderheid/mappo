@@ -10,8 +10,8 @@ import {
 } from "@tanstack/react-table";
 import { toast } from "sonner";
 
-import ColumnVisibilityMenu from "@/components/ColumnVisibilityMenu";
-import DataTablePagination from "@/components/DataTablePagination";
+import ColumnVisibilityMenu from "@/features/shared/ColumnVisibilityMenu";
+import DataTablePagination from "@/features/shared/DataTablePagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

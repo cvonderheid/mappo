@@ -1,7 +1,7 @@
 import { FormEvent } from "react";
 
-import { RunList } from "@/components/RunPanels";
-import { PreviewProgressCard, RunPreviewPanel } from "@/components/RunPreviewPanel";
+import { RunList } from "@/features/deployments/RunPanels";
+import { PreviewProgressCard, RunPreviewPanel } from "@/features/deployments/RunPreviewPanel";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
